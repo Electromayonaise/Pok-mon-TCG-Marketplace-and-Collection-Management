@@ -14,7 +14,7 @@ Six-stage workflow, each stage a separate commit so any point can be reviewed or
 | 3 | Reconciled final deliverables | `05bf2df` | `docs/spec-task-1/SPEC.md`, this file |
 | 4 | Human-review correction: five flagged assumptions resolved, narrowed, or deliberately kept open | `9d73e93` | `docs/spec-task-1/SPEC.md`, this file |
 | 5 | Adversarial-review hardening (`bmad-review-adversarial-general`); test-design/edge-case-hunter deliberately skipped | `4c78ce9` | `docs/spec-task-1/SPEC.md`, this file |
-| 6 | Page-budget trim: prose tightened, near-duplicate bullets merged, to fit the assignment's 2-page cap for `SPEC.md` | `<pending>` | `docs/spec-task-1/SPEC.md`, this file |
+| 6 | Page-budget trim: prose tightened, near-duplicate bullets merged, to fit the assignment's 2-page cap for `SPEC.md` | `2e8a39b` | `docs/spec-task-1/SPEC.md`, this file |
 
 **Stage 4 note:** during human review of stage 3, Martin worked through the flagged Assumptions one at a time, answering what he actually knew from first-hand knowledge of the project's intent (not the source PDF, which is silent on all of these) and explicitly declining to answer what he didn't — asking to leave that one flagged rather than have it guessed. This is the case the assignment's Assumptions section exists for: surface what the spec author doesn't know, then correct it once they do, on the record, and leave the rest honestly flagged. See Key Decision 6 below for the specific edits this drove.
 
