@@ -1,0 +1,43 @@
+installation:
+  version: 6.10.0
+  installDate: 2026-08-09T03:54:56.031Z
+  lastUpdated: 2026-08-09T03:54:56.031Z
+modules:
+  - name: core
+    version: 6.10.0
+    installDate: 2026-08-09T03:54:53.448Z
+    lastUpdated: 2026-08-09T03:54:56.024Z
+    source: built-in
+    npmPackage: null
+    repoUrl: null
+  - name: bmm
+    version: 6.10.0
+    installDate: 2026-08-09T03:54:53.400Z
+    lastUpdated: 2026-08-09T03:54:56.026Z
+    source: built-in
+    npmPackage: null
+    repoUrl: null
+  - name: tea
+    version: v1.21.7
+    installDate: 2026-08-09T03:54:54.264Z
+    lastUpdated: 2026-08-09T03:54:56.029Z
+    source: external
+    npmPackage: bmad-method-test-architecture-enterprise
+    repoUrl: https://github.com/bmad-code-org/bmad-method-test-architecture-enterprise
+    channel: stable
+    sha: 2882e9c8972a94f48d5e848039eec435436f2459
+  - name: wds
+    version: v0.4.3
+    installDate: 2026-08-09T03:54:55.152Z
+    lastUpdated: 2026-08-09T03:54:56.031Z
+    source: external
+    npmPackage: bmad-wds
+    repoUrl: https://github.com/bmad-code-org/bmad-method-wds-expansion
+    channel: stable
+    sha: cc16f09fcfab26d35635af1491f36a38a8431c8d
+ides:
+  - claude-code
+  - github-copilot
+  - cursor
+  - codex
+  - cline
