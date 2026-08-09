@@ -11,7 +11,7 @@ Three-stage workflow, each stage a separate commit so any point can be reviewed 
 | 0 | BMAD scaffold install + source PDF | `e324733` | — |
 | 1 | Human-reasoning draft (no AI spec-tooling) | `1477625` | `docs/spec-task-1/01-human-draft/SPEC.md` |
 | 2 | AI-assisted kernel (`bmad-spec` skill) | `7cb93ed` | `_bmad-output/specs/spec-pokemon-tcg-marketplace/` |
-| 3 | Reconciled final deliverables | *(this commit)* | `docs/spec-task-1/SPEC.md`, this file |
+| 3 | Reconciled final deliverables | `05bf2df` | `docs/spec-task-1/SPEC.md`, this file |
 
 ## AI Usage Tracking
 
