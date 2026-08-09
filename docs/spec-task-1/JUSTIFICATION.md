@@ -1,0 +1,47 @@
+# Spec Task 1 — Justifications, AI Usage, and Self-Review
+
+Companion document to `docs/spec-task-1/SPEC.md`, per the assignment's second-deliverable requirement (decisions made, AI usage tracking, self-review).
+
+## Process and Git Trail
+
+Three-stage workflow, each stage a separate commit so any point can be reviewed or redone independently:
+
+| Stage | What | Commit | Path |
+|---|---|---|---|
+| 0 | BMAD scaffold install + source PDF | `e324733` | — |
+| 1 | Human-reasoning draft (no AI spec-tooling) | `1477625` | `docs/spec-task-1/01-human-draft/SPEC.md` |
+| 2 | AI-assisted kernel (`bmad-spec` skill) | `7cb93ed` | `_bmad-output/specs/spec-pokemon-tcg-marketplace/` |
+| 3 | Reconciled final deliverables | *(this commit)* | `docs/spec-task-1/SPEC.md`, this file |
+
+## AI Usage Tracking
+
+- **Tool:** Claude (Claude Code, Sonnet 5) running the BMAD `bmad-spec` skill, invoked headlessly against `docs/Problem-statement.pdf` directly — not against the stage-1 draft, so the AI pass was an independent read of the source rather than a paraphrase of the human draft.
+- **What the AI produced:** a 16-capability, 9-constraint, 10-non-goal kernel plus 6 assumptions (3 risky / 3 safe) and 7 open questions, logged one line at a time to `_bmad-output/specs/spec-pokemon-tcg-marketplace/.memlog.md` (51 append-only entries, every one tagged `--by ai`) — the complete, timestamped record of what the AI asserted and why. `SPEC.md` and `stakeholders.md` in that folder are rendered from that log, not hand-edited.
+- **Self-validation the tool ran on itself:** two passes logged as events in the memlog — a coherence pass against `bmad-spec`'s 6 internal quality rules (capabilities need both intent and success, intents describe WHAT not HOW, constraints must actually rule something out, at least one non-goal, success signal must be demonstrable, capability IDs stable), and a preservation pass that re-walked the source claim by claim. The preservation pass caught 3 gaps on its own first sweep before I reviewed it: the Stakeholders section didn't fit the flat kernel (spawned the `stakeholders.md` companion), and two Constraints-and-Tensions paragraphs (the user-generated-content reliability boundary, and the business-application required fields) hadn't landed anywhere — both were added as constraints before the pass was recorded as clean.
+- **What I (human) did the AI didn't:** wrote the Contract section (`bmad-spec`'s template has no Contract field by design — its Spec Law explicitly keeps intents to WHAT, not interface-level HOW), chose which of the AI's 16 capabilities to keep vs. merge for the page budget, decided which open questions to resolve as flagged risky assumptions vs. drop, and reconciled stage 1 against stage 2 line by line (below).
+
+## Key Decisions and Justifications
+
+1. **Contract section authored manually, not by `bmad-spec`.** The tool's kernel doesn't have a Contract field — it deliberately avoids interface-level prescription. Since Contract clarity is 20% of the grade (the largest single weight) and the assignment explicitly wants "exact function/API signatures," I wrote it directly from the two `bmad-spec` runs' Capabilities, using plain-language pseudo-signatures (`Operation(inputs) → output, Errors: ...`) rather than real code, to satisfy "no code in this first draft" and "precise... signatures" at once — these two format requirements are in tension, and pseudo-signature notation is the resolution.
+2. **Capabilities trimmed from 16 (AI) to 12 (final), and 10 (human draft) to 12.** The human draft (stage 1) missed reputation/reviews, collection value tracking, and acquisition-planning as testable capabilities entirely — the AI pass caught these directly from the source's High-Level Goals list, and they're now in the final. Conversely, several of the AI's 16 were near-duplicates once "intent+success" scaffolding was stripped (e.g., separate capabilities for binder view and collection groupings collapsed into one bullet) — kept for page budget, not because the underlying behavior was wrong.
+3. **Open questions folded into flagged Assumptions, not a separate section.** `bmad-spec` produced 7 open questions (e.g., "does the platform process business-seller transactions directly?", "what currency?", "who can review a seller?"). The assignment's format has exactly 7 fixed headers with no Open-Questions slot, so each question that materially affects downstream design was converted into an explicit, risk-flagged assumption in the final Assumptions section rather than silently dropped — e.g., "business-seller transactions are also off-platform in this iteration" is a stated (risky) assumption, not a hidden gap. Lower-stakes questions (exact admin moderation actions, volume limits on collections) were dropped for space; they don't change a Capability or Constraint if answered either way.
+4. **Constraints merged additively.** Stage 1 (human) and stage 2 (AI) constraint lists overlapped on catalog/listing independence, price provenance, and seller-tier verification rules, but each caught something the other didn't: the AI added the user-generated-content reliability boundary and the business-application required-fields constraint (both present in the source's Constraints-and-Tensions section but missed in the human first pass); the human draft's course-scope constraint ("must not fix architecture/DB/UI/stack") was kept since the AI pass didn't separate course-process constraints from system constraints.
+5. **Non-Goals: added dispute resolution.** Not explicitly listed in the source's own Out-of-Scope list, but the AI flagged it as a domain implication the source leaves silent (a marketplace with buyer/seller contact implies disputes will happen) — added as an explicit non-goal rather than an invented capability, consistent with Spec Law's instruction to flag silent domain implications rather than answer them.
+
+## Self-Review Against the Rubric
+
+- **Contract clarity (20%):** 11 operations, each with input, output, and named error cases, in plain language. Risk: pseudo-signature notation could read as "implementation leakage" to a strict grader — mitigated by keeping all types abstract (`itemRef`, not a DB foreign key) and omitting anything below the interface boundary (no storage, no algorithms).
+- **Why (10%):** grounded in the source's own Problem Statement and Stakeholders sections, names the specific fragmentation (research/price/seller-discovery/negotiation/collection-tracking split across tools) and both beneficiary groups (collectors/buyers, individual sellers/businesses) rather than a generic "users want convenience" claim.
+- **Capabilities (15%):** every bullet is phrased as an observable, testable behavior (verb + object + observable outcome), not an implementation note; cross-checked against all 15 bullets in the source's High-Level Goals list — all are covered by at least one final capability.
+- **Constraints (15%):** each constraint rules something out (checked against `bmad-spec`'s "decoration test" — a constraint that forbids nothing was rejected during reconciliation). All 8 trace to specific source paragraphs, not invented.
+- **Non-Goals (15%):** 7 items, 6 taken verbatim from the source's explicit Out-of-Scope list, 1 (dispute resolution) added as a flagged domain-silence gap.
+- **Success Signal (15%):** rewritten from the AI pass's single narrative paragraph into 5 binary, testable assertions (each is a pass/fail check against a specific operation's output), addressing the rubric's warning against vague "works well" language.
+- **Assumptions (10%):** 8 total, explicitly split 5 risky / 3 safe, each naming what would break if false (e.g., if business transactions turn out to need on-platform payment, `CreateListing`/`ReviewBusinessApplication` need a payment-status field the current Contract doesn't have).
+
+## Ambiguities, Omissions, Contradictions, and Anti-Patterns Found
+
+- **Contradiction (format-level):** "no code" vs. "exact function/API signatures" — resolved via plain-language pseudo-signatures (see Decision 1).
+- **Omission (stage 1 only):** reviews/reputation, collection value history, and acquisition-planning-by-factors were absent from the human draft's Capabilities — caught by cross-checking against the AI pass and the source's own goal list; fixed in the final.
+- **Omission (both stages, caught late):** neither stage's first pass captured the source's explicit requirement that business applications carry "legal identity and external presence (Instagram/website)" as specific fields — only showed up once the AI's preservation-pass re-walked the source claim by claim. Now in both the Contract (`SubmitBusinessApplication` parameters) and Constraints.
+- **Genuine unresolved ambiguity in the source (not invented, not silently resolved):** whether business-seller transactions are processed on-platform or off-platform — the source only specifies the off-platform model for individual sellers and never says how business sales work. Left as a flagged risky assumption rather than guessed as fact.
+- **Anti-pattern avoided:** the AI's first draft of Non-Goals nearly duplicated a Constraint ("platform does not process individual-seller transactions" appearing in both lists) — resolved by keeping the operational rule in Constraints (it bends the Contract's error cases) and keeping only the truly out-of-scope mechanism (in-platform *payment processing* generally) as the Non-Goal, so the two sections say different things instead of restating each other.
