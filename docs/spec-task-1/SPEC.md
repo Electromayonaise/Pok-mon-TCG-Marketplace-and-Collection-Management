@@ -8,7 +8,7 @@ Core operations the system exposes at the interface level. Types/wire format are
 
 - **BrowseCatalog(filters)** → list of CatalogEntries (each flagged `hasActiveListings`). Empty filter matches return the full catalog; no matches return an empty list — never an error.
 - **GetCardDetail(cardId)** → CardDetail {catalog info, active listings, current listing price (COP), last transaction price, historical price trend (latter two as USD/COP pairs) — three separate values}. Errors: `NotFound` if cardId isn't in the catalog.
-- **CreateListing(sellerId, itemRef, price, quantity, condition?)** → ListingId. Errors: `SellerNotVerified` (business, until approved), `IndividualSellerProfileIncomplete` (individual sellers, before first listing), `InvalidItemRef`, `InvalidPrice` (≤ 0).
+- **CreateListing(sellerId, itemRef, price, quantity, condition?)** → ListingId. `itemRef` is a catalog card or a `BundleId`. Errors: `SellerNotVerified` (business, until approved), `IndividualSellerProfileIncomplete` (individual sellers, before first listing), `InvalidItemRef`, `InvalidPrice` (≤ 0).
 - **CreateBundle(sellerId, componentCardIds)** → BundleId, listable via CreateListing; each component stays independently visible in the catalog. Errors: `EmptyComponentList`, `InvalidItemRef`.
 - **RequestSellerContact(userId, listingId)** → message text (product + listed price) for the user to send via an external app. Individual-seller listings only. Errors: `ListingNotFound`, `NotIndividualSellerListing` (business listings use PurchaseListing/SendBusinessMessage instead).
 - **PurchaseListing(userId, listingId, quantity)** → OrderId. Verified-business listings only — the platform processes the transaction directly. Errors: `ListingNotFound`, `NotBusinessListing` (individual-seller listings use RequestSellerContact instead), `InsufficientQuantity`.
@@ -17,7 +17,7 @@ Core operations the system exposes at the interface level. Types/wire format are
 - **ReviewBusinessApplication(adminId, applicationId, decision)** → updates status to `Approved`/`Rejected`. Errors: `ApplicationNotPending`.
 - **SubmitReview(reviewerId, targetSellerOrBusinessId, rating, comment)** → ReviewId. Business targets require a completed purchase from that business. Errors: `TargetNotFound`, `NotVerifiedPurchaser` (business targets only).
 - **AddToCollection(userId, itemRef, collectionId, source: PlatformPurchase\|Manual)** → CollectionEntryId. Errors: `CollectionNotFound`.
-- **GetCollectionValueHistory(collectionId)** → time series of {date, totalValue}. Errors: `CollectionNotFound`.
+- **GetCollectionValueHistory(collectionId)** → time series of {date, totalValue (COP)}. Errors: `CollectionNotFound`.
 - **AddToWishlist(userId, itemRef)** → WishlistEntryId. Errors: `InvalidItemRef`.
 
 ## Why
@@ -57,9 +57,9 @@ Colombian Pokémon TCG collectors, buyers, individual sellers, and businesses cu
 ## Non-Goals
 
 - Final internal module split, database schema, UI/visual design, deployment architecture, or technology stack.
-- In-platform payment processing or transaction execution for individual-seller sales.
-- The specific payment gateway/provider and its integration details for in-platform business purchases.
+- In-platform payment processing for individual-seller sales — always out of scope, external handoff only. (In-platform business purchases *are* in scope; only the specific payment gateway/provider and its integration details are excluded.)
 - The exact fields collected in an individual seller's first-listing profile step.
+- Anti-abuse safeguards for reviews (e.g., self-review or collusion prevention) beyond the purchase-verification gate already specified.
 - The exact currency-conversion source, rate, and refresh mechanism for USD→COP reference-price display.
 - The exact price-estimation/market-value algorithm.
 - Definitive implementation of external integrations (messaging app, Instagram, external TCG data sources).
@@ -82,6 +82,9 @@ Colombian Pokémon TCG collectors, buyers, individual sellers, and businesses cu
 
 - **Risky:** the individual-seller profile step collects enough contact/identity info to discourage bad-faith listings, but stops short of business-style verification — exact fields unspecified (see Non-Goals).
 - **Risky:** individual-seller reviews default to the platform's no-purchase-verification-gate baseline (unlike business reviews) since off-platform transactions can't be confirmed; a fake-review/abuse risk flagged for a later iteration, not a decided design.
+- **Risky:** a card sold both individually and as part of a bundle by the same seller has no defined quantity reconciliation between the two listings — unaddressed by the source, left as a gap rather than a decided design.
+- **Risky:** a successful `PurchaseListing` does not automatically create a collection entry — `AddToCollection` is a separate, buyer-initiated action, inferred from the Contract treating them as independent operations, not stated explicitly by the source.
+- **Risky:** an individual seller's existing listings are unaffected when their account is later approved as a business — the source describes the two seller types without addressing the transition between them.
 - **Safe:** business-application review is a manual, human admin action, not automated.
 - **Safe:** users have internet-connected devices capable of using a web or mobile client.
 - **Safe:** a user can own multiple independent collections (not capped at one).
