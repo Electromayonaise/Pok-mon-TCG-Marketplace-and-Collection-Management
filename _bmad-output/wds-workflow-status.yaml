@@ -1,0 +1,29 @@
+# WDS Workflow Status
+# Compatibility file: downstream phase skills (e.g. wds-1-project-brief) read
+# config values from {output_folder}/wds-workflow-status.yaml, while
+# wds-0-project-setup's own instructions write the fuller wds-project-outline.yaml
+# under _progress/. This file mirrors the values those skills expect so the
+# two conventions in this BMad WDS install stay in sync.
+# See: _progress/wds-project-outline.yaml for the full Phase 0 record.
+
+config:
+  project_name: "Pokémon TCG Marketplace and Collection Management Platform"
+  project_type: greenfield
+  product_complexity: complex
+  tech_stack: null
+  component_library: custom
+  skip_design_system: false
+  brief_level: complete
+  strategic_analysis: simplified
+
+phases:
+  phase_0_project_setup: complete
+  phase_1_product_brief: complete
+  phase_2_trigger_mapping: skipped
+  phase_3_ux_scenarios: not_started
+  phase_4_ux_design: not_started
+  phase_5_agentic_development: not_started
+  phase_6_asset_generation: not_started
+  phase_7_design_system: not_started
+
+updated: "2026-08-24"
