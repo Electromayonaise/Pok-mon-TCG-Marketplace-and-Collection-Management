@@ -1,0 +1,27 @@
+stateDiagram-v2
+  [*] --> Created: PurchaseListing succeeds\n(InventoryUnit reserved atomically, AD-6)
+
+  Created --> BuyerPaid: buyer uploads comprobante\nand confirms (buyerPaidConfirmedAt set)
+  BuyerPaid --> SellerReceived: business independently\nconfirms (sellerReceivedConfirmedAt set)
+  SellerReceived --> ItemReceived: buyer confirms item\nreceived (buyerItemReceivedConfirmedAt set)
+
+  ItemReceived --> [*]: Order closed\n(only state that closes the order, AD-2)
+
+  note right of Created
+    No payment gateway integration and no
+    "funds held" state at any point (AD-2).
+    Inventory is already decremented here,
+    at reservation time, not at close.
+  end note
+
+  note right of SellerReceived
+    CommissionBalanceExhausted/Replenished
+    (AD-3) reacts to this transition via an
+    in-process domain event, not a direct call.
+  end note
+
+  note right of ItemReceived
+    Triggers a dismissible add-to-collection
+    prompt (CAP-27) - never an automatic
+    CollectionEntry write.
+  end note

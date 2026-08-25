@@ -1,0 +1,32 @@
+graph TB
+  Collector[Release-Driven Collector]
+  Buyer[Casual Buyer]
+  IndSeller[Individual Seller]
+  Business[Verified Business]
+  Admin[Platform Administrator]
+
+  subgraph Platform[Pokemon TCG Marketplace and Collection Management Platform]
+    App[Next.js app: pages + tRPC API]
+    DB[(Postgres via Supabase)]
+    Storage[(Object Storage: comprobantes, card art)]
+  end
+
+  ExtCatalog[External Pokemon TCG catalog/data source]
+  ExtPrice[External price-reference feed]
+  ExtMsg[External messaging app: WhatsApp/etc]
+  ExtPresence[External seller presence: Instagram/website]
+
+  Collector -->|browse, track collection, wishlist| App
+  Buyer -->|browse, purchase, contact seller| App
+  IndSeller -->|create listing/bundle, trade, profile step| App
+  Business -->|apply, list, in-app message, view orders| App
+  Admin -->|review applications, moderate listings/reviews| App
+
+  App -->|reads/writes| DB
+  App -->|reads/writes| Storage
+
+  App -.->|ingests catalog seed data| ExtCatalog
+  App -.->|ingests last-transaction price and historical trend| ExtPrice
+  Buyer -.->|contact-message handoff, off-platform| ExtMsg
+  IndSeller -.->|contact-message handoff, off-platform| ExtMsg
+  Business -.->|submits presence reference for verification| ExtPresence

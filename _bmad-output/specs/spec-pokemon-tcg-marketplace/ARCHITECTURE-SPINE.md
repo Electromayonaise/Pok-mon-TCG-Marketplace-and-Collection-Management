@@ -9,7 +9,7 @@ status: final
 created: '2026-08-25'
 updated: '2026-08-25'
 binds: ["CAP-1","CAP-2","CAP-3","CAP-4","CAP-5","CAP-6","CAP-7","CAP-8","CAP-9","CAP-10","CAP-11","CAP-12","CAP-13","CAP-14","CAP-15","CAP-16","CAP-17","CAP-18","CAP-19","CAP-20","CAP-21","CAP-22","CAP-24","CAP-25","CAP-26","CAP-27","CAP-28"]
-sources: ["_bmad-output/specs/spec-pokemon-tcg-marketplace/SPEC.md", "_bmad-output/specs/spec-pokemon-tcg-marketplace/.memlog.md", "_bmad-output/specs/spec-pokemon-tcg-marketplace/stakeholders.md", "docs/spec-task-1/SPEC.md", "_bmad-output/A-Product-Brief/01-product-brief.md"]
+sources: ["_bmad-output/specs/spec-pokemon-tcg-marketplace/SPEC.md", "_bmad-output/specs/spec-pokemon-tcg-marketplace/.memlog.md", "_bmad-output/specs/spec-pokemon-tcg-marketplace/stakeholders.md", "docs/spec-task-1/SPEC.md", "_bmad-output/A-Product-Brief/project-brief.md"]
 companions: []
 ---
 
@@ -20,6 +20,34 @@ companions: []
 **Modular monolith, hexagonal per module, in-process domain events.** One deployable. The system is split into domain modules, each internally hexagonal (a framework-free domain core, application services, and adapters for HTTP/tRPC and persistence). Cross-module effects travel two ways, not one: correctness-critical writes (e.g. an inventory decrement) go through a direct synchronous call into the owning module's public application service, in the same transaction (AD-6); everything else travels as a published domain event on an in-process bus, a typed emitter, not a message queue (AD-9/AD-10). Chosen over a plain layered monolith (too little boundary enforcement) and over microservices/message-bus event-driven (infra cost incompatible with a 2-person, free-tier team).
 
 Modules: `catalog`, `listings` (incl. bundles + shared inventory), `trading`, `orders`, `commission`, `collections` (incl. binder + wishlist), `reviews`, `messaging`, `identity` (users, business profiles/applications, admin), `shared-kernel` (ids, money, domain-error codes, event bus).
+
+## System Boundaries & Dependencies
+
+One deployable — there are no service-to-service network boundaries to cross. A browser talks to the Next.js app over HTTP through typed tRPC procedures (not REST, not gRPC); every module lives in the same process, so a "call" between `orders` and `listings` is an in-process TypeScript function call, never a network hop, message broker, or service mesh. Two call shapes exist, and only two (Consistency Conventions): a direct synchronous call into the target module's public application service, for the one case where a shared transaction is required (`listings.reserveInventory(...)`, AD-6), or an in-process domain-event publish/subscribe for everything else (AD-9/AD-10). Ownership is enforced at two independent levels so the import graph can't be quietly bypassed: the compile-time dependency direction (AD-1, graph below) and physical table ownership (AD-8, Prisma models written only by their owning module's repository). External dependencies — the third-party catalog/price data source and the external messaging app a buyer is handed off to — are adapters at the `catalog` and `listings` module boundaries respectively, never called from inside another module's core.
+
+| Component | Owns | Talks to | Protocol |
+| --- | --- | --- | --- |
+| Next.js app (single deployable) | UI rendering, tRPC routers | Browser | HTTP (tRPC over HTTP) |
+| `catalog`, `listings`, `trading`, `orders`, `commission`, `collections`, `reviews`, `messaging`, `identity` | their own Prisma tables (AD-8) | each other, in-process only | direct TS call (AD-6, correctness-critical) or domain event (AD-9/AD-10) |
+| `shared-kernel` | ids, money/reference-price value objects, `DomainError` enum, event bus | everything depends on it; it depends on nothing | in-process import |
+| External price/catalog feed | — | `catalog`'s ingestion adapter | HTTP (outbound, adapter-isolated) |
+| External messaging app (WhatsApp/etc.) | — | buyer's browser, via a generated link from `listings` (CAP-6) | none — handoff only, platform never calls it |
+
+See AD-1's dependency graph below for the full per-module edge list.
+
+## State Mutation & Invariant Rules
+
+Every piece of mutable state that more than one module could plausibly touch has exactly one owning module and one defined mutation rule — the table below is a scannable index into the ADs that establish each one.
+
+| State | Single source of truth | Mutation rule | Governing AD |
+| --- | --- | --- | --- |
+| Sellable quantity (card or sealed product) | `InventoryUnit(sellerId, itemRef).quantity`, owned by `listings` | Decremented only via `listings.reserveInventory(...)`, synchronously, at reservation time (order/trade-offer creation) — never at close/confirmation | AD-6 |
+| Business-purchase order status | `Order`'s three independently-timestamped confirmation fields | Each timestamp set only by its owning party's own confirmation action; never collapsed into one status enum | AD-2 |
+| Commission balance | `CommissionAccount(businessId).balanceCOP`, owned exclusively by `commission` | Deducted only in reaction to the `OrderPaymentConfirmedByBusiness` event; `listings` never stores or mutates a balance copy | AD-3 |
+| Trade-offer completion | `TradeOffer`'s two independent confirmation booleans | "Completed" is a computed property (`buyerConfirmed && sellerConfirmed`), never a separately-stored status that could drift from the two booleans | AD-4 |
+| Cross-module side effects (non-correctness-critical) | the in-process domain-event bus (`shared-kernel`) | Published only post-commit; a subscriber's failure is caught and logged, never rolled back or retried against the publisher | AD-9, AD-10 |
+| `DomainError` codes | one owning, throwing module per code (explicit list) | A module that detects another module's error condition propagates it unchanged, never re-throws its own copy | AD-11 |
+| Listing/review visibility after moderation | `hiddenAt`/`hiddenReason` on the owning aggregate (`Listing`, `Review`) | Hide only, never delete; every default read query filters `hiddenAt IS NULL` | AD-12 |
 
 ## Invariants & Rules
 

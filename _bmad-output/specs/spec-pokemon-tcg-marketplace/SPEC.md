@@ -1,10 +1,10 @@
 ---
 id: SPEC-pokemon-tcg-marketplace
-companions: ["stakeholders.md", "../../../docs/spec-task-1/SPEC.md", "../../A-Product-Brief/01-product-brief.md"]
+companions: ["stakeholders.md", "ARCHITECTURE-SPINE.md", "companion-files/glossary.md", "companion-files/persona-archetypes.md", "companion-files/diagrams/system-context.mmd", "companion-files/diagrams/state-transitions.mmd", "../../../docs/spec-task-1/SPEC.md", "../../A-Product-Brief/project-brief.md"]
 sources: ["../../../docs/Problem-statement.pdf"]
 ---
 
-> **Canonical contract.** This SPEC and the files in `companions:` are the complete, preservation-validated contract for what to build, test, and validate. `docs/spec-task-1/SPEC.md` carries the hand-authored Contract (exact operation signatures) that this kernel deliberately excludes by design — read it alongside this file, not instead of it. `01-product-brief.md` carries the strategic/GTM layer (positioning, business model rationale, tone of voice) this kernel distills but does not restate in full.
+> **Canonical contract.** This SPEC and the files in `companions:` are the complete, preservation-validated contract for what to build, test, and validate. `docs/spec-task-1/SPEC.md` carries the hand-authored Contract (exact operation signatures) that this kernel deliberately excludes by design — read it alongside this file, not instead of it. `project-brief.md` carries the strategic/GTM layer (positioning, business model rationale, tone of voice) this kernel distills but does not restate in full.
 
 # Pokémon TCG Marketplace and Collection Management Platform
 
@@ -22,10 +22,10 @@ Colombian Pokémon TCG collectors, buyers, individual sellers, and businesses cu
   - **success:** A card with no listings is still retrievable from the catalog and displays `hasActiveListings=false` rather than being absent or erroring.
 - **CAP-3**
   - **intent:** User can see current listing price, most recent transaction price, and historical price trend for a card as distinct values.
-  - **success:** The card detail view renders three separately labeled price values — listing price in COP, and the two reference prices (last-transaction, historical trend) as USD/COP pairs — that never collapse into one unlabeled number.
+  - **success:** The card detail view renders three separately labeled price values — listing price in COP, last-transaction price as a single USD/COP reference point, and historical trend as a delta (period, changePercent, referencePriceAtStart) — that never collapse into one unlabeled number.
 - **CAP-4**
-  - **intent:** Businesses and individual sellers can publish cards, card bundles, and sealed products as listings.
-  - **success:** A seller of either type can create a listing tied to a valid catalog entry or bundle, and it becomes visible to buyers.
+  - **intent:** Businesses and individual sellers can publish cards, card bundles, and sealed products as listings; sealed products are always listed individually and never participate as bundle components.
+  - **success:** A seller of either type can create a listing tied to a valid catalog entry, bundle, or sealed product, and it becomes visible to buyers; a bundle's component list accepts only cards.
 - **CAP-5**
   - **intent:** The platform applies different registration and transaction rules to verified businesses vs. individual sellers.
   - **success:** A business listing cannot display as verified until its application status is Approved; an individual-seller listing never requires that state.
@@ -69,7 +69,7 @@ Colombian Pokémon TCG collectors, buyers, individual sellers, and businesses cu
   - **intent:** A user can send an in-app message to a verified business.
   - **success:** A message sent to a verified business is delivered in-app; the same action against a non-business account is rejected (`NotBusinessAccount`).
 - **CAP-19**
-  - **intent:** A first-time individual seller completes a short profile step before creating their first listing.
+  - **intent:** A first-time individual seller completes a profile step before creating their first listing.
   - **success:** Attempting to list as an individual seller who hasn't completed the profile step errors with `IndividualSellerProfileIncomplete`; a business account is exempt from this specific gate (it has its own verification flow).
 - **CAP-20**
   - **intent:** A business purchase is settled by the buyer paying the business directly (QR/bank transfer) and uploading proof of payment, mutually confirmed by both parties.
@@ -92,19 +92,26 @@ Colombian Pokémon TCG collectors, buyers, individual sellers, and businesses cu
 - **CAP-27**
   - **intent:** After a business-purchase order reaches item-received-by-buyer, the buyer is prompted to add the item to a collection, without it being created automatically.
   - **success:** Accepting the prompt creates a collection entry with `source=PlatformPurchase`; declining or ignoring it creates no entry, and the order still shows as closed either way.
+- **CAP-28**
+  - **intent:** An admin can moderate the platform by hiding or removing a listing or review that violates platform policy.
+  - **success:** A hidden/removed listing or review no longer appears in browse or detail views, but the record is retained (not deleted) for audit.
 
 ## Constraints
 
 - Catalog/listing independence: a card's presence in the catalog must never be derived from or gated by the existence of a listing.
-- Price provenance: listing price (COP), recent transaction price, and historical market value (both as USD/COP pairs) must be stored and displayed as distinct fields, never merged or treated as interchangeable.
+- Price provenance: listing price (COP), recent transaction price (a single USD/COP reference point), and historical trend (a period/changePercent/referencePriceAtStart delta, not a full series) must be stored and displayed as distinct fields, never merged or treated as interchangeable.
+- Last-transaction price and historical trend are sourced from an external price-reference feed, never derived from the platform's own transaction volume.
 - Individual sellers require no business-style verification to publish listings; only businesses go through the legal-identity + external-presence application process.
 - Business applications remain Pending until an admin approves them; a business cannot be represented as verified before approval.
 - Individual-seller listings are never purchased in-platform — the platform's role ends at generating an external contact message; verified-business listings are always purchased in-platform.
 - A bundle must track its component cards individually so bundle contents remain associated with catalog entities.
 - A bundle's component card and that seller's individual listing of the same card (if any) share one inventory quantity; a sale through either path decrements the shared count — quantities are never tracked independently across a bundle and an individual listing of the same physical card.
+- Sealed products are always listed individually, never as bundle components; only cards can be bundle components. Each sealed-product listing has its own independent inventory unit, with no shared-quantity reconciliation.
 - Collection ownership is independent of platform purchase; manual addition of externally-acquired items must be supported.
 - The system must support multiple, user-chosen ways of organizing a collection (date, value, set, Pokémon, artist, color, binder layout) rather than one fixed taxonomy.
-- The platform must establish clear boundaries around user-generated content, seller information, reviews, listings, and market data so the reliability and consistency of information presented to users can be maintained.
+- Catalog and pricing data are platform-derived and never user-editable; only listings, reviews, and collection notes are user-generated content, and each is attributed to its authoring account.
+- Business-application `legalIdentity` data is regulated personal data under Colombian Ley 1581 (habeas data); the platform must apply lawful-basis/consent and secure-handling practices to it — the specific mechanism (consent flow, retention, access requests) is deferred to architecture.
+- Catalog browse/filter queries target roughly 1-2s response for a catalog on the order of a few thousand to tens of thousands of entries (course-project scale, not a load-tested SLA).
 - Business applications require legal identity and external-presence information (e.g., Instagram profile or website) as submitted fields.
 - In-app messaging exists only for verified businesses; individual-seller listings are reachable only via the generated external-contact message, never in-app.
 - A review targeting a verified business requires the reviewer to have a completed platform purchase against that business; no equivalent purchase gate exists for individual-seller reviews.
@@ -122,7 +129,7 @@ Colombian Pokémon TCG collectors, buyers, individual sellers, and businesses cu
 - The platform is a single responsive web app (desktop/tablet/mobile, equal device priority) — no native app, no offline mode, no native-device-feature dependency (camera, push notifications) for this iteration.
 - First-iteration scope: this spec must not fix internal module decomposition, database schema, UI/visual design, deployment architecture, or technology stack.
 
-## Non-goals
+## Non-Goals
 
 - Final internal module split of the platform.
 - Exact database schema and data model.
@@ -141,9 +148,10 @@ Colombian Pokémon TCG collectors, buyers, individual sellers, and businesses cu
 - A native mobile app — a realistic future possibility, explicitly out of scope now.
 - Offline functionality.
 - Detailed logistics and physical delivery process for marketplace transactions.
-- In-platform dispute resolution between buyers and sellers, beyond admin moderation as an escalation path.
+- In-platform dispute resolution between buyers and sellers, beyond the admin listing/review moderation in CAP-28.
+- The specific policy criteria an admin applies when moderating a listing or review (CAP-28 fixes the mechanism, not the rulebook).
 
-## Success signal
+## Success Signal
 
 - A card with zero listings still returns from the catalog with an empty listings array, never an error; a location/distance filter narrows returned listings without excluding catalog entries that simply have none nearby.
 - Purchasing a verified-business listing returns an OrderId, decrements quantity, and only reaches "payment received" after a comprobante is uploaded and both parties confirm; the same purchase attempt against an individual-seller listing errors with `NotBusinessListing`.
@@ -157,6 +165,7 @@ Colombian Pokémon TCG collectors, buyers, individual sellers, and businesses cu
 - A collection entry preserves its `PlatformPurchase`/`Manual` source, and `GetCollectionValueHistory` returns a non-empty, COP-denominated series once a priced item is added.
 - After an order reaches item-received-by-buyer, the buyer sees an add-to-collection prompt; accepting it creates a `PlatformPurchase`-sourced entry, declining it creates none, and the order's closed status is unaffected either way.
 - Selling a card through its bundle listing decrements the same quantity as selling it through the seller's individual listing of that card, and vice versa — the two paths never oversell independently.
+- A listing or review hidden by admin moderation stops appearing in browse/detail views immediately, while its record remains queryable for audit.
 
 ## Assumptions
 
@@ -164,6 +173,8 @@ Colombian Pokémon TCG collectors, buyers, individual sellers, and businesses cu
 - **Risky:** the individual-seller-to-verified-business account transition (what happens to existing individual listings when a seller graduates to verified-business status) is unaddressed by any source to date.
 - **Risky:** the external messaging channel for individual-seller contact is a consumer chat app (e.g., WhatsApp) reachable from a generated deep link or copyable message; no source specifies integration depth beyond "external messaging app."
 - **Risky:** catalog seed data (card/set metadata, artwork references) will come from an existing external Pokémon TCG data source rather than being manually authored by the team.
+- **Risky:** displaying Pokémon TCG names/artwork/imagery sourced from a third-party catalog API is assumed permissible for this course-project's use case; not verified as licensable for a commercial/production launch.
+- **Risky:** last-transaction price and historical trend are assumed to come from an external price-aggregation source, not derived from platform transaction history, since most sales (individual-seller) happen off-platform and business-sale volume will be near-zero at launch — the existence of a usable, licensable such source is not verified.
 - **Safe:** a single seller account is exclusively either an individual seller or a verified business at a given time, not both simultaneously — sellers "graduate" from individual to business rather than holding both roles at once, per the Product Brief's framing (the transition mechanics themselves remain the open item flagged above).
 - **Safe:** business-application review is a manual human admin action rather than automated approval.
 - **Safe:** each user can own multiple independent collections (not capped at one).
