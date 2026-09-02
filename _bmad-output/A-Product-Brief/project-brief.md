@@ -181,7 +181,7 @@ These emerged directly out of Success Criteria's timeline discussion (Martin fla
 
 **Technical:** Responsive web, not mobile-first. Tech stack itself remains deliberately undecided at this stage (Non-Goal per SPEC.md) — this brief doesn't change that.
 
-**Brand:** No product name yet — genuinely open, not yet a blocker for this brief.
+**Brand:** Named **TEZG** ("TCG" with "EZ" swapped in for "C") — decided post-brief; see Decision 15 in `dialog/decisions.md`.
 
 ---
 

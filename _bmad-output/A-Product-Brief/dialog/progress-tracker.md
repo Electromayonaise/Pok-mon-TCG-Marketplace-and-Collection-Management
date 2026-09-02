@@ -68,7 +68,7 @@ See [decisions.md](decisions.md) for the detailed decision log.
 9. Success criteria: directional metrics only (active users, registered businesses, transaction volume) — no hard numbers yet. Everything built by end of Nov 2026 except transactional/payments piece, which may slip.
 10. Major detour resolved: no payment gateway — peer-to-peer payment + prepaid commission balance (not invoiced), three-state delivery confirmation + identity-backed reputation in place of escrow, and a new trading system (offer/counter, cards+product+money) for individual sellers on trade-flagged listings. See Decisions 8-10.
 11. Competitive landscape: unfair advantage is market focus + unified data model; explicitly not claiming first-mover as the moat — the real moat is being structurally a "collection tracker with marketplace attached," not a marketplace.
-12. Constraints: fixed = Colombia-only scope, tracker, binder, trades. Flexible = revenue mechanism, sell/payment-confirmation mechanism. Self-funded/free-tier, responsive web (not mobile-first), no brand name yet.
+12. Constraints: fixed = Colombia-only scope, tracker, binder, trades. Flexible = revenue mechanism, sell/payment-confirmation mechanism. Self-funded/free-tier, responsive web (not mobile-first), brand name decided post-brief: TEZG (Decision 15).
 13. Platform strategy: responsive web, equal device priority (not desktop-first), no offline/native-feature requirements, native app deferred to future.
 14. Tone of voice: trustworthy & transparent, precise & credible, warm/peer-to-peer, locally grounded — confirmed on first presentation.
 

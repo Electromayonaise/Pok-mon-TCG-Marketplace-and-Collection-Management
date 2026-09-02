@@ -372,4 +372,29 @@ UI microcopy for payment confirmations, balance/pause states, and trade notifica
 
 ---
 
+## Decision 15: Brand name — TEZG
+
+**Date:** 2026-09-01
+**Step:** Post-brief (naming, deferred at Decision 12)
+**Session:** 2
+
+**Context:**
+Decision 12 (Constraints) left the brand name "genuinely open," not a blocker for the Product Brief. Naming surfaced again while producing user-facing collateral (the repo README) that needed a real name instead of the generic "the platform" placeholder used throughout SPEC.md and the brief.
+
+**What was decided:**
+The product is named **TEZG** — a deliberate respelling of "TCG" with "EZ" swapped in for the "C" (TCG → TEZG), read aloud as "the TCG, but EZ." Chosen by Martin.
+
+**Why:**
+Keeps the card-game category instantly legible (still reads as "TCG") while signaling the product's actual differentiator from Positioning (Decision 3) and Product Concept (Decision 7) — unifying three fragmented tools into one easy, local experience — in the name itself, without needing a tagline to explain it.
+
+**Impact:**
+Replaces the "the platform" / generic-name placeholder used in `07-positioning.md`'s Positioning Statement, `project-brief.md`'s Brand line, and `progress-tracker.md`'s constraints summary. Doesn't change any prior strategic decision — it closes the one item Decision 12 explicitly left open.
+
+**Alternatives considered:**
+- None presented as options — Martin supplied the name directly.
+
+**Documented in:** `_bmad-output/A-Product-Brief/dialog/07-positioning.md`, `_bmad-output/A-Product-Brief/project-brief.md`, `_bmad-output/A-Product-Brief/dialog/progress-tracker.md`, root `README.md`
+
+---
+
 _Continue appending decisions as they're made throughout the Product Brief process._

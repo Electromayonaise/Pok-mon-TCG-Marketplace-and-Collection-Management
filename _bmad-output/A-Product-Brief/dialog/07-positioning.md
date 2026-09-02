@@ -79,7 +79,7 @@ For Colombian Pokémon TCG collectors, buyers, individual sellers, and businesse
 **Why this position makes sense:**
 1. No formal local marketplace exists today — the informal WhatsApp/Telegram alternative has no structure, making "genuinely unified and local" a real differentiator, not marketing language.
 2. Collection-tracking value doesn't depend on marketplace network effects, so leading with it is a defensible way to be useful on day one while the seller community is still small.
-3. Product name not yet decided — positioning is documented generically as "the platform" pending a branding decision (not required for this brief phase).
+3. Product name decided post-brief as **TEZG** (see Decision 15, 2026-09-01) — "TCG" with "EZ" swapped in for "C." Positioning below still reads generically as "the platform" since it predates the naming decision; the name can be substituted in wherever it appears without changing the positioning itself.
 
 ---
 
