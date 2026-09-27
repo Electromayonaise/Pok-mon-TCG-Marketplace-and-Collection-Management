@@ -4,9 +4,11 @@
 
 **Course Activity:** pairs (4–6 hours) · **AI-Assisted (BMad & WDS Workflows)**
 
-**Deliverable:** Complete Module Planning Package (PRD, UX Design, Architecture, Readiness Gate, and AI Decision Log).
+**Deliverable:** Complete Planning Package (PRD, UX Design, Architecture, Readiness Gate, and AI Decision Log) — **one integrated package covering all 12 modules**.
 
 > This is the Plan-2 course statement adapted from its default case study (the *Academic AI Compute Fabric*) to **TEZG**, the project this repository plans. Activities, phases, deliverables, constraints and grading rubric are unchanged in intent; only the domain, the reference material, the module Annex and the tool paths are TEZG-specific. Appendix A maps every default-to-TEZG substitution.
+>
+> **Single-package scope (instructor-approved).** The default statement assigns one module per pair because the default case is split across many teams. TEZG is planned by one pair (Martín Gómez, Mateo Rubio) and, with the instructor's written approval, this team plans **all 12 modules** as **one single package** — one PRD, one UX set, one architecture, one readiness gate, one decision log — not twelve per-module packages and not a split between the two team members. Appendix B records the exchange and every rule of this statement it reinterprets.
 
 ---
 
@@ -20,22 +22,21 @@ Colombian Pokémon TCG collectors, buyers, individual sellers and small business
 
 The platform is designed as a **modular monolith** (one deployable, hexagonal modules, in-process domain events). Nine domain modules — `catalog`, `listings`, `trading`, `orders`, `commission`, `collections`, `reviews`, `messaging`, `identity` — sit on a `shared-kernel` (ids, money, `DomainError` enum, event bus). In the intended stack, Next.js exposes typed tRPC procedures over Prisma/PostgreSQL. The platform never holds funds: business purchases settle **peer-to-peer** and are confirmed by an uploaded *comprobante* plus mutual confirmation. Businesses pay commission from a **prepaid balance**. Individual-seller sales complete **off-platform**.
 
-The whole-system planning already exists (`SPEC.md` CAP-1..28, `ARCHITECTURE-SPINE.md` AD-1..13) and the Plan-1 Buyer and Seller/Business tracks extend it (AD-14..19). **Plan-2 goes one level deeper:** each pair takes **one subsystem module** and plans it to implementation-ready depth — state machines, formulas, concurrency rules, error models — which the product-level Plan-1 PRDs deliberately did not.
+The whole-system planning already exists (`SPEC.md` CAP-1..28, `ARCHITECTURE-SPINE.md` AD-1..13) and the Plan-1 Buyer and Seller/Business tracks extend it (AD-14..19). **Plan-2 goes one level deeper:** it cuts TEZG into **12 subsystem modules** (the Annex) and plans each to implementation-ready depth — state machines, formulas, concurrency rules, error models — which the product-level Plan-1 PRDs deliberately did not.
 
-Each student pair works exclusively on **ONE standalone subsystem module** (assigned from the Annex). Your project must operate completely independently, using local fixtures, seed data, mock adapters, fake neighbouring modules or a simulated clock.
+This team plans **all 12 modules in one integrated package** (see the scope note above and Appendix B). Each module must still be **independently testable**: its logic runs against local fixtures, seed data, fakes of its neighbours' public interfaces, and a simulated clock. The modules together form one modular monolith, so their contracts must also compose with each other without contradiction.
 
 ### What You DO NOT Need to Do
 
-- You do not need to integrate with another team's module code.
-- You do not need to share a database or coordinate distributed migrations.
-- You do not need to negotiate cross-team API contracts for this task.
-- You do not need to build or deploy the full TEZG application (Next.js UI, Better Auth, Supabase, Vercel).
-- You do not need to participate in a monolithic, multi-module joint demo.
+- You do not need to coordinate with other teams' code, databases or API contracts — TEZG's modules are all planned here, and their cross-module contracts are defined once, inside this package.
+- You do not need distributed migrations: the monolith has **one** PostgreSQL database in which each module owns its own tables (AD-8).
+- You do not need to build or deploy the full TEZG application (Next.js UI, Better Auth, Supabase, Vercel) as part of this planning exercise.
+- You do not need to participate in a multi-team joint demo.
 - You must **not** build a payment gateway or any funds-holding flow — that is a rejected design, not a deferred feature (see §5, Constraint 8).
 
 ### What You MUST Prove
 
-- Your assigned subsystem is **semantically coherent, mathematically sound, defensively specified, and independently testable.**
+- Every subsystem is **semantically coherent, mathematically sound, defensively specified, and independently testable** — and the 12 compose into one consistent system.
 - You can direct the AI council (BMad + WDS) — specialised personas — to transform raw intent into correct engineering specifications.
 - **Verifiable evidence** that human engineering judgment directed and audited every AI-generated decision.
 
@@ -75,8 +76,8 @@ TEZG has no production data and the brief deliberately sets no hard numbers, so 
 
 - **Runtime:** Linux, Docker Compose (or a clean local virtual environment).
 - **Language:** **TypeScript (Node)**, matching the project's planned stack (`project-context.md`). Choosing another language is allowed only through a logged, justified decision.
-- **Persistence:** **PostgreSQL via Docker Compose is required** for any module whose invariants depend on row-level concurrency semantics (atomic conditional `UPDATE`, interactive transactions): M1, M4, M6, M7, M8. Other modules may use SQLite or in-memory stores.
-- **Module shape:** the module exposes a **public application-service interface** (AD-1) that could drop into the monolith. Its neighbours are replaced by **fakes of their public interfaces**, never by their internals.
+- **Persistence:** **one PostgreSQL database via Docker Compose** for the whole monolith, with per-module table ownership (AD-8). Several invariants depend on row-level concurrency semantics (atomic conditional `UPDATE`, interactive transactions) — at least M1, M4, M5, M6, M7, M8 and M9 — so no module's concurrency proof may rely on SQLite or in-memory behaviour. In-memory stores are allowed only in pure domain-core unit tests.
+- **Module shape:** each module exposes a **public application-service interface** (AD-1) and lives inside one of the nine code modules (its *host module*, named in the Annex). In a module's own tests its neighbours are replaced by **fakes of their public interfaces**, never by their internals; in the composed monolith the real interfaces are wired in.
 - **Simulated externals:** fixture price/catalog feed, fake object storage (comprobante and `legalIdentity` files), fake event bus/publisher, virtual clock, no real messaging app.
 - **Dev surfaces:** the Annex names a prototype per module; where relevant, an OpenAPI/Swagger explorer, a CLI dashboard, or a simulator with fault/time controls.
 
@@ -102,7 +103,7 @@ All groups must follow this specification-first sequence:
 
 Step 1 is performed at the start of Phase 1; steps 2–5 map to Phases 1–4 below.
 
-1. **Understand Before Prompting:** analyse your assigned module in the Annex *and* the CAPs and ADs it anchors to. Identify boundary ambiguities, document explicit assumptions, and list non-goals.
+1. **Understand Before Prompting:** analyse each module in the Annex *and* the CAPs and ADs it anchors to, plus the cross-module contracts it touches. Identify boundary ambiguities, document explicit assumptions, and list non-goals.
 2. **Write the Specification Before Code:** define user journeys, measurable NFRs, state machines, domain policies and error models prior to any implementation task.
 3. **Design Before Execution:** challenge the AI to present **2–3 architectural alternatives**, critically evaluate trade-offs, select the optimal design, and justify your choice.
 4. **Validate Adversarially:** never trust AI outputs by default. Run adversarial and edge-case review lenses to surface race conditions, security flaws and untestable claims.
@@ -114,7 +115,7 @@ Step 1 is performed at the start of Phase 1; steps 2–5 map to Phases 1–4 bel
 
 To ensure fair assessment and technical comparability across disparate challenges, all modules share these non-negotiable constraints:
 
-1. **Independent Executability:** the subsystem must be runnable as a standalone unit using Docker Compose or a clean local virtual environment.
+1. **Independent Executability:** the system must be runnable using Docker Compose or a clean local virtual environment, and each module's test suite must run on its own against fakes of its neighbours (no other module's implementation required).
 2. **External-Dependency Agnosticism:** no real third-party service is required. Systems must accept seed fixtures, a fixture catalog/price feed, a fixture FX rate, fake object storage, fake neighbouring modules, and a virtual clock. *(Replaces "Hardware Agnosticism".)*
 3. **Non-Trivial Decision Logic:** the solution cannot be a simple CRUD wrapper. It must implement an explicit algorithm, policy evaluation, optimisation/ranking planner, or state machine. The Annex names the logic each module must own.
 4. **Algorithmic Explainability:** every automated decision — a rejection, a gate, a pause, a hide, a price-provenance choice, a placement of a result — must produce a **human-readable, cited justification**: it names the rule (CAP-n, AD-n, or a named policy clause) and the input values that triggered it. Messages follow the brief's tone of voice: plain, specific, never "Operation failed". Define the decision shape once in `ARCHITECTURE.md` (for example `{ outcome, reasonCode, humanMessage, citations[] }`).
@@ -130,25 +131,27 @@ To ensure fair assessment and technical comparability across disparate challenge
    - **Errors are `DomainError` codes:** `PascalCase`, exactly one owning module per code; a module that detects another module's condition propagates the error unchanged (AD-11).
    - **Moderation visibility (AD-12):** default reads of `Listing`/`Review` filter `hiddenAt IS NULL`.
    - **Colombia-only:** COP, Colombian coordinates, and Ley 1581 (habeas data) treatment for regulated personal data (AD-13).
-9. **CAP Traceability & ID Prefixing (new for TEZG):** every FR cites the CAP(s) it realises (`SPEC.md`), and each of your four scenarios traces to one or more FRs. Because teams work independently, **IDs carry your module code** — `FR-<CODE>-n`, `NFR-<CODE>-n`, `AD-<CODE>-n` (codes are in the Annex) — so nothing collides with the adopted baseline (AD-1..19 already occupy the plain numbers) or with another team's numbering. Baseline ADs are **inherited by reference**: your `AD-<CODE>-n` must add a rule the baseline does not already state, citing the baseline AD it refines where one exists.
+9. **CAP Traceability & ID Prefixing (new for TEZG):** every FR cites the CAP(s) it realises (`SPEC.md`; note that CAP-23 does not exist, so the set is 27 capabilities), and each module's four scenarios trace to one or more FRs. **IDs carry the module code** — `FR-<CODE>-n`, `NFR-<CODE>-n`, `AD-<CODE>-n` (codes are in the Annex) — so each requirement is attributable to one module inside the single package and nothing collides with the adopted baseline (AD-1..19 already occupy the plain numbers). Rules that bind several modules use the code `SYS` (`AD-SYS-n`, `NFR-SYS-n`). Baseline ADs are **inherited by reference**: every new AD must add a rule the baseline does not already state, citing the baseline AD it refines where one exists.
 
 ---
 
 ## Detailed Phase-by-Phase Instructions
 
-All paths below are relative to `docs/plan-2/<module-slug>/` (for example `docs/plan-2/listing-inventory-engine/`). Skill names are the ones installed in this repository.
+All paths below are relative to `docs/plan-2/`. Skill names are the ones installed in this repository. The phase durations are the default statement's per-module estimates; covering 12 modules multiplies the effort, not the sequence.
 
-### Phase 1 — PRD & Capability Scoping (60–75 min)
+### Phase 1 — PRD & Capability Scoping (60–75 min per module)
 
 #### Goal
 
-Produce a comprehensive `prd.md` scoped strictly to your assigned module. The document must define user value, functional requirements (FRs), non-functional requirements (NFRs) with explicit numeric metrics, and system boundaries.
+Produce one comprehensive `prd.md` covering all 12 modules, each section scoped strictly to its module. The document must define user value, functional requirements (FRs), non-functional requirements (NFRs) with explicit numeric metrics, and system boundaries.
+
+**Structure:** a shared part (protagonists, seed profile, the 12-to-9 module map, global boundaries and non-goals, the explainable-decision shape, `NFR-SYS-n`) followed by one section per module in dependency order (AD-1): IDN → VER → CAT → INV → DSC → ORD → COM → TRD → MSG → COL → VAL → REP.
 
 #### Instructions
 
 1. Activate `bmad-prd` (or converse with **John**, `bmad-agent-pm`).
-2. Provide the project brief (`project-brief.md`), `SPEC.md`, `ARCHITECTURE-SPINE.md`, `project-context.md`, and **your module profile from the Annex**.
-3. **Establish module boundaries.** Specify what your module **owns** (tables, aggregates, events it publishes, `DomainError` codes it throws) and what it **mocks/delegates** (neighbour modules via fakes of their public interfaces, external feeds, storage, clock). Declare out-of-scope capabilities explicitly, including Plan-1 territory you do not restate.
+2. Provide the project brief (`project-brief.md`), `SPEC.md`, `ARCHITECTURE-SPINE.md`, `project-context.md`, and **the module profiles from the Annex**.
+3. **Establish module boundaries.** For each module specify what it **owns** (tables, aggregates, events it publishes, `DomainError` codes it throws) and what it **consumes** from other modules (named public interfaces, replaced by fakes in its own tests), external feeds, storage and clock. Declare out-of-scope capabilities explicitly. Every table, event and error code has exactly one owning module across the whole package.
 4. **Define named TEZG protagonists.** Avoid generic "the user". Use the Annex protagonists (for example *Valentina, Individual Seller & Collector*; *Andrés, Verified Business owner*; *Sebastián, Platform Admin*). Introduce new named personas only where the module needs them.
 5. **Formulate Functional Requirements (FRs).** For each capability define:
    - System responsibility (what the system guarantees).
@@ -157,24 +160,24 @@ Produce a comprehensive `prd.md` scoped strictly to your assigned module. The do
 6. **Formulate Non-Functional Requirements (NFRs)** with numbers and explicit tolerances. Examples: *"Catalog filter queries return within 2 s at p95 over a 10,000-entry seed"*; *"Under 50 concurrent `reserveInventory` calls for the last unit, exactly one succeeds and 49 receive the same explainable rejection"*; *"Zero occurrences of a comprobante URL or `legalIdentity` value in debug logs"*. Elastic words ("fast", "secure", "appropriately") are defects.
 7. **Review Gate.** Run the adversarial review:
    ```
-   /bmad-review-adversarial-general docs/plan-2/<module-slug>/planning/prd.md
+   /bmad-review-adversarial-general docs/plan-2/planning/prd.md
    ```
-   *(This is the "`bmad-review --lens adversarial`" of the default statement; the installed skill is `bmad-review-adversarial-general`.)*
+   *(This is the "`bmad-review --lens adversarial`" of the default statement; the installed skill is `bmad-review-adversarial-general`.)* The review may run in passes over groups of module sections plus one pass over the shared part and cross-module seams; all passes are consolidated into one report.
    Triage **every** finding: **Accept** (fix in PRD), **Defer** (post-V1), or **Reject** (document why the AI critique is invalid).
 
 #### Deliverables — Phase 1
 
-- `planning/prd.md` (complete, scoped to your module)
+- `planning/prd.md` (complete, all 12 modules)
 - `reviews/review-prd-adversarial.md` (review report with triaged responses)
 - Phase 1 entries in your AI Decision Log
 
 ---
 
-### Phase 2 — UX Design, Scenarios & Surfaces (60–75 min)
+### Phase 2 — UX Design, Scenarios & Surfaces (60–75 min per module)
 
 #### Goal
 
-Produce the visual design spine (`DESIGN.md`), the behavioural experience spine (`EXPERIENCE.md`), **4 structured user-scenario outlines**, and detailed page/surface specifications for your standalone prototype.
+Produce one visual design spine (`DESIGN.md`), one behavioural experience spine (`EXPERIENCE.md`), **4 structured user-scenario outlines per module** (48 in total), and detailed page/surface specifications for each module's prototype.
 
 #### Part A — Design & Experience Spines with `bmad-ux`
 
@@ -184,12 +187,12 @@ Produce the visual design spine (`DESIGN.md`), the behavioural experience spine 
    - **Admin / back-office surfaces** (verification queue, ledger, moderation, order confirmation for a business): desktop-first, data-dense.
    - **Headless / engine modules** (inventory engine, ledger, state-machine simulators): developer console, interactive API explorer (Swagger/OpenAPI) and CLI dashboard.
    - The Annex lists a default form factor per module; a per-page override is allowed as a logged decision (Plan-1 resolved its seller-track device split the same way).
-3. **Author `DESIGN.md`:** colour tokens, typography, hierarchy and status colour states. **Extend the existing "Trusted Ledger" identity** (`docs/plan-1-buyer-track/DESIGN.md`) — TEZG is one app, not many. Map your module's states onto its muted semantic tokens (`status-pending`, `status-confirmed`, `status-error`, plus neutrals for paused/hidden/inert) rather than the default statement's traffic-light greens/blues. Introduce a new token only through a logged decision.
+3. **Author `DESIGN.md`:** colour tokens, typography, hierarchy and status colour states. **Extend the existing "Trusted Ledger" identity** (`docs/plan-1-buyer-track/DESIGN.md`) — TEZG is one app, not many. Map every module's states onto its muted semantic tokens (`status-pending`, `status-confirmed`, `status-error`, plus neutrals for paused/hidden/inert) rather than the default statement's traffic-light greens/blues. Introduce a new token only through a logged decision.
 4. **Author `EXPERIENCE.md`:** **Loading, Empty, Error and Success** states; **explainability banners** for denied, paused, hidden or deferred actions (the equivalent of the default statement's "denied/deferred" banners); accessibility to **WCAG 2.1 AA**; UI microcopy per the brief's tone of voice (plain, specific, Colombian-first; COP formatting; `America/Bogota` time).
 
 #### Part B — Scenarios & Page Specs with `wds-3-scenarios` & `wds-4-ux-design`
 
-1. Run `wds-3-scenarios` to structure the **4 primary scenario outlines** required for your module (see Annex).
+1. Run `wds-3-scenarios` to structure the **4 primary scenario outlines** required for each module (see Annex), one folder per module: `ux/C-UX-Scenarios/<NN>-<code>-<slug>/`. Headless modules specify developer-console / API-explorer surfaces rather than end-user pages.
 2. For each scenario run the design loop in `wds-4-ux-design`:
    - **[C] Conceptualise:** layout wireframes and key screen elements.
    - **[P] Write Specifications:** detailed component specs, spacing, button triggers and dynamic feedback.
@@ -197,21 +200,21 @@ Produce the visual design spine (`DESIGN.md`), the behavioural experience spine 
 3. Produce **at least two key-screen wireframes/mocks** (ASCII diagram, Mermaid UI layout, or SVG/PNG asset).
 4. **Review Gate.** Run the edge-case review across UX artifacts:
    ```
-   /bmad-review-edge-case-hunter docs/plan-2/<module-slug>/ux/
+   /bmad-review-edge-case-hunter docs/plan-2/ux/
    ```
    *(The default statement's "`--lens edge-case-hunter`".)* Triage every finding as Accept / Defer / Reject.
 
 #### Deliverables — Phase 2
 
 - `ux/DESIGN.md` and `ux/EXPERIENCE.md`
-- `ux/C-UX-Scenarios/00-ux-scenarios.md` + 4 scenario outline files
+- `ux/C-UX-Scenarios/00-ux-scenarios.md` (index + scenario ↔ FR coverage matrix) + one folder per module with its 4 scenario outline files
 - Per-page specifications for all core surfaces
 - Key-screen wireframes / UI mockups (`ux/wireframes/`)
 - `reviews/review-ux-edge-cases.md` with triaged decisions
 
 ---
 
-### Phase 3 — Technical Architecture & Invariants (60–80 min)
+### Phase 3 — Technical Architecture & Invariants (60–80 min per module)
 
 #### Goal
 
@@ -222,12 +225,12 @@ Produce `ARCHITECTURE.md` establishing the internal components, data schemas, in
 1. Activate `bmad-architecture` (or converse with **Winston**, `bmad-agent-architect`).
 2. Provide `prd.md`, `EXPERIENCE.md`, the adopted baseline (`ARCHITECTURE-SPINE.md`, `project-context.md`), and your standalone/mock constraints (§2 Technology Baseline).
 3. **Define the core architecture:**
-   - **Component Topology:** your module's hexagonal shape (domain core, application service, tRPC/HTTP adapter, persistence adapter) and its external boundaries — neighbour modules as fakes, event-bus adapter, storage adapter, external feed adapter, clock.
-   - **Data Model & Schemas:** high-level entities and context (tables you own, keys, ownership per AD-8).
-   - **API / Event Contracts:** high-level procedures/routes and the domain events you publish or subscribe to, with **self-contained snapshot payloads** (AD-9). Add a **DomainError additions** table for the codes you throw (PascalCase, one owner).
-   - **Mermaid Architecture Diagrams:** at minimum a **Context Diagram** and one **High-Level Component Interaction Diagram** illustrating the core non-trivial algorithm or state machine.
-   - **Alternatives:** record the **2–3 architectural alternatives** you asked the AI for, and why you chose yours (§4 step 3).
-4. **Review and refine Architectural Invariants (`AD-<CODE>-n`).** Every invariant must adhere to the mandatory 5-part structure:
+   - **Component Topology:** the system context (the 12 modules on their 9 host modules) and each module's hexagonal shape (domain core, application service, tRPC/HTTP adapter, persistence adapter) with its boundaries — neighbour interfaces (fakes in its tests), event-bus adapter, storage adapter, external feed adapter, clock.
+   - **Data Model & Schemas:** high-level entities and context (tables each module owns, keys, ownership per AD-8).
+   - **API / Event Contracts:** high-level procedures/routes and the domain events each module publishes or subscribes to, with **self-contained snapshot payloads** (AD-9), gathered in **one event catalog**. Add **one DomainError additions** table for all new codes (PascalCase, one owner each).
+   - **Mermaid Architecture Diagrams:** at minimum one system **Context Diagram** and, per module, one **High-Level Component Interaction Diagram** illustrating its core non-trivial algorithm or state machine.
+   - **Alternatives:** record the **2–3 architectural alternatives** asked of the AI for each module's core decision, and why the chosen one wins (§4 step 3).
+4. **Review and refine Architectural Invariants.** Budget: **6–8 cross-cutting `AD-SYS-n`** (rules binding several modules — e.g. the explainable-decision shape, the virtual clock, event idempotency) plus **2–4 `AD-<CODE>-n` per module**, only where the module needs a rule AD-1..19 and `AD-SYS` do not already state. Every invariant must adhere to the mandatory 5-part structure:
    - **Status:** `[ADOPTED]`
    - **Binds:** specific submodules, routers, database models, or workers (and the FRs/CAPs it protects).
    - **Prevents:** the exact architectural bug, race condition, data corruption, or unauthorised leak permanently blocked.
@@ -237,15 +240,15 @@ Produce `ARCHITECTURE.md` establishing the internal components, data schemas, in
    The repository's optional extended clauses (Context & Problem, Decision Taken, Rejected Alternatives) may be added beneath the five mandatory ones. *Recommended:* ask **Murat** (`bmad-tea`) whether each Rule can be turned into a deterministic test — that is your evidence for "independently testable".
 5. **Review Gate.** Run both reviews:
    ```
-   /bmad-review-adversarial-general docs/plan-2/<module-slug>/planning/ARCHITECTURE.md
-   /bmad-review-edge-case-hunter    docs/plan-2/<module-slug>/planning/ARCHITECTURE.md
+   /bmad-review-adversarial-general docs/plan-2/planning/ARCHITECTURE.md
+   /bmad-review-edge-case-hunter    docs/plan-2/planning/ARCHITECTURE.md
    ```
    Triage every finding.
 
 #### Deliverables — Phase 3
 
-- `planning/ARCHITECTURE.md` (complete, with 6–8 `AD-<CODE>-n` invariants)
-- Mermaid diagrams (Context and Component Interaction) inside `ARCHITECTURE.md`
+- `planning/ARCHITECTURE.md` (complete, with 6–8 `AD-SYS-n` plus 2–4 `AD-<CODE>-n` per module)
+- Mermaid diagrams (system Context and per-module Component Interaction) inside `ARCHITECTURE.md`
 - `reviews/review-arch-adversarial.md` and `reviews/review-arch-edge-cases.md` with documented triage
 
 ---
@@ -259,7 +262,7 @@ Execute the formal pre-implementation quality gate to verify that all planning a
 #### Instructions
 
 1. Activate `bmad-check-implementation-readiness`.
-2. Provide all four finalised artifact sets: `prd.md`, `DESIGN.md` + `EXPERIENCE.md`, the scenario and page specs, and `ARCHITECTURE.md`.
+2. Provide all four finalised artifact sets of the single package: `prd.md`, `DESIGN.md` + `EXPERIENCE.md`, the scenario and page specs of all 12 modules, and `ARCHITECTURE.md`. The gate also checks cross-module consistency: one owner per table, event and `DomainError` code; every consumed interface published by its owner; no dependency edge outside AD-1.
 3. **Before running this check, ensure all review findings from Phases 1, 2 and 3 have been triaged** — the readiness check will flag untriaged findings as blockers.
 4. **Evaluate the Gate Status:**
    - **PASS:** specifications certified 100% complete and consistent.
@@ -277,23 +280,23 @@ Epics and stories are **outside this exercise's deliverable scope** (as in Plan-
 
 ## 6. Submission Package Checklist
 
-Your team repository should contain the following standardised structure under `docs/plan-2/<module-slug>/`:
+Your team repository should contain the following standardised structure under `docs/plan-2/` (one package for all 12 modules):
 
 ```
-docs/plan-2/<module-slug>/
+docs/plan-2/
+├── task-statement.md                # This statement
 ├── planning/
-│   ├── prd.md                       # Final Scoped PRD
-│   ├── ARCHITECTURE.md              # Technical Architecture & AD-<CODE>-1..n
+│   ├── prd.md                       # Final Scoped PRD (shared part + 12 module sections)
+│   ├── ARCHITECTURE.md              # Technical Architecture, AD-SYS-n & AD-<CODE>-n
 │   └── readiness-gate-report.md     # Readiness Audit Output (PASS sign-off)
 ├── ux/
 │   ├── DESIGN.md                    # Visual Identity & Design Tokens (extends Trusted Ledger)
 │   ├── EXPERIENCE.md                # Behavioral Spine & State Machine
 │   ├── C-UX-Scenarios/
-│   │   ├── 00-ux-scenarios.md       # Scenarios Index & Coverage Matrix
-│   │   ├── scenario-1.md            # Scenario 1 Outline & Page Spec
-│   │   ├── scenario-2.md            # Scenario 2 Outline & Page Spec
-│   │   ├── scenario-3.md            # Scenario 3 Outline & Page Spec
-│   │   └── scenario-4.md            # Scenario 4 Outline & Page Spec
+│   │   ├── 00-ux-scenarios.md       # Scenarios Index & Coverage Matrix (48 scenarios)
+│   │   ├── 01-idn-<slug>/           # Module 1: 4 scenario outlines & page/surface specs
+│   │   ├── …                        # one folder per module
+│   │   └── 12-msg-<slug>/           # Module 12: 4 scenario outlines & page/surface specs
 │   └── wireframes/                  # Key screen mocks / UI diagrams
 ├── reviews/
 │   ├── review-prd-adversarial.md    # Triaged PRD Adversarial Review
@@ -315,9 +318,9 @@ docs/plan-2/<module-slug>/
 
 | Criterion | Weight | Outstanding (4) | Proficient (3) | Developing (2) | Beginning (1) |
 | --- | --- | --- | --- | --- | --- |
-| **Problem Scoping & PRD Rigor** | 20% | Scoped strictly to module boundaries; all 4 scenarios traced to FRs and every FR to a CAP; NFRs testable with explicit numbers; named TEZG protagonists throughout; zero vague elastic language. | Scoped to module; minor NFR metric omissions; 3–4 scenarios traced; protagonists present but occasional generic terms. | Scope leaks into other modules; several untestable NFRs; abstract user roles ("the user"); vague requirements. | PRD is a generic copy of the brief/SPEC; untestable; missing functional depth. |
+| **Problem Scoping & PRD Rigor** | 20% | Scoped strictly to module boundaries; all 4 scenarios of every module traced to FRs and every FR to a CAP; NFRs testable with explicit numbers; named TEZG protagonists throughout; zero vague elastic language. | Scoped to module; minor NFR metric omissions; 3–4 scenarios traced; protagonists present but occasional generic terms. | Scope leaks into other modules; several untestable NFRs; abstract user roles ("the user"); vague requirements. | PRD is a generic copy of the brief/SPEC; untestable; missing functional depth. |
 | **UX Design & Scenario Quality** | 20% | `DESIGN.md` and `EXPERIENCE.md` complete; all 4 screen states (Loading/Empty/Error/Success) specified; explainability for rejections/pauses/hides designed; clear wireframes; WCAG accessibility addressed; extends Trusted Ledger coherently. | Both spines present; minor state omissions (e.g., missing empty state); wireframes present; solid UX flow. | One spine thin or missing; wireframes unclear; error states and explainability banners neglected. | Spines missing or generic; no screen specifications; purely abstract text. |
-| **Architecture & Invariants (AD-n)** | 20% | 6–8 robust `AD-<CODE>-n` invariants with complete Status/Binds/Prevents/Rule/Trade-off; each Rule machine-checkable; security boundaries and data models explicit; valid Mermaid diagrams; explainability architecture clear; consistent with inherited AD-1..19. | 5–6 invariants; 1–2 have minor vague phrasing; data model and component diagrams present; solid technical reasoning. | No invariants or formulated as generic tips; diagrams missing or uninformative; data model incomplete; contradicts an inherited AD. | Invariants absent; architecture is an ungrounded high-level essay without technical contracts. |
+| **Architecture & Invariants (AD-n)** | 20% | 6–8 robust `AD-SYS-n` invariants plus 2–4 `AD-<CODE>-n` per module (the single-package reading of "6–8", Appendix B), with complete Status/Binds/Prevents/Rule/Trade-off; each Rule machine-checkable; security boundaries and data models explicit; valid Mermaid diagrams; explainability architecture clear; consistent with inherited AD-1..19. | 5–6 invariants; 1–2 have minor vague phrasing; data model and component diagrams present; solid technical reasoning. | No invariants or formulated as generic tips; diagrams missing or uninformative; data model incomplete; contradicts an inherited AD. | Invariants absent; architecture is an ungrounded high-level essay without technical contracts. |
 | **Readiness Gate** | 10% | Implementation readiness check executed with verified PASS and clean triage. | Readiness check executed with minor unresolved concerns documented. | Readiness check reports unhandled failures. | Readiness check was never run or ignored. |
 | **AI Governance & Decision Log** | 15% | More than 7 detailed entries demonstrating proactive human leadership; several documented AI rejections with deep technical reasoning; clear proof that human judgment guided every step. | 6–7 entries; documented AI rejections; good evidence of critical evaluation and oversight. | 4–5 entries; passive acceptance of most AI recommendations; weak rationale for accepted suggestions. | No documented entries; uncritical copy-paste of raw AI output; zero evidence of oversight. |
 | **Adversarial Review & Triage** | 15% | All 4 specialised review reports executed; every single finding triaged with clear Accept/Defer/Reject justification; accepted findings visibly fixed in artifacts. | All reviews executed; most findings triaged with reasonable explanations; key blockers addressed. | Partial reviews run (2–3); superficial triage; several critical warnings left unaddressed. | Reviews omitted or findings ignored without triage. |
@@ -326,37 +329,38 @@ docs/plan-2/<module-slug>/
 
 ## Annex: The 12 Independent Engineering Modules
 
-Each team is assigned **one** subsystem from the matrix below. Every module is a realistic, mission-critical component of TEZG's modular monolith. Each maps to one or more of the nine architecture modules (a few are cut from a larger module so that every one carries real decision logic).
+This team plans **all 12** subsystems below in one package (Appendix B). Every module is a realistic, mission-critical component of TEZG's modular monolith. Each maps to one or more of the nine architecture modules (a few are cut from a larger module so that every one carries real decision logic).
 
 **How to read a module entry**
 
-- **Code** — the prefix for your `FR-`, `NFR-` and `AD-` IDs.
-- **Anchors** — the SPEC capabilities you must trace to, and the adopted baseline ADs you inherit.
-- **Owns / Mocks** — the boundary you must confirm and refine in the PRD.
+- **Code** — the prefix for the module's `FR-`, `NFR-` and `AD-` IDs.
+- **Host module** — the code module(s) of the nine (AD-1) whose tables and public interface the planning module's logic lives in. Several planning modules can share a host; a planning module never introduces a new code module or a dependency edge outside AD-1.
+- **Anchors** — the SPEC capabilities the module must trace to, and the adopted baseline ADs it inherits.
+- **Owns / Mocks** — the boundary to confirm and refine in the PRD. "Mocks" means replaced by a fake in the module's own test suite; in the composed monolith the real interface is wired in.
 - **Form factor** — the default from Phase 2 (`R` responsive web, `D` desktop-first back-office, `H` headless/developer console). Override per page only with a logged decision.
 
 Protagonists marked *(new)* are introduced by this Annex on their first appearance (Camila, Sebastián, Julián); *Valentina* and *Andrés* already exist in the TEZG personas and Plan-1 tracks and are reused as they are.
 
-| # | Module | Code | Tier | Core logic |
-| --- | --- | --- | --- | --- |
-| 1 | User, Role & Seller-Type Access Manager | `IDN` | Foundation | Derived capabilities + atomic exclusivity guard |
-| 2 | Catalog & Price Reference Service | `CAT` | Foundation | Price provenance + feed ingestion/freshness policy |
-| 3 | Marketplace Browse & Location Discovery Engine | `DSC` | Intermediate | Geodesic filter + ranking + derived flags |
-| 4 | Listing & Shared Inventory Engine | `INV` | Advanced | Shared-pool reservation under concurrency |
-| 5 | Business Verification Workflow | `VER` | Intermediate | Application state machine + regulated-data access policy |
-| 6 | Order & Comprobante Confirmation State Machine | `ORD` | Advanced | Three-fact confirmation machine |
-| 7 | Commission Ledger & Purchasability Engine | `COM` | Advanced | Atomic ledger + pause/resume events |
-| 8 | Trade Offer Negotiation Engine | `TRD` | Advanced | Negotiation state machine + shared reservation |
-| 9 | Collection, Binder & Wishlist Manager | `COL` | Intermediate | Tagged-union entries + layout/ordering + prompt idempotency |
-| 10 | Collection Valuation & Trend Engine | `VAL` | Intermediate | Valuation math + trend formula + money-shape safety |
-| 11 | Reviews, Reputation & Moderation Console | `REP` | Foundation | Purchase-gate policy + aggregate + visibility |
-| 12 | Messaging & External Contact Handoff | `MSG` | Foundation | Eligibility policy + deterministic message rendering |
+| # | Module | Code | Host module | Tier | Core logic |
+| --- | --- | --- | --- | --- | --- |
+| 1 | User, Role & Seller-Type Access Manager | `IDN` | `identity` | Foundation | Derived capabilities + atomic exclusivity guard |
+| 2 | Catalog & Price Reference Service | `CAT` | `catalog` | Foundation | Price provenance + feed ingestion/freshness policy |
+| 3 | Marketplace Browse & Location Discovery Engine | `DSC` | `listings` (AD-5) | Intermediate | Geodesic filter + ranking + derived flags |
+| 4 | Listing & Shared Inventory Engine | `INV` | `listings` | Advanced | Shared-pool reservation under concurrency |
+| 5 | Business Verification Workflow | `VER` | `identity` (AD-13) | Intermediate | Application state machine + regulated-data access policy |
+| 6 | Order & Comprobante Confirmation State Machine | `ORD` | `orders` | Advanced | Three-fact confirmation machine |
+| 7 | Commission Ledger & Purchasability Engine | `COM` | `commission` | Advanced | Atomic ledger + pause/resume events |
+| 8 | Trade Offer Negotiation Engine | `TRD` | `trading` | Advanced | Negotiation state machine + shared reservation |
+| 9 | Collection, Binder & Wishlist Manager | `COL` | `collections` | Intermediate | Tagged-union entries + layout/ordering + prompt idempotency |
+| 10 | Collection Valuation & Trend Engine | `VAL` | `collections` | Intermediate | Valuation math + trend formula + money-shape safety |
+| 11 | Reviews, Reputation & Moderation Console | `REP` | `reviews` (+ `listings` for the listing hide) | Foundation | Purchase-gate policy + aggregate + visibility |
+| 12 | Messaging & External Contact Handoff | `MSG` | `messaging` (+ `listings` for the contact-message service, AD-4) | Foundation | Eligibility policy + deterministic message rendering |
 
 ---
 
 ### Module 1: User, Role & Seller-Type Access Manager — `IDN`
 
-- **Tier:** Foundation · **Form factor:** H (RBAC/capability API explorer) + D (admin account inspector)
+- **Tier:** Foundation · **Host module:** `identity` · **Form factor:** H (RBAC/capability API explorer) + D (admin account inspector)
 - **Core Problem:** TEZG has no fixed role enum. What an account can do is *derived* from independent facts — buyer by default, `isIndividualSellerProfileComplete`, `businessId` or an open business application, `isAdmin` — and SPEC requires that a seller is exclusively an individual seller **or** a verified business. Every other module needs one trustworthy answer to "what can this account do right now, and why?", and that answer must survive concurrent, conflicting actions without hand-written role checks scattered across callers.
 - **Named Protagonists:** *Valentina* (collector who buys and sells from one account); *Andrés* (shop owner starting a business application); *Sebastián* (Platform Admin, *new*).
 - **Anchors:** CAP-19 (profile-step gate); inherited AD-16 (dual-role derived server-side), AD-18 (seller-type exclusivity), AD-11.
@@ -371,7 +375,7 @@ Protagonists marked *(new)* are introduced by this Annex on their first appearan
 
 ### Module 2: Catalog & Price Reference Service — `CAT`
 
-- **Tier:** Foundation · **Form factor:** R
+- **Tier:** Foundation · **Host module:** `catalog` · **Form factor:** R
 - **Core Problem:** a card must exist **once**, independently of any listing (CAP-2), and be browsable by set, era, Pokémon, colour, style and artist (CAP-1). Its card detail must show three distinct price values that never collapse into one number: listing price (COP), last-transaction price (a single USD/COP reference point) and historical trend (`period`, `changePercent`, `referencePriceAtStart`). Reference prices come from an **external feed** — never derived from platform volume — which can be down, stale or wrong.
 - **Named Protagonists:** *Valentina* (release-driven collector sanity-checking a price); *Sebastián* (Platform Admin maintaining catalog integrity).
 - **Anchors:** CAP-1 (attribute filters), CAP-2, CAP-3; inherited AD-7, AD-8, AD-11.
@@ -386,7 +390,7 @@ Protagonists marked *(new)* are introduced by this Annex on their first appearan
 
 ### Module 3: Marketplace Browse & Location Discovery Engine — `DSC`
 
-- **Tier:** Intermediate · **Form factor:** R
+- **Tier:** Intermediate · **Host module:** `listings` (AD-5) · **Form factor:** R
 - **Core Problem:** buyers need to find who is selling a card near them. One filter path (lat/lng/radius) must serve both seller types (AD-5); the pickup-versus-convenience distinction is a **derived** `pickupAvailable` flag (true only for individual sellers), never a second filter branch or stored column; hidden listings must never appear (AD-12). Distance must be mathematically correct and results ordered deterministically.
 - **Named Protagonists:** *Camila* (casual buyer in Medellín looking for a local seller, *new*); *Valentina* (individual seller in Bogotá).
 - **Anchors:** CAP-1 (location/distance), CAP-2; inherited AD-5, AD-12, AD-8.
@@ -401,7 +405,7 @@ Protagonists marked *(new)* are introduced by this Annex on their first appearan
 
 ### Module 4: Listing & Shared Inventory Engine — `INV`
 
-- **Tier:** Advanced · **Form factor:** H (developer console + reservation race simulator)
+- **Tier:** Advanced · **Host module:** `listings` · **Form factor:** H (developer console + reservation race simulator)
 - **Core Problem:** sellers publish cards, bundles and sealed products. A bundle's component card and the same seller's individual listing of that card share **one** `InventoryUnit` quantity, so a sale through either path decrements the same count. Sealed products are always listed individually and never bundle components. `reserveInventory` must atomically check-and-decrement **at reservation time** inside the caller's transaction, so concurrent buyers, and trades, can never oversell the last unit (AD-6).
 - **Named Protagonists:** *Andrés* (verified business selling bundles and sealed boxes); *Valentina* (individual seller with one copy of a card listed twice).
 - **Anchors:** CAP-4, CAP-16; inherited AD-6, AD-3, AD-4 (`openToTrade` ownership), AD-1, AD-8.
@@ -410,13 +414,13 @@ Protagonists marked *(new)* are introduced by this Annex on their first appearan
   1. **Publish Card, Bundle and Sealed Listings:** Andrés lists a bundle of three cards and a sealed product; a bundle component list accepts only cards (a sealed product is rejected with an explanation).
   2. **Shared-Quantity Reconciliation:** Valentina holds one copy of a card listed individually and as a bundle component; a sale through the bundle makes the individual listing unavailable — one decrement, never two.
   3. **Concurrent Last-Unit Reservation:** two buyers reserve the last unit simultaneously; exactly one succeeds and the other receives an explainable insufficient-quantity rejection.
-  4. **Seller-Type Listing Rules:** a business can create listings while its application is Pending and regardless of balance; purchasability pauses only on `CommissionBalanceExhausted` (listings stay visible and editable); `openToTrade` defaults false and setting it true on a business listing is rejected at the `Listing` aggregate.
+  4. **Seller-Type Listing Rules:** a business can create listings while its application is Pending and regardless of balance; purchasability pauses only on `CommissionBalanceExhausted` (listings stay visible and editable); `openToTrade` defaults false and setting it true on a business listing is rejected at the `Listing` aggregate. **Open question for the PRD:** because a `Pending` business may create listings (Plan-1 seller track, FR-S9), SPEC's `SellerNotVerified` on `CreateListing` needs an exact trigger — state which account states raise it (for example a `Rejected` application only) and log the decision.
 - **Standalone Prototype:** Inventory & Listing Console with a reservation race simulator (fires N concurrent `reserveInventory` calls) and pool inspector.
 - **Mandatory Edge Case:** the caller's transaction **aborts after** `reserveInventory` succeeded (for example the `Order` insert fails); the quantity must be fully restored by the shared transaction itself, with no compensating write and no ghost reservation.
 
 ### Module 5: Business Verification Workflow — `VER`
 
-- **Tier:** Intermediate · **Form factor:** D (admin review queue) + R (applicant form)
+- **Tier:** Intermediate · **Host module:** `identity` (AD-13) · **Form factor:** D (admin review queue) + R (applicant form)
 - **Core Problem:** a business is represented as verified only after an admin approves its application; until then it stays `Pending`. The application carries `legalIdentity` and external-presence data (Instagram or website), which is **regulated personal data under Ley 1581**: timestamped consent at submission, a published privacy notice, and access scoped to the admin-review path only (AD-13). Review is a manual, human action — but the module must make its state transitions and data access provably safe.
 - **Named Protagonists:** *Andrés* (applicant); *Sebastián* (Platform Admin reviewer).
 - **Anchors:** CAP-5, CAP-15; inherited AD-13, AD-18 (guard at submission), AD-11.
@@ -431,8 +435,8 @@ Protagonists marked *(new)* are introduced by this Annex on their first appearan
 
 ### Module 6: Order & Comprobante Confirmation State Machine — `ORD`
 
-- **Tier:** Advanced · **Form factor:** R (buyer) + D (business order detail)
-- **Core Problem:** a business purchase is settled peer-to-peer and tracked by **three independently-timestamped confirmation facts**: `buyerPaidConfirmedAt` (only once a comprobante file reference exists and the buyer confirms), `sellerReceivedConfirmedAt` (only the business), and `buyerItemReceivedConfirmedAt` (the **only** fact that closes the order). The platform never models funds held. Purchasing against an individual-seller listing must fail with `NotBusinessListing`. Inventory is reserved **at creation** (AD-6), and events are published only after commit (AD-9/AD-10).
+- **Tier:** Advanced · **Host module:** `orders` · **Form factor:** R (buyer) + D (business order detail)
+- **Core Problem:** a business purchase is settled peer-to-peer and tracked by **three independently-timestamped confirmation facts**: `buyerPaidConfirmedAt` (only once a comprobante file reference exists and the buyer confirms), `sellerReceivedConfirmedAt` (only the business), and `buyerItemReceivedConfirmedAt` (the **only** fact that closes the order). The platform never models funds held. Purchasing against an individual-seller listing must fail with `NotBusinessListing` — a code owned and thrown by `listings` (AD-11) that `orders` propagates unchanged. Inventory is reserved **at creation** (AD-6), and events are published only after commit (AD-9/AD-10).
 - **Named Protagonists:** *Camila* (buyer purchasing from a verified business); *Andrés* (business confirming payment).
 - **Anchors:** CAP-17, CAP-20, CAP-22, CAP-27 (trigger side); inherited AD-2, AD-6, AD-9, AD-10, AD-14, AD-15.
 - **Owns / Mocks:** owns `Order`, the comprobante file reference, the three facts, the `OrderPaymentConfirmedByBusiness` and `OrderClosed` events, and read-ownership rules; mocks `listings.reserveInventory`, `identity`, object storage and the event bus.
@@ -446,7 +450,7 @@ Protagonists marked *(new)* are introduced by this Annex on their first appearan
 
 ### Module 7: Commission Ledger & Purchasability Engine — `COM`
 
-- **Tier:** Advanced · **Form factor:** D (ledger console) + H (concurrent-deduction simulator)
+- **Tier:** Advanced · **Host module:** `commission` · **Form factor:** D (ledger console) + H (concurrent-deduction simulator)
 - **Core Problem:** a verified business keeps a **prepaid commission balance**. Each confirmed sale deducts commission, triggered only by `OrderPaymentConfirmedByBusiness`, as a **single atomic conditional decrement** — never a read-modify-write (AD-19); a transiently negative balance is allowed so a completed sale is never refused. Reaching zero pauses purchasability (listings stay visible and editable, never deleted) until a top-up resumes it. The commission rate is an explicit Non-Goal in SPEC, so it is a configurable parameter, but the **rounding rule** for a percentage of integer COP is yours to define and prove: the ledger identity `balance = Σ top-ups − Σ deductions` must hold exactly.
 - **Named Protagonists:** *Andrés* (business owner); *Sebastián* (Platform Admin auditing the ledger).
 - **Anchors:** CAP-21; inherited AD-3, AD-19, AD-9, AD-10.
@@ -461,11 +465,11 @@ Protagonists marked *(new)* are introduced by this Annex on their first appearan
 
 ### Module 8: Trade Offer Negotiation Engine — `TRD`
 
-- **Tier:** Advanced · **Form factor:** R
+- **Tier:** Advanced · **Host module:** `trading` · **Form factor:** R
 - **Core Problem:** buyers can offer cards, product and/or money against an **individual-seller** listing flagged `openToTrade` (default false, never available on business listings). The seller can accept, reject or counter; an accepted trade reserves inventory through the same `reserveInventory` call orders use (AD-6) and hands off via the shared contact-message service. A trade is "completed" only when **both** parties independently confirm — a computed property, never a stored status. Plan-1 only *assumed* (SPEC is silent) that once one offer is accepted, the listing's other pending offers become "unfulfillable" and are surfaced to their proposers; this module must turn that assumption into a specified state-machine transition, or replace it with a logged, justified alternative.
 - **Named Protagonists:** *Valentina* (seller); *Julián* (collector offering a trade, *new*).
 - **Anchors:** CAP-25, CAP-26; inherited AD-4, AD-6, AD-1.
-- **Owns / Mocks:** owns `TradeOffer`, its negotiation/state machine and the two confirmation facts; mocks `listings` (the `openToTrade` flag, `reserveInventory`, the contact-message service) and `identity`.
+- **Owns / Mocks:** owns `TradeOffer`, its negotiation/state machine and the two confirmation facts; mocks `listings` (the `openToTrade` flag, `reserveInventory`, and the contact-message service — specified in Module 12, owned by `listings` per AD-4) and `identity`.
 - **4 Mandatory Scenarios:**
   1. **Offer on an Open-to-Trade Listing:** Julián offers a card plus COP 20,000; an offer on a listing that is not open to trade is rejected with an explanation.
   2. **Reject or Counter:** Valentina rejects or counters; Julián sees the recorded action, and turn-taking rules prevent out-of-turn actions.
@@ -476,7 +480,7 @@ Protagonists marked *(new)* are introduced by this Annex on their first appearan
 
 ### Module 9: Collection, Binder & Wishlist Manager — `COL`
 
-- **Tier:** Intermediate · **Form factor:** R
+- **Tier:** Intermediate · **Host module:** `collections` · **Form factor:** R
 - **Core Problem:** a collector keeps several named collections; every entry carries a required `source` (`PlatformPurchase` or `Manual`); the binder is organised however the collector chooses (layout, page grid, ordering by date, value, set, Pokémon, artist, colour); a card with no catalog entry can be added by external link (`BinderEntry.cardRef` is a tagged union, never a synthetic catalog row); the wishlist is separate from collections and sortable by price and availability; and closing a business order only ever triggers a **dismissible prompt**, not an automatic entry.
 - **Named Protagonists:** *Valentina* (collector); *Camila* (wishlist-driven buyer).
 - **Anchors:** CAP-8, CAP-10, CAP-11, CAP-12, CAP-13, CAP-14, CAP-24, CAP-27 (prompt side); inherited AD-7, AD-9, AD-10, AD-1.
@@ -491,7 +495,7 @@ Protagonists marked *(new)* are introduced by this Annex on their first appearan
 
 ### Module 10: Collection Valuation & Trend Engine — `VAL`
 
-- **Tier:** Intermediate · **Form factor:** R
+- **Tier:** Intermediate · **Host module:** `collections` · **Form factor:** R
 - **Core Problem:** a collector needs the **current total value** of a collection (COP) and how it **changed over a prior period**, derived from constituent reference prices — plus a value history series that is non-empty and COP-denominated once a priced item is added. Reference prices arrive as USD/COP pairs from a fixture feed with a fixture FX rate; the two money shapes must **never** be merged or coerced (project rule). The conversion source and refresh mechanism are SPEC Non-Goals, so your PRD declares its assumption. This is the module where arithmetic must be provably right: rounding policy, missing prices, zero baselines.
 - **Named Protagonists:** *Valentina* (tracks her collection's value); *Camila* (tracks a small starter collection).
 - **Anchors:** CAP-9, CAP-3 (trend shape), CAP-12; inherited AD-7 and the money rules in `project-context.md`.
@@ -506,7 +510,7 @@ Protagonists marked *(new)* are introduced by this Annex on their first appearan
 
 ### Module 11: Reviews, Reputation & Moderation Console — `REP`
 
-- **Tier:** Foundation · **Form factor:** R (review form, profile) + D (moderation queue)
+- **Tier:** Foundation · **Host module:** `reviews` + `listings` (the `Listing` hide command) · **Form factor:** R (review form, profile) + D (moderation queue)
 - **Core Problem:** reputation is review-based. A review of a **verified business** requires a *completed* purchase against it — `buyerItemReceivedConfirmedAt IS NOT NULL`, not merely "paid" — and fails with `NotVerifiedPurchaser`; a review of an **individual seller** has no such gate (an accepted, flagged risk). An admin can **hide** (never delete) a listing or review; every default read filters `hiddenAt IS NULL`, and hidden reviews must leave the aggregate rating at once. Anti-abuse beyond the purchase gate is a Non-Goal.
 - **Named Protagonists:** *Camila* (buyer reviewing); *Andrés* (reviewed business); *Sebastián* (Platform Admin moderator).
 - **Anchors:** CAP-7, CAP-28; inherited AD-12, AD-2 (definition of the closed state), AD-11.
@@ -521,11 +525,11 @@ Protagonists marked *(new)* are introduced by this Annex on their first appearan
 
 ### Module 12: Messaging & External Contact Handoff — `MSG`
 
-- **Tier:** Foundation · **Form factor:** H (API explorer) + R (composer and inbox)
-- **Core Problem:** two different contact paths exist. Individual-seller listings are reachable only through a **generated external message** — pre-filled text with product name and listed price, as a link or copyable text for an external messaging app that the platform never calls (CAP-6). **In-app messaging exists only for verified businesses**; the same action against a non-business account fails with `NotBusinessAccount` (CAP-18). `trading` reuses the same contact-message service for an accepted trade. The module must render messages deterministically and apply the eligibility policy without ambiguity.
+- **Tier:** Foundation · **Host module:** `messaging` + `listings` (the contact-message service, AD-4) · **Form factor:** H (API explorer) + R (composer and inbox)
+- **Core Problem:** two different contact paths exist. Individual-seller listings are reachable only through a **generated external message** — pre-filled text with product name and listed price, as a link or copyable text for an external messaging app that the platform never calls (CAP-6). **In-app messaging exists only for verified businesses**; the same action against a non-business account fails with `NotBusinessAccount` (CAP-18). `trading` reuses the same contact-message service for an accepted trade. The module must render messages deterministically and apply the eligibility policy without ambiguity. **Ownership note:** SPEC maps CAP-6 to `listings` and AD-4 makes the contact-message service a `listings` application service that `trading` reuses, while `messaging` depends only on `identity` (AD-1). This module therefore *specifies* both paths, but the external-handoff service is code-owned by `listings` and only CAP-18 lives in `messaging`.
 - **Named Protagonists:** *Camila* (buyer); *Valentina* (individual seller); *Andrés* (verified business).
 - **Anchors:** CAP-6, CAP-18; inherited AD-4 (reuse by `trading`), AD-8, AD-11.
-- **Owns / Mocks:** owns the contact-message service, `Conversation` and `Message` records; mocks `identity` (account/verification state), `listings` (product and price), and the external messaging app (a link is generated, never called).
+- **Owns / Mocks:** owns `Conversation` and `Message` records and the in-app eligibility policy (in `messaging`), and the specification of the contact-message service (code-owned by `listings`, AD-4); mocks `identity` (account/verification state), listing product and price (fixture listings), and the external messaging app (a link is generated, never called).
 - **4 Mandatory Scenarios:**
   1. **Contact an Individual Seller:** Camila gets message text containing the product name and COP price, with a correctly encoded external link.
   2. **In-App Message to a Verified Business:** delivered in-app; the thread tracks read/unread state.
@@ -547,11 +551,35 @@ Protagonists marked *(new)* are introduced by this Annex on their first appearan
 | Constraint 2 | Hardware Agnosticism | External-Dependency Agnosticism |
 | Constraint 4 | Cited justifications | Same; citations name the CAP/AD/rule and the input values; TEZG tone of voice |
 | Constraint 5 examples | OOM, timeout, quota breach, node failure | Insufficient quantity, missing comprobante, balance exhausted, subscriber failure, feed outage, write conflict |
-| Constraints 8–9 | — | **New:** Inherited Project Invariants; CAP traceability and module-code ID prefixing (`FR-<CODE>-n`, `AD-<CODE>-n`) |
+| Constraints 8–9 | — | **New:** Inherited Project Invariants; CAP traceability and module-code ID prefixing (`FR-<CODE>-n`, `AD-<CODE>-n`, `AD-SYS-n` for cross-module rules) |
+| Team assignment | One module per team | One team plans all 12 modules as **one integrated package** (Appendix B) |
 | Protagonists | Professors, students, lab engineers (Dr. Aris Thorne, Mateo, Elena…) | Collectors, individual sellers, businesses and admins (Valentina, Andrés, Sebastián, Camila, Julián) |
 | Design tokens | Green / Amber / Blue / Red traffic-light statuses | Extend the muted "Trusted Ledger" tokens (`status-pending`, `status-confirmed`, `status-error`) |
 | Form factors | Admin/observability, student/chat, headless | Collector-facing responsive, back-office desktop-first, headless developer console — chosen by task shape |
 | Review commands | `/bmad-review … --lens adversarial` / `--lens edge-case-hunter` | `/bmad-review-adversarial-general` / `/bmad-review-edge-case-hunter` (installed skills) |
-| Module Annex | 12 modules of the compute fabric (identity, policy engine, digital twin, reservations, model catalog, …) | 12 TEZG modules cut from the nine architecture modules (identity, catalog, discovery, inventory, verification, orders, commission, trading, collections, valuation, reviews/moderation, messaging), each with Owns/Mocks, Anchors and Form factor added |
-| Submission root | Repository root | `docs/plan-2/<module-slug>/` |
-| Unchanged | Phases, durations, deliverables, AD-n 5-part format, ≥3 rejected-AI-proposal rule, PASS/CONCERNS/FAIL gate, rubric weights and descriptors | — |
+| Module Annex | 12 modules of the compute fabric (identity, policy engine, digital twin, reservations, model catalog, …) | 12 TEZG modules cut from the nine architecture modules (identity, catalog, discovery, inventory, verification, orders, commission, trading, collections, valuation, reviews/moderation, messaging), each with Host module, Owns/Mocks, Anchors and Form factor added |
+| Submission root | Repository root | `docs/plan-2/` (one package; one scenario folder per module) |
+| AD-n budget | 6–8 `AD-n` per module | 6–8 `AD-SYS-n` plus 2–4 `AD-<CODE>-n` per module where a new rule is needed (Appendix B) |
+| Unchanged | Phases, deliverables, AD-n 5-part format, ≥3 rejected-AI-proposal rule, PASS/CONCERNS/FAIL gate, rubric weights and descriptors | Phase durations read as per-module estimates |
+
+---
+
+## Appendix B — Single-Package Scope (Instructor Exchange)
+
+The team (Martín Gómez, Mateo Rubio) asked the instructor whether, as an independent project, it could cover all 12 modules instead of one. The instructor's reply:
+
+> "You can define work on all the modules. Nevertheless, in this case, you should generate one single package (PRD, UX, etc.) unless you want to leave some aspects for later definition. Working in pairs does not mean splitting the work on these documents because later will be complicated to put them together. So, If you want to have the product fully functional at the end, you can include them all."
+
+The team chose to plan all 12 modules at full depth. The rules of the default statement are read as follows:
+
+| Default rule | Reading in this package |
+| --- | --- |
+| One `prd.md` per module | One `prd.md`: shared part + one section per module, in AD-1 dependency order |
+| 4 scenarios per module | 4 per module (48), one folder per module, one index and coverage matrix |
+| One `DESIGN.md` / `EXPERIENCE.md` | One of each for the whole product |
+| 6–8 `AD-n` invariants | 6–8 cross-cutting `AD-SYS-n` + 2–4 `AD-<CODE>-n` per module, only where AD-1..19 and `AD-SYS` do not already state the rule |
+| 4 review reports | 4 consolidated reports; a review may run in several passes, all triaged in one file |
+| One readiness gate | One gate over the whole package, including cross-module consistency |
+| One decision log | One decision log; the ≥3 rejected-proposal rule applies to the package |
+| Module boundaries via mocks | Each module's tests use fakes of its neighbours; the composed monolith wires the real interfaces |
+| Pairs split the work | The pair does not split documents: both members own the whole package |
