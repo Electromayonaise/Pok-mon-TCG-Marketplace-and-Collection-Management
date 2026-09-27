@@ -8,7 +8,7 @@ status: triaged — resolved at Phase 1 gate (2026-09-23)
 
 # Adversarial review — Plan-2 PRD
 
-Reviewed the full draft (§0–§23, 2,121 lines) and the addendum (ADD-§1–§10). The skill asks for findings as descriptions only, without severity. The triage columns after the list are the reviewer's recommendation for the Phase 1 gate. They are not decisions until the team confirms them.
+Reviewed the full draft (§0–§23, 2,121 lines) and the addendum (ADD-§1–§10). The skill asks for findings as descriptions only, without severity. The triage table after the list holds the reviewer's recommendation for the Phase 1 gate. The team adopted it in full (decision log #46); the Gate item F-15 became OQ-12, answered at the Phase 1 gate (#14).
 
 ## Findings
 
@@ -110,3 +110,5 @@ Reviewed the full draft (§0–§23, 2,121 lines) and the addendum (ADD-§1–§
 | F-28 | **Accept** | Reference = independent haversine at ≤ 1 m. Vincenty is a documented sanity check only. |
 | F-29 | **Defer** | SPEC non-goal (no user reports). Owner: Phase 2 UX, to evaluate a buyer-side "mute conversation". Revisit if harassment reports arrive after launch. |
 | F-30 | **Accept** | `view=entries` caps `listings[]` at 5 per entry and adds `moreCount`. |
+
+**Counts.** 30 findings: 28 Accept (F-14 partial) · 1 Defer (F-29, later taken into V1 as FR-MSG-8, #15) · 1 Gate (F-15 → OQ-12, #14) · 0 Reject.
