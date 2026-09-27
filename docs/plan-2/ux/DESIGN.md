@@ -8,7 +8,7 @@ sources:
   - docs/plan-2/planning/prd.md
   - docs/plan-2/planning/addendum.md
   - docs/plan-2/ux/C-UX-Scenarios/00-ux-scenarios.md
-updated: 2026-09-26
+updated: 2026-09-27
 colors:
   surface-base: '#FAF7F0'
   surface-raised: '#FFFFFF'
@@ -76,6 +76,7 @@ components:
   # listing-card (cta-business / cta-individual), empty-state      <- buyer track
   # verification-status-badge, commission-balance-card, trade-offer-card, comprobante-viewer,
   # open-to-trade-toggle, create-listing-form                       <- seller track
+  # comprobante-viewer carries a Plan-2 override (Components): sanitized rendition only; PDF branch blocked by LG-3
   focus-ring:
     color: '{colors.accent}'
     width: '2px'
@@ -198,7 +199,7 @@ components:
   document-viewer:
     extends: '{components.comprobante-viewer}'
     audit-line: '{typography.meta}, {colors.ink-secondary}: "Este acceso queda registrado · enlace válido 10 min"'
-    note: 'legal-identity documents and top-up proofs; view-only, no download button (NFR-SYS-14)'
+    note: 'legal-identity documents and top-up proofs; view-only, no download button, no open-in-new-tab (NFR-SYS-14); renders only the sanitized rendition as an image, never the original (ARCHITECTURE AD-SYS-8 rule 11; PDF rendition pending G-5)'
   location-picker:
     use-my-location: '{components.button-secondary}'
     city-select: 'native select of Colombian cities with centre points'
@@ -355,7 +356,7 @@ The one allowed layering is a **non-modal side panel** on D surfaces, such as th
 
 ## Components
 
-Inherited components keep their Plan-1 specification. The following Plan-2 components are new or extended; the tokens are in the frontmatter.
+Inherited components keep their Plan-1 specification, except the `comprobante-viewer` override below. The following Plan-2 components are new or extended; the tokens are in the frontmatter.
 
 - **State indicator** — the one state grammar. A dot plus a label; see Colors → state mapping. It is the base of the verification badge, order row, trade badge, top-up status, prompt status and moderation status.
 - **Explainability banner** — the visual form of a §6 `Decision`.
@@ -381,6 +382,9 @@ Inherited components keep their Plan-1 specification. The following Plan-2 compo
 - **API explorer panel** — the frame of every H surface. It shows the Decision rendered as a banner, then the raw JSON in `code`. A fixture banner keeps developers from mistaking seeded data for production.
 - **State-machine viewer, race simulator, ingestion console, capability trace** — the H and D instruments of the Advanced modules. Each shows its invariant result as a state indicator plus a sentence, for example "invariante: disponible = 0 ✓".
 - **Document viewer** — view-only legal identity and top-up proof, with an audit line. It has no download control.
+- **Comprobante viewer (inherited; Plan-2 override)** — Plan-1's `comprobante-viewer`, and the `document-viewer` that extends it, follow the sanitized-only policy (ARCHITECTURE AD-SYS-8 rules 9 and 11; decision log #44).
+  - *Image branch: complies.* It shows the sanitized rendition (the re-encoded JPEG or PNG) in an `<img>` from a signed URL with a 600 s TTL. The zoom overlay shows the same `<img>`.
+  - *PDF branch: cannot comply as designed.* Plan-1's "image (or PDF-icon) frame" has nothing sanitized to show for a PDF, and opening the original inline, by download or in a new tab is forbidden. No PDF rendition exists until G-5 closes, so this branch is blocked by launch gate LG-3. It is not patched here. What must change: once G-5 picks the mechanism, the PDF branch renders that rendition as an image, like the image branch; if G-5 accepts images only, the branch is removed.
 - **Location picker and distance row explanation** — DSC. There are no map tiles in V1 (PRD out of scope), so the picker offers "Usar mi ubicación", a city list and a radius input.
 - **Trade timeline** — the rounds of a negotiation, newest last, with a turn indicator that always names whose turn it is.
 - **Message thread and contact composer** — MSG.

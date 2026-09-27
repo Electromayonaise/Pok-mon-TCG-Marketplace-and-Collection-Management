@@ -54,6 +54,7 @@ updated: 2026-09-27
 | `InvalidDocumentFile` (type) | "Este archivo no es un PDF ni una imagen JPG o PNG. Suba su documento en uno de esos formatos." | — | Wrong file type. |
 | `InvalidDocumentFile` (size) | "El archivo pesa {peso} MB y el máximo es 5 MB. Suba una versión más liviana del documento." | — | Over 5 MB. |
 | `InvalidDocumentFile` (scanner) | "No pudimos aceptar este archivo porque no pasó la revisión de seguridad. Suba otra copia del documento." | — | Failed the security check (AD-SYS-8 rule 6). |
+| `InvalidDocumentFile` (missing) | "No recibimos el archivo, o el enlace de subida venció. Vuelva a seleccionar el documento." | — | Upload missing or its link expired (AD-SYS-8 rule 5). |
 
 ### 1.1 VER status copy (FR-VER-7, from ADD-§1.3; *usted*)
 
@@ -143,6 +144,7 @@ updated: 2026-09-27
 | `ComprobanteInvalidFile` (type) | "Este archivo no es una imagen JPG o PNG ni un PDF. Sube una foto o captura del comprobante." | — | Wrong file type. |
 | `ComprobanteInvalidFile` (size) | "El archivo pesa {peso} MB y el máximo es 5 MB. Sube una captura o una foto más liviana." | — | Over 5 MB. |
 | `ComprobanteInvalidFile` (scanner) | "No pudimos aceptar este archivo porque no pasó la revisión de seguridad. Sube otra captura del comprobante." | — | Failed the security check (AD-SYS-8 rule 6). |
+| `ComprobanteInvalidFile` (missing) | "No recibimos el archivo, o el enlace de subida venció. Vuelve a seleccionar la captura del comprobante." | — | Upload missing or its link expired (AD-SYS-8 rule 5). |
 | `ComprobanteLocked` | "Ya confirmaste el pago, así que el comprobante no se puede cambiar. Si hay un problema, escríbele a {tienda}." | Escribir a la tienda | Comprobante locked after payment confirmation. |
 | `ComprobanteNotYetUploaded` | "Sube el comprobante de la transferencia antes de confirmar que pagaste." | Subir comprobante | Upload the comprobante first. |
 | `ComprobanteMissingOnConfirm` | "Este pedido aún no tiene comprobante. Espera a que el comprador lo suba." | — | No comprobante yet. |
@@ -174,6 +176,7 @@ updated: 2026-09-27
 | `TopUpProofInvalidFile` (type) | "Este archivo no es una imagen JPG o PNG ni un PDF. Sube una foto o captura del comprobante de la recarga." | — | Wrong file type. |
 | `TopUpProofInvalidFile` (size) | "El archivo pesa {peso} MB y el máximo es 5 MB. Sube una captura o una foto más liviana." | — | Over 5 MB. |
 | `TopUpProofInvalidFile` (scanner) | "No pudimos aceptar este archivo porque no pasó la revisión de seguridad. Sube otra captura del comprobante." | — | Failed the security check (AD-SYS-8 rule 6). |
+| `TopUpProofInvalidFile` (missing) | "No recibimos el archivo, o el enlace de subida venció. Vuelve a seleccionar el comprobante de la recarga." | — | Upload missing or its link expired (AD-SYS-8 rule 5). |
 | Top-up pending | "Estamos revisando tu transferencia. Tu saldo cambiará cuando la confirmemos." | — | We're checking your transfer. |
 | Top-up confirmed, resumed | "Recibimos tu recarga de {monto}. Tu saldo es {saldo} y tus publicaciones ya se pueden comprar." | — | Received; listings purchasable. |
 | Top-up confirmed, still ≤0 | "Recibimos tu recarga de {monto}. Tu saldo es {saldo}; recarga al menos {faltante} para reactivar tus publicaciones." | Recargar saldo | Received; still need {X}. |

@@ -311,7 +311,7 @@ Decision {
   - **Auth throttling:** sign-in is limited to 10 failed attempts per account per 15 minutes and 30 per IP per 15 minutes; sign-up to 5 per IP per hour. A throttled attempt is refused with `AuthRateLimited` (identity), whose message says when to retry.
   - **Email verification:** an account must have a verified email before its first contact request, order, trade offer or message (FR-IDN-1 `canBuy`, FR-MSG-1, FR-ORD-1, FR-TRD-1, FR-MSG-5).
   - **Per-IP contact limit:** at most 60 contact requests per IP per hour, on top of the per-requester limits in FR-MSG-3. This blunts phone harvesting through multiple free accounts.
-  - **Upload scanning:** every uploaded file (applicant documents, comprobantes, top-up proofs) passes the AD-SYS-8 pipeline: size, magic bytes, then `MalwareScanner`. The V1 scanner is `StructuralScanner` (gate item G-4); ClamAV-class scanning is deferred (ARCHITECTURE §14). Admins open uploads only in the platform's sandboxed viewer, never as downloads.
+  - **Upload scanning:** every uploaded file (applicant documents, comprobantes, top-up proofs) passes the AD-SYS-8 pipeline: size, magic bytes, then `MalwareScanner`. The V1 scanner is `StructuralScanner` (gate item G-4); ClamAV-class scanning is deferred (ARCHITECTURE §14). Viewers show only a sanitized rendition of each upload, never the original file and never as a download (ARCHITECTURE AD-SYS-8 rule 11). The PDF sanitization mechanism is pending validation (G-5), and production launch waits for it.
   - **Verification:** a test per limit proves that the (N+1)th attempt in the window is refused and that the window resets on the virtual clock.
 
 ## 8. Glossary of Listing and Account States

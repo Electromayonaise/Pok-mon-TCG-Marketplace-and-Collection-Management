@@ -436,14 +436,14 @@ The `*NotVisibleToCaller` codes map to `FORBIDDEN` even though AD-14/AD-15 hide 
 
 ### AD-SYS-8 — Server-side authorization, regulated data and uploads
 
-- **Status:** [ADOPTED], with the V1 scanner binding [ASSUMPTION — gate item G-4]
+- **Status:** [ADOPTED], with the V1 scanner binding [ASSUMPTION — gate item G-4] and the PDF sanitization mechanism pending validation [G-5]
 - **Binds:**
   - the procedure builders `publicProcedure`, `authedProcedure`, `adminProcedure`, `devProcedure` (§9.2) and the middleware `requireCanBuy`;
   - the generated authorization test;
-  - `shared-kernel/regulated.ts`; `ObjectStorage`; `MalwareScanner`; the upload endpoints (VER documents, comprobante, top-up proof);
+  - `shared-kernel/regulated.ts`; `ObjectStorage`, including `createUploadTicket`; `MalwareScanner`; the upload ticket procedures `verification.createDocumentUpload`, `orders.createComprobanteUpload` and `commission.createTopUpProofUpload`, and the owner commands that promote an upload (VER documents, comprobante, top-up proof);
   - the append-only audit tables;
   - AD-13, AD-14, AD-16, AD-17; NFR-SYS-2, 7, 8, 12, 14; NFR-IDN-3; NFR-VER-4 (the 5 MB limit; the 1–3 document cap is `documentKeys` in §6.2).
-- **Prevents:** a role supplied by the client; a regulated value in logs, errors, citations or event payloads; a hostile upload served inline; an audit row edited after the fact.
+- **Prevents:** a role supplied by the client; a regulated value in logs, errors, citations or event payloads; a hostile upload, or its original bytes, rendered to any viewer; an upload that can be served as trusted content before it is validated; an upload body sent through the application function; an audit row edited after the fact.
 - **Rule:**
   1. Every procedure is built from exactly one builder. `authedProcedure` resolves `actor = { userId }` from the Better Auth session. Roles and seller kind are fetched server-side through `identity.getCapabilities(userId)`, never from input.
   2. A generated test enumerates the router tree and asserts the following:
@@ -454,25 +454,31 @@ The `*NotVisibleToCaller` codes map to `FORBIDDEN` even though AD-14/AD-15 hide 
      - `legalIdentity.*`
      - document and comprobante object keys
      - top-up proof keys
-     - signed URLs
+     - quarantine upload keys
+     - signed URLs, including signed upload URLs and their tokens
      - phone numbers
      - message bodies
   4. The logger, the error formatter, `Decision` construction and `outbox.enqueue` pass values through a redactor keyed by that list. A CI canary test seeds unique canary strings into every regulated field, runs all module suites, and scans captured logs, error bodies, citations and outbox payloads for them. The expected count is 0.
-  5. Uploads go only to private buckets:
-     - `ver-documents`
-     - `order-comprobantes`
-     - `topup-proofs`
-  6. The upload pipeline runs these checks in order. A failure raises the owner's invalid-file code with the specific cause.
+  5. **Every upload lands in quarantine first** (human review, decision log #36). The file never passes through the application function, and nothing can read it until it has been validated and promoted.
+     1. *Ticket.* The owner's ticket procedure (`verification.createDocumentUpload`, `orders.createComprobanteUpload`, `commission.createTopUpProofUpload`; all `authedProcedure`) calls `ObjectStorage.createUploadTicket(key)`, which maps to Supabase `createSignedUploadUrl` (valid for 2 h). The key is `<purpose>/<actorId>/<cuid2>` in the private bucket `upload-quarantine`. `actorId` comes from the session, never from input. The procedure returns `{ uploadKey, signedUrl, token }`.
+     2. *Direct upload.* The browser uploads the file straight to Storage with that URL. The bucket sets `fileSizeLimit` = 5 MiB and `allowedMimeTypes` = `image/jpeg`, `image/png`, `application/pdf`. These are a first filter only: the declared type is not trusted.
+     3. *Promotion.* The owner command receives `uploadKey`, never bytes. It checks that the key's prefix matches the purpose and the caller, and that the object exists; otherwise it raises the owner's invalid-file code with the cause `missing`. It downloads the object, runs the rule 6 pipeline, and writes the result under a new cuid2 key in the destination bucket. For JPEG and PNG the result is the re-encoded image of rule 7, which is the sanitized rendition. For PDF, what is written is part of G-5 (rule 11). The command then deletes the quarantine object.
+     4. *Order.* Promotion runs before the owner's transaction. If that transaction aborts, the promoted objects are deleted after the rollback.
+     5. *No read path to quarantine.* No signed read URL is ever issued for `upload-quarantine`, and a port test asserts it. Rows store destination keys only.
+     6. *Destination buckets* are private: `ver-documents`, `order-comprobantes`, `topup-proofs`.
+     The 4.5 MB limit of a Vercel function applies to its request and response bodies, not to its outbound calls to Storage, so a 5 MiB upload never meets it.
+  6. The upload pipeline runs these checks in order, on the bytes downloaded from quarantine (rule 5, step 3). A failure raises the owner's invalid-file code with the specific cause.
      1. Size ≤ 5 MiB.
      2. Magic bytes: JPEG `FF D8 FF`, PNG `89 50 4E 47 0D 0A 1A 0A`, PDF `25 50 44 46 2D`.
      3. `MalwareScanner.scan(bytes)`.
   7. The V1 `MalwareScanner` binding is `StructuralScanner` [ASSUMPTION G-4]. It:
      - rejects a PDF containing `/JavaScript`, `/JS`, `/Launch`, `/EmbeddedFile` or `/OpenAction` names;
      - re-encodes JPEG/PNG by decoding and re-encoding the pixels, which drops metadata and trailing payloads.
-  8. Object keys are `cuid2` and never derived from user input.
-  9. Reads use signed URLs with a TTL of 600 s and the response headers `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`. Admin viewers render the file in a sandboxed `<iframe sandbox>` from the signed URL.
-  10. Every admin action writes one row to its owner module's append-only audit table (`LegalIdentityAccessLog`, `RejectionReasonChange`, `CapabilityAuditRead`, `ListingModerationLog`, `ReviewModerationLog`, `CommissionRateSetting`, `TopUpDecisionLog`, `OrderLookupLog`, `SupportContactChange`, `EventReplayLog`), and to `CommissionLedgerEntry` (written once, AD-COM-2 rule 3). The application DB role has `UPDATE` and `DELETE` revoked on these tables, and a migration test asserts the grants. The `retention-purge` job runs under a separate `retention` DB role that holds `DELETE` only on rows past the ADD-§9.4 periods.
-- **Trade-off:** the structural scanner does not detect malware in image codecs or unknown PDF exploits. ClamAV-class scanning is deferred (§14). Until then, admins open uploads only inside the sandboxed viewer, as NFR-SYS-14 requires.
+  8. Destination object keys are `cuid2` and never derived from user input. A quarantine key adds only the purpose and the session's `actorId` as a prefix (rule 5).
+  9. Reads use signed URLs with a TTL of 600 s and the response headers `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`. Viewers render only the sanitized rendition (rule 11) in an `<img>` element from the signed URL; `attachment` does not stop an `<img>` from displaying it. No viewer renders an original in an `<iframe>` or opens it in a new tab.
+  10. Every admin action writes one row to its owner module's append-only audit table (`LegalIdentityAccessLog`, `RejectionReasonChange`, `CapabilityAuditRead`, `ListingModerationLog`, `ReviewModerationLog`, `CommissionRateSetting`, `TopUpDecisionLog`, `OrderLookupLog`, `SupportContactChange`, `EventReplayLog`), and to `CommissionLedgerEntry` (written once, AD-COM-2 rule 3). The application DB role has `UPDATE` and `DELETE` revoked on these tables, and a migration test asserts the grants. The `retention-purge` job runs under a separate `retention` DB role that holds `DELETE` only on rows past the ADD-§9.4 periods. The ADD-§9.4 periods are provisional defaults: until `TEZG_RETENTION_LEGAL_APPROVED=true` records explicit legal approval (launch gate LG-2), the regulated purge runs in dry-run, counting and logging the rows it would delete and deleting none. The technical purges of AD-SYS-2 rule 10 are not gated.
+  11. **Viewers render sanitized content only.** Every viewer of an upload renders a sanitized rendition, never the original bytes, and offers no download and no open-in-new-tab. For JPEG and PNG, the re-encoded image of rule 7 is the sanitized rendition. For PDF, the mechanism that produces the rendition is **pending validation (G-5, §15.1)**. Until G-5 closes, no PDF rendition exists and production launch is blocked (LG-3). Whether the original bytes are kept, and for how long, is part of G-5.
+- **Trade-off:** the structural scanner does not detect malware in image codecs or unknown PDF exploits. ClamAV-class scanning is deferred (§14). Until then, the compensating control is that viewers render only the sanitized rendition (rule 11), as NFR-SYS-14 requires. The direct upload adds a round trip (ticket, upload, then the command). An abandoned upload stays in `upload-quarantine`, unreadable, for up to 24 h until `orphan-upload-sweep` deletes it (§13).
 
 ---
 
@@ -621,7 +627,7 @@ flowchart LR
 | Offered | `getBusinessPaymentInstructions(businessId)` | the instruction object, only for `Approved` | `orders` (snapshot at creation) |
 | Offered | `getBusinessName(businessId)` | `{ businessName }` | `commission`, `messaging` |
 | Published | `BusinessApplicationApproved`, `BusinessApplicationRejected` | ADD-§5 payloads | `commission`, `listings` |
-| Consumed | `ObjectStorage` | put/sign/delete in bucket `ver-documents` | submission, review |
+| Consumed | `ObjectStorage` | upload ticket, get and delete in `upload-quarantine`; put/sign/delete in bucket `ver-documents` (AD-SYS-8 rule 5) | submission, review |
 | Consumed | `MalwareScanner` | `scan(bytes)` | submission uploads (AD-SYS-8) |
 | Consumed | `Outbox` | `enqueue(tx, event)` | approve, reject |
 
@@ -641,7 +647,8 @@ flowchart LR
 
 | Procedure | Builder | Codes |
 | --- | --- | --- |
-| `verification.submit` (tRPC 11 `FormData` input) | `authedProcedure` | `MissingRequiredField`, `RequestValidationFailed`, `IndividualSellerProfileAlreadyComplete`, `ApplicationAlreadyPending`, `AlreadyVerifiedBusiness`, `ReapplicationBarred`, `ReapplicationCooldownActive`, `InvalidDocumentFile` (§8) |
+| `verification.createDocumentUpload` | `authedProcedure` | none beyond the session; returns an upload ticket (AD-SYS-8 rule 5). `verification.submit` checks every precondition |
+| `verification.submit` (input carries `documentUploadKeys`, never file bytes) | `authedProcedure` | `MissingRequiredField`, `RequestValidationFailed`, `IndividualSellerProfileAlreadyComplete`, `ApplicationAlreadyPending`, `AlreadyVerifiedBusiness`, `ReapplicationBarred`, `ReapplicationCooldownActive`, `InvalidDocumentFile` (§8) |
 | `verification.myStatus` | `authedProcedure` | — |
 | `verification.updatePaymentInstructions` | `authedProcedure` | `NotBusinessAccount`, `RequestValidationFailed` |
 | `verification.queue` | `adminProcedure` | `AdminOnly` |
@@ -719,8 +726,8 @@ flowchart LR
      5. upsert `BusinessProfile`.
   2. A unique violation on the partial index raises `ApplicationAlreadyPending`.
   3. `ReapplicationCooldownActive` applies while `now < reapplyNotBefore`. At `now = reapplyNotBefore` the submission succeeds (the FR-VER-6 boundary test).
-  4. Documents are uploaded to `ver-documents` before the transaction, under cuid2 keys. If the transaction aborts, the keys are deleted after the rollback. Keys never referenced by a row are removed by the nightly orphan sweep (§13).
-- **Trade-off:** the upload happens before the domain checks. A refused submission still costs an upload and a delete.
+  4. Documents are promoted from `upload-quarantine` to `ver-documents` before the transaction, under new cuid2 keys (AD-SYS-8 rule 5). If the transaction aborts, the promoted keys are deleted after the rollback. Keys never referenced by a row are removed by the nightly orphan sweep (§13).
+- **Trade-off:** the upload and its promotion happen before the domain checks. A refused submission still costs an upload, a promotion and a delete.
 
 ---
 
@@ -1066,7 +1073,7 @@ flowchart LR
 | Published | `OrderPaymentConfirmedByBusiness`, `OrderClosed` | ADD-§5 | `commission`; `collections` (`OrderClosed` only) |
 | Consumed | `listings.getListingForPurchase`, `reserveForPurchase`, `releaseReservation`, `getInventoryUnitIds` | §6.4 | create, cancel, expire |
 | Consumed | `identity.getBusinessPaymentInstructions` | §6.2 | create |
-| Consumed | `ObjectStorage` (`order-comprobantes`), `MalwareScanner`, `Outbox`, `Clock` | — | — |
+| Consumed | `ObjectStorage` (`upload-quarantine`, `order-comprobantes`), `MalwareScanner`, `Outbox`, `Clock` | — | — |
 
 **Data model.**
 
@@ -1083,7 +1090,8 @@ flowchart LR
 | Procedure | Builder | Codes |
 | --- | --- | --- |
 | `orders.create` | `authedProcedure` + `requireCanBuy` | `EmailNotVerified`, `SelfPurchaseNotAllowed`, `TooManyOpenOrders`, `ListingNotFound`, `NotBusinessListing`, `ListingNotPurchasable`, `InsufficientQuantity` |
-| `orders.uploadComprobante` (`FormData`) | `authedProcedure` | `OrderNotOwnedByCaller`, `ComprobanteInvalidFile`, `ComprobanteLocked`, `OrderNoLongerActive` |
+| `orders.createComprobanteUpload({ orderId })` | `authedProcedure` | `OrderNotOwnedByCaller`; returns an upload ticket (AD-SYS-8 rule 5) |
+| `orders.uploadComprobante({ orderId, uploadKey })` | `authedProcedure` | `OrderNotOwnedByCaller`, `ComprobanteInvalidFile`, `ComprobanteLocked`, `OrderNoLongerActive` |
 | `orders.confirmPaid` | `authedProcedure` | `OrderNotOwnedByCaller`, `ComprobanteNotYetUploaded`, `OrderAlreadyConfirmedByRole`, `OrderNoLongerActive` |
 | `orders.confirmPaymentReceived` | `authedProcedure` | `OrderNotVisibleToCaller`, `OrderNotOwnedByCaller`, `ComprobanteMissingOnConfirm`, `OrderAlreadyConfirmedByRole`, `OrderNoLongerActive` |
 | `orders.confirmItemReceived` | `authedProcedure` | `OrderNotOwnedByCaller`, `OrderConfirmationOutOfOrder`, `OrderAlreadyConfirmedByRole`, `OrderNoLongerActive` |
@@ -1180,8 +1188,8 @@ flowchart LR
 - **Rule:**
   1. Every order read uses one SQL predicate: `"buyerId"=:actor OR ("businessId"=:actor AND "buyerPaidConfirmedAt" IS NOT NULL)`. A miss raises `OrderNotVisibleToCaller`, with an identical body for "not yours" and "unknown".
   2. Upload runs in this order:
-     1. validate (AD-SYS-8 pipeline);
-     2. put under a new cuid2 key;
+     1. promote `uploadKey` from `upload-quarantine` (AD-SYS-8 rule 5: prefix and existence check, then the rule 6 pipeline);
+     2. put the re-encoded result under a new cuid2 key in `order-comprobantes` and delete the quarantine object;
      3. `UPDATE … SET "comprobanteObjectKey"=:k WHERE id AND "buyerId"=:actor AND "buyerPaidConfirmedAt" IS NULL AND "cancelledAt" IS NULL AND "expiredAt" IS NULL AND "expiresAt" > :now RETURNING` the previous key.
      On 0 rows the new object is deleted and the call raises `ComprobanteLocked` (paid) or `OrderNoLongerActive`. On success the previous object is deleted after commit.
   3. `adminLookup` has no write path to `Order`. It inserts one `OrderLookupLog` per call and shows `EventDelivery` rows for the order.
@@ -1205,7 +1213,7 @@ flowchart LR
 | Subscribed | `OrderPaymentConfirmedByBusiness`, `OrderClosed` | key `orderId` | FR-COM-4 (AD-SYS-3) |
 | Consumed | `identity.getBusinessName` | §6.2 | admin console labels |
 | Consumed | `TopUpConfirmationPort` | `confirm(requestId, actor) / reject(requestId, reason, actor)` → the domain command | V1: the admin adapter (ADD-§7) |
-| Consumed | `ObjectStorage` (`topup-proofs`), `MalwareScanner`, `Outbox`, `Clock` | — | — |
+| Consumed | `ObjectStorage` (`upload-quarantine`, `topup-proofs`), `MalwareScanner`, `Outbox`, `Clock` | — | — |
 
 **Data model.**
 
@@ -1223,7 +1231,8 @@ flowchart LR
 | Procedure | Builder | Codes |
 | --- | --- | --- |
 | `commission.myAccount` (7.1), `commission.myLedger` (7.2) | `authedProcedure` | `NotBusinessAccount` |
-| `commission.requestTopUp` (`FormData`) | `authedProcedure` | `NotBusinessAccount`, `TopUpAmountInvalid`, `TopUpProofInvalidFile` (§8), `RequestValidationFailed` |
+| `commission.createTopUpProofUpload` | `authedProcedure` | `NotBusinessAccount`; returns an upload ticket (AD-SYS-8 rule 5) |
+| `commission.requestTopUp` (input carries `uploadKey`, never file bytes) | `authedProcedure` | `NotBusinessAccount`, `TopUpAmountInvalid`, `TopUpProofInvalidFile` (§8), `RequestValidationFailed` |
 | `commission.myTopUps`, `commission.topUpProofUrl` | `authedProcedure` | `TopUpNotVisibleToCaller` |
 | `commission.admin.topUpQueue`, `confirmTopUp`, `rejectTopUp` (7.3) | `adminProcedure` | `TopUpNotPending`, `TopUpNotFound` |
 | `commission.admin.ledger(businessId, trigger?)`, `reconcile(businessId?)`, `setRate` (7.4) | `adminProcedure` | `CommissionRateNotFutureDated` (§8, `setRate`), `RequestValidationFailed` |
@@ -1878,15 +1887,15 @@ ADD-§3.1 and ADD-§3.2 stay the source for the existing rows, which remain vali
 | `CommissionRateNotFutureDated` | commission | `BAD_REQUEST` | Setting a rate whose `effectiveFrom` is earlier than now (60 s tolerance) | FR-COM-7 | AD-COM-2 rule 6 |
 | `LastActiveReasonRequired` | identity | `CONFLICT` | Deactivating the only active rejection reason | FR-VER-8 (PRD-sync, §15.2) | AD-VER-1 rule 6 |
 | `SearchFilterTooBroad` | listings | `BAD_REQUEST` | `view=listings` catalog filters that match more than 20,000 entries | FR-DSC-1 | AD-DSC-2 rule 2 |
-| `InvalidDocumentFile` | identity | `BAD_REQUEST` | A VER document that fails the upload pipeline (size, magic bytes, scanner). The cause is cited | FR-VER-1; NFR-SYS-14 | AD-SYS-8 rule 6 |
-| `TopUpProofInvalidFile` | commission | `BAD_REQUEST` | A top-up proof that fails the upload pipeline | FR-COM-2; NFR-SYS-14 | AD-SYS-8 rule 6 |
+| `InvalidDocumentFile` | identity | `BAD_REQUEST` | A VER document that fails the upload pipeline (size, magic bytes, scanner), or whose upload key is missing, expired or not the caller's (`missing`, AD-SYS-8 rule 5). The cause is cited | FR-VER-1; NFR-SYS-14 | AD-SYS-8 rule 6 |
+| `TopUpProofInvalidFile` | commission | `BAD_REQUEST` | A top-up proof that fails the upload pipeline, or whose upload key is missing (`missing`, AD-SYS-8 rule 5) | FR-COM-2; NFR-SYS-14 | AD-SYS-8 rule 6 |
 | `TopUpNotFound` | commission | `NOT_FOUND` | An unknown top-up id on an admin read or decision | FR-COM-3 | AD-COM-3 |
 | `EventDeliveryNotReplayable` | shared-kernel | `CONFLICT` | Replaying a delivery that is not `failed` | NFR-SYS-6; OQ-4 | AD-SYS-2 rule 7 |
 | `DeliveryAttemptsExhausted` | shared-kernel | none: never thrown, stored in `EventDelivery.lastErrorCode` | A `pending` delivery reaches its fourth automatic attempt after 3 attempts whose outcome was never recorded | NFR-SYS-6 | AD-SYS-2 rule 4 |
 
 `shared-kernel` now owns three codes: `RequestValidationFailed` (transport), `EventDeliveryNotReplayable` and `DeliveryAttemptsExhausted` (the outbox it owns, AD-SYS-2 rule 10). None concerns domain data.
 
-`ComprobanteInvalidFile` (orders) stays as it is. Each upload has its own owner's code because `tezg/error-owner` forbids a shared "invalid file" code across three modules.
+`ComprobanteInvalidFile` (orders) keeps its row and gains the `missing` cause of AD-SYS-8 rule 5, like the two codes above. Each upload has its own owner's code because `tezg/error-owner` forbids a shared "invalid file" code across three modules.
 
 ### 8.2 New DecisionCodes
 
@@ -1946,7 +1955,7 @@ This table is the threat model for Plan-2. Each row names the threat, the contro
 | S-2 | IDOR: reading another user's order, offer, conversation, top-up or application | Every read filters by the actor in the SQL predicate. A miss and a foreign id return the **identical body** (`*NotVisibleToCaller` or `*NotFound`) | Per-module test comparing the bodies for a foreign id and a random id byte for byte, except `occurredAt` |
 | S-3 | A business sees an order before the buyer confirmed payment | One visibility predicate (AD-ORD-3, AD-15) | Test over all 6 derived states × 3 roles |
 | S-4 | A regulated value leaks into logs, errors, citations, event payloads or dev consoles | `regulated.ts` + the redactor; `LegalIdentityRepository` as the only reader (AD-VER-2); lint `tezg/legal-identity-confined`, `tezg/regulated-select` | CI canary test (AD-SYS-8 rule 4), expected count 0 |
-| S-5 | A hostile upload (polyglot, PDF with script, oversized file) | Size, magic bytes and `StructuralScanner`; private buckets; cuid2 keys; signed URLs with a 600 s TTL, `attachment` and `nosniff`; sandboxed viewer | Upload fixture suite: one file per rejection cause, plus a JPEG with a trailing payload that must come back re-encoded |
+| S-5 | A hostile upload (polyglot, PDF with script, oversized file) | Direct upload to the unreadable `upload-quarantine` bucket, promoted only after validation (AD-SYS-8 rule 5); size, magic bytes and `StructuralScanner`; private buckets; cuid2 keys; signed URLs with a 600 s TTL, `attachment` and `nosniff`; viewers render only the sanitized rendition (AD-SYS-8 rule 11; PDF pending G-5) | Upload fixture suite: one file per rejection cause, plus a JPEG with a trailing payload that must come back re-encoded; a port test that no read URL is ever issued for `upload-quarantine` |
 | S-6 | Contact scraping or spam through the contact handoff | `ContactRateLimited` per requester, per seller and per IP under advisory locks (AD-MSG-1). Phone numbers are released only through `generateContactMessage` | 50-connection limit test: exactly 30 allowed per hour |
 | S-7 | Tracking users by raw IP | IPs are stored only as `ipHmac` = HMAC-SHA256 with `IP_HMAC_KEY` (server env, ≥ 32 bytes, never logged). `ContactRequestLog` is purged after 7 days and `AuthThrottleEvent` after 24 h | Schema test: no `inet` column and no column named `ip`; the purge test |
 | S-8 | Credential stuffing and sign-up abuse | `AuthRateLimited` per account and per IP (AD-IDN-3, ADD-§9.3) | Throttle test at the 11th failed attempt |
@@ -2056,8 +2065,8 @@ No correctness rule depends on any row in this table (AD-SYS-6 rule 5). Every jo
 
 | Item | Why deferred | Revisit when |
 | --- | --- | --- |
-| ClamAV-class malware scanning | No free-tier host for a scanner daemon on Vercel Hobby. `StructuralScanner` plus the sandboxed viewer covers V1 [G-4] | Before production launch, or when uploads exceed 1,000 per month |
-| Email digest of failed deliveries | No email provider in V1. The admin home badge and `FailedDeliveryDigest` cover it | When an email provider is added for notifications |
+| ClamAV-class malware scanning | No free-tier host for a scanner daemon on Vercel Hobby. `StructuralScanner` plus viewers that render only the sanitized rendition covers V1 [G-4, G-5] | Before production launch, or when uploads exceed 1,000 per month |
+| Email digest of failed deliveries | No email provider in V1. The admin rail item 10 badge and the `FailedDeliveryDigest` line on page 2.3 cover it | When an email provider is added for notifications |
 | Automated dependency-graph linter beyond import boundaries | The import-boundary lint and `tezg/table-owner` cover AD-1 and AD-8 in V1 | When a tenth code module is proposed |
 | Vercel Pro cron (sub-daily schedules) | Hobby allows 2 daily crons; the GitHub Actions tick covers the gap [G-3] | If G-3 is rejected, or on moving to Pro |
 | Production catalog and price feed (OQ-9) | A team decision, including the licence | Before launch |
@@ -2079,6 +2088,7 @@ No correctness rule depends on any row in this table (AD-SYS-6 rule 5). Every jo
 | G-2 | Should the 50-collection limit have its own code (`CollectionLimitReached`) instead of a generic refusal? | **Yes.** Every refusal needs an owner code (AD-SYS-1), and the UX needs a specific message | The PRD must name another existing code, which would break the one-owner rule |
 | G-3 | Should a GitHub Actions hourly tick (`5 12-23,0-1 * * *` UTC) retry the TRM and materialize expiries? | **Yes.** It is free, and it brings the TRM retry close to NFR-CAT-4 without a paid plan | NFR-CAT-4 becomes two attempts per day (07:00 and a manual retry); expiry materialization runs twice a day. Correctness is unchanged |
 | G-4 | Is `StructuralScanner` acceptable as the V1 `MalwareScanner`, with ClamAV deferred? | **Yes**, with the sandboxed viewer as the compensating control | Uploads are blocked until a hosted scanner is chosen, which blocks VER, ORD and COM |
+| G-5 | Which mechanism produces the sanitized PDF rendition that viewers render (AD-SYS-8 rule 11)? | **Pending validation** (human review, decision log #28). Server-side pdf.js is not adopted: it fails the security boundary (see below). Candidate, not adopted: rasterize the PDF in a Web Worker in the uploader's browser, and have the server accept and re-encode images only. Other candidates: pdf.js in a separate Vercel project that holds no secret; accept images only | Until G-5 closes, no PDF rendition exists and production launch is blocked (LG-3) |
 
 **Gate outcome (2026-09-27).** The team accepted all four recommendations (decision log #17). The "If rejected" column stays for the record.
 
