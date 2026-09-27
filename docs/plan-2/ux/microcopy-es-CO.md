@@ -13,7 +13,7 @@ updated: 2026-09-27
 **Rules.** EXPERIENCE.md → Voice and Tone governs this file. In brief:
 
 - Every string names **what happened** and **what to do now**.
-- Address: *tú* in buyer and seller flows; *usted* in the admin panel and in VER messages to applicants.
+- Address follows the surface that renders the message, not the module that owns the code: *tú* on buyer and seller surfaces, including listing and selling pages; *usted* on the admin panel and on the business-application pages (5.1, 5.2). A code rendered on both kinds of surface has one template per surface.
 - Reapply dates always use `{fecha}` (date **and** time), because the cooldown ends at an exact instant (FR-VER-6): on the day itself, a date alone would promise too early.
 - No codes, field names or forbidden phrases (ADD-§1.2). The NFR-SYS-1 CI check runs over this file.
 - `{placeholders}` are typed values, formatted per ADD-§2.7:
@@ -39,8 +39,8 @@ updated: 2026-09-27
 | `AlreadyVerifiedBusiness` (profile) | "Tu cuenta es una tienda verificada, así que no puede vender también como persona. Tus publicaciones se gestionan desde Mi tienda." | Ir a Mi tienda | You're a verified shop; manage listings from My shop. |
 | `AlreadyVerifiedBusiness` (VER submit) | "Su tienda ya está verificada; no necesita enviar otra solicitud." | Ver estado | Already verified. |
 | `BusinessApplicationOnFile` | "Tienes una solicitud de tienda registrada, así que esta cuenta no puede vender como persona. Revisa el estado de tu solicitud." | Ver solicitud | You have a shop application on file. |
-| `SellerNotVerified` (cooldown) | "No puede publicar mientras su solicitud de tienda esté rechazada. Podrá volver a solicitar desde el {fecha}." | Ver solicitud | Can't list while rejected; reapply from {date}. |
-| `SellerNotVerified` (barred) | "No puede publicar porque su solicitud de tienda fue rechazada de forma definitiva para esta cuenta." | Ver solicitud | Can't list; rejection is final. |
+| `SellerNotVerified` (cooldown) | "No puedes publicar mientras tu solicitud de tienda esté rechazada. Podrás volver a solicitar desde el {fecha}." | Ver solicitud | Can't list while rejected; reapply from {date}. |
+| `SellerNotVerified` (barred) | "No puedes publicar porque tu solicitud de tienda fue rechazada de forma definitiva para esta cuenta." | Ver solicitud | Can't list; rejection is final. |
 | `NotBusinessAccount` | "Los mensajes dentro de TEZG son solo para tiendas. Para vendedores individuales, usa «Contactar al vendedor»." | Contactar al vendedor *(when a listing is in context)* | In-app messages are only for shops. |
 | `NotBusinessAccount` (FR-MSG-6, became Rejected) | "No enviamos tu mensaje porque {tienda} ya no está disponible para mensajes en TEZG. Guardamos tu texto abajo para que lo copies." | Copiar texto | Not sent: shop no longer available; your text is kept. |
 | `ApplicationAlreadyPending` | "Ya tiene una solicitud en revisión. Le avisaremos aquí cuando tengamos una decisión." | Ver estado | Already under review. |

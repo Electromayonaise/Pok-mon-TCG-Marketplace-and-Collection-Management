@@ -19,7 +19,7 @@ Anything here marked **[ASSUMPTION]** is a proposed default that the Phase 1 gat
 ### 1.1 Voice
 
 - **Language.** Launch copy is Colombian Spanish (es-CO). The English strings in the PRD and this addendum are illustrative translations; UX writes the es-CO strings from them.
-- **Address.** Use *tú*, not *usted*, in buyer and seller flows. Use *usted* in the admin panel and in business-verification messages to applicants [ASSUMPTION: this matches local marketplace norms].
+- **Address.** The surface that renders a message decides the treatment, not the module that owns its code (human review, decision log #40). Use *tú* on buyer and seller surfaces. Use *usted* on admin surfaces and on the business-verification surfaces an applicant sees. A code shown on more than one surface has one template variant per surface (EXPERIENCE Voice and Tone; `microcopy-es-CO.md`) [ASSUMPTION: this matches local marketplace norms].
 - **Say what happened and what to do next.** Every refusal names the fact that caused it and the next available step. Examples:
   - "Your listings are paused until you top up your balance." Never "Account suspended due to insufficient funds."
   - "You can review Andrés's shop once you've confirmed the item arrived — paying isn't enough."

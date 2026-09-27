@@ -105,10 +105,10 @@ Brand voice is set in DESIGN.md → Brand & Style. This section covers microcopy
 
 - **Language:** es-CO. English strings in the PRD are illustrative; the es-CO strings in the page specs and in `microcopy-es-CO.md` are the source for implementation.
 - **Address:**
-  - *tú* in buyer and seller flows, including Andrés when he is selling (4.x, 6.3, 7.1, 7.2);
-  - *usted* in the admin panel (all D admin surfaces);
-  - *usted* in business-verification messages to applicants (5.1, 5.2, and VER decision refusals such as `SellerNotVerified`). Listing-state labels on 4.2 stay *tú*, even when VER caused them (unverified, withdrawn), because they belong to the selling flow.
-  - Andrés therefore reads *usted* about his application and *tú* about his sales. This follows the addendum (ADD-§1.1) and was confirmed at the Phase 2 gate.
+  - *tú* on buyer and seller surfaces, including Andrés when he is selling (4.x, 6.3, 7.1, 7.2). A VER refusal such as `SellerNotVerified` shown on a listing page is *tú*, and so are listing-state labels on 4.2 that VER caused (unverified, withdrawn);
+  - *usted* on the admin panel (all D admin surfaces);
+  - *usted* on the business-application pages (5.1, 5.2).
+  - The rule is the surface that renders the message, not the module that owns it. Andrés therefore reads *usted* on his application pages and *tú* on his selling pages. This replaces the Phase 2 gate wording, which tied VER refusals to *usted* (human review, decision log #34).
 - **Every refusal names the fact and the next step.** Pattern: *what happened* + *because of what* + *what you can do now*. Example: "Esta publicación ya no tiene unidades: otra persona reservó la última hace un momento. Puedes buscar otra publicación de esta carta."
 - **Never:**
   - the ADD-§1.2 forbidden phrases;
@@ -366,4 +366,4 @@ The PRD §2.2 journeys, walked across surfaces. Each has one **climax beat**, th
 
 - **F-29 mute.** Adopted at the Phase 2 gate as FR-MSG-8 (see above).
 - **[ASSUMPTION] Exclusivity copy.** The refusal copy for a business application from an individual seller says a shop needs a separate account (microcopy key `IndividualSellerProfileAlreadyComplete@VER`). Converting an account between seller kinds is out of scope (PRD IDN). Confirmed at the Phase 2 gate.
-- **Address.** The *usted*/*tú* split for Andrés follows ADD-§1.1; confirmed at the Phase 2 gate.
+- **Address.** The *usted*/*tú* split follows the rendering surface (Voice and Tone); changed from the Phase 2 gate wording at the human review round (decision log #34).
