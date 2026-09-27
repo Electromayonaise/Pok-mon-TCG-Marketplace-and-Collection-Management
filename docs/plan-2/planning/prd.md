@@ -1172,7 +1172,7 @@ No tables of its own.
   - Before `buyerPaidConfirmedAt` the business cannot see the order, so it gets `OrderNotVisibleToCaller` (AD-14's single code).
   - With no comprobante, reject with `ComprobanteMissingOnConfirm`. This is defensive, since FR-ORD-3 prevents that state.
   - Otherwise a conditional update sets `sellerReceivedConfirmedAt` where it is null and `cancelledAt` and `expiredAt` are null. On 0 rows, return `OrderAlreadyConfirmedByRole` or `OrderNoLongerActive` as in FR-ORD-3. (Once the buyer has confirmed payment an order can no longer be cancelled or expire, so the second case is defensive.)
-  - After commit, publish `OrderPaymentConfirmedByBusiness { orderId, businessId, buyerId, totalCop, lines, confirmedAt, buyerItemReceivedConfirmedAt }` (`ADD-§5`). The last field is null unless the buyer already closed the order. The delivery guarantee for the deduction is covered in OQ-2.
+  - After commit, publish `OrderPaymentConfirmedByBusiness { orderId, businessId, buyerId, totalCop, lines, sellerReceivedConfirmedAt, buyerItemReceivedConfirmedAt }` (`ADD-§5`). The last field is null unless the buyer already closed the order. The delivery guarantee for the deduction is covered in OQ-2.
 - *Acceptance:* confirming before the buyer's paid confirmation is refused with an explanation. Confirming twice publishes the event once.
 
 **FR-ORD-5 — Buyer confirms item received; the order closes.** · CAP-22, CAP-27 · AD-2
@@ -1181,7 +1181,7 @@ No tables of its own.
   - Requires `buyerPaidConfirmedAt`, otherwise `OrderConfirmationOutOfOrder`.
   - `sellerReceivedConfirmedAt` is **not** required, because the item can arrive before the business confirms payment. Closing still triggers the commission deduction if the business has not confirmed (FR-COM-4, gate decision on OQ-3).
   - A conditional update sets `buyerItemReceivedConfirmedAt` where it is null and `cancelledAt` and `expiredAt` are null. This is the only fact that closes the order. On 0 rows, return `OrderAlreadyConfirmedByRole` or `OrderNoLongerActive` as in FR-ORD-3.
-  - After commit, publish `OrderClosed { orderId, buyerId, businessId, totalCop, lines: [{ itemRef, title, qty }], closedAt, sellerReceivedConfirmedAt }`, where the last field is null if the business has not confirmed. For a card or sealed listing there is one line. For a bundle, `lines` expands to one line per component, with `itemRef` = the component's catalog entry and `qty = perBundleQty × order qty`.
+  - After commit, publish `OrderClosed { orderId, buyerId, businessId, totalCop, lines: [{ itemRef, title, qty }], sellerReceivedConfirmedAt, buyerItemReceivedConfirmedAt }`, where `sellerReceivedConfirmedAt` is null if the business has not confirmed. For a card or sealed listing there is one line. For a bundle, `lines` expands to one line per component, with `itemRef` = the component's catalog entry and `qty = perBundleQty × order qty`.
   - The order never creates a collection entry.
 - *Acceptance:*
   - The order shows as closed only after this fact exists.
@@ -1356,8 +1356,8 @@ No tables of its own.
   - `c` follows FR-COM-5.
   - The balance may go negative, so a confirmed sale is never refused (AD-19).
   - If the balance crosses from > 0 to ≤ 0, the account is set to `Exhausted` and `CommissionBalanceExhausted { businessId, ledgerSeq, balanceAfter }` is published after commit.
-  - **Either trigger deducts, once.** Both events carry both timestamps, and the deduction's effective time is `commissionTriggeredAt = min(sellerReceivedConfirmedAt, closedAt)` over the non-null values. Whichever event is delivered first creates the entry. The second hits the unique `orderId` key and is a no-op, so delivery order never changes the amount or the rate.
-  - The entry records `trigger`: `businessConfirmed` if `sellerReceivedConfirmedAt` is the earlier fact or ties with `closedAt`, otherwise `buyerClosed`. For `buyerClosed`, the business's ledger line reads, for example: "Comisión cobrada porque el comprador confirmó que recibió el producto; no habías confirmado el pago." The line points to the support contact (FR-ORD-10) for disputes.
+  - **Either trigger deducts, once.** Both events carry both timestamps, and the deduction's effective time is `commissionTriggeredAt = min(sellerReceivedConfirmedAt, buyerItemReceivedConfirmedAt)` over the non-null values. Whichever event is delivered first creates the entry. The second hits the unique `orderId` key and is a no-op, so delivery order never changes the amount or the rate.
+  - The entry records `trigger`: `businessConfirmed` if `sellerReceivedConfirmedAt` is the earlier fact or ties with `buyerItemReceivedConfirmedAt`, otherwise `buyerClosed`. One pure function, `commissionTrigger(facts)`, computes both values for both events. For `buyerClosed`, the business's ledger line reads, for example: "Comisión cobrada porque el comprador confirmó que recibió el producto; no habías confirmado el pago." The line points to the support contact (FR-ORD-10) for disputes.
   - Deduction is triggered only by these events, never by a direct call from `orders` (AD-3, amended at the Phase 1 gate to add `OrderClosed` as a trigger; the amendment is recorded as AD-SYS-3).
   - Sebastián can list closed orders whose deduction trigger was `buyerClosed` (FR-COM-8).
 - *Resolved conflict:* AD-19 says the decrement happens "in the same transaction as setting `sellerReceivedConfirmedAt`". That contradicts AD-3 and AD-10, which make it a post-commit event subscriber. This PRD states the requirement independently of that choice: exactly one deduction per `orderId`, and a deduction lost to a subscriber failure is recoverable (NFR-SYS-6). OQ-2 is resolved by a transactional outbox with post-commit dispatch (AD-SYS-2) and a deduction keyed by `orderId` (AD-SYS-3, AD-COM-2).
@@ -1862,7 +1862,7 @@ AD-7's `BinderEntry` is realised as `CollectionEntry` plus the collection's bind
 
 **FR-COL-7 — Exactly one post-purchase prompt per closed order.** · CAP-27 · AD-9, AD-10
 - *Rules:*
-  - On `OrderClosed`, a `PostPurchasePrompt { orderId (unique), buyerId, lines snapshot, status: Pending }` is created. A redelivery hits the unique key and does nothing.
+  - On `OrderClosed`, a `PostPurchasePrompt { orderId (unique), buyerId, lines snapshot, buyerItemReceivedConfirmedAt (the order's close fact, which sets the entries' acquired date), status: Pending }` is created. A redelivery hits the unique key and does nothing.
   - Accept (`collectionId`): a conditional transition `Pending → Accepted`, and in the same transaction one entry per line with `source=PlatformPurchase`, the `orderId` and `qty`. A second accept gets `PromptAlreadyResolved` and creates nothing.
   - Dismiss: a conditional transition `Pending → Dismissed`.
   - Ignoring the prompt leaves it `Pending` with no expiry [ASSUMPTION], and it creates nothing.

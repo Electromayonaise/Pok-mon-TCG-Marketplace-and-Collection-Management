@@ -323,14 +323,14 @@ The `*NotVisibleToCaller` codes map to `FORBIDDEN` even though AD-14/AD-15 hide 
 ### AD-SYS-3 — Commission is triggered by the first of two order events
 
 - **Status:** [ADOPTED] (Phase 1 gate decision on OQ-3, recorded here as an amendment to AD-3)
-- **Binds:** `commission` subscribers `onOrderPaymentConfirmedByBusiness` and `onOrderClosed`; `CommissionLedgerEntry`; FR-COM-4, FR-COM-5; AD-3; ADD-§5.
+- **Binds:** `commission` subscribers `onOrderPaymentConfirmedByBusiness` and `onOrderClosed`; the pure function `commissionTrigger(facts)` in `commission/domain/`; `CommissionLedgerEntry`; FR-COM-4, FR-COM-5; AD-3; ADD-§5.
 - **Prevents:** a sale whose business never confirms payment going uncharged; a sale charged twice; delivery order changing the amount or the rate.
 - **Rule:**
-  1. AD-3's trigger text becomes: "commission deducts on `OrderPaymentConfirmedByBusiness` **or** `OrderClosed`, whichever is delivered first, once per `orderId`."
-  2. Both handlers compute these values from the payload alone:
-     - `commissionTriggeredAt = min(non-null of sellerReceivedConfirmedAt, closedAt)`;
-     - `trigger = 'businessConfirmed'` when `sellerReceivedConfirmedAt ≤ closedAt` or `closedAt` is null, otherwise `'buyerClosed'`;
-     - `rateBps` = the `CommissionRateSetting` with the greatest `effectiveFrom ≤ commissionTriggeredAt`.
+  1. AD-3's trigger text becomes: "commission deducts on `OrderPaymentConfirmedByBusiness` **or** `OrderClosed`, whichever is delivered first, once per `orderId`." The first delivered event performs the insert. The values depend only on the order's facts, never on which event arrived first.
+  2. Both payloads carry the same two facts, `sellerReceivedConfirmedAt` and `buyerItemReceivedConfirmedAt` (ADD-§5). Both handlers compute the values with one pure function, `commissionTrigger(facts)` in `commission/domain/`:
+     - `commissionTriggeredAt = min(non-null of sellerReceivedConfirmedAt, buyerItemReceivedConfirmedAt)`;
+     - `trigger = 'businessConfirmed'` when `sellerReceivedConfirmedAt ≤ buyerItemReceivedConfirmedAt` or `buyerItemReceivedConfirmedAt` is null, otherwise `'buyerClosed'`.
+     The handler then reads `rateBps` = the `CommissionRateSetting` with the greatest `effectiveFrom ≤ commissionTriggeredAt`. A table test covers the fact pairs `(t1, null)`, `(null, t2)`, `t1 < t2`, `t1 > t2` and `t1 = t2`.
   3. They then run AD-COM-2. A partial unique index `CommissionLedgerEntry(orderId) WHERE kind='Deduction'` makes the second event a no-op.
   4. `orders` never calls `commission` (there is no edge).
 - **Trade-off:** a buyer-closed charge can land on a business that never confirmed payment. The ledger line names the trigger and links the support contact (FR-COM-4), and disputes are handled by humans.
@@ -1553,7 +1553,7 @@ flowchart LR
 | `Collection` | PK `id`; **unique `(ownerId, nameKey)`**; `CHECK char_length(name) BETWEEN 1 AND 60`; `CHECK binderRows BETWEEN 1 AND 5 AND binderCols BETWEEN 1 AND 5` | `ownerId`, `name`, `nameKey = tezg_unaccent_lower(name)`, `binderRows default 3`, `binderCols default 3`, `createdAt` |
 | `CollectionEntry` | PK `id`; FK `collectionId ON DELETE CASCADE`; index `(collectionId, manualPosition)`; `CHECK (cardKind='catalog') = (catalogEntryId IS NOT NULL)`; `CHECK cardKind='catalog' OR (externalUrl ~ '^https://' AND char_length(externalUrl) <= 2048 AND char_length(externalTitle) BETWEEN 1 AND 120)`; `CHECK (source='PlatformPurchase') = (orderId IS NOT NULL)`; `CHECK qty BETWEEN 1 AND 999`; `CHECK acquiredPriceCop IS NULL OR acquiredPriceCop BETWEEN 0 AND 100000000` | `cardKind ∈ {catalog, external}`, `catalogEntryId?`, `externalUrl?`, `externalTitle?`, `externalImageUrl?`, `source ∈ {Manual, PlatformPurchase}`, `orderId?`, `qty`, `acquiredAt` (date), `acquiredPriceCop?`, `manualPosition int` |
 | `WishlistEntry` | PK `id`; **unique `(ownerId, catalogEntryId)`** | `maxPriceCop?`, `note?` (≤ 200), `createdAt` |
-| `PostPurchasePrompt` | PK `id`; **unique `orderId`**; index `(buyerId, status)` | `buyerId`, `lines jsonb` (payload lines of `OrderClosed`), `status ∈ {Pending, Accepted, Dismissed}`, `resolvedAt?`, `acceptedIntoCollectionId?`, `version` |
+| `PostPurchasePrompt` | PK `id`; **unique `orderId`**; index `(buyerId, status)` | `buyerId`, `lines jsonb` (payload lines of `OrderClosed`), `buyerItemReceivedConfirmedAt timestamptz` (copied from the `OrderClosed` payload; the order's close fact, used for `acquiredAt` by AD-COL-2 rule 2), `status ∈ {Pending, Accepted, Dismissed}`, `resolvedAt?`, `acceptedIntoCollectionId?`, `version` |
 
 `CollectionEntry.orderId` is not unique, because a copy keeps `source` and `orderId` (FR-COL-4). There is no binder table (A-41): the layout lives on `Collection` and the positions on the entries.
 
@@ -1614,8 +1614,8 @@ flowchart LR
 - **Binds:** subscriber `onOrderClosed`; `PostPurchasePrompt`; `collections.prompts.accept`, `dismiss`; FR-COL-7; NFR-COL-1; AD-9, AD-10.
 - **Prevents:** two prompts from a redelivery; duplicate entries from a double accept; `collections` reading or writing order state.
 - **Rule:**
-  1. The subscriber inserts the prompt `ON CONFLICT (orderId) DO NOTHING`, with `lines` copied from the payload. Bundle lines arrive expanded per component (AD-ORD-2 rule 5).
-  2. Accept runs `UPDATE … SET status='Accepted', "resolvedAt"=:now, "acceptedIntoCollectionId"=:c WHERE id AND "buyerId"=:actor AND status='Pending'`. On 1 row, it reads `Collection WHERE id=:c AND "ownerId"=:actor FOR SHARE`; no row raises `CollectionNotFound` and rolls the accept back. The same transaction then inserts one `CollectionEntry` per line with `source='PlatformPurchase'`, `orderId`, `qty`, `acquiredAt` = the Bogotá date of `closedAt`, and `acquiredPriceCop` = the line's `unitPriceCop` when present, otherwise null.
+  1. The subscriber inserts the prompt `ON CONFLICT (orderId) DO NOTHING`, with `lines` and `buyerItemReceivedConfirmedAt` copied from the payload. `collections` cannot read `Order`, so the prompt keeps the one date that accept needs (decision log #45). Bundle lines arrive expanded per component (AD-ORD-2 rule 5).
+  2. Accept runs `UPDATE … SET status='Accepted', "resolvedAt"=:now, "acceptedIntoCollectionId"=:c WHERE id AND "buyerId"=:actor AND status='Pending'`. On 1 row, it reads `Collection WHERE id=:c AND "ownerId"=:actor FOR SHARE`; no row raises `CollectionNotFound` and rolls the accept back. The same transaction then inserts one `CollectionEntry` per line with `source='PlatformPurchase'`, `orderId`, `qty`, `acquiredAt` = the Bogotá date of `buyerItemReceivedConfirmedAt`, and `acquiredPriceCop` = the line's `unitPriceCop` when present, otherwise null.
   3. On 0 rows, the re-read raises `PromptAlreadyResolved`, citing the status and `resolvedAt`.
   4. Dismiss is the same shape to `Dismissed`. Prompts never expire (A-43).
 - **Trade-off:** a line for a card later removed from the catalog still creates an entry, because the snapshot is authoritative. Valuation shows it as not valued.
@@ -1806,8 +1806,8 @@ Every event is an `OutboxEvent` row written in the publisher's transaction (AD-S
 | `BusinessApplicationApproved` | identity: `verification.approve` (AD-VER-1) | `{ applicationId, businessId, businessName, approvedAt, approvedBy }` | commission → `onBusinessApplicationApproved` | `businessId`: `CommissionAccount` PK, `INSERT … ON CONFLICT DO NOTHING` (AD-COM-1 rule 5) | Opens the account. Only on insert, enqueues `CommissionBalanceExhausted{ledgerSeq:0, balanceAfter:0}` |
 | | | | listings → `onBusinessApplicationApproved` | `applicationId`: `AppliedApplicationDecision` PK (AD-INV-3 rule 5) | Clears `withdrawnAt` on listings withdrawn for `ApplicationRejected`, if this is the newest decision. The badge is never stored (AD-DSC-2 rule 3) |
 | `BusinessApplicationRejected` | identity: `verification.reject` (AD-VER-1) | `{ applicationId, businessId, reasonCode, reapplyNotBefore \| barred, rejectedAt }` | listings → `onBusinessApplicationRejected` | `applicationId`: `AppliedApplicationDecision` PK (AD-INV-3 rule 5) | Withdraws the business's listings with `withdrawnReason='ApplicationRejected'`, if this is the newest decision |
-| `OrderPaymentConfirmedByBusiness` | orders: `orders.confirmPaymentReceived` (AD-ORD-2) | `{ orderId, businessId, buyerId, totalCop, lines, confirmedAt, buyerItemReceivedConfirmedAt }` | commission → `onOrderPaymentConfirmedByBusiness` | `orderId`: partial unique `CommissionLedgerEntry(orderId) WHERE kind='Deduction'` (AD-COM-2 rule 2) | One deduction if first (AD-SYS-3) |
-| `OrderClosed` | orders: `orders.confirmItemReceived` (AD-ORD-2) | `{ orderId, buyerId, businessId, totalCop, lines, closedAt, sellerReceivedConfirmedAt }`, bundles expanded | commission → `onOrderClosed` | `orderId`: same partial unique index | One deduction if first (AD-SYS-3) |
+| `OrderPaymentConfirmedByBusiness` | orders: `orders.confirmPaymentReceived` (AD-ORD-2) | `{ orderId, businessId, buyerId, totalCop, lines, sellerReceivedConfirmedAt, buyerItemReceivedConfirmedAt }` | commission → `onOrderPaymentConfirmedByBusiness` | `orderId`: partial unique `CommissionLedgerEntry(orderId) WHERE kind='Deduction'` (AD-COM-2 rule 2) | One deduction if first (AD-SYS-3) |
+| `OrderClosed` | orders: `orders.confirmItemReceived` (AD-ORD-2) | `{ orderId, buyerId, businessId, totalCop, lines, sellerReceivedConfirmedAt, buyerItemReceivedConfirmedAt }`, bundles expanded | commission → `onOrderClosed` | `orderId`: same partial unique index | One deduction if first (AD-SYS-3) |
 | | | | collections → `onOrderClosed` | `orderId`: `PostPurchasePrompt.orderId` unique (AD-COL-2) | One `Pending` prompt |
 | `CommissionBalanceExhausted` | commission: `LedgerService.apply` on a crossing to ≤ 0, and account opening (AD-COM-1) | `{ businessId, ledgerSeq, balanceAfter }` | listings → `onCommissionBalanceExhausted` | `ledgerSeq` gate: apply if no `SellerCommissionState` row or `ledgerSeq > lastAppliedSeq` (AD-INV-3 rule 4) | Sets `pausedAt` on the business's listings |
 | `CommissionBalanceReplenished` | commission: `LedgerService.apply` on a crossing to > 0 (AD-COM-1) | `{ businessId, ledgerSeq, balanceAfter }` | listings → `onCommissionBalanceReplenished` | same `ledgerSeq` gate | Clears `pausedAt` |
