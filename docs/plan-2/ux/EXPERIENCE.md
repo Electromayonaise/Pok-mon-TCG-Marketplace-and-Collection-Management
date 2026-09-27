@@ -65,7 +65,7 @@ Choices are made per task shape, following the Annex defaults. A per-surface ove
 2. Recargas 7.3
 3. Pedidos (business order desk 6.3 is the business's own D surface, not admin; the admin gets the FR-ORD-10 audited lookup inside 1.3)
 4. Moderación 11.3
-5. Catálogo 2.3
+5. Catálogo 2.3 (carries a marker when the hourly tick is silent; ARCHITECTURE §4)
 6. Comisiones 7.2 admin · 7.4
 7. Cuentas 1.3
 8. Auditoría 11.4 · 5.4

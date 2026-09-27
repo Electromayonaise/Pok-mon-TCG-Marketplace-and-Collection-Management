@@ -466,7 +466,7 @@ Adopted at the Phase 1 gate as configuration values, to be revisited after 30 da
 
 ### 9.4 Retention defaults (OQ-12)
 
-Adopted at the Phase 1 gate. Legal review before launch remains a pre-launch task.
+Adopted at the Phase 1 gate as **provisional defaults** (relabelled at the human review round, decision log #33). They have no legal approval yet. Until explicit legal approval is recorded, the regulated retention purge runs in dry-run: it counts and logs the rows it would delete and deletes none (ARCHITECTURE AD-SYS-8 rule 10, launch gate LG-2). The technical purge of delivered event rows is not affected.
 
 | Data class | Kept for | Reason |
 | --- | --- | --- |
@@ -484,7 +484,7 @@ Data-subject requests (access, correction, deletion) are handled manually by an 
 
 | Metric (PRD §22) | Source | Computation |
 | --- | --- | --- |
-| Oversell incidents | `InventoryUnit` invariant check (nightly) | placeholder: count of units with a negative quantity. It stays 0 under the `quantity >= 0` CHECK, so a stocked-total check replaces it before launch (ARCHITECTURE §14) |
+| Oversell incidents | not measured in production in V1 | — Prevention rests on the `quantity >= 0` CHECK and the NFR-INV race tests until a stock-movement ledger exists (ARCHITECTURE §14; decision log #29) |
 | Ledger discrepancies | the FR-COM-8 reconcile job | Σ \|stored balance − Σ ledger entries\| across accounts |
 | Explained-decision coverage | API logs of `DomainError` responses | share of responses with a non-empty `reasonCode`, `humanMessage` and ≥ 1 citation |
 | Applications decided in ≤ 3 business days | `BusinessApplication` timestamps | `decidedAt − submittedAt` in Colombian business days (holiday calendar from configuration) |

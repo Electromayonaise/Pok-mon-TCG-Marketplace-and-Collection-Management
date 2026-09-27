@@ -1,6 +1,7 @@
 ---
 title: "TEZG Plan-2 Architecture — Twelve Modules on the Modular Monolith"
 status: final
+launchReady: false
 created: 2026-09-27
 updated: 2026-09-27
 phase: "Plan-2 Phase 3 (Architecture)"
@@ -43,6 +44,20 @@ Rejected alternatives for each module's core decision are listed in the module's
 **Terms used in Rules.** Every number in a Rule is a literal, never a range. Words like "fast", "reasonable" or "where possible" are not used. "Conditional update" always means one `UPDATE … WHERE <id> AND <from-state predicate>` whose affected-row count is checked (AD-SYS-5).
 
 **Code-module names** are lowercase (`listings`). **Planning-module codes** are uppercase (`INV`).
+
+### Launch gates
+
+`status: final` means the architecture is complete for implementation (the BMad lifecycle). It does **not** mean the product may go to production: `launchReady: false` stays until every gate below is closed. The gates come from the human review round of 2026-09-27 (decision log #32).
+
+| Gate | What must be true before production launch | State |
+| --- | --- | --- |
+| LG-1 | The production catalog and price feed, including its licence, is chosen (OQ-9, §14) | Open |
+| LG-2 | The regulated retention periods (ADD-§9.4) have explicit legal approval. Until then the regulated `retention-purge` runs in dry-run, and `TEZG_RETENTION_LEGAL_APPROVED=true` is set only when the approval is recorded (AD-SYS-8 rule 10) | Open |
+| LG-3 | The upload sanitization mechanism for PDF is validated (G-5, AD-SYS-8 rule 11). Until then no PDF rendition exists | Open |
+| LG-4 | The production hosting plan allows commercial use. **Verified fact (2026-09-27):** Vercel's Hobby plan is "restricted to non-commercial personal use only", and its fair-use guidelines count "any method of requesting or processing payment from visitors of the site" and "advertising the sale of a product or service" as commercial use (vercel.com/docs/plans/hobby; vercel.com/docs/limits/fair-use-guidelines). **Architectural decision:** development and the course demo run on Vercel Hobby, and the deployment in §4 does not change. **Pending decision:** the hosting plan or infrastructure for a commercial launch (decision log #38) | Open: the team decides the plan for a commercial launch |
+| LG-5 | The production database does not pause. **Verified fact (2026-09-27):** a Supabase Free project is paused after 7 days of low activity and must be resumed by hand (supabase.com/docs/guides/platform/free-project-pausing). Whether the scheduled jobs count as activity is not documented, so the architecture does not rely on them to prevent pausing. **Architectural decision:** development and the course demo run on Supabase Free, and the deployment in §4 does not change. **Pending decision:** the database plan for a commercial launch (decision log #38) | Open: the team decides the plan for a commercial launch |
+
+**Acknowledged V1 gap, not a gate.** "Oversell incidents" (PRD §22) is not measured in production in V1. Prevention rests on the `quantity >= 0` CHECK and the NFR-INV race tests until a stock-movement ledger exists (§14; decision log #29).
 
 ---
 
@@ -109,7 +124,7 @@ flowchart LR
   trm[[datos.gov.co TRM<br/>dataset 32sa-8pi3]]
   wa[[wa.me link<br/>opened by the user's device]]
   vcron[[Vercel Cron<br/>2 daily jobs]]
-  ghs[[GitHub Actions schedule<br/>hourly tick — ASSUMPTION]]
+  ghs[[GitHub Actions schedule<br/>hourly tick — best-effort]]
 
   buyer & indiv & biz & admin --> ui --> trpc --> Mods
   Mods --> pg
@@ -219,17 +234,28 @@ prisma/schema.prisma        one schema; each model's owner in a `/// @owner <mod
 
 | Trigger | Schedule | Runs |
 | --- | --- | --- |
-| Vercel Cron `daily-morning` | `0 12 * * *` UTC (07:00–07:59 Bogotá) | TRM fetch for today; expiry materialization (orders, offers); failed-delivery digest; never-attempted outbox sweep |
-| Vercel Cron `daily-night` | `30 5 * * *` UTC (00:30–01:29 Bogotá) | commission reconciliation (FR-COM-8); retention purge (ADD-§9.4); expiry materialization catch-up (orders, offers); orphan-upload sweep; `ContactRequestLog` 7-day purge; `AuthThrottleEvent` 24-hour purge; oversell invariant check (ADD-§10) |
-| GitHub Actions `schedule` hourly tick [ASSUMPTION — gate item G-3] | `5 12-23,0-1 * * *` UTC (07:05–20:05 Bogotá) | TRM retry while today's rate is missing (NFR-CAT-4); never-attempted outbox sweep; orders/offers expiry materialization |
+| Vercel Cron `daily-morning` | `0 12 * * *` UTC (07:00–07:59 Bogotá) | TRM fetch for today; expiry materialization (orders, offers); failed-delivery digest; outbox sweep of stuck `pending` deliveries |
+| Vercel Cron `daily-night` | `30 5 * * *` UTC (00:30–01:29 Bogotá) | commission reconciliation (FR-COM-8); retention purge (ADD-§9.4); expiry materialization catch-up (orders, offers); orphan-upload sweep; `ContactRequestLog` 7-day purge; `AuthThrottleEvent` 24-hour purge; outbox sweep of stuck `pending` deliveries |
+| GitHub Actions `schedule` hourly tick [best-effort; G-3 accepted] | `17 12-23,0-1 * * *` UTC (07:17–20:17 Bogotá) | TRM retry while today's rate is missing (NFR-CAT-4); outbox sweep of stuck `pending` deliveries; orders/offers expiry materialization |
 | Admin buttons | on demand | feed ingestion start and continue (2.3), TRM retry (2.3), reconciliation (7.4), event replay (§7.3) |
 
 Every `/api/jobs/*` entry point:
 - requires the `JOBS_SECRET` bearer header;
 - is idempotent;
-- takes a transaction-scoped single-flight lock (AD-SYS-4).
+- takes a transaction-scoped single-flight lock (AD-SYS-4);
+- writes one `JobRun` row per run (see below).
 
 If the gate rejects G-3, NFR-CAT-4 is amended to two attempts per day (07:00 and a manual retry), and carry-forward-with-stale-flag (AD-CAT-3) covers the gap.
+
+**The hourly tick is best-effort** (human review, decision log #30). GitHub documents these failure modes for `schedule` workflows:
+- a run can be delayed during periods of high load, and GitHub names the start of every hour among its high-load times;
+- a queued run can be dropped when load is high;
+- in a public repository, scheduled workflows are disabled after 60 days without repository activity;
+- `schedule` runs only on the default branch.
+
+The tick runs at minute 17 (human review, decision log #37). GitHub advises scheduling a workflow at a different time of the hour "to decrease the chance of delay". Minute 17 is an operational, best-effort choice that lowers the probability of a delayed or dropped run. It is not a guarantee, and no rule depends on it.
+
+No correctness rule depends on the tick (AD-SYS-6). To make its silence visible, every `/api/jobs/*` run writes one `JobRun(id, trigger 'tick'|'daily-morning'|'daily-night'|'admin', job, startedAt, finishedAt, outcome, errorCode)` row. `shared-kernel` owns the table (AD-SYS-2 rule 10), and rows are purged after 90 days. Page 2.3 shows the last `tick` run in its header ("Última tarea horaria"), read through `admin.jobs.tickHealth()` (§7.3). It derives a silence alert at read time: when the page is read between 10:17 and 23:17 Bogotá and no `tick` run started in the previous 3 h, the header shows the alert and admin rail item 5 (Catálogo) carries a marker. The 3-hour window tolerates two dropped runs.
 
 **Connection budget.**
 - Runtime uses the pg `Pool` with `max: 1` per serverless instance, through the Supabase transaction pooler.
@@ -957,7 +983,7 @@ flowchart LR
   5. `reservationRef = {listingId, units:[{inventoryUnitId, qty}]}` is returned and stored by the caller on its own row.
   6. `releaseReservation(tx, ref)` increments the same units in ascending order. It is called only in the same transaction as the caller's conditional transition that affected 1 row (AD-ORD-2, AD-TRD-3), so it runs at most once.
   7. NFR-INV-3 asserts that no row is written anywhere except `InventoryUnit` during a reserve.
-- **Trade-off:** quantity held by an order that expired but has not yet been materialized stays unavailable until one of the expiry triggers runs (AD-ORD-2 rule 7). With G-3, browse can show `Sold out` for up to 1 hour between 07:05 and 20:05 Bogotá, and up to about 6.5 hours overnight (00:30 → 07:00).
+- **Trade-off:** quantity held by an order that expired but has not yet been materialized stays unavailable until one of the expiry triggers runs (AD-ORD-2 rule 7). With G-3, browse can show `Sold out` for up to 1 hour between 07:17 and 20:17 Bogotá, and up to about 6.5 hours overnight (00:30 → 07:00).
 
 #### AD-INV-3 — Purchasability is fail-closed and projections apply only newer facts
 
@@ -1178,7 +1204,7 @@ flowchart LR
      Tick and cron run in batches of 200 until 50 s pass.
   8. `deriveStatus(facts, now)` returns `Expired` whenever `expiresAt ≤ now` with no payment, cancellation or expiry, whether or not the expiry has been materialized.
   9. NFR-ORD-1 includes the paid-versus-expiry race at `now = expiresAt`.
-- **Trade-off:** quantity is reclaimed with a lag of up to 1 hour between 07:05 and 20:05 Bogotá and up to about 6.5 hours overnight with G-3, or up to 17.5 hours without G-3, unless someone tries to buy the same listing. Status and every command are always correct.
+- **Trade-off:** quantity is reclaimed with a lag of up to 1 hour between 07:17 and 20:17 Bogotá and up to about 6.5 hours overnight with G-3, or up to 17.5 hours without G-3, unless someone tries to buy the same listing. Status and every command are always correct.
 
 #### AD-ORD-3 — One visibility predicate, a read-only admin lookup, and a locked comprobante
 
@@ -1277,7 +1303,7 @@ flowchart LR
      - from > 0 to ≤ 0 → enqueue `CommissionBalanceExhausted`;
      - from ≤ 0 to > 0 → enqueue `CommissionBalanceReplenished`.
      Otherwise nothing is enqueued.
-  4. `reconcile(businessId?)` checks `balanceCop = Σ TopUp − Σ Deduction` and that the seqs are exactly `1..ledgerSeq`. It writes one `ReconciliationRun`. Any discrepancy is shown on the admin home. The `daily-night` job runs it for all accounts.
+  4. `reconcile(businessId?)` checks `balanceCop = Σ TopUp − Σ Deduction` and that the seqs are exactly `1..ledgerSeq`. It writes one `ReconciliationRun`. Any discrepancy is shown on page 7.4's "Última ejecución diaria: {fecha} · {n} diferencias" line, in the refusal tone when n > 0. The `daily-night` job runs it for all accounts.
   5. The account is created only by the `BusinessApplicationApproved` subscriber, with `INSERT … ON CONFLICT (businessId) DO NOTHING`. Only when it inserted does it enqueue `CommissionBalanceExhausted{ledgerSeq:0, balanceAfter:0}` (FR-COM-1).
 - **Trade-off:** the account row is a hot spot for a busy business. Each deduction holds it for one short transaction, which is fine at the seed volumes.
 
@@ -1967,7 +1993,7 @@ This table is the threat model for Plan-2. Each row names the threat, the contro
 | S-14 | Moderation used to erase evidence | Hide, never delete (AD-12). The moderation log stores snapshots of what was hidden (AD-REP-3; EC-35) | Test: hide → edit is refused → unhide restores the identical text |
 | S-15 | A cross-site request triggers a command | The Better Auth session cookie is `SameSite=Lax`, `HttpOnly` and `Secure`, so a cross-site `POST` carries no session. The `/api/trpc` handler also refuses a mutation whose `Origin` header is not the deployment origin | Test: a mutation with a foreign `Origin` → 403 and no write |
 
-**Secrets** (Vercel environment, never in the repository): `DATABASE_URL`, `DIRECT_URL`, `BETTER_AUTH_SECRET`, `JOBS_SECRET`, `IP_HMAC_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (server only, used by the `ObjectStorage` adapter). `TEZG_DEV_SURFACES` is a flag, not a secret.
+**Secrets** (Vercel environment, never in the repository): `DATABASE_URL`, `DIRECT_URL`, `BETTER_AUTH_SECRET`, `JOBS_SECRET`, `IP_HMAC_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (server only, used by the `ObjectStorage` adapter). `TEZG_DEV_SURFACES` and `TEZG_RETENTION_LEGAL_APPROVED` are flags, not secrets.
 
 ---
 
@@ -1982,7 +2008,7 @@ This table maps each inherited AD to the Plan-2 decisions that implement it and 
 | AD-3 Commission balance → purchasability | AD-SYS-3 (amended trigger), AD-COM-1, AD-COM-2, AD-INV-3 | Both-trigger test in both delivery orders; TS/SQL `purchasable` parity test |
 | AD-4 Trading off `listings` | AD-TRD-1, AD-TRD-2, AD-TRD-3; AD-MSG-1 (`kind='trade'`) | Last-unit accept race; handoff generated once |
 | AD-5 One location query path | AD-DSC-1 | TS/SQL distance parity test |
-| AD-6 `InventoryUnit` owns quantity | AD-INV-1 (condition in the key, OQ-10), AD-INV-2 | 50×100 last-unit test; nightly oversell invariant check (ADD-§10) |
+| AD-6 `InventoryUnit` owns quantity | AD-INV-1 (condition in the key, OQ-10), AD-INV-2 | 50×100 last-unit test; the `quantity >= 0` CHECK and the NFR-INV race tests. Oversell is not measured in production in V1 (ADD-§10) |
 | AD-7 Independent catalog, listing and binder records | AD-COL-1 (tagged union with a `CHECK`) | Constraint test: an external entry with a `catalogEntryId` is refused by the database |
 | AD-8 Table ownership | §6 data models; AD-SYS-2 rule 10 (shared-kernel infrastructure tables) | `tezg/table-owner` |
 | AD-9 Snapshot payloads | §7.1 | Payload schema test per event; canary scan of `OutboxEvent.payload` |
@@ -2043,7 +2069,7 @@ EC-33 (self-review detection) stays deferred to v2, as triaged in Phase 2.
 
 ## 13. Scheduled and background work
 
-No correctness rule depends on any row in this table (AD-SYS-6 rule 5). Every job is behind `JOBS_SECRET`, idempotent, and single-flight under `job:<name>` (AD-SYS-4 rule 7).
+No correctness rule depends on any row in this table (AD-SYS-6 rule 5). Every job is behind `JOBS_SECRET`, idempotent, and single-flight under `job:<name>` (AD-SYS-4 rule 7). Every run writes one `JobRun` row (§4).
 
 | Job | Trigger (§4) | Owner | What it does | If it never runs |
 | --- | --- | --- | --- | --- |
@@ -2053,11 +2079,10 @@ No correctness rule depends on any row in this table (AD-SYS-6 rule 5). Every jo
 | `failed-delivery-digest` | `daily-morning` | shared-kernel | Writes `FailedDeliveryDigest(date, count, oldestFirstFailedAt, stuckPendingCount)`, shown as one line on page 2.3's Entregas tab | The live badge still counts failures and stuck deliveries |
 | `expiry-materialize` | `orders.create` pre-step (scoped to the listing's units); hourly tick [G-3]; `daily-morning`; `daily-night` catch-up | orders, trading | Sets `expiredAt` / `Expired` on rows with `expiresAt ≤ now`. For orders it releases the reservation exactly once (AD-ORD-2 rule 6). `Open` offers hold no reservation, so only their status changes (AD-TRD-1 rule 5) | Reads and commands already treat the rows as expired. Quantity held by an expired order stays unavailable until the next run, or until someone tries to buy that listing and the pre-step reclaims it (AD-INV-2 trade-off) |
 | `commission-reconcile` | `daily-night`; admin button (7.4) | commission | Checks every account against its ledger (AD-COM-1 rule 4) | Discrepancies surface later |
-| `retention-purge` | `daily-night` | each owner | Applies ADD-§9.4 (5 and 10 years; closure + 1 year); deletes `delivered` event rows older than 90 days [ASSUMPTION] | Data is kept longer than the policy |
-| `orphan-upload-sweep` | `daily-night` | identity, orders, commission | Deletes objects in the three private buckets that no row references and that are older than 24 h | Unreferenced files remain (private, no signed URL can be issued) |
+| `retention-purge` | `daily-night` | each owner | Regulated part: applies the provisional ADD-§9.4 periods (5 and 10 years; closure + 1 year) in dry-run until `TEZG_RETENTION_LEGAL_APPROVED=true` (LG-2). Technical part: deletes `delivered` event rows and `JobRun` rows older than 90 days [ASSUMPTION] | Data is kept longer than the policy |
+| `orphan-upload-sweep` | `daily-night` | identity, orders, commission | Deletes objects in the three destination buckets that no row references and that are older than 24 h, and every `upload-quarantine` object older than 24 h (AD-SYS-8 rule 5) | Unreferenced files remain (private; no signed URL can be issued, and none is ever issued for quarantine) |
 | `contact-log-purge` | `daily-night` | listings | Deletes `ContactRequestLog` rows older than 7 days | The limiter reads only the last 24 h, so behaviour is unchanged |
 | `auth-throttle-purge` | `daily-night` | identity | Deletes `AuthThrottleEvent` rows older than 24 h | Same as above, with the 15-minute and 1-hour windows |
-| `oversell-check` | `daily-night` | listings | Counts units with negative `quantity` and stores the result for the admin home. Under AD-INV-2 there is no `reserved` column and the CHECK keeps the count at 0, so this is a placeholder until the stock-movement item in §14 lands | The metric is not measured that day |
 
 ---
 
@@ -2072,8 +2097,8 @@ No correctness rule depends on any row in this table (AD-SYS-6 rule 5). Every jo
 | Production catalog and price feed (OQ-9) | A team decision, including the licence | Before launch |
 | `TradeAccepted` subscribers (notifications) | No notification channel in V1 | With the notifications feature |
 | Self-review detection (EC-33) | Out of scope (PRD §5) | v2 |
-| Legal review of the retention periods (OQ-12) | A pre-launch task outside the architecture | Before launch |
-| A meaningful oversell metric (ADD-§10) | The ADD-§10 formula (`reserved > quantity`) has no column to read under AD-INV-2, and a real check needs a stocked total per unit (a stock-movement ledger). Oversell prevention itself is covered by the CHECK and the NFR-INV race tests | Before launch, together with the ADD-§10 PRD-sync edit. Owner: the team; reviewed in the Phase 4 readiness report |
+| Legal approval of the retention periods (OQ-12) | A legal task outside the architecture. The periods are provisional defaults and the regulated purge runs in dry-run until approval (AD-SYS-8 rule 10) | Launch gate LG-2 |
+| A meaningful oversell metric (ADD-§10) | The ADD-§10 formula (`reserved > quantity`) has no column to read under AD-INV-2, and a real check needs a stocked total per unit (a stock-movement ledger). Oversell prevention itself is covered by the CHECK and the NFR-INV race tests. The `oversell-check` placeholder was removed at the human review round: "Oversell incidents" is not measured in production in V1 (decision log #29) | When a stock-movement ledger exists. Owner: the team |
 | Retrying rows skipped for missing FX (`deferredNoFx`) | Rows are counted, not stored; a rerun of the same file picks them up (§15.3) | With the production feed (OQ-9). Owner: the team; reviewed in the Phase 4 readiness report |
 
 ---
@@ -2086,7 +2111,7 @@ No correctness rule depends on any row in this table (AD-SYS-6 rule 5). Every jo
 | --- | --- | --- | --- |
 | G-1 | Should the server refuse a counter-offer identical to the current round (`TradeCounterUnchanged`)? | **Yes.** Without it, turns can ping-pong until expiry, and the client-side check alone can be bypassed (EC-11) | Drop the code; an identical counter becomes a valid round that still counts toward the 10-round limit |
 | G-2 | Should the 50-collection limit have its own code (`CollectionLimitReached`) instead of a generic refusal? | **Yes.** Every refusal needs an owner code (AD-SYS-1), and the UX needs a specific message | The PRD must name another existing code, which would break the one-owner rule |
-| G-3 | Should a GitHub Actions hourly tick (`5 12-23,0-1 * * *` UTC) retry the TRM and materialize expiries? | **Yes.** It is free, and it brings the TRM retry close to NFR-CAT-4 without a paid plan | NFR-CAT-4 becomes two attempts per day (07:00 and a manual retry); expiry materialization runs twice a day. Correctness is unchanged |
+| G-3 | Should a GitHub Actions hourly tick (`5 12-23,0-1 * * *` UTC) retry the TRM and materialize expiries? *(Question as asked at the gate. The schedule later moved to minute 17, `17 12-23,0-1 * * *`, decision log #37.)* | **Yes.** It is free, and it brings the TRM retry close to NFR-CAT-4 without a paid plan | NFR-CAT-4 becomes two attempts per day (07:00 and a manual retry); expiry materialization runs twice a day. Correctness is unchanged |
 | G-4 | Is `StructuralScanner` acceptable as the V1 `MalwareScanner`, with ClamAV deferred? | **Yes**, with the sandboxed viewer as the compensating control | Uploads are blocked until a hosted scanner is chosen, which blocks VER, ORD and COM |
 | G-5 | Which mechanism produces the sanitized PDF rendition that viewers render (AD-SYS-8 rule 11)? | **Pending validation** (human review, decision log #28). Server-side pdf.js is not adopted: it fails the security boundary (see below). Candidate, not adopted: rasterize the PDF in a Web Worker in the uploader's browser, and have the server accept and re-encode images only. Other candidates: pdf.js in a separate Vercel project that holds no secret; accept images only | Until G-5 closes, no PDF rendition exists and production launch is blocked (LG-3) |
 
@@ -2108,7 +2133,7 @@ These edits make the PRD match the architecture. The gate approved them, and the
 | FR-DSC-1 | A catalog filter matching more than 20,000 entries is refused with `SearchFilterTooBroad` | AD-DSC-2 rule 2 |
 | NFR-CAT-4 | Only if G-3 is rejected: two attempts per day | G-3 |
 | FR-COM-7 | Add: a past `effectiveFrom` is refused with `CommissionRateNotFutureDated`; a migration seeds the A-24 rate (800 bps) at the epoch | AD-COM-2 rule 6 |
-| ADD-§10 | The oversell metric becomes "units with negative quantity (placeholder)" until the stocked-total check in §14 lands | §13 `oversell-check`; §14 |
+| ADD-§10 | ~~The oversell metric becomes "units with negative quantity (placeholder)" until the stocked-total check in §14 lands~~ Superseded at the human review round: "Oversell incidents" is not measured in production in V1 | decision log #29 |
 | FR-TRD-5 | The losing accept also marks its own offer `Unfulfillable` when `getTradeability` refuses (listing gone, hidden, deactivated or closed to trade), not only on `InsufficientQuantity` | F-09; AD-TRD-2 rule 3 |
 | FR-COL-2 | An unknown catalog id gets `InvalidCatalogEntry`, not `RequestValidationFailed` | §8.3; AD-COL-1 rule 3 |
 | §21, §23 | OQ-2, OQ-4, OQ-6, OQ-7, OQ-8, OQ-10, A-15 and A-22 are marked resolved, citing §12.1 | §12.1 |
@@ -2121,7 +2146,7 @@ These are tagged `[ASSUMPTION]` in the ADs. None blocks implementation. Each can
 
 | Where | Assumption | Revisit when |
 | --- | --- | --- |
-| AD-SYS-2 rule 10 | `delivered` event rows are purged after 90 days | Retention legal review (OQ-12) |
+| AD-SYS-2 rule 10 | `delivered` event rows and `JobRun` rows are purged after 90 days (technical purges, not gated by LG-2) | Retention legal review (OQ-12, LG-2) |
 | AD-IDN-3 | Authentication throttles are stored in `AuthThrottleEvent` in Postgres, not an external store | If sign-in volume makes the table hot |
 | AD-CAT-2 rule 2 | A feed row with no TRM on or before its date is skipped and counted in `deferredNoFx`, then picked up by a rerun | First production feed run |
 | AD-DSC-1 rule 7 | A bundle appears under each of its component entries in `view=entries` | UX review of the entries view |
