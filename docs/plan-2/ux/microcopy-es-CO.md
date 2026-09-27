@@ -422,3 +422,5 @@ Composition rule for `{items} + {efectivo}`: items are joined with ", " and a fi
 | Slow command (10 s) | "Sigue en proceso…" | — |
 | Poll update (polite) | "{nombre} {acción} · {hora}" | — |
 | H console banner | "Consola de desarrollo · datos de prueba" | — |
+
+- **Agreement in the command template.** The pronoun in "repetirla" agrees with the noun in `{acción}`: "repetirla" for a feminine noun ("tu oferta", "tu recarga", "tu confirmación"), "repetirlo" for a masculine one ("tu perfil", "tu mensaje").
