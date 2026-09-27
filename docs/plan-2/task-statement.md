@@ -209,7 +209,7 @@ Produce one visual design spine (`DESIGN.md`), one behavioural experience spine 
 - `ux/DESIGN.md` and `ux/EXPERIENCE.md`
 - `ux/C-UX-Scenarios/00-ux-scenarios.md` (index + scenario ↔ FR coverage matrix) + one folder per module with its 4 scenario outline files
 - Per-page specifications for all core surfaces
-- Key-screen wireframes / UI mockups (`ux/wireframes/`)
+- Key-screen wireframes / UI mockups (`ux/wireframes/`, `ux/mockups/`)
 - `reviews/review-ux-edge-cases.md` with triaged decisions
 
 ---
@@ -297,7 +297,8 @@ docs/plan-2/
 │   │   ├── 01-idn-<slug>/           # Module 1: 4 scenario outlines & page/surface specs
 │   │   ├── …                        # one folder per module
 │   │   └── 12-msg-<slug>/           # Module 12: 4 scenario outlines & page/surface specs
-│   └── wireframes/                  # Key screen mocks / UI diagrams
+│   ├── wireframes/                  # Key screen wireframes / UI diagrams
+│   └── mockups/                     # Interactive HTML key-screen mocks
 ├── reviews/
 │   ├── review-prd-adversarial.md    # Triaged PRD Adversarial Review
 │   ├── review-ux-edge-cases.md      # Triaged UX Edge Cases Review
