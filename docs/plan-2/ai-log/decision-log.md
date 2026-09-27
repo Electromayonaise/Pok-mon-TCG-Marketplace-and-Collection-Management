@@ -134,3 +134,34 @@
 
 **Rationale:** OQ-1 stops a business rejected for fraud from continuing to sell as an individual. OQ-5 reflects that Ley 1581 covers every personal-data class the platform holds. The OQ-11 and OQ-12 defaults are conservative and can be changed without code. Top-up proofs got 10 years instead of the 5 in the first draft, because they support the platform's own accounting (Ley 962 de 2005, art. 28, still to be verified by legal counsel).
 **Persona/skill:** open questions from `bmad-prd` and the adversarial review (OQ-12 comes from finding F-15). Presented at the Phase 1 gate with recommendations.
+
+### 15. Buyer-side "mute conversation" enters V1 as FR-MSG-8 (Phase 2 gate — F-29 / UX-A-1)
+**Decision:** the buyer in an in-app conversation can mute it. A muted thread still receives messages, leaves the buyer's total unread count, moves to a "Silenciadas" filter, and the business is never told. Unmuting reverses it. The PRD gains FR-MSG-8. Blocking and reporting stay out of scope with the SPEC non-goal.
+**Alternatives considered:** defer the mute to v2 and leave F-29 open until harassment reports arrive after launch (the Phase 1 triage of F-29).
+**Rationale:** it removes most of the residual harm F-29 describes (an unwanted unread badge and unwanted text in a thread the buyer started) at the cost of one per-participant timestamp, with no moderation tooling.
+**Persona/skill:** `bmad-ux` (Messaging Safety evaluation that the Phase 1 gate assigned to UX). Presented at the Phase 2 gate with a recommendation, and the team chose it.
+
+### 16. Remaining Phase 2 gate answers (voice, REP/MSG assumptions, edge-case triage)
+**Decision:** the team adopted the recommendation on each item.
+- **Voice:** *usted* in the admin panel and in business-verification messages, *tú* in the selling flow (ADD-§1.1). The UX-A-2 refusal copy, which advises an individual seller to open a separate account for a shop, is confirmed.
+- **REP and MSG assumptions** where the PRD is silent are adopted as working assumptions, for Phase 3 to turn into contract rules:
+  - no edit of a hidden review;
+  - admin search is an exact substring match, ignoring case and accents;
+  - audit rows keep a snapshot, with no export;
+  - a reload of 12.1 counts as a contact;
+  - trade handoffs are exempt from contact limits;
+  - a thread takes messages again when the shop is Pending again;
+  - no read receipts.
+- **Edge-case review triage** (`reviews/review-ux-edge-cases.md`) is adopted in full: 30 Accept, 14 Defer, 9 Reject. That includes UX-A-3 (an unchanged counter is refused in the client, and Phase 3 decides the server rule) and UX-A-4 ("General" is offered and created on the first save when no collection exists).
+
+**Alternatives considered:**
+- Voice: *usted* across all business chrome, or softer UX-A-2 copy without the separate-account advice.
+- Assumptions: review each one before Phase 3.
+- Triage: also decide now that FR-TRD-2 refuses an identical counter on the server.
+
+**Rationale:**
+- The voice split separates formal verification from day-to-day selling.
+- The assumptions are conservative and already specified, so they do not block architecture.
+- Every Defer in the triage has an owner, and every Reject cites the line where the case is already handled.
+
+**Persona/skill:** `bmad-ux` open items and `bmad-review-edge-case-hunter` triage. Presented at the Phase 2 gate with recommendations.

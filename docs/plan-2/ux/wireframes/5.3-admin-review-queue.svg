@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-24 -94 1790 940" width="1790" height="940" font-family="Helvetica, Arial, sans-serif">
+<rect x="-24" y="-94" width="1790" height="940" fill="#ffffff"/>
+<text x="0" y="-48" font-size="22" fill="#1e1e1e" xml:space="preserve"><tspan x="0" dy="0">5.3 Admin Review Queue · D (desktop, 1280 px) · usted</tspan></text>
+<text x="0" y="-26" font-size="14" fill="#868e96" xml:space="preserve"><tspan x="0" dy="0">Wireframe for layout only. The page spec and the spines (DESIGN.md, EXPERIENCE.md) win on any conflict.</tspan></text>
+<rect x="0" y="0" width="1280" height="820" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+<rect x="0" y="0" width="200" height="820" fill="#f8f9fa" stroke="#1e1e1e" stroke-width="1"/>
+<text x="20" y="38" font-size="18" fill="#1e1e1e" xml:space="preserve"><tspan x="20" dy="0">TEZG · Admin</tspan></text>
+<text x="20" y="86" font-size="16" fill="#1e1e1e" xml:space="preserve"><tspan x="20" dy="0">▸ Solicitudes</tspan></text>
+<text x="20" y="122" font-size="16" fill="#868e96" xml:space="preserve"><tspan x="20" dy="0">  Recargas</tspan></text>
+<text x="20" y="158" font-size="16" fill="#868e96" xml:space="preserve"><tspan x="20" dy="0">  Pedidos</tspan></text>
+<text x="20" y="194" font-size="16" fill="#868e96" xml:space="preserve"><tspan x="20" dy="0">  Moderación</tspan></text>
+<text x="20" y="230" font-size="16" fill="#868e96" xml:space="preserve"><tspan x="20" dy="0">  Catálogo</tspan></text>
+<text x="20" y="266" font-size="16" fill="#868e96" xml:space="preserve"><tspan x="20" dy="0">  Comisiones</tspan></text>
+<text x="20" y="302" font-size="16" fill="#868e96" xml:space="preserve"><tspan x="20" dy="0">  Cuentas</tspan></text>
+<text x="20" y="338" font-size="16" fill="#868e96" xml:space="preserve"><tspan x="20" dy="0">  Auditoría</tspan></text>
+<text x="20" y="374" font-size="16" fill="#868e96" xml:space="preserve"><tspan x="20" dy="0">  Políticas</tspan></text>
+<text x="20" y="410" font-size="16" fill="#868e96" xml:space="preserve"><tspan x="20" dy="0">  Entregas fallidas</tspan></text>
+<text x="20" y="803" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="20" dy="0">admin rail (shared)</tspan></text>
+<text x="220" y="40" font-size="20" fill="#1e1e1e" xml:space="preserve"><tspan x="220" dy="0">Solicitudes</tspan></text>
+<text x="370" y="39" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="370" dy="0">3 en revisión · más antigua primero</tspan></text>
+<rect x="220" y="56" width="420" height="200" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+<text x="230" y="77" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="230" dy="0">Tienda          Ciudad     Presencia        Espera    Anteriores</tspan></text>
+<rect x="220" y="86" width="420" height="50" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+<text x="230" y="113" font-size="13" fill="#1e1e1e" xml:space="preserve"><tspan x="230" dy="0">Cartas del Sur   Cali       instagram.com/…  2 d 4 h   —</tspan></text>
+<rect x="220" y="136" width="420" height="50" fill="#d0ebff" stroke="#1e1e1e" stroke-width="1"/>
+<text x="230" y="163" font-size="13" fill="#1e1e1e" xml:space="preserve"><tspan x="230" dy="0">Tienda Andrés    Medellín   instagram.com/…  1 h 25 m  1 (rechaz.)</tspan></text>
+<text x="230" y="210" font-size="14" fill="#1e1e1e" xml:space="preserve"><tspan x="230" dy="0">…</tspan></text>
+<text x="440" y="239" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="440" dy="0">‹ Anterior · 1 de 1 · Sig. ›</tspan></text>
+<rect x="214" y="50" width="432" height="212" fill="none" stroke="#1971c2" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="220" y="283" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="220" dy="0">ver-queue-table</tspan></text>
+<text x="220" y="308" font-size="12" fill="#868e96" xml:space="preserve"><tspan x="220" dy="0">Fixed order: oldest submittedAt first,</tspan><tspan x="220" dy="15.0">ties by applicationId; no column sort.</tspan></text>
+<rect x="670" y="20" width="590" height="780" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+<text x="686" y="50" font-size="18" fill="#1e1e1e" xml:space="preserve"><tspan x="686" dy="0">← Solicitudes · Tienda Andrés</tspan></text>
+<rect x="1030" y="30" width="130" height="28" rx="8" fill="#fff3bf" stroke="#1e1e1e" stroke-width="1"/>
+<text x="1042" y="50" font-size="15" fill="#1e1e1e" xml:space="preserve"><tspan x="1042" dy="0">◔ En revisión</tspan></text>
+<rect x="686" y="70" width="558" height="40" fill="#f8f9fa" stroke="#1e1e1e" stroke-width="1"/>
+<text x="698" y="94" font-size="14" fill="#1e1e1e" xml:space="preserve"><tspan x="698" dy="0">Esta consulta queda registrada en la auditoría.  [Ver accesos]</tspan></text>
+<text x="686" y="141" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="686" dy="0">Tienda</tspan></text>
+<text x="890" y="143" font-size="15" fill="#1e1e1e" xml:space="preserve"><tspan x="890" dy="0">Tienda Andrés · Medellín · instagram.com/… ↗</tspan></text>
+<text x="686" y="171" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="686" dy="0">Identificación</tspan></text>
+<text x="890" y="173" font-size="15" fill="#1e1e1e" xml:space="preserve"><tspan x="890" dy="0">NIT 900.123.456-8</tspan></text>
+<text x="686" y="207" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="686" dy="0">DOCUMENTOS</tspan></text>
+<rect x="686" y="218" width="250" height="34" fill="#f8f9fa" stroke="#1e1e1e" stroke-width="1"/>
+<text x="698" y="240" font-size="14" fill="#1e1e1e" xml:space="preserve"><tspan x="698" dy="0">▣ RUT.pdf   [Abrir]</tspan></text>
+<rect x="686" y="260" width="250" height="34" fill="#f8f9fa" stroke="#1e1e1e" stroke-width="1"/>
+<text x="698" y="282" font-size="14" fill="#1e1e1e" xml:space="preserve"><tspan x="698" dy="0">▣ cedula.jpg   [Abrir]</tspan></text>
+<text x="950" y="235" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="950" dy="0">document-viewer:</tspan><tspan x="950" dy="16.25">Este acceso queda registrado ·</tspan><tspan x="950" dy="16.25">enlace válido 10 min</tspan></text>
+<text x="686" y="321" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="686" dy="0">DATOS DE PAGO</tspan></text>
+<text x="686" y="345" font-size="15" fill="#1e1e1e" xml:space="preserve"><tspan x="686" dy="0">Bancolombia · Ahorros · ****4821 · Andrés R.</tspan></text>
+<text x="686" y="379" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="686" dy="0">CONSENTIMIENTO</tspan></text>
+<text x="686" y="403" font-size="15" fill="#1e1e1e" xml:space="preserve"><tspan x="686" dy="0">Aceptado 8 oct 2026, 10:05 a. m. · versión 2026-09</tspan></text>
+<text x="686" y="437" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="686" dy="0">SOLICITUDES ANTERIORES</tspan></text>
+<text x="686" y="461" font-size="15" fill="#1e1e1e" xml:space="preserve"><tspan x="686" dy="0">1 · No aprobada 1 oct 2026 · Datos no coinciden</tspan><tspan x="686" dy="18.75">nota: "El NIT del formulario…"</tspan></text>
+<rect x="678" y="64" width="574" height="430" fill="none" stroke="#1971c2" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="686" y="515" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="686" dy="0">ver-review-detail</tspan></text>
+<rect x="670" y="690" width="590" height="110" fill="#f8f9fa" stroke="#1e1e1e" stroke-width="1"/>
+<text x="686" y="715" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="686" dy="0">Barra de decisión fija abajo. Cada botón abre un diálogo.</tspan></text>
+<rect x="970" y="740" width="98" height="36" rx="8" fill="#ffe3e3" stroke="#1e1e1e" stroke-width="1"/>
+<text x="984" y="765" font-size="16" fill="#1e1e1e" xml:space="preserve"><tspan x="984" dy="0">Rechazar</tspan></text>
+<rect x="1110" y="740" width="90" height="36" rx="8" fill="#d0ebff" stroke="#1e1e1e" stroke-width="1"/>
+<text x="1124" y="765" font-size="16" fill="#1e1e1e" xml:space="preserve"><tspan x="1124" dy="0">Aprobar</tspan></text>
+<text x="970" y="795" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="970" dy="0">ver-review-reject</tspan></text>
+<text x="1110" y="795" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="1110" dy="0">ver-review-approve</tspan></text>
+<text x="1320" y="16" font-size="16" fill="#868e96" xml:space="preserve"><tspan x="1320" dy="0">Diálogo · Aprobar</tspan></text>
+<rect x="1320" y="24" width="420" height="190" rx="8" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+<text x="1336" y="55" font-size="15" fill="#1e1e1e" xml:space="preserve"><tspan x="1336" dy="0">Aprobar la tienda de {nombre}. Sus</tspan><tspan x="1336" dy="18.75">publicaciones recibirán la insignia de</tspan><tspan x="1336" dy="18.75">verificación y se abrirá su cuenta de</tspan><tspan x="1336" dy="18.75">comisión en $0.</tspan></text>
+<rect x="1470" y="160" width="98" height="36" rx="8" fill="#f8f9fa" stroke="#1e1e1e" stroke-width="1"/>
+<text x="1484" y="185" font-size="16" fill="#1e1e1e" xml:space="preserve"><tspan x="1484" dy="0">Cancelar</tspan></text>
+<rect x="1580" y="160" width="151" height="36" rx="8" fill="#d0ebff" stroke="#1e1e1e" stroke-width="1"/>
+<text x="1594" y="185" font-size="16" fill="#1e1e1e" xml:space="preserve"><tspan x="1594" dy="0">Aprobar tienda</tspan></text>
+<text x="1320" y="235" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="1320" dy="0">ver-review-approve (dialog)</tspan></text>
+<text x="1320" y="276" font-size="16" fill="#868e96" xml:space="preserve"><tspan x="1320" dy="0">Diálogo · Rechazar</tspan></text>
+<rect x="1320" y="284" width="420" height="330" rx="8" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+<text x="1336" y="311" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="1336" dy="0">Motivo (obligatorio)</tspan></text>
+<rect x="1336" y="318" width="388" height="34" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+<text x="1346" y="338" font-size="12" fill="#1e1e1e" xml:space="preserve"><tspan x="1346" dy="0">Datos no coinciden · puede volver a solicitar en 7 días ▾</tspan></text>
+<text x="1336" y="377" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="1336" dy="0">Nota para la tienda (opcional)          0/500</tspan></text>
+<rect x="1336" y="384" width="388" height="70" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+<text x="1336" y="472" font-size="12" fill="#868e96" xml:space="preserve"><tspan x="1336" dy="0">La tienda verá esta nota. No incluya números</tspan><tspan x="1336" dy="15.0">de documento.</tspan></text>
+<text x="1336" y="513" font-size="13" fill="#1e1e1e" xml:space="preserve"><tspan x="1336" dy="0">Sus publicaciones se retirarán (no se borran).</tspan><tspan x="1336" dy="16.25">Podrá volver a solicitar desde el {fecha calculada}.</tspan></text>
+<text x="1336" y="561" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="1336" dy="0">Gestionar motivos ↗</tspan></text>
+<rect x="1550" y="560" width="186" height="36" rx="8" fill="#ffe3e3" stroke="#1e1e1e" stroke-width="1"/>
+<text x="1564" y="585" font-size="16" fill="#1e1e1e" xml:space="preserve"><tspan x="1564" dy="0">Rechazar solicitud</tspan></text>
+<text x="1320" y="635" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="1320" dy="0">ver-review-reject (dialog)</tspan></text>
+<text x="1320" y="686" font-size="16" fill="#868e96" xml:space="preserve"><tspan x="1320" dy="0">Estado · carrera perdida (ApplicationNotPending)</tspan></text>
+<rect x="1320" y="694" width="420" height="90" fill="#fff3bf" stroke="#1e1e1e" stroke-width="1"/>
+<text x="1336" y="718" font-size="14" fill="#1e1e1e" xml:space="preserve"><tspan x="1336" dy="0">{admin} ya {aprobó / rechazó} esta solicitud el</tspan><tspan x="1336" dy="17.5">{fecha}. La vista se actualizó con la decisión.</tspan></text>
+<text x="1336" y="766" font-size="14" fill="#1971c2" xml:space="preserve"><tspan x="1336" dy="0">Volver a Solicitudes</tspan></text>
+<text x="1320" y="804" font-size="12" fill="#868e96" xml:space="preserve"><tspan x="1320" dy="0">The dialog closes; the detail re-renders read-only;</tspan><tspan x="1320" dy="15.0">the banner replaces the decision bar.</tspan></text>
+</svg>

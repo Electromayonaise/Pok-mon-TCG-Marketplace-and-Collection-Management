@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-24 -94 1224 918" width="1224" height="918" font-family="Helvetica, Arial, sans-serif">
+<rect x="-24" y="-94" width="1224" height="918" fill="#ffffff"/>
+<text x="0" y="-48" font-size="22" fill="#1e1e1e" xml:space="preserve"><tspan x="0" dy="0">8.2 Trade Negotiation Timeline · R (360 px) · tú</tspan></text>
+<text x="0" y="-26" font-size="14" fill="#868e96" xml:space="preserve"><tspan x="0" dy="0">Two states: negotiating (left) and after acceptance (right). The page spec and the spines win on any conflict.</tspan></text>
+<text x="0" y="796" font-size="16" fill="#868e96" xml:space="preserve"><tspan x="0" dy="0">A · Ronda 2, te toca responder</tspan></text>
+<rect x="0" y="0" width="360" height="760" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+<text x="16" y="28" font-size="14" fill="#868e96" xml:space="preserve"><tspan x="16" dy="0">← Mis intercambios</tspan></text>
+<text x="16" y="58" font-size="20" fill="#1e1e1e" xml:space="preserve"><tspan x="16" dy="0">Intercambio con Valentina</tspan></text>
+<text x="16" y="79" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="16" dy="0">Lote Psíquico · 3 cartas · Precio publicado $95.000</tspan></text>
+<rect x="8" y="8" width="344" height="80" fill="none" stroke="#1971c2" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="372" y="23" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="372" dy="0">trd-neg-header</tspan></text>
+<rect x="16" y="100" width="328" height="30" rx="8" fill="#fff3bf" stroke="#1e1e1e" stroke-width="1"/>
+<text x="26" y="118" font-size="12" fill="#1e1e1e" xml:space="preserve"><tspan x="26" dy="0">● Te toca responder · Vence el 12 oct 2026, 7:30 p. m.</tspan></text>
+<rect x="10" y="96" width="340" height="38" fill="none" stroke="#1971c2" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="372" y="113" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="372" dy="0">trd-neg-status</tspan></text>
+<text x="16" y="161" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="16" dy="0">TÉRMINOS ACTUALES (ronda 2)</tspan></text>
+<rect x="16" y="170" width="328" height="150" fill="#f8f9fa" stroke="#1e1e1e" stroke-width="1"/>
+<text x="28" y="193" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="28" dy="0">Tú das:</tspan></text>
+<text x="28" y="213" font-size="15" fill="#1e1e1e" xml:space="preserve"><tspan x="28" dy="0">Pikachu ex (NM)</tspan><tspan x="28" dy="18.75">Espeon V (NM)                 cambió</tspan></text>
+<text x="28" y="259" font-size="15" fill="#1e1e1e" xml:space="preserve"><tspan x="28" dy="0">Efectivo: sin efectivo        cambió</tspan></text>
+<text x="28" y="285" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="28" dy="0">Valentina da:</tspan></text>
+<text x="28" y="305" font-size="15" fill="#1e1e1e" xml:space="preserve"><tspan x="28" dy="0">Lote Psíquico</tspan></text>
+<rect x="10" y="164" width="340" height="162" fill="none" stroke="#1971c2" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="372" y="183" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="372" dy="0">trd-neg-terms</tspan></text>
+<rect x="16" y="340" width="90" height="36" rx="8" fill="#d0ebff" stroke="#1e1e1e" stroke-width="1"/>
+<text x="30" y="365" font-size="16" fill="#1e1e1e" xml:space="preserve"><tspan x="30" dy="0">Aceptar</tspan></text>
+<rect x="114" y="340" width="136" height="36" rx="8" fill="#f8f9fa" stroke="#1e1e1e" stroke-width="1"/>
+<text x="128" y="365" font-size="16" fill="#1e1e1e" xml:space="preserve"><tspan x="128" dy="0">Contraofertar</tspan></text>
+<rect x="258" y="340" width="86" height="36" rx="8" fill="#ffe3e3" stroke="#1e1e1e" stroke-width="1"/>
+<text x="272" y="365" font-size="16" fill="#1e1e1e" xml:space="preserve"><tspan x="272" dy="0">Rechazar</tspan></text>
+<text x="16" y="402" font-size="14" fill="#1971c2" xml:space="preserve"><tspan x="16" dy="0">Retirar oferta</tspan></text>
+<rect x="10" y="334" width="340" height="76" fill="none" stroke="#1971c2" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="372" y="353" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="372" dy="0">trd-neg-actions</tspan></text>
+<text x="372" y="373" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="372" dy="0">"Contraofertar" opens trd-neg-counter</tspan><tspan x="372" dy="16.25">inline under the terms</tspan></text>
+<text x="16" y="443" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="16" dy="0">HISTORIAL</tspan></text>
+<rect x="16" y="452" width="328" height="110" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+<text x="28" y="475" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="28" dy="0">Ronda 2 · Valentina · 6 oct 2026, 8:15 a. m.</tspan></text>
+<text x="28" y="496" font-size="14" fill="#1e1e1e" xml:space="preserve"><tspan x="28" dy="0">contraofertó: Pikachu ex (NM)</tspan><tspan x="28" dy="17.5">y Espeon V (NM)</tspan></text>
+<rect x="16" y="570" width="328" height="130" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+<text x="28" y="593" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="28" dy="0">Ronda 1 · Tú · 5 oct 2026, 7:30 p. m.</tspan></text>
+<text x="28" y="614" font-size="14" fill="#1e1e1e" xml:space="preserve"><tspan x="28" dy="0">ofreció: Pikachu ex (NM) + $20.000</tspan></text>
+<text x="28" y="639" font-size="13" fill="#1e1e1e" xml:space="preserve"><tspan x="28" dy="0">Nota: "Puedo encontrarme en Chapinero.</tspan><tspan x="28" dy="16.25">También tengo Espeon V (NM)."</tspan></text>
+<rect x="10" y="446" width="340" height="262" fill="none" stroke="#1971c2" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="372" y="465" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="372" dy="0">trd-neg-history</tspan></text>
+<text x="640" y="796" font-size="16" fill="#868e96" xml:space="preserve"><tspan x="640" dy="0">B · Aceptado (vista de Julián, el proponente)</tspan></text>
+<rect x="640" y="0" width="360" height="760" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+<text x="656" y="28" font-size="14" fill="#868e96" xml:space="preserve"><tspan x="656" dy="0">← Mis intercambios</tspan></text>
+<text x="656" y="58" font-size="20" fill="#1e1e1e" xml:space="preserve"><tspan x="656" dy="0">Intercambio con Valentina</tspan></text>
+<text x="656" y="79" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="656" dy="0">Lote Psíquico · 3 cartas · Precio publicado $95.000</tspan></text>
+<rect x="648" y="8" width="344" height="80" fill="none" stroke="#1971c2" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="1012" y="23" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="1012" dy="0">trd-neg-header</tspan></text>
+<rect x="656" y="100" width="328" height="30" rx="8" fill="#d3f9d8" stroke="#1e1e1e" stroke-width="1"/>
+<text x="666" y="117" font-size="11" fill="#1e1e1e" xml:space="preserve"><tspan x="666" dy="0">● Intercambio aceptado · la carta queda reservada para ti.</tspan></text>
+<rect x="650" y="96" width="340" height="38" fill="none" stroke="#1971c2" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="1012" y="113" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="1012" dy="0">trd-neg-status</tspan></text>
+<rect x="656" y="148" width="328" height="70" fill="#f8f9fa" stroke="#1e1e1e" stroke-width="1"/>
+<text x="668" y="169" font-size="13" fill="#1e1e1e" xml:space="preserve"><tspan x="668" dy="0">Tú das: Pikachu ex (NM), Espeon V (NM)</tspan><tspan x="668" dy="16.25">Efectivo: sin efectivo</tspan><tspan x="668" dy="16.25">Valentina da: Lote Psíquico</tspan></text>
+<rect x="650" y="142" width="340" height="82" fill="none" stroke="#1971c2" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="1012" y="163" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="1012" dy="0">trd-neg-terms</tspan></text>
+<text x="656" y="249" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="656" dy="0">MENSAJE PARA VALENTINA</tspan></text>
+<rect x="656" y="258" width="328" height="110" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+<text x="668" y="279" font-size="13" fill="#1e1e1e" xml:space="preserve"><tspan x="668" dy="0">¡Hola, Valentina! Aceptaste mi oferta en</tspan><tspan x="668" dy="16.25">TEZG por tu Lote Psíquico: te ofrezco</tspan><tspan x="668" dy="16.25">Pikachu ex (NM) y Espeon V (NM).</tspan><tspan x="668" dy="16.25">¿Cuándo y dónde nos vemos?</tspan></text>
+<rect x="656" y="380" width="151" height="36" rx="8" fill="#d0ebff" stroke="#1e1e1e" stroke-width="1"/>
+<text x="670" y="405" font-size="16" fill="#1e1e1e" xml:space="preserve"><tspan x="670" dy="0">Abrir WhatsApp</tspan></text>
+<rect x="820" y="380" width="151" height="36" rx="8" fill="#f8f9fa" stroke="#1e1e1e" stroke-width="1"/>
+<text x="834" y="405" font-size="16" fill="#1e1e1e" xml:space="preserve"><tspan x="834" dy="0">Copiar mensaje</tspan></text>
+<text x="656" y="435" font-size="11" fill="#868e96" xml:space="preserve"><tspan x="656" dy="0">Texto generado por listings.generateContactMessage;</tspan><tspan x="656" dy="13.75">la página no lo compone.</tspan></text>
+<rect x="650" y="230" width="340" height="226" fill="none" stroke="#1971c2" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="1012" y="249" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="1012" dy="0">trd-neg-handoff</tspan></text>
+<text x="656" y="491" font-size="15" fill="#1e1e1e" xml:space="preserve"><tspan x="656" dy="0">¿Ya se encontraron?</tspan></text>
+<rect x="656" y="502" width="248" height="36" rx="8" fill="#d0ebff" stroke="#1e1e1e" stroke-width="1"/>
+<text x="670" y="527" font-size="16" fill="#1e1e1e" xml:space="preserve"><tspan x="670" dy="0">Ya hicimos el intercambio</tspan></text>
+<text x="656" y="566" font-size="14" fill="#1971c2" xml:space="preserve"><tspan x="656" dy="0">Cancelar intercambio</tspan></text>
+<rect x="650" y="468" width="340" height="108" fill="none" stroke="#1971c2" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="1012" y="489" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="1012" dy="0">trd-neg-actions</tspan></text>
+<text x="1012" y="509" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="1012" dy="0">no dialog on confirm;</tspan><tspan x="1012" dy="16.25">cancel opens a &lt;dialog&gt;</tspan></text>
+<text x="656" y="609" font-size="13" fill="#868e96" xml:space="preserve"><tspan x="656" dy="0">HISTORIAL</tspan></text>
+<rect x="656" y="618" width="328" height="80" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+<text x="668" y="641" font-size="13" fill="#1e1e1e" xml:space="preserve"><tspan x="668" dy="0">Intercambio aceptado · Tú · 6 oct 2026, 12:40 p. m.</tspan><tspan x="668" dy="16.25">(system entry, no terms)</tspan><tspan x="668" dy="16.25">Ronda 2 · Valentina · 6 oct 2026, 8:15 a. m.</tspan><tspan x="668" dy="16.25">…</tspan></text>
+<rect x="650" y="590" width="340" height="116" fill="none" stroke="#1971c2" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="1012" y="609" font-size="13" fill="#1971c2" xml:space="preserve"><tspan x="1012" dy="0">trd-neg-history</tspan></text>
+</svg>

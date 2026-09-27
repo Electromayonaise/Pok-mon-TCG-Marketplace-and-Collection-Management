@@ -1,7 +1,7 @@
 ---
 title: TEZG — Plan-2 Subsystem Modules (Single Package)
 created: 2026-09-23
-updated: 2026-09-23
+updated: 2026-09-27
 status: draft
 ---
 
@@ -232,7 +232,7 @@ Every interaction is one of the two AD-6/AD-9 patterns: a **synchronous command/
 - **The individual-seller → verified-business transition.** SPEC flags it as Risky and it stays out of scope; AD-18 only prevents the invalid simultaneous state. The reverse path (a Rejected business completing the individual profile) is decided in OQ-1.
 - **Revoking an already-Approved business.** An admin can hide that business's listings (FR-REP-5); a revocation state machine is v2 [ASSUMPTION].
 - **Account suspension or deactivation.** V1 has no account status beyond "authenticated, consented, email verified" (FR-IDN-1). Abusive users are handled by hiding their content [ASSUMPTION].
-- **Buyer-side block or mute in messaging.** Deferred to Phase 2 UX for evaluation (review F-29). Revisit if harassment reports arrive after launch.
+- **Buyer-side block and reporting in messaging.** Deferred (review F-29). Revisit if harassment reports arrive after launch. The lighter buyer-side mute was adopted at the Phase 2 gate as FR-MSG-8.
 - **Cédula de extranjería applicants.** Business verification accepts NIT only (FR-VER-1) [ASSUMPTION].
 - **Dispute resolution, buyer-protection deposits, stalled-order escalation** (SPEC non-goals, AD-2).
 - **Review anti-abuse beyond the purchase gate**, including self-review and collusion detection for individual-seller reviews (SPEC non-goal). The reputation UI shows the gated/ungated distinction instead (FR-REP-3).
@@ -1711,6 +1711,15 @@ No tables of its own.
   - A thread with a `Rejected` business stays readable and cannot receive new messages.
 - *Acceptance:* the unread counts are correct after interleaved sends from both sides, and opening the thread sets the reader's count to 0.
 
+**FR-MSG-8 — Mute a conversation (buyer side).** · CAP-18 · added at the Phase 2 gate (review F-29, UX-A-1)
+- *Rules:*
+  - The buyer participant of a conversation can mute and unmute it. The business participant cannot mute (a shop must see buyer questions).
+  - A muted conversation still receives messages and keeps its per-reader read state (FR-MSG-7). Its unread messages are excluded from the caller's total unread count, and it is listed under a "muted" filter instead of the default list.
+  - Muting is private: the other participant is never told, and nothing about it appears in the thread.
+  - Mute state is one nullable per-participant timestamp (`mutedAt`). Unmuting clears it; unread messages received while muted count again from that moment.
+  - Muting is not blocking: the other party can still send, and sends are never refused because of a mute.
+- *Acceptance:* after a mute, new messages from the business raise the thread's own unread count but not the caller's total; the business's view is byte-identical with and without the mute; unmute restores the total.
+
 ### Non-functional requirements
 
 - **NFR-MSG-1:** contact-message generation takes p95 ≤ 200 ms. Output is deterministic: 1 distinct output per input across 1,000 runs.
@@ -1732,6 +1741,7 @@ No tables of its own.
 | 3 Ineligible recipient (`Pending` decided) | FR-MSG-4 | `NotBusinessAccount`; `Pending` allowed with a notice |
 | 4 Trade handoff reuse | FR-MSG-1, FR-TRD-6 | same service; trade summary; nothing reimplemented |
 | Edge: long or special names, COP formatting, verification changes | FR-MSG-2, FR-MSG-6 | NFR-MSG-4 |
+| Phase 2 gate addition: mute a conversation | FR-MSG-8 | the muted thread leaves the total unread count; the business sees no difference (MSG-S2 variant) |
 
 **Out of scope:**
 - attachments in in-app messages;
