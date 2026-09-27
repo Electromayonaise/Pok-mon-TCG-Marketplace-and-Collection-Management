@@ -2,7 +2,7 @@
 title: TEZG — Plan-2 Subsystem Modules (Single Package)
 created: 2026-09-23
 updated: 2026-09-27
-status: draft
+status: final
 ---
 
 # PRD: TEZG — Plan-2 Subsystem Modules (Single Package)
@@ -166,24 +166,24 @@ No module adds a code module or a dependency edge outside the AD-1 graph. The ev
 
 ### 4.2 Ownership registry
 
-Each table, event and DomainError code has **exactly one** owning module across the package. Inherited codes are shown in plain text; codes proposed by this PRD are marked **(new)**, and their final names are confirmed in Phase 3. `ADD-§3` gives the trigger condition for every code.
+Each table, event and DomainError code has **exactly one** owning module across the package. Inherited codes are shown in plain text; codes proposed by this PRD are marked **(new)**. ARCHITECTURE §8.1 kept those names and added eleven codes of its own; those are marked **(new, ARCH §8.1)**. `ADD-§3` gives the trigger condition for every code.
 
 | Host | Planning module | Tables / aggregates (written only by this module) | Events published | DomainError codes thrown |
 | --- | --- | --- | --- | --- |
-| `identity` | IDN | `User` account facts, `IndividualSellerProfile`, `PrivacyConsent` fields on `User`, `CapabilityAuditRead` | — | `IndividualSellerProfileIncomplete`, `NotBusinessAccount`, `AlreadyVerifiedBusiness`, `IndividualSellerProfileAlreadyComplete`, `BusinessApplicationOnFile` **(new)**, `NotAuthenticated` **(new)**, `AdminOnly` **(new)**, `EmailNotVerified` **(new)**, `AuthRateLimited` **(new)** |
-| `identity` | VER | `BusinessApplication` (with the AD-13 consent fields), `BusinessProfile`, `RejectionReason`, `RejectionReasonChange`, `LegalIdentityAccessLog` | `BusinessApplicationApproved`, `BusinessApplicationRejected` **(new)** | `SellerNotVerified`, `ApplicationNotPending`, `MissingRequiredField`, `ApplicationAlreadyPending` **(new)**, `ApplicationNotFound` **(new)**, `ReapplicationCooldownActive` **(new)**, `ReapplicationBarred` **(new)**, `LegalIdentityAccessDenied` **(new)**, `RejectionReasonUnknown` **(new)** |
+| `identity` | IDN | `User` account facts (including the sign-up consent columns `signupConsentAt` and `signupConsentVersion`), `IndividualSellerProfile`, `CapabilityAuditRead` | — | `IndividualSellerProfileIncomplete`, `NotBusinessAccount`, `AlreadyVerifiedBusiness`, `IndividualSellerProfileAlreadyComplete`, `BusinessApplicationOnFile` **(new)**, `NotAuthenticated` **(new)**, `AdminOnly` **(new)**, `EmailNotVerified` **(new)**, `AuthRateLimited` **(new)** |
+| `identity` | VER | `BusinessApplication` (with the AD-13 consent fields), `BusinessProfile`, `RejectionReason`, `RejectionReasonChange`, `LegalIdentityAccessLog` | `BusinessApplicationApproved`, `BusinessApplicationRejected` **(new)** | `SellerNotVerified`, `ApplicationNotPending`, `MissingRequiredField`, `ApplicationAlreadyPending` **(new)**, `ApplicationNotFound` **(new)**, `ReapplicationCooldownActive` **(new)**, `ReapplicationBarred` **(new)**, `LegalIdentityAccessDenied` **(new)**, `RejectionReasonUnknown` **(new)**, `InvalidDocumentFile` **(new, ARCH §8.1)**, `LastActiveReasonRequired` **(new, ARCH §8.1)** |
 | `catalog` | CAT | `CatalogSet`, `CatalogEntry`, `CatalogEntryRevision`, `ReferencePriceObservation`, `FxRate`, `FeedIngestionRun`, `QuarantinedFeedRow` | — | `CatalogEntryNotFound` **(new)**, `FeedRunInProgress` **(new)** |
 | `listings` | INV | `Listing`, `Bundle`, `BundleComponent`, `InventoryUnit`, `ListingModerationLog`, `SellerCommissionState` (local projection of COM events, keyed by `ledgerSeq`) | — | `InvalidItemRef`, `InvalidPrice`, `EmptyComponentList`, `NotBusinessListing`, `NotIndividualSellerListing`, `InsufficientQuantity`, `ListingNotFound`, `SealedProductInBundle` **(new)**, `OpenToTradeNotAllowed` **(new)**, `ListingNotOwnedByCaller` **(new)**, `ListingNotPurchasable` **(new)**, `InvalidLocation` **(new)**, `ListingNotOpenToTrade` **(new)**, thrown by `getTradeability` and propagated by `trading` |
-| `listings` | DSC | — (read-only query over INV's tables) | — | `InvalidSearchArea` **(new)** |
-| `listings` | MSG (contact service) | — (stateless; rate-limit counters only, `ContactRequestCounter`) | — | `ContactRateLimited` **(new)** |
+| `listings` | DSC | — (read-only query over INV's tables) | — | `InvalidSearchArea` **(new)**, `SearchFilterTooBroad` **(new, ARCH §8.1)** |
+| `listings` | MSG (contact service) | — (stateless apart from the rate-limit log `ContactRequestLog`, purged after 7 days) | — | `ContactRateLimited` **(new)** |
 | `orders` | ORD | `Order` (three facts, comprobante reference, payment-instruction snapshot) | `OrderPaymentConfirmedByBusiness`, `OrderClosed` | `OrderNotVisibleToCaller`, `ComprobanteNotYetUploaded`, `ComprobanteMissingOnConfirm`, `OrderAlreadyConfirmedByRole`, `OrderNotOwnedByCaller`, `SelfPurchaseNotAllowed` **(new)**, `OrderConfirmationOutOfOrder` **(new)**, `ComprobanteInvalidFile` **(new)**, `ComprobanteLocked` **(new)**, `OrderNotCancellable` **(new)**, `OrderNoLongerActive` **(new)**, `TooManyOpenOrders` **(new)** |
-| `commission` | COM | `CommissionAccount`, `CommissionLedgerEntry`, `TopUpRequest`, `CommissionRateSetting` | `CommissionBalanceExhausted`, `CommissionBalanceReplenished` | `TopUpAmountInvalid` **(new)**, `TopUpNotPending` **(new)**, `TopUpNotVisibleToCaller` **(new)** |
-| `trading` | TRD | `TradeOffer`, `TradeOfferRound` | `TradeAccepted` | `SelfTradeNotAllowed` **(new)**, `NotYourTurn` **(new)**, `TradeOfferNotOpen` **(new)**, `DuplicateOpenOffer` **(new)**, `EmptyTradeOffer` **(new)**, `TradeNotAccepted` **(new)**, `TradeAlreadyConfirmedByRole` **(new)**, `TradeOfferNotVisibleToCaller` **(new)**, `TradeNotCancellable` **(new)** |
-| `messaging` | MSG (in-app) | `Conversation`, `Message`, `ConversationReadState` | — | `ConversationNotVisibleToCaller` **(new)**, `BusinessCannotInitiate` **(new)** |
-| `collections` | COL | `Collection` (with its binder layout and sort), `CollectionEntry`, `WishlistEntry`, `PostPurchasePrompt` | — | `CollectionNotFound`, `CollectionNameTaken` **(new)**, `CollectionEntryNotFound` **(new)**, `InvalidExternalLink` **(new)**, `PromptAlreadyResolved` **(new)** |
+| `commission` | COM | `CommissionAccount`, `CommissionLedgerEntry`, `TopUpRequest`, `CommissionRateSetting` | `CommissionBalanceExhausted`, `CommissionBalanceReplenished` | `TopUpAmountInvalid` **(new)**, `TopUpNotPending` **(new)**, `TopUpNotVisibleToCaller` **(new)**, `CommissionRateNotFutureDated` **(new, ARCH §8.1)**, `TopUpNotFound` **(new, ARCH §8.1)**, `TopUpProofInvalidFile` **(new, ARCH §8.1)** |
+| `trading` | TRD | `TradeOffer`, `TradeOfferRound` | `TradeAccepted` | `SelfTradeNotAllowed` **(new)**, `NotYourTurn` **(new)**, `TradeOfferNotOpen` **(new)**, `DuplicateOpenOffer` **(new)**, `EmptyTradeOffer` **(new)**, `TradeNotAccepted` **(new)**, `TradeAlreadyConfirmedByRole` **(new)**, `TradeOfferNotVisibleToCaller` **(new)**, `TradeNotCancellable` **(new)**, `TradeCounterUnchanged` **(new, ARCH §8.1)**, `TradeRoundLimitReached` **(new, ARCH §8.1)** |
+| `messaging` | MSG (in-app) | `Conversation`, `Message`, `ConversationParticipant` (holds the read state as `lastReadSeq`) | — | `ConversationNotVisibleToCaller` **(new)**, `BusinessCannotInitiate` **(new)** |
+| `collections` | COL | `Collection` (with its binder layout and sort), `CollectionEntry`, `WishlistEntry`, `PostPurchasePrompt` | — | `CollectionNotFound`, `CollectionNameTaken` **(new)**, `CollectionEntryNotFound` **(new)**, `InvalidExternalLink` **(new)**, `PromptAlreadyResolved` **(new)**, `CollectionLimitReached` **(new, ARCH §8.1)**, `InvalidCatalogEntry` **(new, ARCH §8.1)** |
 | `collections` | VAL | — (computed read model over COL's tables and CAT's queries; no stored valuation) | — | `InvalidValuationPeriod` **(new)** |
 | `reviews` | REP | `Review`, `ReviewModerationLog` | — | `TargetNotFound`, `NotVerifiedPurchaser`, `DuplicateReview` **(new)**, `ReviewNotFound` **(new)** |
-| `shared-kernel` | (API boundary) | — | — | `RequestValidationFailed` **(new)**, which covers shape-level input errors (type, length, required, enum) with per-field issues. It is kept separate from the domain codes above, which are reserved for domain-rule violations. Whether a boundary code may be owned by `shared-kernel` is confirmed in Phase 3 (OQ-7). |
+| `shared-kernel` | (API boundary) | — | — | `RequestValidationFailed` **(new)**, which covers shape-level input errors (type, length, required, enum) with per-field issues. It is kept separate from the domain codes above, which are reserved for domain-rule violations. OQ-7 is resolved: `shared-kernel` owns the boundary code, and only the tRPC input parser raises it (AD-SYS-1 rule 7). `EventDeliveryNotReplayable` **(new, ARCH §8.1)** is refused by the admin replay of a failed event delivery (AD-SYS-2). |
 
 **Two ownership notes that refine AD-11 without contradicting it:**
 - **`SellerNotVerified` owner.** AD-11 assigns `SellerNotVerified` to `identity`, and this PRD keeps it there under VER because its trigger is an application state: it fires only when the latest application is `Rejected` (FR-IDN-3, FR-VER-6); a `Pending` business may list. `listings` calls identity's listing-eligibility check and propagates the error unchanged.
@@ -292,7 +292,7 @@ Decision {
   - **Admin replay:** an admin can replay a logged delivery. Replaying any delivery N ≥ 2 times produces the same end state as delivering it once, and each subscriber has a test proving that.
   - **No automatic retry**, consistent with AD-10.
   - **Alerting:** the admin console shows a badge with the count and age of unreplayed failures, and admins receive a daily digest while any exist. Target: zero unreplayed failures older than 24 h (§22).
-  - *(Phase 3 decides where the log lives; OQ-4.)*
+  - *(OQ-4 is resolved: the log is the shared-kernel `EventDelivery` table, and replay runs from the event panel on page 2.3. See AD-SYS-2 and ARCHITECTURE §7.3.)*
 - **NFR-SYS-7 Server-side authorization.** Every command and every non-public query checks the actor server-side from the session's `userId`. Roles are derived per request (AD-16) and never read from a client claim. Unauthenticated calls to protected procedures return `NotAuthenticated`; admin procedures called by a non-admin return `AdminOnly`. This is verified by a generated test that calls every protected procedure without a session and with a non-admin session.
 - **NFR-SYS-8 Admin audit trail.** Every admin action writes an append-only audit record `{adminId, action, targetId, reason?, before?, after?, at}` in the owning module's own table (AD-12: no shared moderation table). That covers approve, reject, rejection-reason change, top-up confirm or reject, hide, unhide, capability-trace read, `legalIdentity` read, feed run and failed-event replay. The records are never updated or deleted. Retention: indefinite at launch [ASSUMPTION].
 - **NFR-SYS-9 Latency baseline.** Unless a module NFR states otherwise:
@@ -301,7 +301,7 @@ Decision {
 - **NFR-SYS-10 Concurrency proofs run on PostgreSQL.** Every concurrency NFR runs against the Docker Compose PostgreSQL instance under real concurrent connections (at least 50 in the pool), never against SQLite or in-memory stores. Each proof runs 100 repetitions with zero violations. At minimum this covers IDN, VER, INV, ORD, COM, TRD and COL.
 - **NFR-SYS-11 Accessibility.** Responsive (R) and desktop-first (D) surfaces meet WCAG 2.2 AA: contrast, keyboard operation, focus order, and status messages announced through live regions. Status is never conveyed by colour alone, which matters for the Trusted Ledger `status-*` tokens. Verified by automated axe checks with zero serious or critical violations, plus a manual keyboard pass per page spec.
 - **NFR-SYS-12 Platform personal-data consent** [ASSUMPTION; extends beyond AD-13's `legalIdentity`-only scope, see OQ-5].
-  - **At sign-up:** account creation records `privacyPolicyVersion` and `privacyConsentAt` on `User` before any other personal data is stored.
+  - **At sign-up:** account creation records `signupConsentVersion` and `signupConsentAt` on `User`, in the same insert as the user, so no personal data is stored without them (AD-IDN-3).
   - **At profile completion:** the individual-seller profile step records a separate consent to share the contact phone number with buyers who request contact (FR-IDN-2).
 - **NFR-SYS-13 Error-code integrity.** In CI:
   - every thrown `DomainError` resolves to exactly one owning module in the registry (§4.2 / `ADD-§3`);
@@ -311,7 +311,7 @@ Decision {
   - **Auth throttling:** sign-in is limited to 10 failed attempts per account per 15 minutes and 30 per IP per 15 minutes; sign-up to 5 per IP per hour. A throttled attempt is refused with `AuthRateLimited` (identity), whose message says when to retry.
   - **Email verification:** an account must have a verified email before its first contact request, order, trade offer or message (FR-IDN-1 `canBuy`, FR-MSG-1, FR-ORD-1, FR-TRD-1, FR-MSG-5).
   - **Per-IP contact limit:** at most 60 contact requests per IP per hour, on top of the per-requester limits in FR-MSG-3. This blunts phone harvesting through multiple free accounts.
-  - **Upload scanning:** malware scanning of uploaded files (applicant documents, comprobantes, top-up proofs) is deferred to Phase 3 as an architecture decision candidate. Until then, admins open uploads only through the platform's viewer, never as downloads.
+  - **Upload scanning:** every uploaded file (applicant documents, comprobantes, top-up proofs) passes the AD-SYS-8 pipeline: size, magic bytes, then `MalwareScanner`. The V1 scanner is `StructuralScanner` (gate item G-4); ClamAV-class scanning is deferred (ARCHITECTURE §14). Admins open uploads only in the platform's sandboxed viewer, never as downloads.
   - **Verification:** a test per limit proves that the (N+1)th attempt in the window is refused and that the window resets on the virtual clock.
 
 ## 8. Glossary of Listing and Account States
@@ -1358,9 +1358,9 @@ No tables of its own.
   - If the balance crosses from > 0 to ≤ 0, the account is set to `Exhausted` and `CommissionBalanceExhausted { businessId, ledgerSeq, balanceAfter }` is published after commit.
   - **Either trigger deducts, once.** Both events carry both timestamps, and the deduction's effective time is `commissionTriggeredAt = min(sellerReceivedConfirmedAt, closedAt)` over the non-null values. Whichever event is delivered first creates the entry. The second hits the unique `orderId` key and is a no-op, so delivery order never changes the amount or the rate.
   - The entry records `trigger`: `businessConfirmed` if `sellerReceivedConfirmedAt` is the earlier fact or ties with `closedAt`, otherwise `buyerClosed`. For `buyerClosed`, the business's ledger line reads, for example: "Comisión cobrada porque el comprador confirmó que recibió el producto; no habías confirmado el pago." The line points to the support contact (FR-ORD-10) for disputes.
-  - Deduction is triggered only by these events, never by a direct call from `orders` (AD-3, amended at the Phase 1 gate to add `OrderClosed` as a trigger; Phase 3 records the AD-SYS).
+  - Deduction is triggered only by these events, never by a direct call from `orders` (AD-3, amended at the Phase 1 gate to add `OrderClosed` as a trigger; the amendment is recorded as AD-SYS-3).
   - Sebastián can list closed orders whose deduction trigger was `buyerClosed` (FR-COM-8).
-- *Open conflict:* AD-19 says the decrement happens "in the same transaction as setting `sellerReceivedConfirmedAt`". That contradicts AD-3 and AD-10, which make it a post-commit event subscriber. This PRD states the requirement independently of that choice: exactly one deduction per `orderId`, and a deduction lost to a subscriber failure is recoverable (NFR-SYS-6). Phase 3 resolves the mechanism (OQ-2).
+- *Resolved conflict:* AD-19 says the decrement happens "in the same transaction as setting `sellerReceivedConfirmedAt`". That contradicts AD-3 and AD-10, which make it a post-commit event subscriber. This PRD states the requirement independently of that choice: exactly one deduction per `orderId`, and a deduction lost to a subscriber failure is recoverable (NFR-SYS-6). OQ-2 is resolved by a transactional outbox with post-commit dispatch (AD-SYS-2) and a deduction keyed by `orderId` (AD-SYS-3, AD-COM-2).
 - *Acceptance:*
   - Delivering the same event 3 times creates 1 ledger entry and 1 decrement.
   - An order closed by the buyer with no business confirmation is charged once, with `trigger=buyerClosed`. A later business confirmation of the same order adds no second entry.
@@ -1774,7 +1774,7 @@ No tables of its own.
 - `WishlistEntry`.
 - `PostPurchasePrompt`.
 
-AD-7's `BinderEntry` is realised as `CollectionEntry` plus the collection's binder layout. There is no separate binder table [ASSUMPTION, confirmed in Phase 3].
+AD-7's `BinderEntry` is realised as `CollectionEntry` plus the collection's binder layout. There is no separate binder table (ARCHITECTURE §6.10, A-41).
 
 **Consumes:**
 - `catalog.getEntries`;

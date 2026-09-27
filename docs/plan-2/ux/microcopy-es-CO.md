@@ -5,7 +5,7 @@ status: final
 sources:
   - docs/plan-2/planning/addendum.md (ADD-§1, ADD-§2.7, ADD-§3, ADD-§9)
   - docs/plan-2/ux/EXPERIENCE.md (Voice and Tone)
-updated: 2026-09-26
+updated: 2026-09-27
 ---
 
 # es-CO Microcopy Registry (Plan-2)
@@ -50,6 +50,10 @@ updated: 2026-09-26
 | `ReapplicationBarred` | "Esta solicitud no se puede volver a enviar: {motivo}. La decisión es definitiva para esta cuenta." | — | Can't resubmit; decision final. |
 | `LegalIdentityAccessDenied` | "Los datos legales de una tienda solo se consultan desde la revisión de solicitudes. Este intento quedó registrado." | Ir a Solicitudes *(admins only)* | Legal data only via application review; attempt logged. |
 | `RejectionReasonUnknown` | "Ese motivo de rechazo ya no está activo. Elija otro motivo de la lista actualizada." | — | Reason inactive; choose another. |
+| `LastActiveReasonRequired` | "Debe quedar al menos un motivo activo. Active otro motivo antes de desactivar este." | — | At least one reason must stay active. |
+| `InvalidDocumentFile` (type) | "Este archivo no es un PDF ni una imagen JPG o PNG. Suba su documento en uno de esos formatos." | — | Wrong file type. |
+| `InvalidDocumentFile` (size) | "El archivo pesa {peso} MB y el máximo es 5 MB. Suba una versión más liviana del documento." | — | Over 5 MB. |
+| `InvalidDocumentFile` (scanner) | "No pudimos aceptar este archivo porque no pasó la revisión de seguridad. Suba otra copia del documento." | — | Failed the security check (AD-SYS-8 rule 6). |
 
 ### 1.1 VER status copy (FR-VER-7, from ADD-§1.3; *usted*)
 
@@ -76,11 +80,14 @@ updated: 2026-09-26
 | --- | --- | --- | --- |
 | `CatalogEntryNotFound` | *(Not available page)* "No encontramos esta carta en el catálogo." | Volver al catálogo | Card not in catalog. |
 | `FeedRunInProgress` | "Ya hay una ingesta en curso (iniciada el {fecha}). Espere a que termine para iniciar otra." | Ver ingesta en curso | A run is already in progress. |
+| `EventDeliveryNotReplayable` | "Esta entrega ya no está fallida ({estado}), así que no se puede reintentar. La lista se actualizó." | — | Delivery no longer failed; list refreshed (2.3 Entregas tab). |
 | `ReferencePriceStale` | "Precio del {dia}: el feed no se actualiza desde entonces." | — | Price from {date}; the feed hasn't updated since. |
 | `TrendNoBaseline` | "Sin tendencia: no hay precio de referencia al inicio del período." | — | No trend: no price at period start. |
 | `FxRateCarriedForward` | "TRM al {dia} (no hay una TRM publicada para la fecha)." | — | TRM carried forward from {date}. |
+| `FxRateSourceMismatch` | "La TRM del {dia} volvió con un valor distinto ({nueva}) al guardado ({guardada}). Conservamos el valor guardado; revise la fuente si el cambio persiste." | — | Source re-sent a different TRM; stored value kept (2.3 TRM tab). |
 | No reference price | "Aún no hay precio de referencia." | — | No reference price yet. |
 | `InvalidSearchArea` | "Elige un punto dentro de Colombia y una distancia entre 1 y 300 km." | — | Pick a point in Colombia and 1–300 km. |
+| `SearchFilterTooBroad` | "Estos filtros incluyen demasiadas cartas para buscar publicaciones. Elige una expansión, un tipo o un nombre para acotar la búsqueda." | — | Filters match too many cards; narrow them. |
 | `ListingLocationUnusable` (footer) | "{n} publicaciones no aparecen porque no tienen una ubicación válida." | — | {n} listings hidden: no valid location. |
 | Zero results | "Ninguna publicación coincide con estos filtros dentro de {radio} km." | Quitar filtros / Ampliar a {radio×2} km | No listings match. |
 | No active listings | "Nadie la está vendiendo ahora. Puedes agregarla a tu lista de deseos." | Agregar a lista de deseos | No active listings. |
@@ -134,6 +141,7 @@ updated: 2026-09-26
 | `TooManyOpenOrders` (total) | "Tienes 3 pedidos sin pagar. Paga o cancela alguno antes de hacer otro." | Ver pedidos sin pagar | Three unpaid orders already. |
 | `ComprobanteInvalidFile` (type) | "Este archivo no es una imagen JPG o PNG ni un PDF. Sube una foto o captura del comprobante." | — | Wrong file type. |
 | `ComprobanteInvalidFile` (size) | "El archivo pesa {peso} MB y el máximo es 5 MB. Sube una captura o una foto más liviana." | — | Over 5 MB. |
+| `ComprobanteInvalidFile` (scanner) | "No pudimos aceptar este archivo porque no pasó la revisión de seguridad. Sube otra captura del comprobante." | — | Failed the security check (AD-SYS-8 rule 6). |
 | `ComprobanteLocked` | "Ya confirmaste el pago, así que el comprobante no se puede cambiar. Si hay un problema, escríbele a {tienda}." | Escribir a la tienda | Comprobante locked after payment confirmation. |
 | `ComprobanteNotYetUploaded` | "Sube el comprobante de la transferencia antes de confirmar que pagaste." | Subir comprobante | Upload the comprobante first. |
 | `ComprobanteMissingOnConfirm` | "Este pedido aún no tiene comprobante. Espera a que el comprador lo suba." | — | No comprobante yet. |
@@ -161,6 +169,10 @@ updated: 2026-09-26
 | `TopUpAmountInvalid` | "La recarga debe estar entre $20.000 y $10.000.000 COP." | — | Top-up 20,000–10,000,000. |
 | `TopUpNotPending` (admin) | "{admin} ya {confirmó / rechazó} esta recarga el {fecha}." | — | Already decided. |
 | `TopUpNotVisibleToCaller` | *(Not available page)* "No encontramos esta recarga en tu cuenta." | Ver mis recargas | Not found. |
+| `TopUpNotFound` (admin) | *(Not available page)* "No encontramos esta recarga." | Volver a Recargas | Top-up not found. |
+| `TopUpProofInvalidFile` (type) | "Este archivo no es una imagen JPG o PNG ni un PDF. Sube una foto o captura del comprobante de la recarga." | — | Wrong file type. |
+| `TopUpProofInvalidFile` (size) | "El archivo pesa {peso} MB y el máximo es 5 MB. Sube una captura o una foto más liviana." | — | Over 5 MB. |
+| `TopUpProofInvalidFile` (scanner) | "No pudimos aceptar este archivo porque no pasó la revisión de seguridad. Sube otra captura del comprobante." | — | Failed the security check (AD-SYS-8 rule 6). |
 | Top-up pending | "Estamos revisando tu transferencia. Tu saldo cambiará cuando la confirmemos." | — | We're checking your transfer. |
 | Top-up confirmed, resumed | "Recibimos tu recarga de {monto}. Tu saldo es {saldo} y tus publicaciones ya se pueden comprar." | — | Received; listings purchasable. |
 | Top-up confirmed, still ≤0 | "Recibimos tu recarga de {monto}. Tu saldo es {saldo}; recarga al menos {faltante} para reactivar tus publicaciones." | Recargar saldo | Received; still need {X}. |
@@ -176,7 +188,7 @@ updated: 2026-09-26
 | Admin reject reason empty | "Escriba el motivo que verá la tienda." | — | Reason required. |
 | Admin decision result | "Recarga confirmada. {tienda} tiene ahora {saldo} y sus publicaciones {se reactivaron / siguen pausadas}." · "Recarga rechazada. {tienda} verá el motivo." | — | Decision outcome. |
 | Rate out of range | "La tarifa debe estar entre 0 y 10.000 pb (0 % a 100 %)." | — | Rate 0–10,000 bps. |
-| Rate start in the past | "La fecha de inicio no puede estar en el pasado." | — | effectiveFrom ≥ now. |
+| `CommissionRateNotFutureDated` | "La fecha de inicio no puede estar en el pasado. Elija una fecha y hora desde ahora." | — | effectiveFrom ≥ now. |
 | Rate scheduled | "Aplica a comisiones que se cobren desde el {fecha}. Los cobros anteriores no cambian." | — | Not retroactive. |
 | Reconcile clean | "Todo cuadra: {n} cuentas, 0 diferencias." | — | No discrepancies. |
 | Reconcile difference | "El saldo guardado ({saldo}) no coincide con recargas − comisiones ({calculado})." | Ver movimientos | Balance mismatch. |
@@ -195,7 +207,7 @@ updated: 2026-09-26
 | `TradeOfferNotOpen` (generic) | "Esta oferta ya no está abierta: {estado} el {fecha}." | — | Offer no longer open. |
 | `TradeOfferNotOpen` (two tabs) | "Ya aceptaste la oferta de {nombre} en otra pestaña, así que esta no puede continuar." | Ver intercambio aceptado | Accepted in another tab. |
 | `ListingNoLongerAvailable` (proposer) | "{nombre} aceptó otra oferta por esta carta, así que esta no puede continuar." | Buscar otra publicación de esta carta | Seller accepted another offer. |
-| Round limit | "Llegaron a 10 rondas. Ahora solo puedes aceptar o rechazar." | — | 10 rounds reached. |
+| `TradeRoundLimitReached` | "Llegaron a 10 rondas. Ahora solo puedes aceptar o rechazar." | — | 10 rounds reached. |
 | `TradeNotAccepted` | "Solo puedes confirmar el intercambio después de que se acepte la oferta." | — | Confirm only after acceptance. |
 | `TradeAlreadyConfirmedByRole` | "Ya confirmaste este intercambio el {fecha}." | — | Already confirmed. |
 | `TradeNotCancellable` | "Ya no se puede cancelar: {nombre / tú} ya confirmó que el intercambio se hizo." | — | Can't cancel after a confirmation. |
@@ -221,7 +233,7 @@ updated: 2026-09-26
 | Withdrawn | "{nombre / Tú} retiró la oferta el {fecha}." | — | Withdrawn. |
 | Reject dialog | "¿Rechazar la oferta? {nombre} no podrá retomarla; tendrá que hacer una nueva." | Rechazar / Volver | Reject confirm. |
 | Counter sent (live region) | "Contraoferta enviada. Le toca responder a {nombre}." | — | Counter sent. |
-| Unchanged counter (8.2) | "No cambiaste nada. Si estos términos te sirven, usa «Aceptar»." | — | Counter identical to current terms. |
+| `TradeCounterUnchanged` (8.2) | "No cambiaste nada. Si estos términos te sirven, usa «Aceptar»." | — | Counter identical to current terms. |
 | Counter editor actions | "Enviar contraoferta" / "Descartar cambios" | — | Send counter / discard. |
 | Unfulfillable (seller view) | "Esta oferta quedó sin efecto porque aceptaste otra por la misma carta el {fecha}." | — | Void: you accepted another offer. |
 | Withdraw dialog | "¿Retirar tu oferta? {nombre} ya no podrá aceptarla." | Retirar oferta / Seguir con la oferta | Withdraw confirm. |
@@ -271,8 +283,9 @@ Composition rule for `{items} + {efectivo}`: items are joined with ", " and a fi
 | --- | --- | --- | --- |
 | `CollectionNotFound` | *(Not available page)* "No encontramos esta colección en tu cuenta." | Ver mis colecciones | Not found. |
 | `CollectionNameTaken` | "Ya tienes una colección llamada «{nombre}». Elige otro nombre." | — | Name taken. |
-| Collection limit | "Llegaste al máximo de 50 colecciones. Elimina o une alguna para crear otra." | — | 50 collections max. |
+| `CollectionLimitReached` | "Llegaste al máximo de 50 colecciones. Elimina o une alguna para crear otra." | — | 50 collections max. |
 | `CollectionEntryNotFound` | "Esta carta ya no está en tu colección. Actualizamos la vista." | — | Entry gone. |
+| `InvalidCatalogEntry` | "No encontramos esa carta en el catálogo. Búscala de nuevo por nombre o número." | — | Card not in catalog; search again. |
 | `InvalidExternalLink` (url) | "El enlace debe empezar por https:// y tener menos de 2.048 caracteres." | — | https link, ≤2,048. |
 | `InvalidExternalLink` (title) | "Escribe un nombre para la carta (hasta 120 caracteres)." | — | Title 1–120. |
 | `InvalidExternalLink` (image) | "El enlace de la imagen también debe empezar por https://." | — | Image must be https. |

@@ -1,8 +1,8 @@
 ---
 title: TEZG — Plan-2 PRD Addendum
 created: 2026-09-23
-updated: 2026-09-23
-status: draft
+updated: 2026-09-27
+status: final
 companion: prd.md
 ---
 
@@ -336,7 +336,7 @@ The reservation is released exactly once, on `Cancelled` or `Expired`. It is con
 
 ## ADD-§5 Event payloads
 
-Events are published after commit (AD-3, AD-10). Subscribers are idempotent by the listed key. Delivery durability is subject to OQ-2 and OQ-4.
+Events are published after commit (AD-3, AD-10). Subscribers are idempotent by the listed key. Delivery is durable through the transactional outbox: every failed delivery is logged and can be replayed by an admin (AD-SYS-2, ARCHITECTURE §7.3).
 
 | Event | Publisher | Payload | Subscribers | Idempotency key |
 | --- | --- | --- | --- | --- |

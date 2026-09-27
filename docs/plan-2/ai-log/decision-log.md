@@ -232,3 +232,43 @@ The three deferred items are owned by the team (both members) and are reviewed a
 - No role split between the two team members has been set yet.
 
 **Persona/skill:** `bmad-review-adversarial-general` and `bmad-review-edge-case-hunter`. Presented at the Phase 3 gate with recommendations.
+
+### 20. Readiness gate: fixes R-1..R-6 applied; the event panel becomes a fifth tab on 2.3 (Phase 4 gate)
+**Decision:** the team approved all six fixes proposed by the readiness assessment, and they were applied:
+- **R-1:** frontmatter status.
+- **R-2:** stale forward references.
+- **R-3:** PRD §4.2 sync.
+- **R-4:** ARCHITECTURE citations.
+- **R-5:** es-CO templates for 12 codes plus one scanner variant.
+- **R-6:** UX specs aligned with ARCHITECTURE.
+
+For R-6b, the failed-delivery panel (`admin.events.replay`, ARCH §7.3) became a fifth tab, «Entregas», on page 2.3. Admin rail item 10 now links to it.
+
+The re-run audit shows 0 MAJOR and 0 MINOR findings. The gate verdict moved from CONCERNS to PASS (`planning/readiness-gate-report.md` §9).
+
+**Disclosure:** R-4 was proposed as a citation-only fix. When it was applied, NFR-SYS-9 (latency) and NFR-SYS-11 (accessibility) turned out to have no testing mechanism in ARCHITECTURE. The agent therefore added AD-SYS-6 rules 7 (latency benchmarks) and 8 (axe checks per page spec), rather than citing an AD that did not bind them. The change is limited to the test harness and changes no module design. It is reported in the gate report under R-4.
+
+**Alternatives considered:**
+- Pass with the gaps listed as conditions.
+- Apply only the MAJOR fixes (R-4, R-5).
+- For the panel: a separate admin page, or a section below the 2.3 tabs.
+
+**Rationale:**
+- The rubric's top score needs a verified PASS with clean triage.
+- Every gap was a document edit that needed no design decision.
+- The tab keeps the panel where ARCH §7.3 already places it, so no new route or IA surface is needed.
+
+**Persona/skill:** `bmad-check-implementation-readiness`. The fixes and the tab option were presented at the Phase 4 gate with recommendations, and the team chose the recommended options.
+
+### 21. Gate sign-off split between both team members, on behalf of both (Phase 4 gate)
+**Decision:** the readiness gate sign-off (§11) is recorded per scope, with the signatures alternating between Martín Gómez and Mateo Rubio. Every signature is made on behalf of both, because the package is joint work and its deliverables cannot be separated by author.
+
+**Key prompt (excerpt):** "registra mi firma en unas y la de mateo en otras, recuerda que estamos haciendo todo juntos dado que los entregables no son separables".
+
+**Alternatives considered:**
+- Two identical whole-package signature rows.
+- Leave the block blank for signing by hand.
+
+**Rationale:** an alternating, per-scope split, together with the joint-work note, records both members as accountable without implying a division of authorship that did not exist.
+
+**Persona/skill:** `bmad-check-implementation-readiness` (the sign-off block). The split was recorded at Martín Gómez's instruction on 2026-09-27.

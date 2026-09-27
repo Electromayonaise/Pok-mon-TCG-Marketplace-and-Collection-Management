@@ -381,8 +381,8 @@ The `*NotVisibleToCaller` codes map to `FORBIDDEN` even though AD-14/AD-15 hide 
 - **Status:** [ADOPTED]
 - **Binds:**
   - `shared-kernel/ports/`: `Clock`, `IdGenerator`, `EventBus` (test binding of the dispatcher), `ObjectStorage`, `CatalogFeedSource`, `FxRateSource`, `TopUpConfirmationPort`, `MalwareScanner`;
-  - the test harness network guard; the seed script;
-  - NFR-SYS-3, NFR-SYS-4; EC-42, EC-43.
+  - the test harness network guard; the seed script; the latency benchmark suite; the page accessibility checks;
+  - NFR-SYS-3, NFR-SYS-4, NFR-SYS-9, NFR-SYS-11; EC-42, EC-43.
 - **Prevents:** tests that pass only at certain wall-clock times; hidden network calls; seeds whose dates contradict the time model; expiry correctness depending on a cron that Hobby runs only daily.
 - **Rule:**
   1. Lint `tezg/no-system-clock` bans the following inside `src/modules/**` and `src/shared-kernel/**` (except `shared-kernel/clock/system.ts`):
@@ -395,6 +395,8 @@ The `*NotVisibleToCaller` codes map to `FORBIDDEN` even though AD-14/AD-15 hide 
   4. The test harness replaces `net.Socket.prototype.connect`. Any socket to a host other than the test Postgres fails the test (NFR-SYS-3).
   5. Every time-based state (order expiry, offer expiry, price staleness, cooldowns, contact windows) is **derived at read and enforced in the command predicate** from `now`. A scheduled job only materializes it for reporting and reclaims quantity; a test that never runs the job still sees the correct state.
   6. The seed computes every date from the virtual clock's seed instant. Seeded reviews of a business are dated after that business's `approvedAt` (EC-43). Seeded order ages match the ADD-§8 time model (EC-42).
+  7. Every latency NFR (NFR-SYS-9 and the module p95 targets) has a benchmark in the latency suite. The suite runs against the Docker Compose PostgreSQL with the PRD §3 seed, or the scale seed an NFR names, and follows the PRD §7 measurement protocol (A-2). Each benchmark asserts its p95 target, so a missed target fails the suite.
+  8. Every page spec has an automated axe check that asserts zero serious or critical violations (NFR-SYS-11). EXPERIENCE.md owns the accessible behaviour; the manual keyboard pass per page spec is a release checklist item.
 - **Trade-off:**
   - Each module passes `now` explicitly through its calls.
   - Derived expiry means every list query carries an extra `expiresAt > :now` predicate and an index on it.
@@ -428,7 +430,7 @@ The `*NotVisibleToCaller` codes map to `FORBIDDEN` even though AD-14/AD-15 hide 
   - the generated authorization test;
   - `shared-kernel/regulated.ts`; `ObjectStorage`; `MalwareScanner`; the upload endpoints (VER documents, comprobante, top-up proof);
   - the append-only audit tables;
-  - AD-13, AD-14, AD-16, AD-17; NFR-SYS-2, 7, 8, 12, 14; NFR-IDN-3.
+  - AD-13, AD-14, AD-16, AD-17; NFR-SYS-2, 7, 8, 12, 14; NFR-IDN-3; NFR-VER-4 (the 5 MB limit; the 1–3 document cap is `documentKeys` in §6.2).
 - **Prevents:** a role supplied by the client; a regulated value in logs, errors, citations or event payloads; a hostile upload served inline; an audit row edited after the fact.
 - **Rule:**
   1. Every procedure is built from exactly one builder. `authedProcedure` resolves `actor = { userId }` from the Better Auth session. Roles and seller kind are fetched server-side through `identity.getCapabilities(userId)`, never from input.
@@ -598,7 +600,7 @@ flowchart LR
 
 ### 6.2 VER — Business Verification Workflow
 
-**Responsibility and host.** `identity`. It moves a business from application to `Approved` or `Rejected` only by an admin action. It confines legal identity to one audited read path, applies the per-reason reapplication policy, and publishes the two application events.
+**Responsibility and host.** `identity`. It moves a business from application to `Approved` or `Rejected` only by an admin action. It confines legal identity to one audited read path, applies the per-reason reapplication policy, and publishes the two application events. It also serves the admin review queue (`verification.queue`, FR-VER-2; NFR-VER-3) and keeps each business's payment instructions for orders (`verification.updatePaymentInstructions`, `getBusinessPaymentInstructions`, FR-VER-9).
 
 **Ports.**
 
@@ -680,7 +682,7 @@ flowchart LR
 #### AD-VER-2 — Legal identity has one reader, and every read or denial is logged
 
 - **Status:** [ADOPTED]
-- **Binds:** `BusinessApplicationLegalIdentity`; `identity/infra/legalIdentityRepository.ts`; `verification.getApplicationForReview`; `LegalIdentityAccessLog`; the lint rule `tezg/legal-identity-confined`; FR-VER-5; NFR-VER-2; AD-13, AD-14, AD-17.
+- **Binds:** `BusinessApplicationLegalIdentity`; `identity/infra/legalIdentityRepository.ts`; `verification.getApplicationForReview`; `LegalIdentityAccessLog`; the lint rule `tezg/legal-identity-confined`; FR-VER-5; NFR-VER-2, NFR-VER-3 (signed-URL issue); AD-13, AD-14, AD-17.
 - **Prevents:** legal identity leaking through another query, a log line or an event; an unaudited read; a denial that leaves no trace.
 - **Rule:**
   1. Only `legalIdentityRepository.ts` may reference the Prisma model `BusinessApplicationLegalIdentity` or its bucket prefix. The lint rule `tezg/legal-identity-confined` fails on any other file, and CI greps the compiled output as a second check.
@@ -712,7 +714,7 @@ flowchart LR
 
 ### 6.3 CAT — Catalog & Price Reference Service
 
-**Responsibility and host.** `catalog`, which has no module dependencies. It holds one identity per card or product, browses and facets the catalog, ingests the feed idempotently with quarantine, stores reference-price observations and the TRM, and answers provenance and freshness.
+**Responsibility and host.** `catalog`, which has no module dependencies. It holds one identity per card or product, browses and facets the catalog (`catalog.browse`, FR-CAT-1), ingests the feed idempotently with quarantine, stores reference-price observations and the TRM, and answers provenance and freshness.
 
 **Ports.**
 
@@ -1261,7 +1263,7 @@ flowchart LR
 #### AD-COM-2 — A deduction is keyed by `orderId` and priced at the trigger time
 
 - **Status:** [ADOPTED]
-- **Binds:** subscribers `onOrderPaymentConfirmedByBusiness`, `onOrderClosed`; the partial unique index on `CommissionLedgerEntry(orderId)`; `commissionOf`; `CommissionRateSetting`; FR-COM-4, FR-COM-5, FR-COM-7; NFR-COM-1, NFR-COM-4; AD-SYS-3.
+- **Binds:** subscribers `onOrderPaymentConfirmedByBusiness`, `onOrderClosed`; the partial unique index on `CommissionLedgerEntry(orderId)`; `commissionOf`; `CommissionRateSetting`; FR-COM-4, FR-COM-5, FR-COM-7; NFR-COM-1, NFR-COM-3 (deduction handler), NFR-COM-4; AD-SYS-3.
 - **Prevents:** a second charge from a redelivery or from the other trigger; a rate chosen by processing time; a float in the commission path.
 - **Rule:**
   1. The handler first computes `commissionTriggeredAt`, `trigger` and `rateBps` from the payload (AD-SYS-3 rule 2), then `c = commissionOf(totalCop, rateBps)` = `floor((totalCop × rateBps + 5000) / 10000)` in `BigInt`.
@@ -1275,7 +1277,7 @@ flowchart LR
 #### AD-COM-3 — Top-ups have one domain path behind `TopUpConfirmationPort`
 
 - **Status:** [ADOPTED]
-- **Binds:** `commission.requestTopUp`, `commission.admin.confirmTopUp`, `rejectTopUp`; `TopUpConfirmationPort`; `TopUpRequest`, `TopUpDecisionLog`; FR-COM-2, FR-COM-3, FR-COM-9; ADD-§7.
+- **Binds:** `commission.requestTopUp`, `commission.admin.confirmTopUp`, `rejectTopUp`; `TopUpConfirmationPort`; `TopUpRequest`, `TopUpDecisionLog`; FR-COM-2, FR-COM-3, FR-COM-9; NFR-COM-3 (top-up confirmation); ADD-§7.
 - **Prevents:** a credit applied twice by two admins; a v2 webhook needing a different domain path; the balance changing before confirmation.
 - **Rule:**
   1. The V1 adapter is the admin action. A v2 provider webhook would implement the same port and call the same `confirmTopUp` command. No domain change is needed.
@@ -1348,7 +1350,7 @@ flowchart LR
 #### AD-TRD-1 — Every offer action is one conditional update on status, turn, version and expiry
 
 - **Status:** [ADOPTED]; the unchanged-counter rule [ASSUMPTION — gate item G-1]
-- **Binds:** `trading.offer`, `counter`, `accept`, `reject`, `withdraw`; `TradeOffer`, `TradeOfferRound`; FR-TRD-1, FR-TRD-2, FR-TRD-3, FR-TRD-9; AD-SYS-5; EC-11.
+- **Binds:** `trading.offer`, `counter`, `accept`, `reject`, `withdraw`; `TradeOffer`, `TradeOfferRound`; FR-TRD-1, FR-TRD-2, FR-TRD-3, FR-TRD-9; NFR-TRD-2 (non-accept actions); AD-SYS-5; EC-11.
 - **Prevents:** a double action from a stale tab; acting on an expired offer; unbounded rounds; a "counter" that changes nothing and only flips the turn.
 - **Rule:**
   1. Every action runs `UPDATE "TradeOffer" SET … , version = version + 1 WHERE id=:id AND status='Open' AND turn=:actorRole AND version=:v AND "expiresAt" > :now`. `withdraw` omits `turn` and requires the proposer.
@@ -1365,7 +1367,7 @@ flowchart LR
 #### AD-TRD-2 — Accept is serialized per seller and resolves siblings in the same transaction
 
 - **Status:** [ADOPTED]
-- **Binds:** `trading.accept`; advisory namespace `trd:seller`; `listings.getTradeability`, `reserveForTrade`; FR-TRD-4, FR-TRD-5; NFR-TRD-1, NFR-TRD-3; AD-4, AD-6; AD-SYS-4 rule 5.
+- **Binds:** `trading.accept`; advisory namespace `trd:seller`; `listings.getTradeability`, `reserveForTrade`; FR-TRD-4, FR-TRD-5; NFR-TRD-1, NFR-TRD-2 (accept), NFR-TRD-3; AD-4, AD-6; AD-SYS-4 rule 5.
 - **Prevents:** two accepts both succeeding on one unit; an `Open` offer left on an exhausted listing; a deadlock between bundle and single-listing accepts; a second `TradeAccepted` event.
 - **Rule:**
   1. Every trade mutation on a seller's listings starts with `pg_advisory_xact_lock(trd:seller:<sellerId>)`. This applies to offer, counter, accept, reject, withdraw, cancel and expiry materialization.
@@ -1521,7 +1523,7 @@ flowchart LR
 
 ### 6.10 COL — Collection, Binder & Wishlist Manager
 
-**Responsibility and host.** `collections`. It covers named collections, entries tied to the catalog or to an external link, binder layout and sorting, set completion, the wishlist with live availability, and exactly one post-purchase prompt per closed order.
+**Responsibility and host.** `collections`. It covers named collections, entries tied to the catalog or to an external link, binder layout and sorting, set completion, the wishlist with live availability (`collections.wishlist.*` over `listings.getAvailabilitySummary`, FR-COL-6), and exactly one post-purchase prompt per closed order.
 
 **Ports.**
 
@@ -1742,7 +1744,7 @@ flowchart LR
 #### AD-REP-1 — A review's verification is snapshotted at write, one review per reviewer and target
 
 - **Status:** [ADOPTED]
-- **Binds:** `reputation.write`, `edit`; `Review`; `orders.hasClosedPurchase`; `identity.getReviewTarget`; FR-REP-1, FR-REP-2; EC-32, EC-43.
+- **Binds:** `reputation.write`, `edit`; `Review`; `orders.hasClosedPurchase`; `identity.getReviewTarget`; FR-REP-1, FR-REP-2; NFR-REP-1 (paid-but-not-closed refusal); EC-32, EC-43.
 - **Prevents:** a business review without a closed purchase; duplicate reviews from a double submit; editing a hidden review back into view.
 - **Rule:**
   1. The target is read through `getReviewTarget`:
@@ -1758,7 +1760,7 @@ flowchart LR
 #### AD-REP-2 — Aggregates are computed at read from the same snapshot as the list
 
 - **Status:** [ADOPTED]
-- **Binds:** `reputation.profile`, `getAggregates`; `averageTenths`; FR-REP-3, FR-REP-7; NFR-REP-2, NFR-REP-3.
+- **Binds:** `reputation.profile`, `getAggregates`; `averageTenths`; FR-REP-3, FR-REP-7; NFR-REP-1 (hide-versus-post aggregate race), NFR-REP-2, NFR-REP-3.
 - **Prevents:** a stored average drifting from visible reviews; a hidden review counted; an aggregate and a list disagreeing within one page.
 - **Rule:**
   1. One statement over `WHERE "hiddenAt" IS NULL` returns `count` and `sum` per target. `average = round_half_up(10 × sum / count) / 10`, computed by `averageTenths` in BigInt.
@@ -1769,7 +1771,7 @@ flowchart LR
 #### AD-REP-3 — Hide and unhide are conditional, logged with snapshots, and reversible
 
 - **Status:** [ADOPTED]
-- **Binds:** `reputation.admin.hide`, `unhide`, `search`; `inventory.admin.hide`, `unhide`; `ReviewModerationLog`, `ListingModerationLog`; FR-REP-4, FR-REP-5, FR-REP-6; EC-34, EC-35.
+- **Binds:** `reputation.admin.hide`, `unhide`, `search`; `inventory.admin.hide`, `unhide`; `ReviewModerationLog`, `ListingModerationLog`; FR-REP-4, FR-REP-5, FR-REP-6; NFR-REP-1 (hide-versus-post aggregate race); EC-34, EC-35.
 - **Prevents:** a double hide writing two log rows; a moderation action with no audit trail; audit rows that lose the content that was hidden.
 - **Rule:**
   1. Hide runs `UPDATE … SET "hiddenAt"=:now, "hiddenReason", "hiddenBy" WHERE id AND "hiddenAt" IS NULL RETURNING` the content. On 1 row, the log row with snapshots is inserted in the same transaction. On 0 rows, the command returns an explained no-op (`allowedWithNotice`, citing the existing hide) and writes no log row.
