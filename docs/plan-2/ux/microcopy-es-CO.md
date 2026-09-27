@@ -417,10 +417,14 @@ Composition rule for `{items} + {efectivo}`: items are joined with ", " and a fi
 | Situation | es-CO message | Action |
 | --- | --- | --- |
 | Offline or network loss (load) | "No pudimos cargar {qué} porque se perdió la conexión. Revisa tu conexión y vuelve a intentarlo." | Reintentar |
+| Offline or network loss (load), *usted* | "No pudimos cargar {qué} porque se perdió la conexión. Revise su conexión y vuelva a intentarlo." | Reintentar |
 | Server error or timeout (load) | "No pudimos cargar {qué} en este momento. Ya quedó registrado; vuelve a intentarlo en unos segundos." | Reintentar |
+| Server error or timeout (load), *usted* | "No pudimos cargar {qué} en este momento. Ya quedó registrado; vuelva a intentarlo en unos segundos." | Reintentar |
 | Command not confirmed (network) | "No sabemos si {acción} se guardó porque se perdió la conexión. Actualiza para ver el estado actual; si no se guardó, puedes repetirla sin riesgo." | Actualizar |
+| Command not confirmed (network), *usted* | "No sabemos si {acción} se guardó porque se perdió la conexión. Actualice para ver el estado actual; si no se guardó, puede repetirla sin riesgo." | Actualizar |
 | Slow command (10 s) | "Sigue en proceso…" | — |
 | Poll update (polite) | "{nombre} {acción} · {hora}" | — |
 | H console banner | "Consola de desarrollo · datos de prueba" | — |
 
+- **Address.** Pages in *usted* (the admin panel and the business-application pages 5.1 and 5.2) use the *usted* rows; every other page uses the *tú* rows. The other rows have no verb in the second person and serve both. `{qué}` and `{acción}` follow the same address ("tu colección" / "su solicitud").
 - **Agreement in the command template.** The pronoun in "repetirla" agrees with the noun in `{acción}`: "repetirla" for a feminine noun ("tu oferta", "tu recarga", "tu confirmación"), "repetirlo" for a masculine one ("tu perfil", "tu mensaje").
