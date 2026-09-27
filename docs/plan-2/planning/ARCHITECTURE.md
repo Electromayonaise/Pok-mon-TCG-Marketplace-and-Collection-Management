@@ -286,27 +286,38 @@ The `*NotVisibleToCaller` codes map to `FORBIDDEN` even though AD-14/AD-15 hide 
 - **Binds:**
   - `shared-kernel/outbox/`: tables `OutboxEvent` and `EventDelivery`, `outbox.enqueue(tx, event)`, `Dispatcher`, `Sweeper`;
   - every publisher (identity VER, orders, commission, trading) and every subscriber (commission, listings, collections);
-  - admin procedure `admin.events.replay`, page 2.3's event panel and the admin home badge;
+  - admin procedures `admin.events.replay`, `admin.events.deliveries` and `admin.events.deliveryHealth` (§7.3); page 2.3's Entregas tab (the event panel) and the badge on admin rail item 10 "Entregas fallidas" (EXPERIENCE IA D);
+  - `JobRun` (ownership only, rule 10; its use is §4 and §13);
   - NFR-SYS-6; OQ-2, OQ-4; refines AD-10; supersedes AD-19's transaction clause.
 - **Prevents:**
   - an event lost between commit and dispatch with no trace (for example, the commission deduction for a confirmed sale);
   - a failed subscriber being silently forgotten;
+  - a delivery that crashed mid-attempt being retried forever, or never;
+  - a delivery stuck in `pending` staying invisible;
   - automatic retries racing a human replay;
   - regulated data persisted in event rows.
 - **Rule:**
   1. A publisher calls `outbox.enqueue(tx, event)` inside the same `$transaction` that commits the state change. An event that is published never exists without its state change, and the reverse holds too.
-  2. `OutboxEvent(id cuid2 PK, type text, aggregateId text, payload jsonb, createdAt timestamptz, dispatchStartedAt timestamptz null)`.
-  3. `EventDelivery(eventId FK, subscriber text, status 'delivered'|'failed', attempts int, lastErrorCode text null, firstFailedAt, deliveredAt, PK(eventId, subscriber))`.
-  4. After the command's transaction commits, the tRPC adapter runs `Dispatcher.dispatch(eventIds)` synchronously, before the response is returned. Each subscriber runs in its own transaction. That transaction writes the subscriber's own state and the `EventDelivery` row (`delivered`) together.
-  5. A subscriber that throws gets `EventDelivery.status='failed'` in a separate transaction. `lastErrorCode` is the error's registry code or `'Unexpected'`, and never its message. **No automatic retry of a failed delivery.**
-  6. The sweeper selects events with `dispatchStartedAt IS NULL AND createdAt < now − 60 s` using `FOR UPDATE SKIP LOCKED LIMIT 50`, stamps `dispatchStartedAt`, and dispatches them. It runs from every hourly tick and from both daily crons. It never touches an event that already has any delivery row.
-  7. `admin.events.replay({ eventId, subscriber })` re-runs exactly one subscriber for one event. It is allowed only when that delivery is `failed`; otherwise it raises `EventDeliveryNotReplayable`. It writes one `EventReplayLog` row. Running it N ≥ 2 times yields one effect, because subscribers are idempotent by the natural keys in §7.
+  2. `OutboxEvent(id cuid2 PK, type text, aggregateId text, payload jsonb, createdAt timestamptz)`. There is no `dispatchStartedAt`: dispatch state lives per subscriber in `EventDelivery`.
+  3. `EventDelivery(eventId FK, subscriber text, status 'pending'|'delivered'|'failed', attempts int, lastErrorCode text null, createdAt timestamptz, lastAttemptAt timestamptz null, firstFailedAt timestamptz null, lastFailedAt timestamptz null, deliveredAt timestamptz null, PK(eventId, subscriber))`. `outbox.enqueue` inserts one `pending` row per subscriber registered for the event type in §7.1, in the publisher's transaction. An event type with no subscriber gets no row. A subscriber added later needs a backfill migration that inserts its `pending` rows. The three timestamps mean different things (decision log #43):
+     - `lastAttemptAt` is when the latest attempt started (rule 4 step 1, or a replay claim). Next to `attempts` it shows retries whose failure was never recorded.
+     - `firstFailedAt` is set once, with `COALESCE`, when the row first becomes `failed`, and a later failure never resets it. A row leaves `failed` only through a successful replay, to `delivered`, so `firstFailedAt` is also when the row became `failed`.
+     - `lastFailedAt` is the most recent recorded failure: the first transition to `failed`, or a failed replay.
+  4. **Attempt procedure.** Every automatic attempt to deliver one `(eventId, subscriber)` runs these steps:
+     1. A short transaction, committed on its own: `UPDATE EventDelivery SET attempts = attempts + 1, lastAttemptAt = now WHERE (eventId, subscriber) AND status='pending' AND attempts < 3`. If it affects 0 rows and the row is still `pending` with `attempts = 3`, a conditional update sets `status='failed'`, `firstFailedAt=COALESCE(firstFailedAt, now)`, `lastFailedAt=now` and `lastErrorCode='DeliveryAttemptsExhausted'`, and the attempt stops. Any other 0-row result also stops the attempt.
+     2. The handler transaction: `SELECT … FROM EventDelivery WHERE (eventId, subscriber) AND status='pending' FOR UPDATE SKIP LOCKED`. No row means another worker holds it or it is no longer `pending`, and the attempt stops. Otherwise the handler runs, then the row is set to `status='delivered'`, `deliveredAt=now`. The handler's state and the delivery row commit together.
+     3. If the handler throws, the handler transaction rolls back. A separate transaction sets `status='failed'`, `firstFailedAt=COALESCE(firstFailedAt, now)`, `lastFailedAt=now` and `lastErrorCode` = the error's registry code or `'Unexpected'`, never its message.
+     Step 1 counts the attempt before the handler runs, so a crash inside step 2 (a timeout or a killed instance) still spends one attempt.
+  5. After the command's transaction commits, the tRPC adapter runs `Dispatcher.dispatch(eventIds)` synchronously, before the response is returned. It runs the attempt procedure once for each `pending` delivery of those events. **A `failed` delivery is never retried automatically. A delivery whose failure was never recorded is attempted at most 3 times in total.**
+  6. The sweeper selects `EventDelivery` rows with `status='pending' AND createdAt < now − 60 s`, ordered by `createdAt`, `LIMIT 50`, and runs the attempt procedure on each. It runs from every hourly tick and from both daily crons. The sweeper works only on `pending` rows and the replay (rule 7) only on `failed` rows, so the two never touch the same delivery.
+  7. `admin.events.replay({ eventId, subscriber })` re-runs exactly one subscriber for one event. It is allowed only when that delivery is `failed`; otherwise it raises `EventDeliveryNotReplayable`. It claims the row with `SELECT … WHERE status='failed' FOR UPDATE SKIP LOCKED` and runs the handler in that transaction (§7.3). A replay sets `lastAttemptAt` to its claim time in both outcomes. A failed replay also sets `lastFailedAt`, and never changes `firstFailedAt`. It writes one `EventReplayLog` row. Running it N ≥ 2 times yields one effect, because subscribers are idempotent by the natural keys in §7.
   8. Payloads contain only the fields listed in §7. The canary scan of AD-SYS-8 runs over `OutboxEvent.payload` and `EventDelivery.lastErrorCode`.
-  9. The admin home shows a badge with the count of `failed` deliveries. The `daily-morning` job writes one `FailedDeliveryDigest(date, count, oldestFailedAt)` row that the admin home renders. There is no email in V1.
-  10. `OutboxEvent`, `EventDelivery`, `EventReplayLog` (append-only) and `FailedDeliveryDigest` are the only tables owned by `shared-kernel` (a refinement of AD-8: infrastructure, not domain data). The retention purge deletes `delivered` rows older than 90 days [ASSUMPTION ADD-§9.4 extension]. Failed rows are never purged.
+  9. Admin rail item 10 "Entregas fallidas" (EXPERIENCE IA D) carries a badge with the count of `failed` deliveries, the age of the oldest by `firstFailedAt`, and the count of deliveries still `pending` more than 24 h after `createdAt` (`stuckPendingCount`). The `daily-morning` job writes one `FailedDeliveryDigest(date, count, oldestFirstFailedAt, stuckPendingCount)` row, which page 2.3's Entregas tab shows as one line above its table. The tab lists both sets. The badge, the tab label and the digest line read `admin.events.deliveryHealth()`, and the list reads `admin.events.deliveries` (§7.3). There is no email in V1.
+  10. `OutboxEvent`, `EventDelivery`, `EventReplayLog` (append-only), `FailedDeliveryDigest` and `JobRun` (§4) are the only tables owned by `shared-kernel` (a refinement of AD-8: infrastructure, not domain data). The retention purge deletes `delivered` rows older than 90 days [ASSUMPTION ADD-§9.4 extension], and `JobRun` rows older than 90 days. These are technical purges: they are not gated by launch gate LG-2. Failed and `pending` rows are never purged.
 - **Trade-off:**
   - Every publishing command pays one extra insert, and one extra round trip per subscriber before the response.
-  - A crash between commit and dispatch delays the event until the next sweep, not forever. With G-3 that is ≤ 1 h between 07:05 and 20:05 Bogotá and up to about 6.5 h overnight (00:30 → 07:00). Without G-3 it is up to 17.5 h (07:00 → 00:30).
+  - A crash between commit and dispatch, or during an attempt, delays the delivery until the next sweep, not forever. While the best-effort tick runs (G-3, §4) that is ≤ 1 h between 07:17 and 20:17 Bogotá and up to about 6.5 h overnight (00:30 → 07:00). Without the tick it is up to 17.5 h (07:00 → 00:30).
+  - Every automatic attempt costs one extra short transaction (rule 4, step 1). A handler that crashes its instance 3 times ends `failed` with `DeliveryAttemptsExhausted` and waits for a human replay.
   - We accept this latency to avoid an external queue on a free-tier deployment.
 
 ### AD-SYS-3 — Commission is triggered by the first of two order events
@@ -349,12 +360,13 @@ The `*NotVisibleToCaller` codes map to `FORBIDDEN` even though AD-14/AD-15 hide 
      - `col:owner`
      - `job:<name>`
   5. **Global lock order.** Every transaction acquires locks in this sequence and never goes backwards:
+     0. the subscriber's own `EventDelivery` row (subscriber and replay transactions only, AD-SYS-2 rules 4 and 7);
      1. advisory locks, in ascending key order;
      2. the calling module's target aggregate row (`Order`, `TradeOffer`, `BusinessApplication`, `CommissionAccount`, …);
      3. `InventoryUnit` rows, by ascending id;
      4. other rows of the calling module (sibling offers, by ascending id);
      5. projections (`SellerCommissionState`).
-     `Listing` rows count as position 4 for `listings`. The one exception is the commission projection subscriber (AD-INV-3 rule 4), which locks `SellerCommissionState` and then updates that business's `Listing` rows. It cannot deadlock, because no transaction waits for `SellerCommissionState` while holding a `Listing` row lock: listing creation takes the projection `FOR SHARE` before its insert, and edits, hides and reserves never lock the projection. A fixed-order pair of advisory locks that no other transaction takes together is also allowed (AD-MSG-1 rule 3).
+     `Listing` rows count as position 4 for `listings`. The one exception is the commission projection subscriber (AD-INV-3 rule 4), which locks `SellerCommissionState` and then updates that business's `Listing` rows. It cannot deadlock, because no transaction waits for `SellerCommissionState` while holding a `Listing` row lock: listing creation takes the projection `FOR SHARE` before its insert, and edits, hides and reserves never lock the projection. A fixed-order pair of advisory locks that no other transaction takes together is also allowed (AD-MSG-1 rule 3). Position 0 cannot deadlock: publishers only insert `EventDelivery` rows, which no other transaction sees before commit, and the attempt step (AD-SYS-2 rule 4, step 1) touches that one row and nothing else, so no transaction that holds another lock waits for an `EventDelivery` row.
   6. Postgres errors `40P01` (deadlock) and `40001` (serialization) are retried by the transaction helper at most 2 times with the same input, then surfaced as `'Unexpected'`. Any other error is never retried.
   7. A job holds `pg_try_advisory_xact_lock(job:<name>)` for each batch transaction. If the lock is not acquired, that batch run is a no-op. Long jobs spanning several transactions (feed ingestion) use a row lease instead (AD-CAT-1).
   8. The default isolation level is READ COMMITTED. Correctness comes from conditional updates (AD-SYS-5) and the lock order above, never from SERIALIZABLE.
@@ -1799,10 +1811,10 @@ Every event is an `OutboxEvent` row written in the publisher's transaction (AD-S
 | | | | collections → `onOrderClosed` | `orderId`: `PostPurchasePrompt.orderId` unique (AD-COL-2) | One `Pending` prompt |
 | `CommissionBalanceExhausted` | commission: `LedgerService.apply` on a crossing to ≤ 0, and account opening (AD-COM-1) | `{ businessId, ledgerSeq, balanceAfter }` | listings → `onCommissionBalanceExhausted` | `ledgerSeq` gate: apply if no `SellerCommissionState` row or `ledgerSeq > lastAppliedSeq` (AD-INV-3 rule 4) | Sets `pausedAt` on the business's listings |
 | `CommissionBalanceReplenished` | commission: `LedgerService.apply` on a crossing to > 0 (AD-COM-1) | `{ businessId, ledgerSeq, balanceAfter }` | listings → `onCommissionBalanceReplenished` | same `ledgerSeq` gate | Clears `pausedAt` |
-| `TradeAccepted` | trading: `trading.accept` (AD-TRD-2 rule 2, step 7) | `{ tradeOfferId, listingId, sellerId, proposerId, terms, acceptedAt }` | none in V1 | `tradeOfferId` (reserved) | Reserved for notifications. The event is still written, so a v2 subscriber can be replayed over history |
+| `TradeAccepted` | trading: `trading.accept` (AD-TRD-2 rule 2, step 7) | `{ tradeOfferId, listingId, sellerId, proposerId, terms, acceptedAt }` | none in V1 | `tradeOfferId` (reserved) | Reserved for notifications. The event is still written, so a v2 subscriber can process history. Because no subscriber exists, `outbox.enqueue` writes no `EventDelivery` row; that subscriber needs a backfill migration that inserts its `pending` rows (AD-SYS-2 rule 3) |
 
 **Rules every subscriber follows.**
-1. A handler runs in its own transaction. It writes its state and its `EventDelivery(delivered)` row together (AD-SYS-2 rule 4).
+1. A handler runs in its own transaction, under the attempt procedure of AD-SYS-2 rule 4. It writes its state and sets its `EventDelivery` row to `delivered` together.
 2. Its natural key makes a redelivery, a sweep or a replay a no-op. A test delivers every event 3 times, in both orders where there are two triggers, and asserts one effect.
 3. A handler reads only its own tables and the payload. It never calls back into the publisher (AD-1, AD-9).
 4. The `ledgerSeq` gate makes the listings projection insensitive to order: `Replenished(seq 5)` followed by a late `Exhausted(seq 4)` leaves the listings resumed.
@@ -1822,11 +1834,11 @@ Every arrow above goes through the outbox. None is a compile-time import, so AD-
 ### 7.2 Delivery rules
 
 AD-SYS-2 holds the rules. In short:
-- **Enqueue** happens in the publisher's transaction.
-- **Dispatch** is synchronous after commit, before the response, one transaction per subscriber.
-- **Failure** writes `EventDelivery(failed)` with the registry code only. Nothing retries it automatically.
-- **Never-attempted events** (a crash between commit and dispatch) are picked up by the sweeper after 60 s. It runs on every job tick and on `daily-morning`.
-- **Visibility.** The admin home badge counts `failed` deliveries. `daily-morning` writes one `FailedDeliveryDigest` row. The NFR-SYS-6 success metric is "0 unreplayed failures older than 24 h" (PRD §22).
+- **Enqueue** happens in the publisher's transaction and writes one `pending` delivery row per registered subscriber.
+- **Dispatch** is synchronous after commit, before the response. Each delivery goes through the attempt procedure (AD-SYS-2 rule 4), one handler transaction per subscriber.
+- **Failure** writes `EventDelivery(failed)` with the registry code only. Nothing retries a `failed` delivery automatically.
+- **Stuck `pending` deliveries** (a crash between commit and dispatch, or during an attempt) are picked up by the sweeper after 60 s. A delivery gets at most 3 automatic attempts; the next one marks it `failed` with `DeliveryAttemptsExhausted`. The sweeper runs on every hourly tick and on both daily crons.
+- **Visibility.** The badge on admin rail item 10 "Entregas fallidas" counts `failed` deliveries, with the age of the oldest by `firstFailedAt`, and `pending` deliveries older than 24 h. `daily-morning` writes one `FailedDeliveryDigest` row, shown as one line on page 2.3's Entregas tab. The NFR-SYS-6 success metric is "0 deliveries unresolved for more than 24 h": `failed` rows with `firstFailedAt` older than 24 h, plus `pending` rows with `createdAt` older than 24 h (PRD §22; ADD-§10; decision log #43).
 
 The test binding (`EventBus`) runs the same dispatcher against the test database. A fault switch makes one named subscriber throw, which is how the replay path is tested.
 
@@ -1835,11 +1847,19 @@ The test binding (`EventBus`) runs the same dispatcher against the test database
 | Aspect | Rule |
 | --- | --- |
 | Procedure | `admin.events.replay({ eventId, subscriber })`, `adminProcedure`, on page 2.3's event panel |
-| Allowed when | the delivery row exists with `status='failed'`. A `delivered` row, or no row at all, raises `EventDeliveryNotReplayable` (§8) |
-| Effect | re-runs that one handler for that one event, in a new transaction. On success, the delivery becomes `delivered` and `attempts + 1` |
-| Concurrency | the replay takes `pg_try_advisory_xact_lock(job:replay:<eventId>:<subscriber>)`. A second concurrent replay is a no-op that returns the current delivery status |
+| Allowed when | the delivery row exists with `status='failed'`. A `pending` or `delivered` row, or no row at all, raises `EventDeliveryNotReplayable` (§8) |
+| Effect | re-runs that one handler for that one event, in the transaction that claims the row. On success, the delivery becomes `delivered`, with `attempts + 1` and `lastAttemptAt` set. On a throw, the transaction rolls back and a separate transaction records the new `lastErrorCode`, `lastAttemptAt` and `lastFailedAt`; `firstFailedAt` is unchanged and the delivery stays `failed`. The 3-attempt cap of AD-SYS-2 rule 4 applies to automatic attempts only |
+| Concurrency | the replay claims the row with `SELECT … WHERE (eventId, subscriber) AND status='failed' FOR UPDATE SKIP LOCKED`; there is no advisory lock. If nothing is claimed, a plain read decides: a row that is still `failed` is held by a concurrent replay, and the call is a no-op that returns the current delivery status; any other state raises `EventDeliveryNotReplayable` |
 | Audit | one `EventReplayLog(adminId, eventId, subscriber, outcome, at)` row per call, append-only (AD-SYS-8 rule 10) |
 | Idempotency | a replay of an effect that already happened is a no-op through the natural key (§7.1). A test replays each handler twice and asserts one effect |
+
+**Read procedures.** The event panel and its signals read through these procedures (decision log #42). All are `adminProcedure`, so a non-admin gets `AdminOnly`, and all are owned by `shared-kernel`.
+
+| Procedure | Returns | Read by |
+| --- | --- | --- |
+| `admin.events.deliveries({ kind: 'failed' \| 'stuck', cursor? })` | 25 rows per page, oldest first: `failed` rows by `firstFailedAt`, or `pending` rows older than 24 h by `createdAt`; each with `attempts`, `lastErrorCode`, `lastAttemptAt` and `lastFailedAt` | page 2.3, Entregas tab |
+| `admin.events.deliveryHealth()` | `{ failedCount, oldestFirstFailedAt, stuckPendingCount, latestDigest }` | the rail item 10 badge, the Entregas tab label and its digest line |
+| `admin.jobs.tickHealth()` | `{ lastTickStartedAt, tickSilent }`, derived at read time from `JobRun` (§4) | page 2.3's header and the rail item 5 marker |
 
 ---
 
@@ -1862,8 +1882,9 @@ ADD-§3.1 and ADD-§3.2 stay the source for the existing rows, which remain vali
 | `TopUpProofInvalidFile` | commission | `BAD_REQUEST` | A top-up proof that fails the upload pipeline | FR-COM-2; NFR-SYS-14 | AD-SYS-8 rule 6 |
 | `TopUpNotFound` | commission | `NOT_FOUND` | An unknown top-up id on an admin read or decision | FR-COM-3 | AD-COM-3 |
 | `EventDeliveryNotReplayable` | shared-kernel | `CONFLICT` | Replaying a delivery that is not `failed` | NFR-SYS-6; OQ-4 | AD-SYS-2 rule 7 |
+| `DeliveryAttemptsExhausted` | shared-kernel | none: never thrown, stored in `EventDelivery.lastErrorCode` | A `pending` delivery reaches its fourth automatic attempt after 3 attempts whose outcome was never recorded | NFR-SYS-6 | AD-SYS-2 rule 4 |
 
-`shared-kernel` now owns two codes: `RequestValidationFailed` (transport) and `EventDeliveryNotReplayable` (the outbox it owns, AD-SYS-2 rule 10). Neither concerns domain data.
+`shared-kernel` now owns three codes: `RequestValidationFailed` (transport), `EventDeliveryNotReplayable` and `DeliveryAttemptsExhausted` (the outbox it owns, AD-SYS-2 rule 10). None concerns domain data.
 
 `ComprobanteInvalidFile` (orders) stays as it is. Each upload has its own owner's code because `tezg/error-owner` forbids a shared "invalid file" code across three modules.
 
@@ -1956,7 +1977,7 @@ This table maps each inherited AD to the Plan-2 decisions that implement it and 
 | AD-7 Independent catalog, listing and binder records | AD-COL-1 (tagged union with a `CHECK`) | Constraint test: an external entry with a `catalogEntryId` is refused by the database |
 | AD-8 Table ownership | §6 data models; AD-SYS-2 rule 10 (shared-kernel infrastructure tables) | `tezg/table-owner` |
 | AD-9 Snapshot payloads | §7.1 | Payload schema test per event; canary scan of `OutboxEvent.payload` |
-| AD-10 Post-commit, in-process | AD-SYS-2 (refined with the outbox) | Crash-between-commit-and-dispatch test: the sweeper delivers the event once |
+| AD-10 Post-commit, in-process | AD-SYS-2 (refined with the outbox) | Crash-between-commit-and-dispatch test: the sweeper delivers the event once. Crash-during-attempt test: after 3 unrecorded attempts the delivery is `failed` with `DeliveryAttemptsExhausted` |
 | AD-11 One owner per code | AD-SYS-1, §8 | `tezg/error-owner`; registry coverage in CI |
 | AD-12 Hide, never delete | AD-REP-3, AD-INV-3 | No `DELETE` on reviews or listings in the source (grep test); grant test |
 | AD-13 `legalIdentity` under Ley 1581 | AD-VER-2 | `tezg/legal-identity-confined`; canary test |
@@ -2019,8 +2040,8 @@ No correctness rule depends on any row in this table (AD-SYS-6 rule 5). Every jo
 | --- | --- | --- | --- | --- |
 | `trm-fetch` | `daily-morning`; hourly tick while today's rate is missing [G-3]; admin button | catalog | Fetches the TRM for today (AD-CAT-3) | Carry-forward with `FxRateCarriedForward` (FR-CAT-8) |
 | `feed-ingest` | admin button (start and continue) | catalog | Leased, resumable batches (AD-CAT-1) | Prices age and show as stale |
-| `outbox-sweep` | hourly tick [G-3]; `daily-morning`; `daily-night` | shared-kernel | Dispatches never-attempted events older than 60 s (AD-SYS-2 rule 6) | Events wait until the next tick |
-| `failed-delivery-digest` | `daily-morning` | shared-kernel | Writes `FailedDeliveryDigest` | The live badge still counts failures |
+| `outbox-sweep` | hourly tick [G-3, best-effort]; `daily-morning`; `daily-night` | shared-kernel | Runs the attempt procedure on `pending` deliveries older than 60 s, at most 3 automatic attempts each (AD-SYS-2 rules 4 and 6) | Deliveries wait until the next run; the badge shows those `pending` for more than 24 h |
+| `failed-delivery-digest` | `daily-morning` | shared-kernel | Writes `FailedDeliveryDigest(date, count, oldestFirstFailedAt, stuckPendingCount)`, shown as one line on page 2.3's Entregas tab | The live badge still counts failures and stuck deliveries |
 | `expiry-materialize` | `orders.create` pre-step (scoped to the listing's units); hourly tick [G-3]; `daily-morning`; `daily-night` catch-up | orders, trading | Sets `expiredAt` / `Expired` on rows with `expiresAt ≤ now`. For orders it releases the reservation exactly once (AD-ORD-2 rule 6). `Open` offers hold no reservation, so only their status changes (AD-TRD-1 rule 5) | Reads and commands already treat the rows as expired. Quantity held by an expired order stays unavailable until the next run, or until someone tries to buy that listing and the pre-step reclaims it (AD-INV-2 trade-off) |
 | `commission-reconcile` | `daily-night`; admin button (7.4) | commission | Checks every account against its ledger (AD-COM-1 rule 4) | Discrepancies surface later |
 | `retention-purge` | `daily-night` | each owner | Applies ADD-§9.4 (5 and 10 years; closure + 1 year); deletes `delivered` event rows older than 90 days [ASSUMPTION] | Data is kept longer than the policy |

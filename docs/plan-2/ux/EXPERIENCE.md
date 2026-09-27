@@ -70,7 +70,7 @@ Choices are made per task shape, following the Annex defaults. A per-surface ove
 7. Cuentas 1.3
 8. Auditoría 11.4 · 5.4
 9. Políticas 5.5
-10. Entregas fallidas → 2.3, Entregas tab (NFR-SYS-6 badge: count of failed deliveries plus age of the oldest)
+10. Entregas fallidas → 2.3, Entregas tab (NFR-SYS-6 badge: count of failed deliveries plus the age of the oldest by first failure, `firstFailedAt`, and count of deliveries stuck `pending` for more than 24 h; read through `admin.events.deliveryHealth()`)
 
 **Business D — the shop desk.** A verified or Pending business reaches its desk from Cuenta → Mi tienda. It has four sections:
 

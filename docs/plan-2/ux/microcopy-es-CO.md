@@ -81,6 +81,7 @@ updated: 2026-09-27
 | `CatalogEntryNotFound` | *(Not available page)* "No encontramos esta carta en el catálogo." | Volver al catálogo | Card not in catalog. |
 | `FeedRunInProgress` | "Ya hay una ingesta en curso (iniciada el {fecha}). Espere a que termine para iniciar otra." | Ver ingesta en curso | A run is already in progress. |
 | `EventDeliveryNotReplayable` | "Esta entrega ya no está fallida ({estado}), así que no se puede reintentar. La lista se actualizó." | — | Delivery no longer failed; list refreshed (2.3 Entregas tab). |
+| `DeliveryAttemptsExhausted` | "Se intentó entregar 3 veces sin confirmación, así que quedó fallida. Puede reintentarla desde esta lista." | Reintentar | Three automatic attempts without a recorded outcome; marked failed (2.3 Entregas tab). |
 | `ReferencePriceStale` | "Precio del {dia}: el feed no se actualiza desde entonces." | — | Price from {date}; the feed hasn't updated since. |
 | `TrendNoBaseline` | "Sin tendencia: no hay precio de referencia al inicio del período." | — | No trend: no price at period start. |
 | `FxRateCarriedForward` | "TRM al {dia} (no hay una TRM publicada para la fecha)." | — | TRM carried forward from {date}. |

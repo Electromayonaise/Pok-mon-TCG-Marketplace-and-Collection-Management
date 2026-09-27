@@ -252,6 +252,7 @@ This is the contract-test source for NFR-SYS-1: every row has at least one test 
 | `ReviewNotFound` | reviews | Unknown review id on edit, hide or unhide | FR-REP-4 |
 | `RequestValidationFailed` | shared-kernel | Shape-level input failure (type, length, required, enum), with issues per field. Produced only by the tRPC input parser; a module never raises it (OQ-7, AD-SYS-1 rule 7) | all |
 | `EventDeliveryNotReplayable` | shared-kernel | Replaying an event delivery that is not `failed` | NFR-SYS-6 |
+| `DeliveryAttemptsExhausted` | shared-kernel | A `pending` event delivery used its 3 automatic attempts without a recorded outcome. Stored as `lastErrorCode`, never thrown | NFR-SYS-6 |
 
 ### 3.2 DecisionCodes
 
@@ -336,7 +337,7 @@ The reservation is released exactly once, on `Cancelled` or `Expired`. It is con
 
 ## ADD-§5 Event payloads
 
-Events are published after commit (AD-3, AD-10). Subscribers are idempotent by the listed key. Delivery is durable through the transactional outbox: every failed delivery is logged and can be replayed by an admin (AD-SYS-2, ARCHITECTURE §7.3).
+Events are published after commit (AD-3, AD-10). Subscribers are idempotent by the listed key. Delivery is durable through the transactional outbox: every delivery is a `pending` row until it is delivered, a delivery whose failure was never recorded gets at most 3 automatic attempts, and every failed delivery is logged and can be replayed by an admin (AD-SYS-2, ARCHITECTURE §7.3).
 
 | Event | Publisher | Payload | Subscribers | Idempotency key |
 | --- | --- | --- | --- | --- |
@@ -490,4 +491,4 @@ Data-subject requests (access, correction, deletion) are handled manually by an 
 | Stale prices shown | card-detail read log | stale price views ÷ all price views |
 | Orders closed within 14 days | `Order` facts | closed orders with `closedAt − createdAt ≤ 14 d` ÷ orders created 14+ days ago |
 | Prompts per closed order | `PostPurchasePrompt` vs `OrderClosed` | count of prompts ÷ count of closed orders (target exactly 1.00) |
-| Unreplayed failed deliveries > 24 h | the failed-delivery log (NFR-SYS-6) | count of failed deliveries with no successful replay and `failedAt < now − 24 h` |
+| Deliveries unresolved > 24 h | `EventDelivery` (NFR-SYS-6; ARCHITECTURE AD-SYS-2) | count of rows with (`status='failed'` and `firstFailedAt < now − 24 h`) or (`status='pending'` and `createdAt < now − 24 h`) |

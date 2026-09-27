@@ -290,8 +290,8 @@ Decision {
   - **Idempotent subscribers:** every subscriber is idempotent by a natural key (`orderId`, `applicationId`, ledger sequence).
   - **Failure log:** every subscriber failure is recorded in a failed-delivery log with the full snapshot payload. Payloads there are redacted per NFR-SYS-2, keeping only ids.
   - **Admin replay:** an admin can replay a logged delivery. Replaying any delivery N ≥ 2 times produces the same end state as delivering it once, and each subscriber has a test proving that.
-  - **No automatic retry**, consistent with AD-10.
-  - **Alerting:** the admin console shows a badge with the count and age of unreplayed failures, and admins receive a daily digest while any exist. Target: zero unreplayed failures older than 24 h (§22).
+  - **No automatic retry of a recorded failure**, consistent with AD-10. A delivery whose failure was never recorded (the process died mid-attempt) gets at most 3 automatic attempts, then is recorded as failed (ARCHITECTURE AD-SYS-2).
+  - **Alerting:** the admin console shows a badge with the count and age of unreplayed failures and the count of deliveries stuck undelivered for more than 24 h, and admins receive a daily digest while any exist. Target: zero deliveries unresolved for more than 24 h, counting recorded failures from their first failure and deliveries stuck undelivered from their creation (§22).
   - *(OQ-4 is resolved: the log is the shared-kernel `EventDelivery` table, and replay runs from the event panel on page 2.3. See AD-SYS-2 and ARCHITECTURE §7.3.)*
 - **NFR-SYS-7 Server-side authorization.** Every command and every non-public query checks the actor server-side from the session's `userId`. Roles are derived per request (AD-16) and never read from a client claim. Unauthenticated calls to protected procedures return `NotAuthenticated`; admin procedures called by a non-admin return `AdminOnly`. This is verified by a generated test that calls every protected procedure without a session and with a non-admin session.
 - **NFR-SYS-8 Admin audit trail.** Every admin action writes an append-only audit record `{adminId, action, targetId, reason?, before?, after?, at}` in the owning module's own table (AD-12: no shared moderation table). That covers approve, reject, rejection-reason change, top-up confirm or reject, hide, unhide, capability-trace read, `legalIdentity` read, feed run and failed-event replay. The records are never updated or deleted. Retention: indefinite at launch [ASSUMPTION].
@@ -2156,7 +2156,7 @@ The metrics the platform tracks after launch. Every target is measured weekly fr
 | Stale reference prices shown (share of card-detail views) | ≤ 5% | Zero fabricated or merged price values (NFR-CAT-3) |
 | Orders reaching "closed" within 14 days of creation | ≥ 70% | Unpaid-order expiry rate ≤ 25% (the TTL isn't too aggressive) |
 | Post-purchase prompts accepted | tracked, no target | Prompts created per closed order = 1.00 exactly |
-| Unreplayed failed event deliveries older than 24 h (NFR-SYS-6) | 0 | Replays that produce a duplicate effect = 0 (subscribers stay idempotent) |
+| Event deliveries unresolved for more than 24 h: failed (from the first failure) or stuck pending (from creation) (NFR-SYS-6) | 0 | Replays that produce a duplicate effect = 0 (subscribers stay idempotent) |
 
 ## 23. Assumptions Index
 
