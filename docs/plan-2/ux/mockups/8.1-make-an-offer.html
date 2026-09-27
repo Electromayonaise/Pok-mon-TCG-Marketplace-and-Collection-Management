@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8.1 Hacer una oferta — mock</title>
+<link rel="stylesheet" href="_tokens.css">
+</head>
+<body>
+<div class="mock-bar" role="region" aria-label="Mock controls" lang="en">
+  <strong>8.1 Make an Offer</strong> · TRD · R (tú) ·
+  <a href="../C-UX-Scenarios/08-trd-trading/8.1-make-an-offer/8.1-make-an-offer.md">Page spec</a> ·
+  <a href="index.html">All mocks</a>
+  <span class="states" role="group" aria-label="Page state"></span>
+  <span class="mock-note">Illustrative key-screen mock. The page spec and the spines (DESIGN.md, EXPERIENCE.md) win on any conflict.</span>
+</div>
+
+<main class="frame-r">
+  <a href="#">← Volver a la carta</a>
+  <h1 style="margin-top:12px">Hacer una oferta</h1>
+
+  <!-- Refusal banners: on load they replace the Ofreces block -->
+  <div class="xb refusal" role="alert" data-state="not-open" data-label="Refused: not open">
+    <p>Valentina no abrió esta carta a intercambios. Puedes escribirle para comprarla.</p>
+    <a class="btn btn-secondary" href="#">Contactar al vendedor</a>
+  </div>
+  <div class="xb refusal" role="alert" data-state="shop" data-label="Refused: shop">
+    <p>Esta carta la vende una tienda: puedes comprarla aquí mismo o escribirle dentro de TEZG.</p>
+    <a class="btn btn-secondary" href="#">Comprar</a>
+  </div>
+  <div class="xb refusal" role="alert" data-state="own" data-label="Refused: own listing">
+    <p>Esta carta es tuya, así que no puedes ofertar por ella.</p>
+    <a class="btn btn-secondary" href="#">Ver mis publicaciones</a>
+  </div>
+  <div class="xb refusal" role="alert" data-state="no-units" data-label="Refused: no units">
+    <p>Otra persona reservó la última unidad hace un momento. Esta publicación ya no tiene unidades disponibles.</p>
+    <a class="btn btn-secondary" href="#">Buscar otra publicación de esta carta</a>
+  </div>
+  <div class="xb refusal" role="alert" data-state="duplicate" data-label="Refused: duplicate">
+    <p>Ya tienes una oferta abierta por esta carta. Puedes retirarla o esperar la respuesta de Valentina.</p>
+    <a class="btn btn-secondary" href="#">Ver mi oferta</a>
+  </div>
+  <div class="xb refusal" role="alert" data-state="email" data-label="Refused: email">
+    <p>Para comprar, ofertar o escribir a vendedores, primero confirma tu correo. Te enviamos un enlace a {correo}.</p>
+    <button class="btn btn-secondary" type="button">Reenviar enlace</button>
+  </div>
+  <div class="xb refusal" role="alert" data-state="network" data-label="Error: network">
+    <p>No sabemos si tu oferta se guardó porque se perdió la conexión. Actualiza para ver el estado actual; si no se guardó, puedes repetirla sin riesgo.</p>
+    <button class="btn btn-secondary" type="button">Actualizar</button>
+  </div>
+
+  <section data-state="loading" data-label="Loading" aria-busy="true">
+    <div class="skel box"></div><div class="skel"></div><div class="skel"></div><div class="skel box"></div>
+  </section>
+
+  <!-- PIDES: shown in every loaded state -->
+  <section data-also="default filled tus-cartas cash-error not-open shop own no-units duplicate email network">
+    <h2 class="label">Pides</h2>
+    <div class="card">
+      <strong>Lote Psíquico · 3 cartas · Valentina</strong>
+      <p class="meta">Gardevoir ex (NM) · … · 1 disponible</p>
+      <p>Precio publicado <span class="price" style="font-size:1rem">$95.000</span></p>
+    </div>
+  </section>
+
+  <!-- OFRECES, empty -->
+  <section data-state="default" data-label="Default" data-default>
+    <h2 class="label">Ofreces</h2>
+    <div class="row"><input class="f" style="flex:1" type="search" placeholder="Buscar carta o producto" aria-label="Buscar carta o producto"><button class="btn btn-secondary" type="button">Tus cartas</button></div>
+    <div style="margin-top:12px"><label class="f" for="cash0">Efectivo (COP)</label><input class="f" id="cash0" inputmode="numeric" placeholder="$0"></div>
+    <div style="margin-top:12px"><label class="f" for="note0">Nota para Valentina (opcional)</label><textarea class="f" id="note0" rows="2"></textarea><p class="meta">0/300</p></div>
+    <button class="btn btn-primary block" type="button">Enviar oferta</button>
+    <p class="anno" lang="en">Enviar oferta is always enabled; an empty offer is refused by the server (EmptyTradeOffer) as a field-error above the button.</p>
+  </section>
+
+  <section data-state="tus-cartas" data-label="Empty: Tus cartas">
+    <h2 class="label">Ofreces</h2>
+    <div class="row"><input class="f" style="flex:1" type="search" placeholder="Buscar carta o producto" aria-label="Buscar carta o producto" autofocus><button class="btn btn-secondary" type="button" aria-expanded="true">Tus cartas</button></div>
+    <div class="card" style="margin-top:12px"><p class="empty" style="padding:0">No tienes cartas en tu inventario. Búscala por nombre para agregarla a la oferta.</p></div>
+  </section>
+
+  <!-- OFRECES, filled (the spec's layout) -->
+  <section data-state="filled" data-label="Filled" data-also="network">
+    <h2 class="label">Ofreces</h2>
+    <div class="row"><input class="f" style="flex:1" type="search" placeholder="Buscar carta o producto" aria-label="Buscar carta o producto"><button class="btn btn-secondary" type="button">Tus cartas</button></div>
+    <div class="row between card" style="margin-top:12px"><span>Pikachu ex · NM · ×1</span><button class="btn-link" type="button">Quitar</button></div>
+    <button class="btn-link" type="button">+ Agregar otra carta (1 de 10)</button>
+    <div style="margin-top:12px"><label class="f" for="cash1">Efectivo (COP)</label><input class="f price" style="font-size:1rem" id="cash1" inputmode="numeric" value="$20.000"></div>
+    <div style="margin-top:12px"><label class="f" for="note1">Nota para Valentina (opcional)</label><textarea class="f" id="note1" rows="2">Puedo encontrarme en Chapinero…</textarea><p class="meta">58/300</p></div>
+    <p class="meta">Ofreces: Pikachu ex (NM) + $20.000 · Pides: Lote Psíquico</p>
+    <p class="meta">La oferta no reserva la carta. Si Valentina no responde, vence el 12 oct 2026, 7:30 p. m.</p>
+    <button class="btn btn-primary block" type="button">Enviar oferta</button>
+  </section>
+
+  <section data-state="cash-error" data-label="Error: cash">
+    <h2 class="label">Ofreces</h2>
+    <div class="row between card"><span>Pikachu ex · NM · ×1</span><button class="btn-link" type="button">Quitar</button></div>
+    <label class="f" for="cash2">Efectivo (COP)</label>
+    <input class="f invalid" id="cash2" inputmode="numeric" value="$12.000.000" aria-invalid="true" aria-describedby="cash2e">
+    <p class="field-error" id="cash2e">El efectivo debe estar entre $0 y $10.000.000.</p>
+  </section>
+</main>
+<script src="_states.js"></script>
+</body>
+</html>

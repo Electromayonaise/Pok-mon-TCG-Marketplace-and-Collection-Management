@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9.1 Mi colección — mock</title>
+<link rel="stylesheet" href="_tokens.css">
+</head>
+<body>
+<div class="mock-bar" role="region" aria-label="Mock controls" lang="en">
+  <strong>9.1 Collections &amp; Binder</strong> · COL · R (tú) ·
+  <a href="../C-UX-Scenarios/09-col-collections/9.1-collections-binder/9.1-collections-binder.md">Page spec</a> ·
+  <a href="index.html">All mocks</a>
+  <span class="states" role="group" aria-label="Page state"></span>
+  <span class="mock-note">Illustrative key-screen mock. The page spec and the spines (DESIGN.md, EXPERIENCE.md) win on any conflict.</span>
+</div>
+
+<main class="frame-r">
+  <h1>Mi colección</h1>
+  <nav class="tabs" aria-label="Mi colección">
+    <a href="#" aria-current="page">Colecciones</a><a href="#">Lista de deseos</a><a href="10.1-collection-value.html">Valor</a>
+  </nav>
+
+  <div class="xb notice" role="status" data-state="entry-gone" data-label="Entry gone">
+    <p>Esta carta ya no está en tu colección. Actualizamos la vista.</p>
+  </div>
+  <div class="xb refusal" role="alert" data-state="command" data-label="Error: command">
+    <p>No sabemos si {acción} se guardó porque se perdió la conexión. Actualiza para ver el estado actual; si no se guardó, puedes repetirla sin riesgo.</p>
+    <button class="btn btn-secondary" type="button">Actualizar</button>
+    <p class="anno" lang="en">{acción} names the move, copy, reorder or delete that was not confirmed.</p>
+  </div>
+
+  <!-- Toolbar: every state that shows a binder -->
+  <section data-state="default" data-label="Default" data-default data-also="filtered zero last-page entry-gone command delete">
+    <div class="row between"><h2 style="margin:0">Kanto 151 · 120 cartas</h2><button class="btn-link" type="button" aria-haspopup="menu">Opciones ▾</button></div>
+    <div class="row" style="margin:12px 0">
+      <button class="chip" type="button" aria-expanded="false">Organizar: 3×3 · Set ↑ · Pokémon ↑</button>
+    </div>
+    <div class="row between">
+      <select class="f" style="width:auto" aria-label="Filtrar por set"><option>Filtrar por set ▾</option><option>151</option></select>
+      <a class="btn btn-primary" href="#">Agregar carta</a>
+    </div>
+    <hr class="divider">
+  </section>
+
+  <section data-also="default entry-gone command delete">
+    <div class="binder">
+      <div><div class="pocket">Gengar</div><p class="pocket-cap">Gengar<br><span class="meta">Agregado a mano · ×2</span></p></div>
+      <div><div class="pocket">Mew ex</div><p class="pocket-cap">Mew ex<br><span class="meta">Comprado en TEZG · <a href="6.2-buyer-order-detail.html">Ver pedido</a></span></p></div>
+      <div><div class="pocket">Zapdos ex</div><p class="pocket-cap">Zapdos ex · NM<br><span class="meta">Agregado a mano</span></p></div>
+      <div><div class="pocket">Alakazam ex</div><p class="pocket-cap">Alakazam ex<br><span class="meta">Agregado a mano</span></p></div>
+      <div><div class="pocket">Charizard ex</div><p class="pocket-cap">Charizard ex · NM<br><span class="meta">Comprado en TEZG · <a href="6.2-buyer-order-detail.html">Ver pedido</a></span></p></div>
+      <div><div class="pocket">Mewtwo</div><p class="pocket-cap">Mewtwo<br><span class="meta">Agregado a mano · ×3</span></p></div>
+      <div><div class="pocket">Bulbasaur</div><p class="pocket-cap">Bulbasaur<br><span class="meta">Agregado a mano</span></p></div>
+      <div><div class="pocket">Squirtle</div><p class="pocket-cap">Squirtle<br><span class="meta">Agregado a mano</span></p></div>
+      <div><div class="pocket">Pikachu promo</div><p class="pocket-cap">Pikachu promo<br><span class="meta">Agregado por enlace · {dominio}</span></p></div>
+    </div>
+    <p class="meta row between" style="margin-top:16px"><a href="#">‹ Anterior</a><span>Página 2 de 14</span><a href="#">Siguiente ›</a></p>
+    <p class="anno" lang="en">Pocket cards other than Gengar and Mew ex are illustrative fixtures. Source badges are text only, never colour-coded. The pocket menu offers Mover a… · Copiar a… · Editar · Quitar.</p>
+  </section>
+
+  <section data-state="filtered" data-label="Filtered (set 151)">
+    <div class="binder">
+      <div><div class="pocket">Bulbasaur</div><p class="pocket-cap">Bulbasaur</p></div>
+      <div><div class="pocket">Charizard ex</div><p class="pocket-cap">Charizard ex · NM</p></div>
+      <div><div class="pocket">Squirtle</div><p class="pocket-cap">Squirtle</p></div>
+    </div>
+    <p class="meta row between" style="margin-top:16px"><a href="#" aria-disabled="true">‹ Anterior</a><span>Página 1 de 5 · 37/191 (19 %)</span><a href="#">Siguiente ›</a></p>
+    <p class="anno" lang="en">Completion shows only with a one-set filter; sealed products and link-added entries never count; the percentage rounds down. Only the first row of the page is drawn.</p>
+  </section>
+
+  <section data-state="last-page" data-label="Last page">
+    <div class="binder">
+      <div><div class="pocket">Zapdos ex</div><p class="pocket-cap">Zapdos ex</p></div>
+      <div><div class="pocket">Mew ex</div><p class="pocket-cap">Mew ex</p></div>
+      <div><div class="pocket">Gengar</div><p class="pocket-cap">Gengar</p></div>
+      <div class="pocket empty-pocket" aria-hidden="true"></div><div class="pocket empty-pocket" aria-hidden="true"></div><div class="pocket empty-pocket" aria-hidden="true"></div>
+      <div class="pocket empty-pocket" aria-hidden="true"></div><div class="pocket empty-pocket" aria-hidden="true"></div><div class="pocket empty-pocket" aria-hidden="true"></div>
+    </div>
+    <p class="meta row between" style="margin-top:16px"><a href="#">‹ Anterior</a><span>Página 14 de 14</span><a href="#" aria-disabled="true">Siguiente ›</a></p>
+    <p class="anno" lang="en">Empty pockets on the last page are dashed outlines, never placeholder art.</p>
+  </section>
+
+  <section data-state="zero" data-label="Zero results">
+    <p class="empty">No tienes cartas del set 151 en esta colección.</p>
+    <button class="btn btn-secondary" type="button">Quitar filtro</button>
+  </section>
+
+  <section data-state="empty" data-label="Empty collection">
+    <p class="empty">Esta colección está vacía. Agrega tu primera carta.</p>
+    <a class="btn btn-primary" href="#">Agregar carta</a>
+  </section>
+
+  <section data-state="none" data-label="No collections">
+    <p class="empty">Aún no tienes colecciones. Agrega tu primera carta y la guardaremos en «General».</p>
+    <a class="btn btn-primary" href="#">Agregar carta</a>
+  </section>
+
+  <section data-state="delete" data-label="Delete dialog">
+    <dialog open class="card" style="position:static;max-width:100%">
+      <p>Se eliminará «Kanto 151» y sus 120 cartas. Esto no se puede deshacer.</p>
+      <div class="row"><button class="btn btn-destructive" type="button">Eliminar colección</button><button class="btn btn-secondary" type="button">Cancelar</button></div>
+    </dialog>
+  </section>
+
+  <section data-state="not-available" data-label="Not available">
+    <p class="empty">No encontramos esta colección en tu cuenta.</p>
+    <a class="btn btn-secondary" href="#">Ver mis colecciones</a>
+  </section>
+
+  <section data-state="loading" data-label="Loading" aria-busy="true">
+    <div class="skel lg"></div><div class="skel"></div>
+    <div class="binder"><div class="pocket skel" style="height:auto"></div><div class="pocket skel" style="height:auto"></div><div class="pocket skel" style="height:auto"></div></div>
+  </section>
+
+  <section data-state="network" data-label="Error: network">
+    <div class="xb refusal" role="alert">
+      <p>No pudimos cargar tu colección porque se perdió la conexión. Revisa tu conexión y vuelve a intentarlo.</p>
+      <button class="btn btn-secondary" type="button">Reintentar</button>
+    </div>
+  </section>
+</main>
+<script src="_states.js"></script>
+</body>
+</html>

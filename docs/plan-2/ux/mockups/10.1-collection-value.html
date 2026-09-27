@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10.1 Valor de la colección — mock</title>
+<link rel="stylesheet" href="_tokens.css">
+</head>
+<body>
+<div class="mock-bar" role="region" aria-label="Mock controls" lang="en">
+  <strong>10.1 Collection Value</strong> · VAL · R (tú) ·
+  <a href="../C-UX-Scenarios/10-val-valuation/10.1-collection-value/10.1-collection-value.md">Page spec</a> ·
+  <a href="index.html">All mocks</a>
+  <span class="states" role="group" aria-label="Page state"></span>
+  <span class="mock-note">Illustrative key-screen mock. The page spec and the spines (DESIGN.md, EXPERIENCE.md) win on any conflict.</span>
+</div>
+
+<main class="frame-r">
+  <h1>Mi colección</h1>
+  <nav class="tabs" aria-label="Mi colección">
+    <a href="9.1-collections-binder.html">Colecciones</a><a href="#">Lista de deseos</a><a href="#" aria-current="page">Valor</a>
+  </nav>
+
+  <!-- Controls: every state with a collection -->
+  <section data-also="default invalid nothing zero-baseline">
+    <label class="f" for="col">Colección</label>
+    <select class="f" id="col"><option>Kanto 151</option><option>General</option></select>
+    <div class="xb notice" role="status" data-also="invalid" style="margin-top:12px"><p>Elige un período de 7, 30, 90 o 365 días.</p></div>
+    <div class="row" style="margin:12px 0" role="group" aria-label="Período">
+      <button class="chip" type="button" aria-pressed="false">7 días</button>
+      <button class="chip" type="button" aria-pressed="true">30 días</button>
+      <button class="chip" type="button" aria-pressed="false">90 días</button>
+      <button class="chip" type="button" aria-pressed="false">365 días</button>
+    </div>
+  </section>
+
+  <section data-state="default" data-label="Default" data-also="invalid">
+    <p class="meta">Valor al 1 oct 2026</p>
+    <p class="price">$1.310.500</p>
+    <p>▲ +5,69 % en 30 días (desde $1.240.000)</p>
+    <p>Solo precios, sin las cartas nuevas: ▲ +2,90 % ($1.240.000 → $1.276.000)</p>
+    <p class="meta">Valoradas 118 de 120 · 1 con precio desactualizado</p>
+    <p class="meta">Lo que valían tus cartas actuales: si quitas una carta, también sale del cálculo de fechas anteriores.</p>
+    <a class="btn btn-secondary" href="#">Ver historial</a>
+
+    <details style="margin-top:24px"><summary><strong>No valoradas (2)</strong></summary>
+      <h3 style="margin-top:12px">Agregadas por enlace (1)</h3>
+      <p class="meta">Agregada por enlace: no tiene precio de catálogo.</p>
+      <p>Pikachu promo · <a href="#" target="_blank" rel="noopener">{dominio}</a></p>
+      <h3>Sin precio de referencia (1)</h3>
+      <p class="meta">Aún no hay precio de referencia para esta carta.</p>
+      <p><a href="2.2-card-detail-price-provenance.html">{carta}</a> · 151 · ×1</p>
+      <p class="anno" lang="en">The 1 + 1 split of the two unvalued entries is illustrative.</p>
+    </details>
+
+    <details style="margin-top:24px"><summary><strong>Ver detalle por carta</strong></summary>
+      <div class="row" style="margin:12px 0"><button class="chip" type="button" aria-pressed="true">Todas</button><button class="chip" type="button" aria-pressed="false">Con precio desactualizado (1)</button></div>
+      <table class="dt">
+        <thead><tr><th>Carta</th><th class="num">Cantidad</th><th class="num">Precio unitario</th><th class="num">Valor</th></tr></thead>
+        <tbody>
+          <tr><td>Zapdos ex<br><span class="stale">◷ Precio del 29 sep 2026: el feed no se actualiza desde entonces.</span></td>
+            <td class="num">1</td><td class="num">$21.800<br><span class="meta">US$5,45 · TRM al 29 sep 2026</span></td><td class="num">$21.800</td></tr>
+          <tr><td>Mew ex</td><td class="num">2</td><td class="num">$17.250</td><td class="num">$34.500</td></tr>
+          <tr><td>…</td><td></td><td></td><td></td></tr>
+        </tbody>
+      </table>
+      <p class="meta" style="margin-top:12px">Total: $1.310.500 (118 cartas valoradas)</p>
+      <p class="anno" lang="en">The USD line is information only: never summed, never in a total. The stale row stays in the total.</p>
+    </details>
+  </section>
+
+  <span data-state="invalid" data-label="Invalid period" hidden></span>
+
+  <section data-state="zero-baseline" data-label="Zero baseline">
+    <p class="meta">Valor al 1 oct 2026</p>
+    <p class="price">$84.000</p>
+    <p>+$84.000 · Nuevo en este período</p>
+    <p class="meta">Nuevo en este período: no había cartas valoradas al inicio, así que mostramos el cambio en pesos.</p>
+    <p>Ninguna carta estuvo en tu colección durante todo el período.</p>
+    <p class="anno" lang="en">Figures are illustrative (a collection whose cards were all added during the period).</p>
+  </section>
+
+  <section data-state="nothing" data-label="Nothing valued">
+    <p class="meta">Valor al 1 oct 2026</p>
+    <p class="price">$0</p>
+    <p class="meta">Valoradas 0 de 4</p>
+    <p>Ninguna carta de esta colección tiene precio de catálogo todavía.</p>
+    <details open><summary><strong>No valoradas (4)</strong></summary>
+      <h3 style="margin-top:12px">Agregadas por enlace (4)</h3>
+      <p class="meta">Agregada por enlace: no tiene precio de catálogo.</p>
+    </details>
+    <p class="anno" lang="en">"No valoradas" opens by default when nothing is valued; the change line follows the zero-baseline rule. Counts are illustrative.</p>
+  </section>
+
+  <section data-state="empty" data-label="Empty collection">
+    <p class="empty">Esta colección está vacía: agrega cartas para ver su valor.</p>
+    <a class="btn btn-primary" href="#">Agregar carta</a>
+  </section>
+
+  <section data-state="none" data-label="No collections">
+    <p class="empty">Aún no tienes colecciones para valorar.</p>
+    <a class="btn btn-primary" href="#">Agregar carta</a>
+  </section>
+
+  <section data-state="not-available" data-label="Not available">
+    <p class="empty">No encontramos esta colección en tu cuenta.</p>
+    <a class="btn btn-secondary" href="9.1-collections-binder.html">Ver mis colecciones</a>
+  </section>
+
+  <section data-state="loading" data-label="Loading" aria-busy="true">
+    <div class="skel lg"></div><div class="skel"></div><div class="skel"></div>
+    <div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div>
+  </section>
+
+  <section data-state="network" data-label="Error: network">
+    <div class="xb refusal" role="alert">
+      <p>No pudimos cargar el valor de tu colección porque se perdió la conexión. Revisa tu conexión y vuelve a intentarlo.</p>
+      <button class="btn btn-secondary" type="button">Reintentar</button>
+    </div>
+  </section>
+</main>
+<script src="_states.js"></script>
+</body>
+</html>

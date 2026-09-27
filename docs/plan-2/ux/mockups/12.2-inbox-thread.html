@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12.2 Mensajes — mock</title>
+<link rel="stylesheet" href="_tokens.css">
+</head>
+<body>
+<div class="mock-bar" role="region" aria-label="Mock controls" lang="en">
+  <strong>12.2 Inbox &amp; Thread</strong> · MSG · R (tú; shop chrome usted) ·
+  <a href="../C-UX-Scenarios/12-msg-messaging/12.2-inbox-thread/12.2-inbox-thread.md">Page spec</a> ·
+  <a href="index.html">All mocks</a>
+  <span class="states" role="group" aria-label="Page state"></span>
+  <span class="mock-note">Illustrative key-screen mock at ≥1024 px (two panes; below 1024 px the list and the thread are separate screens). The page spec and the spines (DESIGN.md, EXPERIENCE.md) win on any conflict.</span>
+</div>
+
+<main class="frame-r wide">
+  <div class="panes">
+    <!-- ================= INBOX PANE ================= -->
+    <section class="inbox" aria-label="Mensajes" data-also="default sending network validation pending read-only refused">
+      <h1>Mensajes</h1>
+      <div class="row" role="group" aria-label="Filtro" style="margin-bottom:12px">
+        <button class="chip" type="button" aria-pressed="true">Todas</button>
+        <button class="chip" type="button" aria-pressed="false">Sin leer</button>
+        <button class="chip" type="button" aria-pressed="false">Silenciadas</button>
+      </div>
+
+      <!-- Andrés verified, 1 unread -->
+      <a class="inbox-row" href="#" aria-current="page" data-also="default sending network validation">
+        <span class="row between"><strong>Tienda Andrés</strong><span class="meta">9:40</span></span>
+        <span class="row between"><span class="preview meta" style="flex:1">Buenos días. No, está impecable; le puedo…</span><span class="unread"><span aria-hidden="true">1</span><span class="sr-only">1 sin leer</span></span></span>
+      </a>
+      <!-- Andrés pending -->
+      <a class="inbox-row" href="#" aria-current="page" data-also="pending">
+        <span class="row between"><span><strong>Tienda Andrés</strong> <span class="si pending">sin verificar</span></span><span class="meta">1 oct</span></span>
+        <span class="preview meta">Sí, nos llegan el viernes.</span>
+      </a>
+      <!-- Andrés rejected -->
+      <a class="inbox-row" href="#" aria-current="page" data-also="read-only refused">
+        <span class="row between"><span>Tienda Andrés <span class="si inert">solo lectura</span></span><span class="meta">12 oct</span></span>
+        <span class="preview meta">Buenos días. No, está impecable; le puedo…</span>
+      </a>
+
+      <a class="inbox-row" href="#">
+        <span class="row between"><span>Tienda Pokeparadise</span><span class="meta">8 oct</span></span>
+        <span class="preview meta">Gracias, quedo atenta.</span>
+      </a>
+      <p class="anno" lang="en">"Tienda Pokeparadise" is an illustrative seed row. Rows sort by last message, newest first; "Tú: " prefixes the caller's own last message. Muted threads appear only under "Silenciadas".</p>
+    </section>
+
+    <!-- ================= THREAD PANE ================= -->
+    <section class="pane" data-also="default sending network validation pending read-only refused">
+
+      <!-- Header: verified -->
+      <header data-also="default sending network validation">
+        <div class="row between"><h2 style="margin:0"><a href="11.2-seller-reputation-profile.html">Tienda Andrés</a></h2><button class="btn-link" type="button" aria-haspopup="menu" aria-label="Opciones">⋯</button></div>
+        <p class="meta"><span class="si confirmed">tienda verificada</span> · Medellín</p>
+        <p class="meta row between">Sobre: Charizard ex · $180.000 <a href="2.2-card-detail-price-provenance.html">Ver publicación</a></p>
+        <p class="anno" lang="en">The "Sobre:" line comes from the link and lasts for this visit only; a conversation stores no listing (FR-MSG-5). The ⋯ menu holds "Silenciar conversación" (buyer side only).</p>
+      </header>
+      <!-- Header: pending -->
+      <header data-also="pending">
+        <div class="row between"><h2 style="margin:0"><a href="11.2-seller-reputation-profile.html">Tienda Andrés</a></h2><button class="btn-link" type="button" aria-haspopup="menu" aria-label="Opciones">⋯</button></div>
+        <p class="meta"><span class="si pending">Tienda en verificación</span></p>
+      </header>
+      <!-- Header: rejected -->
+      <header data-also="read-only refused">
+        <div class="row between"><h2 style="margin:0"><a href="11.2-seller-reputation-profile.html">Tienda Andrés</a></h2><button class="btn-link" type="button" aria-haspopup="menu" aria-label="Opciones">⋯</button></div>
+        <p class="meta"><span class="si inert">No disponible para mensajes</span></p>
+      </header>
+      <hr class="divider">
+
+      <!-- Refusal banner: NotBusinessAccount after the composer opened -->
+      <div class="xb refusal" role="alert" data-also="refused">
+        <p>No enviamos tu mensaje porque Tienda Andrés ya no está disponible para mensajes en TEZG. Guardamos tu texto abajo para que lo copies.</p>
+      </div>
+
+      <!-- Messages -->
+      <div class="thread" aria-label="Conversación con Tienda Andrés">
+        <p class="day-sep">1 oct 2026</p>
+        <div class="bubble own">
+          <p>Hola, ¿tienen sobres de Surging Sparks?</p>
+          <p class="meta"><span class="si pending">Esta tienda aún no ha sido verificada por TEZG.</span></p>
+        </div>
+        <div class="bubble other">
+          <p>Sí, nos llegan el viernes.</p>
+          <p class="meta"><span class="si pending">Esta tienda aún no ha sido verificada por TEZG.</span></p>
+        </div>
+
+        <p class="day-sep" data-also="default sending network validation read-only refused">12 oct 2026</p>
+        <div class="bubble own" data-also="default sending network validation read-only refused">
+          <p>Hola, ¿la Charizard ex tiene marcas blancas en el reverso?</p>
+          <p class="meta">Enviado · 9:12 a. m.</p>
+        </div>
+        <div class="bubble other" data-also="default sending network validation read-only refused">
+          <p>Buenos días. No, está impecable; le puedo enviar fotos por aquí mismo si quiere.</p>
+          <p class="meta">9:40 a. m.</p>
+        </div>
+
+        <div class="bubble own" data-also="sending">
+          <p>{texto}</p>
+          <p class="meta">Enviando…</p>
+        </div>
+        <div class="bubble own" data-also="network">
+          <p>{texto}</p>
+          <p class="meta"><span class="si error">No confirmado</span> <button class="btn-link" type="button">Reintentar</button></p>
+        </div>
+      </div>
+      <p class="anno" lang="en" data-also="default">Notice lines stay on every message sent while the shop was Pending, even after approval. No read receipts. Messages are plain text; URLs are not linked. Seed messages and times come from the spec layout (Camila, 12 oct, 10:05 a. m.).</p>
+
+      <!-- Transport banner -->
+      <div class="xb refusal" role="alert" data-also="network" style="margin-top:16px">
+        <p>No sabemos si tu mensaje se guardó porque se perdió la conexión. Actualiza para ver el estado actual; si no se guardó, puedes repetirlo sin riesgo.</p>
+        <p class="anno" lang="en">The spec cites the §10 template ("…tu mensaje se guardó…"). "repetirlo" agrees with "tu mensaje", following the 1.2 precedent ("tu perfil… repetirlo"). A retry reuses the client message id, so it never creates a duplicate.</p>
+      </div>
+
+      <!-- Composer: normal -->
+      <div data-also="default sending network" style="margin-top:16px">
+        <label class="sr-only" for="msg1">Mensaje</label>
+        <textarea class="f" id="msg1" rows="3" placeholder="Escribe un mensaje…"></textarea>
+        <div class="row" style="justify-content:flex-end;margin-top:8px">
+          <button class="btn btn-primary" type="button" data-also="default network">Enviar</button>
+          <button class="btn btn-primary" type="button" disabled aria-busy="true" data-also="sending">Enviar</button>
+        </div>
+        <p class="anno" lang="en">The spec layout draws "0/2.000", but the composer table shows the counter only from 1.800 characters; the mock follows the table. Enter adds a line break; Ctrl/⌘+Enter sends.</p>
+      </div>
+      <!-- Composer: validation -->
+      <div data-also="validation" style="margin-top:16px">
+        <label class="sr-only" for="msg2">Mensaje</label>
+        <textarea class="f invalid" id="msg2" rows="3" placeholder="Escribe un mensaje…" aria-invalid="true" aria-describedby="msg2e"></textarea>
+        <p class="field-error" id="msg2e">Escribe un mensaje.</p>
+        <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn btn-primary" type="button">Enviar</button></div>
+        <p class="anno" lang="en">"Enviar" is never disabled for an empty body. Over 2.000 characters: "El mensaje puede tener hasta 2.000 caracteres."</p>
+      </div>
+      <!-- Composer: pending shop -->
+      <div data-also="pending" style="margin-top:16px">
+        <div class="xb notice" role="status"><p>Esta tienda aún no ha sido verificada por TEZG.</p></div>
+        <label class="sr-only" for="msg3">Mensaje</label>
+        <textarea class="f" id="msg3" rows="3" placeholder="Escribe un mensaje…"></textarea>
+        <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn btn-primary" type="button">Enviar</button></div>
+        <p class="anno" lang="en">allowedWithNotice: sending proceeds. The server decides at send time, and the reply can add or remove the notice.</p>
+      </div>
+      <!-- Refused: kept text -->
+      <div data-also="refused" style="margin-top:16px">
+        <div class="card"><p>{texto}</p></div>
+        <button class="btn btn-secondary" type="button">Copiar texto</button>
+        <p class="anno" lang="en">The "Enviando…" bubble is removed; the text returned with the error sits in a read-only block. "Copiar" feedback: "Copiado".</p>
+      </div>
+      <!-- Read-only footer -->
+      <p class="read-only-footer" data-also="read-only refused" style="margin-top:16px">Esta conversación es de solo lectura porque la tienda ya no está disponible para mensajes.</p>
+    </section>
+  </div>
+
+  <!-- Named states (labels); content lives in the shared blocks above -->
+  <span data-state="default" data-label="Default" data-default hidden></span>
+  <span data-state="pending" data-label="Pending shop" hidden></span>
+  <span data-state="sending" data-label="Sending" hidden></span>
+  <span data-state="validation" data-label="Error: empty body" hidden></span>
+  <span data-state="network" data-label="Error: send not confirmed" hidden></span>
+  <span data-state="refused" data-label="Refused on send" hidden></span>
+  <span data-state="read-only" data-label="Read-only" hidden></span>
+
+  <section data-state="empty-buyer" data-label="Empty (buyer)">
+    <h1>Mensajes</h1>
+    <p class="empty">Aún no tienes mensajes. Puedes escribirle a una tienda desde cualquiera de sus publicaciones.</p>
+    <a class="btn btn-secondary" href="3.1-nearby-listings.html">Ir al catálogo</a>
+  </section>
+
+  <section data-state="empty-shop" data-label="Empty (shop, usted)">
+    <h1>Mensajes</h1>
+    <p class="empty">Aún no tiene mensajes. Los compradores pueden escribirle desde sus publicaciones.</p>
+  </section>
+
+  <section data-state="not-available" data-label="Not available">
+    <p class="empty">No encontramos esta conversación en tu cuenta.</p>
+    <a class="btn btn-secondary" href="#">Ver mensajes</a>
+  </section>
+
+  <section data-state="loading" data-label="Loading" aria-busy="true">
+    <div class="panes">
+      <div class="inbox"><div class="skel lg"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+      <div class="pane"><div class="skel"></div><div class="skel box"></div><div class="skel box"></div><div class="skel box"></div></div>
+    </div>
+  </section>
+
+  <section data-state="load-error" data-label="Error: load">
+    <div class="xb refusal" role="alert">
+      <p>No pudimos cargar tus mensajes en este momento. Ya quedó registrado; vuelve a intentarlo en unos segundos.</p>
+      <button class="btn btn-secondary" type="button">Reintentar</button>
+    </div>
+  </section>
+</main>
+<script src="_states.js"></script>
+</body>
+</html>

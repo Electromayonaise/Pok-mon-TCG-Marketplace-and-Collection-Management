@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11.2 Reputación del vendedor — mock</title>
+<link rel="stylesheet" href="_tokens.css">
+</head>
+<body>
+<div class="mock-bar" role="region" aria-label="Mock controls" lang="en">
+  <strong>11.2 Seller Reputation Profile</strong> · REP · R (tú) ·
+  <a href="../C-UX-Scenarios/11-rep-reputation-moderation/11.2-seller-reputation-profile/11.2-seller-reputation-profile.md">Page spec</a> ·
+  <a href="index.html">All mocks</a>
+  <span class="states" role="group" aria-label="Page state"></span>
+  <span class="mock-note">Illustrative key-screen mock. The page spec and the spines (DESIGN.md, EXPERIENCE.md) win on any conflict.</span>
+</div>
+
+<main class="frame-r">
+  <!-- Business header -->
+  <section data-state="default" data-label="Default" data-also="empty arrival hidden">
+    <h1>Tienda Andrés</h1>
+    <p class="meta"><span class="si confirmed">tienda verificada</span> · Medellín</p>
+  </section>
+
+  <section data-also="default hidden">
+    <p aria-label="4,3 de 5"><span class="price">4,3</span> <span aria-hidden="true">★★★★☆</span></p>
+    <p class="meta">12 reseñas · De compras verificadas</p>
+    <a class="btn btn-primary" href="#">Escribir una reseña</a>
+  </section>
+
+  <section data-also="arrival">
+    <p class="meta" role="status" aria-live="polite">Publicaste tu reseña de Tienda Andrés.</p>
+    <p aria-label="4,3 de 5"><span class="price">4,3</span> <span aria-hidden="true">★★★★☆</span></p>
+    <p class="meta">13 reseñas · De compras verificadas</p>
+    <a class="btn btn-primary" href="#">Editar tu reseña</a>
+    <div class="card" style="margin-top:24px">
+      <p><strong>Tu reseña</strong></p>
+      <p><span aria-hidden="true">★★★★☆</span> 4 de 5</p>
+      <p>{texto}</p>
+      <p class="meta">15 oct 2026 · Compra verificada</p>
+    </div>
+    <p class="anno" lang="en">Live region per 11.1 (after an edit: "Guardaste los cambios de tu reseña."). The caller's card is listed first because it is the newest. The count, rating and date are illustrative.</p>
+  </section>
+
+  <section data-also="hidden">
+    <div class="card" style="margin-top:24px">
+      <p><strong>Tu reseña</strong></p>
+      <div class="xb inert"><p>Oculta por moderación de TEZG: {motivo}.</p></div>
+      <p class="meta">2 oct 2026</p>
+    </div>
+    <p class="anno" lang="en">Visible only to its author (a separate "my review" read) and not counted in the summary. Everyone else sees no placeholder and no gap. The date is illustrative.</p>
+  </section>
+
+  <section data-also="default arrival hidden" style="margin-top:24px">
+    <div class="card">
+      <p><span aria-hidden="true">★★★★★</span> 5 de 5</p>
+      <p>Muy buena atención, respondieron rápido.</p>
+      <p class="meta">9 oct 2026 · Compra verificada</p>
+    </div>
+    <div class="card">
+      <p><span aria-hidden="true">★★★★☆</span> 4 de 5</p>
+      <p>…</p>
+      <p class="meta">3 oct 2026 · Compra verificada · editada</p>
+    </div>
+    <button class="btn btn-secondary block" type="button">Ver más reseñas</button>
+    <p class="anno" lang="en">Review texts and dates are seed rows (REP-S3). No reviewer identity is shown (FR-REP-7).</p>
+  </section>
+
+  <section data-also="empty">
+    <p>Aún no tiene reseñas</p>
+    <p class="meta">De compras verificadas</p>
+    <a class="btn btn-primary" href="#">Escribir una reseña</a>
+    <p class="anno" lang="en">No separate empty-state block in the list: the summary already says it.</p>
+  </section>
+
+  <section data-state="individual" data-label="Individual seller">
+    <h1>{nombre}</h1>
+    <p class="meta">Vendedor individual</p>
+    <p aria-label="4,8 de 5"><span class="price">4,8</span> <span aria-hidden="true">★★★★★</span></p>
+    <p class="meta">5 reseñas · Las reseñas no están ligadas a compras</p>
+    <a class="btn btn-primary" href="#">Escribir una reseña</a>
+    <p class="anno" lang="en">The display name is a placeholder and the figures are illustrative. Anonymous callers see "Inicia sesión para reseñar" instead of the action; the caller's own profile shows no action.</p>
+  </section>
+
+  <section data-state="empty" data-label="Empty"></section>
+  <section data-state="arrival" data-label="Success (arrival)"></section>
+  <section data-state="hidden" data-label="Own review hidden"></section>
+
+  <section data-state="not-available" data-label="Not available">
+    <p class="empty">No encontramos este perfil.</p>
+    <a class="btn btn-secondary" href="#">Ir al catálogo</a>
+  </section>
+
+  <section data-state="loading" data-label="Loading" aria-busy="true">
+    <div class="skel lg"></div><div class="skel"></div><div class="skel box"></div><div class="skel box"></div><div class="skel box"></div>
+  </section>
+
+  <section data-state="network" data-label="Error: network">
+    <div class="xb refusal" role="alert">
+      <p>No pudimos cargar las reseñas porque se perdió la conexión. Revisa tu conexión y vuelve a intentarlo.</p>
+      <button class="btn btn-secondary" type="button">Reintentar</button>
+    </div>
+  </section>
+</main>
+<script src="_states.js"></script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2.2 Detalle de carta — mock</title>
+<link rel="stylesheet" href="_tokens.css">
+</head>
+<body>
+<div class="mock-bar" role="region" aria-label="Mock controls" lang="en">
+  <strong>2.2 Card Detail — Price Provenance</strong> · CAT · R (tú) ·
+  <a href="../C-UX-Scenarios/02-cat-catalog-price-reference/2.2-card-detail-price-provenance/2.2-card-detail-price-provenance.md">Page spec</a> ·
+  <a href="index.html">All mocks</a>
+  <span class="states" role="group" aria-label="Page state"></span>
+  <span class="mock-note">Illustrative key-screen mock. The page spec and the spines (DESIGN.md, EXPERIENCE.md) win on any conflict.</span>
+</div>
+
+<main class="frame-r">
+  <section data-state="default" data-label="Success">
+    <div class="row"><div class="pocket" style="width:96px">Charizard ex</div>
+      <div><h1>Charizard ex #006</h1><p class="meta">Surging Sparks · Arita</p></div></div>
+    <hr class="divider">
+    <div class="card stack">
+      <div><div class="label">Precio más bajo publicado</div><div class="price">$180.000</div><div class="meta">3 publicaciones</div></div>
+      <div><div class="label">Última venta de referencia</div>
+        <div>US$41,20</div>
+        <div>$169.886 COP</div>
+        <div class="meta">TRM al 30 sep 2026 · {fuente} · 30 sep</div></div>
+      <div><div class="label">Tendencia</div>
+        <div class="row"><button class="chip" aria-pressed="false">7d</button><button class="chip" aria-pressed="true">30d</button><button class="chip" aria-pressed="false">90d</button></div>
+        <p>▲ +8,41 % en 30 días · desde $156.700</p></div>
+      <details><summary class="btn-link">¿De dónde salen estos precios?</summary>
+        <p class="meta">Los precios de referencia vienen del feed externo del catálogo, no de las ventas en TEZG. La conversión a pesos usa la TRM oficial del día de la observación.</p></details>
+    </div>
+    <h2>¿Quién la vende?</h2>
+    <p class="meta">Cerca de: Medellín, 15 km <button class="btn-link" type="button">Cambiar</button></p>
+    <div class="card">
+      <div class="row between"><strong>Tienda Andrés ✓</strong><span class="price">$180.000</span></div>
+      <p class="meta">NM · a 4,2 km · tienda verificada · se puede comprar</p>
+      <div class="row"><a class="btn btn-primary" href="#">Comprar</a><a class="btn btn-secondary" href="#">Escribir a la tienda</a></div>
+    </div>
+    <div class="card">
+      <div class="row between"><strong>Juan P.</strong><span class="price">$190.000</span></div>
+      <p class="meta">LP · a 12,4 km · vende una persona</p>
+      <div class="row"><a class="btn btn-secondary" href="#">Contactar al vendedor</a><a class="btn btn-secondary" href="#">Hacer una oferta</a></div>
+    </div>
+    <p class="meta">+ 2 más <a href="#">Ver todas</a></p>
+  </section>
+
+  <section data-state="stale" data-label="Stale price">
+    <h1>Charizard ex #006</h1>
+    <div class="card stack">
+      <div><div class="label">Última venta de referencia</div><div>US$41,20</div><div>$169.886 COP</div></div>
+      <p class="stale">◷ Precio del 29 sep: el feed no se actualiza desde entonces.</p>
+    </div>
+  </section>
+
+  <section data-state="unpriced" data-label="Empty (sin precio / sin ventas)">
+    <h1>Charizard ex #006</h1>
+    <div class="card stack">
+      <p class="empty">Aún no hay precio de referencia.</p>
+      <p class="meta">Sin tendencia: no hay precio de referencia al inicio del período.</p>
+    </div>
+    <h2>¿Quién la vende?</h2>
+    <p class="empty">Nadie la está vendiendo ahora. Puedes agregarla a tu lista de deseos.</p>
+  </section>
+
+  <section data-state="lost-race" data-label="Banner: carrera perdida">
+    <div class="xb inert" role="status">
+      <p>Otra persona reservó la última unidad hace un momento…</p>
+      <a href="#">Buscar otra publicación de esta carta</a>
+    </div>
+    <h1>Charizard ex #006</h1>
+  </section>
+
+  <section data-state="loading" data-label="Loading" aria-busy="true">
+    <div class="skel lg"></div><div class="skel box"></div><div class="skel"></div><div class="skel box"></div>
+  </section>
+
+  <section data-state="error" data-label="Error">
+    <h1>Charizard ex #006</h1>
+    <div class="xb refusal" role="alert"><p>No pudimos cargar el precio de referencia.</p>
+      <button class="btn btn-secondary" type="button">Reintentar</button></div>
+    <p class="anno" lang="en">Partial error: the listings block still renders.</p>
+  </section>
+
+  <section data-state="not-available" data-label="No disponible">
+    <p class="empty">No encontramos esta carta en el catálogo.</p>
+  </section>
+</main>
+<script src="_states.js"></script>
+</body>
+</html>

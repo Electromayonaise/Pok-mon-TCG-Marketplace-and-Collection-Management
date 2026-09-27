@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5.2 Estado de su tienda — mock</title>
+<link rel="stylesheet" href="_tokens.css">
+</head>
+<body>
+<div class="mock-bar" role="region" aria-label="Mock controls" lang="en">
+  <strong>5.2 Application Status</strong> · VER · R (usted) ·
+  <a href="../C-UX-Scenarios/05-ver-business-verification/5.2-application-status/5.2-application-status.md">Page spec</a> ·
+  <a href="index.html">All mocks</a>
+  <span class="states" role="group" aria-label="Page state"></span>
+  <span class="mock-note">Illustrative key-screen mock. The page spec and the spines (DESIGN.md, EXPERIENCE.md) win on any conflict.</span>
+</div>
+
+<main class="frame-r">
+  <section data-state="rejected" data-label="Rejected (cooldown)">
+    <h1><span class="si error">No pudimos verificar su tienda</span></h1>
+    <p>Los datos que ingresó no coinciden con sus documentos.</p>
+    <blockquote class="card" style="margin:0 0 12px">Nota del equipo: El NIT del formulario no coincide con el del RUT adjunto.</blockquote>
+    <p>Puede volver a solicitar desde el <strong>8 oct 2026, 10:00 a. m.</strong></p>
+    <p class="anno" lang="en">Before the reapply instant there is no action: the date is the answer.</p>
+    <hr class="divider">
+    <h2>Sus publicaciones</h2>
+    <p>6 retiradas, no borradas. Volverán si su tienda es aprobada.</p>
+    <a class="btn btn-secondary" href="#">Ver mis publicaciones</a>
+    <hr class="divider">
+    <h2>Solicitudes</h2>
+    <ul class="timeline"><li>30 sep 2026 · No aprobada (1 oct 2026, 10:00 a. m.)</li></ul>
+  </section>
+
+  <section data-state="reapply" data-label="Rejected (reapply open)">
+    <h1><span class="si error">No pudimos verificar su tienda</span></h1>
+    <p>Los datos que ingresó no coinciden con sus documentos.</p>
+    <blockquote class="card" style="margin:0 0 12px">Nota del equipo: El NIT del formulario no coincide con el del RUT adjunto.</blockquote>
+    <p>Puede volver a solicitar desde el <strong>8 oct 2026, 10:00 a. m.</strong></p>
+    <a class="btn btn-primary" href="#">Volver a solicitar</a>
+    <p class="anno" lang="en">At or after the reapply instant, "Volver a solicitar" opens 5.1.</p>
+  </section>
+
+  <section data-state="barred" data-label="Rejected (barred)">
+    <h1><span class="si error">No pudimos verificar su tienda</span></h1>
+    <p>{texto del motivo}. Esta decisión es definitiva para esta cuenta.</p>
+    <p class="anno" lang="en">Barred: no action. Reason text comes from the rejection snapshot (microcopy §1.2).</p>
+  </section>
+
+  <section data-state="pending" data-label="Pending">
+    <h1><span class="si pending">Estamos revisando su tienda</span></h1>
+    <p>Ya puede publicar. Sus publicaciones se verán sin la insignia de verificación y aún no se podrán comprar. Los compradores pueden escribirle dentro de TEZG con un aviso de «tienda aún no verificada».</p>
+    <p class="meta">Solicitud enviada el 30 sep 2026</p>
+    <a class="btn btn-primary" href="#">Publicar mientras tanto</a>
+    <hr class="divider">
+    <h2>Sus publicaciones</h2>
+    <p>6 publicaciones visibles sin insignia; aún no se pueden comprar.</p>
+    <p class="meta">Los compradores pueden escribirle dentro de TEZG con un aviso de «tienda aún no verificada».</p>
+    <hr class="divider">
+    <h2>Solicitudes</h2>
+    <ul class="timeline"><li>30 sep 2026 · En revisión</li></ul>
+  </section>
+
+  <section data-state="approved" data-label="Approved">
+    <h1><span class="si confirmed">Su tienda está verificada</span></h1>
+    <p>Sus publicaciones ya muestran la insignia de verificación. Recargue su saldo de comisión para empezar a vender.</p>
+    <a class="btn btn-primary" href="7.1-balance-top-up.html">Recargar saldo</a>
+    <p class="anno" lang="en">The spec says the COM "never funded" line also shows here, but that line exists only in tú and this page is usted. The mock relies on the §1.1 Approved body instead. Open point for the team.</p>
+    <hr class="divider">
+    <h2>Sus publicaciones</h2>
+    <p>6 con insignia.</p>
+    <hr class="divider">
+    <h2>Datos de pago</h2>
+    <div class="card">
+      <p>{banco} · {tipo} · {número}<br>Titular {titular}</p>
+      <button class="btn-link" type="button">Editar datos de pago</button>
+    </div>
+    <p class="meta">Los cambios aplican a pedidos nuevos. Los pedidos que ya existen conservan los datos con los que se hicieron.</p>
+  </section>
+
+  <section data-state="none" data-label="Empty (no application)">
+    <h1>Estado de su tienda</h1>
+    <p class="empty">Aún no ha enviado una solicitud para vender como tienda.</p>
+    <a class="btn btn-primary" href="#">Empezar solicitud</a>
+  </section>
+
+  <section data-state="changed" data-label="Changed while open">
+    <p class="meta" role="status" aria-live="polite">Su solicitud cambió de estado · 10:02 a. m.</p>
+    <h1><span class="si confirmed">Su tienda está verificada</span></h1>
+    <p class="anno" lang="en">Poll on focus; the polite live region announces, then the page re-renders.</p>
+  </section>
+
+  <section data-state="loading" data-label="Loading" aria-busy="true">
+    <div class="skel lg"></div><div class="skel"></div><div class="skel"></div><div class="skel box"></div>
+  </section>
+
+  <section data-state="error" data-label="Error">
+    <div class="xb refusal" role="alert">
+      <p>No pudimos cargar el estado de su tienda en este momento. Ya quedó registrado; vuelva a intentarlo en unos segundos.</p>
+      <button class="btn btn-secondary" type="button">Reintentar</button>
+    </div>
+  </section>
+</main>
+<script src="_states.js"></script>
+</body>
+</html>

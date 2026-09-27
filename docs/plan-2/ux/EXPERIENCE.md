@@ -14,7 +14,7 @@ reviewed: docs/plan-2/reviews/review-ux-edge-cases.md
 
 # TEZG — Plan-2 Module Experience
 
-DESIGN.md owns how things look; this file owns how they behave. Tokens are referenced as `{path.token}`. Where a page spec in `C-UX-Scenarios/` conflicts with this file or with DESIGN.md, **the spines win**. Mock-ups and wireframes (`wireframes/`) are illustrative only.
+DESIGN.md owns how things look; this file owns how they behave. Tokens are referenced as `{path.token}`. Where a page spec in `C-UX-Scenarios/` conflicts with this file or with DESIGN.md, **the spines win**. Mock-ups (`mockups/`, one interactive HTML key-screen per module) and wireframes (`wireframes/`) are illustrative only.
 
 ## Foundation
 

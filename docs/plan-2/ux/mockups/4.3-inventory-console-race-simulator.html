@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4.3 Simulador de carrera — mock</title>
+<link rel="stylesheet" href="_tokens.css">
+</head>
+<body>
+<div class="mock-bar" role="region" aria-label="Mock controls" lang="en">
+  <strong>4.3 Inventory Console — Race Simulator</strong> · INV · H ·
+  <a href="../C-UX-Scenarios/04-inv-listing-shared-inventory/4.3-inventory-console-race-simulator/4.3-inventory-console-race-simulator.md">Page spec</a> ·
+  <a href="index.html">All mocks</a>
+  <span class="states" role="group" aria-label="Page state"></span>
+  <span class="mock-note">Illustrative key-screen mock. The page spec and the spines (DESIGN.md, EXPERIENCE.md) win on any conflict.</span>
+</div>
+
+<main class="frame-h">
+  <div class="fixture" role="note">⚠ Consola de desarrollo · datos de prueba</div>
+  <h1>INV · Inventario y carreras</h1>
+  <div class="tabs" role="tablist">
+    <a href="#" role="tab">Unidades</a><a href="#" role="tab" aria-current="page" aria-selected="true">Simulador de carrera</a>
+    <a href="#" role="tab">Reservar y abortar</a><a href="#" role="tab">Eventos</a>
+  </div>
+
+  <div class="grid-2">
+    <div class="card stack">
+      <h2>Configuración</h2>
+      <fieldset style="border:0;padding:0;margin:0">
+        <legend class="label">Escenario</legend>
+        <label><input type="radio" name="p" checked> 50 compras · última unidad</label><br>
+        <label><input type="radio" name="p"> 25 compras + 25 intercambios · inventario compartido</label><br>
+        <label><input type="radio" name="p"> Lote de 20 componentes</label>
+      </fieldset>
+      <div><label class="f" for="l">Publicación</label><input class="f code" id="l" value="fx-last-07"></div>
+      <div><label class="f" for="r">Repeticiones</label><input class="f" id="r" type="number" value="100"></div>
+      <button class="btn btn-primary" type="button">Ejecutar</button>
+    </div>
+
+    <div>
+      <section data-state="default" data-label="Success">
+        <div class="xb done" role="status"><p>100 repeticiones · 1 ganadora y 49 rechazadas en cada una · cantidad final 0 · 0 valores negativos ✓</p></div>
+        <table class="dt">
+          <thead><tr><th>rep</th><th>ganadora</th><th>rechazadas</th><th class="num">cant. inicial</th><th class="num">cant. final</th><th class="num">p95 reserva</th></tr></thead>
+          <tbody class="code">
+            <tr><td>1</td><td>conn-17</td><td>49 Insuff.</td><td class="num">1</td><td class="num">0</td><td class="num">41 ms</td></tr>
+            <tr><td>2</td><td>conn-03</td><td>49 Insuff.</td><td class="num">1</td><td class="num">0</td><td class="num">38 ms</td></tr>
+            <tr><td>3</td><td>conn-41</td><td>49 Insuff.</td><td class="num">1</td><td class="num">0</td><td class="num">44 ms</td></tr>
+          </tbody>
+        </table>
+        <p class="meta">…</p>
+        <p style="margin-top:12px"><a href="../C-UX-Scenarios/06-ord-order-comprobante/6.1-purchase-payment-instructions/6.1-purchase-payment-instructions.md">Ver la vista del comprador que perdió (rep 1, conn-22) → 6.1</a></p>
+        <button class="btn btn-secondary" type="button">Export CSV</button>
+        <p class="anno" lang="en">Exit to page 6.1 (no mock; links to its spec). Rows 1–2 come from the spec; row 3 is illustrative.</p>
+      </section>
+
+      <section data-state="running" data-label="Running">
+        <label class="f" for="prog">Progreso</label>
+        <progress id="prog" max="100" value="63" style="width:100%"></progress>
+        <p class="meta" role="status">63/100</p>
+        <button class="btn btn-secondary" type="button">Detener</button>
+        <p class="anno" lang="en">While running, Ejecutar becomes Detener.</p>
+      </section>
+
+      <section data-state="fail" data-label="Rep failing">
+        <table class="dt">
+          <thead><tr><th>rep</th><th>ganadora</th><th>rechazadas</th><th class="num">cant. inicial</th><th class="num">cant. final</th><th class="num">p95 reserva</th></tr></thead>
+          <tbody class="code"><tr><td>57</td><td>conn-09, conn-30</td><td>48</td><td class="num">1</td><td class="num">−1</td><td class="num">52 ms</td></tr></tbody>
+        </table>
+        <p><span class="si error">FALLA</span></p>
+        <p class="anno" lang="en">Illustrative failing repetition: any rep with ≠ 1 winner or a final quantity &lt; 0 is highlighted in status-error with the word FALLA.</p>
+      </section>
+
+      <section data-state="empty" data-label="Empty">
+        <p class="empty">Elige una publicación de prueba.</p>
+      </section>
+
+      <section data-state="error" data-label="Error">
+        <div class="xb refusal" role="alert">
+          <p class="code">DomainError: ListingNotFound { listingId: "fx-last-99" }</p>
+          <button class="btn btn-secondary" type="button">Reintentar</button>
+        </div>
+        <p class="anno" lang="en">The raw harness error is shown as-is; this error text is illustrative.</p>
+      </section>
+    </div>
+  </div>
+</main>
+<script src="_states.js"></script>
+</body>
+</html>

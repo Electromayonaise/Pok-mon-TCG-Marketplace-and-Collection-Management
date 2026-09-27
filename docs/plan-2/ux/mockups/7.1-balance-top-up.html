@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>7.1 Saldo y recarga — mock</title>
+<link rel="stylesheet" href="_tokens.css">
+</head>
+<body>
+<div class="mock-bar" role="region" aria-label="Mock controls" lang="en">
+  <strong>7.1 Balance &amp; Top-Up</strong> · COM · R (tú) ·
+  <a href="../C-UX-Scenarios/07-com-commission-balance/7.1-balance-top-up/7.1-balance-top-up.md">Page spec</a> ·
+  <a href="index.html">All mocks</a>
+  <span class="states" role="group" aria-label="Page state"></span>
+  <span class="mock-note">Illustrative key-screen mock. The page spec and the spines (DESIGN.md, EXPERIENCE.md) win on any conflict.</span>
+</div>
+
+<main class="frame-r">
+  <p class="meta"><a href="#">Mi tienda</a> › Saldo</p>
+  <h1>Saldo</h1>
+
+  <!-- commission-balance-card, one per state -->
+  <section data-state="exhausted" data-label="Exhausted" class="card">
+    <div class="label">Saldo de comisiones</div>
+    <div class="row between"><span class="price">−$2.400</span><span class="si pending">Pausadas</span></div>
+    <p>Tus publicaciones están pausadas. Recarga al menos $2.401 para reactivarlas.</p>
+    <div class="row between meta"><span>Tarifa vigente: 8 %</span><a href="#">Ver movimientos</a></div>
+    <a href="#" class="meta">Ver mis publicaciones</a>
+  </section>
+  <section data-state="never" data-label="Never funded" class="card">
+    <div class="label">Saldo de comisiones</div>
+    <div class="row between"><span class="price">$0</span><span class="si pending">Pausadas</span></div>
+    <p>Recarga tu saldo para empezar a vender.</p>
+    <div class="row between meta"><span>Tarifa vigente: 8 %</span><a href="#">Ver movimientos</a></div>
+  </section>
+  <section data-state="pending" data-label="Pending" class="card">
+    <div class="label">Saldo de comisiones</div>
+    <div class="row between"><span class="price">−$2.400</span><span class="si pending">Pausadas</span></div>
+    <p>Tus publicaciones están pausadas. Recarga al menos $2.401 para reactivarlas.</p>
+    <div class="row between meta"><span>Tarifa vigente: 8 %</span><a href="#">Ver movimientos</a></div>
+    <p class="anno" lang="en">Pending: the card figure is unchanged until an admin confirms.</p>
+  </section>
+  <section data-state="active" data-label="Active" class="card">
+    <div class="label">Saldo de comisiones</div>
+    <div class="row between"><span class="price">$47.600</span><span class="si confirmed">Activas</span></div>
+    <div class="row between meta"><span>Tarifa vigente: 8 %</span><a href="#">Ver movimientos</a></div>
+  </section>
+  <section data-state="low" data-label="Low" class="card">
+    <div class="label">Saldo de comisiones</div>
+    <div class="row between"><span class="price">$12.000</span><span class="si pending">Activas</span></div>
+    <p>Tu saldo se está agotando ($12.000). Recarga para que tus publicaciones sigan disponibles para compra.</p>
+    <div class="row between meta"><span>Tarifa vigente: 8 %</span><a href="#">Ver movimientos</a></div>
+    <p class="anno" lang="en">Display only: the low-balance notice publishes nothing and changes no listing (FR-COM-9).</p>
+  </section>
+  <section data-state="resumed" data-label="Confirmed, resumed" class="card">
+    <p class="meta" role="status" aria-live="polite">Recibimos tu recarga de $50.000. Tu saldo es $47.600 y tus publicaciones ya se pueden comprar.</p>
+    <div class="label">Saldo de comisiones</div>
+    <div class="row between"><span class="price">$47.600</span><span class="si confirmed">Activas</span></div>
+    <div class="row between meta"><span>Tarifa vigente: 8 %</span><a href="#">Ver movimientos</a></div>
+    <a href="#" class="meta">Ver mis publicaciones</a>
+  </section>
+  <section data-state="short" data-label="Confirmed, still short" class="card">
+    <div class="label">Saldo de comisiones</div>
+    <div class="row between"><span class="price">−$12.400</span><span class="si pending">Pausadas</span></div>
+    <p>Tus publicaciones están pausadas. Recarga al menos $12.401 para reactivarlas.</p>
+    <div class="row between meta"><span>Tarifa vigente: 8 %</span><a href="#">Ver movimientos</a></div>
+  </section>
+  <section data-state="rejected" data-label="Rejected" class="card">
+    <div class="label">Saldo de comisiones</div>
+    <div class="row between"><span class="price">−$2.400</span><span class="si pending">Pausadas</span></div>
+    <p>Tus publicaciones están pausadas. Recarga al menos $2.401 para reactivarlas.</p>
+    <div class="row between meta"><span>Tarifa vigente: 8 %</span><a href="#">Ver movimientos</a></div>
+  </section>
+  <section data-state="validation" data-label="Error: validation" class="card">
+    <div class="label">Saldo de comisiones</div>
+    <div class="row between"><span class="price">−$2.400</span><span class="si pending">Pausadas</span></div>
+  </section>
+  <section data-state="transport" data-label="Error: transport">
+    <div class="xb refusal" role="alert">
+      <p>No sabemos si tu recarga se guardó porque se perdió la conexión. Actualiza para ver el estado actual; si no se guardó, puedes repetirla sin riesgo.</p>
+      <button class="btn btn-secondary" type="button">Ver mis recargas</button>
+    </div>
+    <p class="anno" lang="en">No automatic retry. "Ver mis recargas" refreshes the history.</p>
+  </section>
+  <section data-state="sent" data-label="After submit" class="card">
+    <p class="meta" role="status" aria-live="polite">Recarga enviada. Estamos revisando tu transferencia.</p>
+    <div class="label">Saldo de comisiones</div>
+    <div class="row between"><span class="price">−$2.400</span><span class="si pending">Pausadas</span></div>
+  </section>
+  <section data-state="loading" data-label="Loading" aria-busy="true">
+    <div class="skel box"></div><div class="skel lg"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div>
+  </section>
+
+  <!-- Top-up form (shared by every loaded state) -->
+  <section data-also="exhausted never pending active low resumed short rejected sent transport">
+    <h2 style="margin-top:24px">Recargar saldo</h2>
+    <h3>1. Transfiere a TEZG</h3>
+    <div class="card">
+      <div class="row between"><span class="code">{banco} · {tipo} · {número}</span><button class="btn-link" type="button">Copiar</button></div>
+      <div class="row between"><span class="code">Titular {titular}</span><button class="btn-link" type="button">Copiar</button></div>
+    </div>
+    <p class="meta">Usa tu nombre de tienda en la referencia para que la encontremos más rápido.</p>
+    <h3>2. Cuéntanos de la transferencia</h3>
+    <div class="stack">
+      <div><label class="f" for="amt">Monto</label><input class="f" id="amt" value="$50.000"></div>
+      <div><label class="f" for="ref">Referencia</label><input class="f code" id="ref" value="TZG-ANDRES-02"><p class="meta">13/40</p></div>
+      <div><label class="f">Comprobante</label><div class="dropzone">Arrastra o elige un archivo</div></div>
+      <button class="btn btn-primary block" type="button">Enviar recarga</button>
+    </div>
+  </section>
+  <section data-also="validation">
+    <h2 style="margin-top:24px">Recargar saldo</h2>
+    <h3>2. Cuéntanos de la transferencia</h3>
+    <div class="stack">
+      <div><label class="f" for="amt2">Monto</label><input class="f invalid" id="amt2" value="$5.000" aria-invalid="true" aria-describedby="amt2e">
+        <p class="field-error" id="amt2e">La recarga debe estar entre $20.000 y $10.000.000 COP.</p></div>
+      <div><label class="f" for="ref2">Referencia</label><input class="f code invalid" id="ref2" value="TZG" aria-invalid="true" aria-describedby="ref2e">
+        <p class="meta">3/40</p><p class="field-error" id="ref2e">Escribe al menos 4 caracteres de la referencia de tu transferencia.</p></div>
+      <button class="btn btn-primary block" type="button">Enviar recarga</button>
+    </div>
+    <p class="anno" lang="en">The form keeps its values; errors sit at each field.</p>
+  </section>
+
+  <!-- Tus recargas -->
+  <h2 style="margin-top:24px" data-also="exhausted never pending active low resumed short rejected sent validation transport">Tus recargas</h2>
+  <ul class="timeline" data-also="exhausted active low">
+    <li><span class="si confirmed">Confirmada · $50.000</span> <span class="code">TZG-ANDRES-01</span><br><span class="meta">9 oct 2026, 11:15 a. m.</span></li>
+  </ul>
+  <ul class="timeline" data-also="pending sent transport validation">
+    <li><span class="si pending">En revisión · $50.000</span> <span class="code">TZG-ANDRES-02</span><br><span class="meta">24 oct 2026, 8:50 a. m.</span>
+      <p class="meta">Estamos revisando tu transferencia. Tu saldo cambiará cuando la confirmemos.</p></li>
+    <li><span class="si confirmed">Confirmada · $50.000</span> <span class="code">TZG-ANDRES-01</span><br><span class="meta">9 oct 2026, 11:15 a. m.</span></li>
+  </ul>
+  <p class="empty" data-also="never">Aún no has enviado recargas.</p>
+  <ul class="timeline" data-also="resumed">
+    <li><span class="si confirmed">Confirmada · $50.000 · 24 oct 2026, 10:05 a. m.</span> <span class="code">TZG-ANDRES-02</span>
+      <p class="meta">Recibimos tu recarga de $50.000. Tu saldo es $47.600 y tus publicaciones ya se pueden comprar.</p></li>
+  </ul>
+  <ul class="timeline" data-also="short">
+    <li><span class="si confirmed">Confirmada · $50.000 · 24 oct 2026, 10:05 a. m.</span> <span class="code">TZG-ANDRES-02</span>
+      <p class="meta">Recibimos tu recarga de $50.000. Tu saldo es −$12.400; recarga al menos $12.401 para reactivar tus publicaciones.</p></li>
+  </ul>
+  <ul class="timeline" data-also="rejected">
+    <li><span class="si error">Rechazada · 24 oct 2026, 10:05 a. m.</span> · $50.000 <span class="code">TZG-ANDRES-02</span>
+      <p class="meta">No confirmamos tu recarga de $50.000: {motivo}. Revisa la referencia y envía una nueva solicitud.</p>
+      <button class="btn btn-secondary" type="button">Nueva recarga</button></li>
+  </ul>
+</main>
+<script src="_states.js"></script>
+</body>
+</html>

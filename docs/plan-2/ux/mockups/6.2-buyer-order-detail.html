@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>6.2 Detalle del pedido — mock</title>
+<link rel="stylesheet" href="_tokens.css">
+</head>
+<body>
+<div class="mock-bar" role="region" aria-label="Mock controls" lang="en">
+  <strong>6.2 Buyer Order Detail</strong> · ORD · R (tú) ·
+  <a href="../C-UX-Scenarios/06-ord-order-comprobante/6.2-buyer-order-detail/6.2-buyer-order-detail.md">Page spec</a> ·
+  <a href="index.html">All mocks</a>
+  <span class="states" role="group" aria-label="Page state"></span>
+  <span class="mock-note">Illustrative key-screen mock. The page spec and the spines (DESIGN.md, EXPERIENCE.md) win on any conflict.</span>
+</div>
+
+<main class="frame-r">
+  <a href="#">← Pedidos</a>
+
+  <!-- Pago confirmado: the spec's layout -->
+  <section data-state="confirmed" data-label="Pago confirmado">
+    <h1 style="margin-top:12px">Charizard ex · NM · $180.000</h1>
+    <p class="meta">Tienda Andrés ✓</p>
+    <p><strong><span class="si confirmed">Pago confirmado</span></strong></p>
+    <hr class="divider">
+    <h2>Lo que ya pasó</h2>
+    <ol class="timeline">
+      <li><span class="si confirmed">Pagaste · 12 oct 2026, 6:07 p. m.</span></li>
+      <li><span class="si confirmed">Tienda Andrés confirmó que recibió tu pago · 13 oct 2026, 9:12 a. m.</span></li>
+      <li><span class="si inert">Recibiste la carta · pendiente</span></li>
+    </ol>
+    <hr class="divider">
+    <p>Cuando llegue la carta, confírmalo:</p>
+    <button class="btn btn-primary block" type="button">Ya recibí la carta</button>
+    <p class="meta">Hazlo cuando tengas la carta en la mano.</p>
+    <hr class="divider">
+    <div class="row between"><span>Comprobante · <span class="code">captura.jpg</span></span><a href="#">Ver</a></div>
+    <details style="margin-top:12px"><summary class="btn-link">Datos de pago de la tienda</summary>
+      <p class="meta">{banco} · {tipo} · {número} · Titular {titular}</p></details>
+  </section>
+
+  <section data-state="to-pay" data-label="Por pagar">
+    <h1 style="margin-top:12px">Charizard ex · NM · $180.000</h1>
+    <p class="meta">Tienda Andrés ✓</p>
+    <p><strong><span class="si pending">Por pagar</span></strong></p>
+    <p>Paga a Tienda Andrés directamente con los datos de abajo y luego sube tu comprobante. Paga antes del 14 oct 2026, 6:00 p. m.</p>
+    <details open><summary class="btn-link">Datos de pago de la tienda</summary>
+      <p class="meta">{banco} · {tipo} · {número} · Titular {titular}</p></details>
+    <div class="dropzone" style="margin:12px 0">Comprobante · JPG, PNG o PDF · máx. 5 MB</div>
+    <button class="btn btn-primary block" type="button">Ya pagué</button>
+    <button class="btn btn-secondary block" type="button" style="margin-top:8px">Cancelar pedido</button>
+    <p class="anno" lang="en">Before payment the three-row facts list is replaced by the Created copy, so an unpaid order is never read as three unset dots. The pay-by time is illustrative.</p>
+  </section>
+
+  <section data-state="not-uploaded" data-label="Error: no comprobante">
+    <div class="xb refusal" role="alert">
+      <p>Sube el comprobante de la transferencia antes de confirmar que pagaste.</p>
+      <button class="btn btn-secondary" type="button">Subir comprobante</button>
+    </div>
+    <div class="dropzone">Comprobante · JPG, PNG o PDF · máx. 5 MB</div>
+    <p class="field-error" style="margin-top:8px">El archivo pesa 7,4 MB y el máximo es 5 MB. Sube una captura o una foto más liviana.</p>
+  </section>
+
+  <section data-state="cancel" data-label="Cancel dialog">
+    <dialog open class="card" style="position:static;max-width:100%">
+      <p>Cancelar el pedido de Charizard ex a Tienda Andrés. La carta vuelve a estar disponible para otros compradores. Si ya transferiste, no canceles: sube tu comprobante.</p>
+      <div class="row"><button class="btn btn-secondary" type="button">Volver</button><button class="btn btn-destructive" type="button">Cancelar pedido</button></div>
+    </dialog>
+  </section>
+
+  <section data-state="paid" data-label="Pagado (waiting)">
+    <h1 style="margin-top:12px">Charizard ex · NM · $180.000</h1>
+    <p><strong><span class="si pending">Pagado</span></strong></p>
+    <ol class="timeline">
+      <li><span class="si confirmed">Pagaste · 12 oct 2026, 6:07 p. m.</span></li>
+      <li><span class="si inert">Tienda Andrés confirmó que recibió tu pago · pendiente</span></li>
+      <li><span class="si inert">Recibiste la carta · pendiente</span></li>
+    </ol>
+    <p>Esperando a que Tienda Andrés confirme el pago.</p>
+    <button class="btn btn-primary block" type="button">Ya recibí la carta</button>
+    <p class="meta">Hazlo cuando tengas la carta en la mano.</p>
+  </section>
+
+  <section data-state="stalled" data-label="Stalled (≥7 d)">
+    <h1 style="margin-top:12px">Charizard ex · NM · $180.000</h1>
+    <p><strong><span class="si pending">Pagado</span></strong></p>
+    <div class="xb notice" role="status">
+      <p>Esperando a que Tienda Andrés confirme el pago. Si lleva varios días sin respuesta, escríbele o contacta a soporte de TEZG.</p>
+      <div class="row"><a class="btn btn-secondary" href="12.2-inbox-thread.html">Escribir a la tienda</a><a class="btn btn-secondary" href="#">Contactar a soporte</a></div>
+    </div>
+    <p class="anno" lang="en">No deadline is shown, because none exists (FR-ORD-8).</p>
+  </section>
+
+  <section data-state="closed" data-label="Cerrado + prompt">
+    <p class="meta" role="status" aria-live="polite">Pedido cerrado · 15 oct 2026, 4:20 p. m.</p>
+    <h1>Charizard ex · NM · $180.000</h1>
+    <p><strong><span class="si confirmed">Cerrado</span></strong></p>
+    <ol class="timeline">
+      <li><span class="si confirmed">Pagaste · 12 oct 2026, 6:07 p. m.</span></li>
+      <li><span class="si confirmed">Tienda Andrés confirmó que recibió tu pago · 13 oct 2026, 9:12 a. m.</span></li>
+      <li><span class="si confirmed">Recibiste la carta · 15 oct 2026, 4:20 p. m.</span></li>
+    </ol>
+    <div class="card stack">
+      <p><strong>¿Agregar Charizard ex a tu colección?</strong></p>
+      <label class="f" for="col">Colección</label>
+      <select class="f" id="col"><option>Kanto 151</option><option>General</option></select>
+      <div class="row"><button class="btn btn-primary" type="button">Agregar</button><button class="btn btn-secondary" type="button">Ahora no</button></div>
+    </div>
+    <a href="#">Ahora puedes reseñar a Tienda Andrés</a>
+  </section>
+
+  <section data-state="expired" data-label="Lost race (expired)">
+    <div class="xb refusal" role="alert">
+      <p>Este pedido venció el 14 oct 2026, 6:00 p. m. antes de que confirmaras el pago.</p>
+      <a class="btn btn-secondary" href="12.2-inbox-thread.html">Escribir a la tienda</a>
+    </div>
+    <h1>Charizard ex · NM · $180.000</h1>
+    <p><strong><span class="si inert">Vencido</span></strong></p>
+    <p>Este pedido venció el 14 oct 2026, 6:00 p. m. porque no se confirmó el pago en 48 horas. Si ya transferiste, escríbele a Tienda Andrés; aquí tienes sus datos.</p>
+    <p class="meta">{banco} · {tipo} · {número} · Titular {titular}</p>
+  </section>
+
+  <section data-state="duplicate" data-label="Duplicate">
+    <div class="xb inert" role="status"><p>Ya lo habías confirmado el 15 oct 2026, 4:20 p. m. No hay nada más que hacer aquí.</p></div>
+  </section>
+
+  <section data-state="transport" data-label="Transport error">
+    <div class="xb refusal" role="alert">
+      <p>No sabemos si tu confirmación se guardó porque se perdió la conexión. Actualiza para ver el estado actual; si no se guardó, puedes repetirla sin riesgo.</p>
+      <button class="btn btn-secondary" type="button">Actualizar</button>
+    </div>
+  </section>
+
+  <section data-state="not-available" data-label="Not available">
+    <p class="empty">No encontramos este pedido en tu cuenta.</p>
+    <a class="btn btn-secondary" href="#">Ver mis pedidos</a>
+  </section>
+
+  <section data-state="loading" data-label="Loading" aria-busy="true">
+    <div class="skel lg"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div>
+  </section>
+</main>
+<script src="_states.js"></script>
+</body>
+</html>

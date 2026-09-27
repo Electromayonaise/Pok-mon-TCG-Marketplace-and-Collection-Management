@@ -269,6 +269,8 @@ Admin (D) pages share the admin rail. The business-desk D pages (6.3 and the bus
 
 Wireframes are illustrative. The page specs and the spines win on any conflict.
 
+**Mockups.** Each module also has one interactive HTML key-screen mock in [`../mockups/`](../mockups/index.html). The mocks are 1.3, 2.2, 3.1, 4.3, 5.2, 6.2, 7.1, 8.1, 9.1, 10.1, 11.2 and 12.2. Each one draws every row of its page's state table, uses only copy from the page spec or `microcopy-es-CO.md`, and marks illustrative data in English mock notes. Like the wireframes, the mocks are illustrative: the page specs and the spines win on any conflict.
+
 ---
 
 ## 7. Functional requirement → scenario matrix
