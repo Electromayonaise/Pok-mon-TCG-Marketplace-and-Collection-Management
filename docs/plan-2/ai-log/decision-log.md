@@ -2,7 +2,7 @@
 
 **Scope:** TEZG Pokémon TCG Marketplace and Collection Management — Plan-2 course exercise, all 12 subsystem modules planned as one integrated package (see `task-statement.md`, Appendix B).
 **Team:** Martín Gómez, Mateo Rubio.
-**Purpose:** record every point where human judgment directed, corrected or constrained the AI. Each entry records the **decision**, the **alternatives considered**, the **rationale**, the proposing persona/skill and the key prompt (or an excerpt). Rejected, corrected or improved AI proposals are tagged `[REJECTED]`, `[CORRECTED]` or `[IMPROVED]`. Mechanical extractions and fixes resolved by existing precedent are excluded.
+**Purpose:** record every point where human judgment directed, corrected or constrained the AI. Each entry records the **decision** and the proposing persona/skill or human source. The **alternatives considered**, the **rationale** and the key prompt (or an excerpt) are recorded where applicable: an entry decided through a choice menu or a gate presentation cites that as its source, and prompts are not reconstructed after the fact (#50). Entries that are not AI proposals say so (#1, #21). Rejected, corrected or improved AI proposals are tagged `[REJECTED]`, `[CORRECTED]` or `[IMPROVED]`. Mechanical extractions and fixes resolved by existing precedent are excluded.
 
 **Operating rule:** the agent drafts each phase and presents proposals and review triage with a recommendation; the team decides at a per-phase gate; the log records exactly what the team decided, never an agent-inferred decision.
 
@@ -31,12 +31,16 @@
 | #43 | `[CORRECTED]` | Delivery metric by `failedAt`, without stuck `pending` rows (ADD-§10) | The agent's second pass (#35 o). The team accepted the new metric and three timestamps. |
 | #44 | `[CORRECTED]` | Inherited Plan-1 comprobante viewer showing the original file | The agent's second pass (#35 m). The team required the sanitized-only policy, linked to LG-3. |
 | #45 | `[CORRECTED]` | `PostPurchasePrompt` without the order's close date (AD-COL-2) | The agent's second pass (#35 l). The team set the rule; the evaluation found that accept needs the date. |
+| #48 | `[CORRECTED]` | `OrderClosed` lines without `unitPriceCop` (ADD-§5, AD-ORD-2) | The agent's follow-up-round finding. The team adopted the fix at the pre-submission review. |
+| #49 | `[CORRECTED]` | "Orders closed within 14 days" computed from a `closedAt` that `Order` does not have (ADD-§10) | The agent's follow-up-round finding. The team adopted the fix at the pre-submission review. |
 
 The review triages reject 11 AI findings in total (9 in `review-ux-edge-cases.md`, 2 in `review-arch-adversarial.md`). Beyond the four above, six were already handled (EC-12, EC-13, EC-20, EC-21, EC-22, EC-24) and one is unreachable (EC-52). The four entries above are the rejections with a design trade-off behind them.
 
 Entries #26–#35 record the human review round of 2026-09-27: ten objections raised by the team against adopted decisions. #31 (AD-VAL-2) is untagged because the team kept the AI's decision after reviewing it. #35 is untagged because it records second-pass findings, which are flagged and not decided.
 
 Entries #36–#45 record the follow-up round of the same day: the team's decisions on the #35 findings. #40 and #41 are untagged, because they complete #34 and add a record note without changing an AI proposal.
+
+Entries #46–#52 record the pre-submission review of the same day: the team's decisions on fixes A–E and on the key-screen mocks. Only #48 and #49 are tagged, because they correct the agent's own design; the others fix statements in the record or adopt a recommendation.
 
 ---
 
@@ -303,7 +307,7 @@ The re-run audit shows 0 MAJOR and 0 MINOR findings. The gate verdict moved from
 
 **Rationale:** an alternating, per-scope split, together with the joint-work note, records both members as accountable without implying a division of authorship that did not exist.
 
-**Persona/skill:** `bmad-check-implementation-readiness` (the sign-off block). The split was recorded at Martín Gómez's instruction on 2026-09-27.
+**Persona/skill:** `bmad-check-implementation-readiness` (the sign-off block). The split was recorded at Martín Gómez's instruction on 2026-09-27. Not an AI proposal.
 
 ### 22. `[REJECTED]` Hide a paused shop's listings from browse (Phase 3 gate — review F-16)
 **AI proposal:** the adversarial architecture review (`bmad-review-adversarial-general`, finding F-16) proposed removing from browse and discovery every listing of a shop whose commission balance is exhausted, because "a buyer sees items they cannot buy".
@@ -712,8 +716,8 @@ Both are recorded as verified facts with an **open** decision (LG-4, LG-5). They
   - `commission.createTopUpProofUpload` raises `NotBusinessAccount`.
 
 **New findings, flagged and not applied.** These are for the team to decide.
-- *`unitPriceCop` gap.* AD-COL-2 rule 2 sets `acquiredPriceCop` from the line's `unitPriceCop` "when present". The `OrderClosed` payload lines carry no `unitPriceCop`, so as written `acquiredPriceCop` is always null.
-- *Source of "Orders closed within 14 days".* ADD-§10 computes the metric from `closedAt − createdAt`, but `Order` has no `closedAt` column. The order's close fact is `buyerItemReceivedConfirmedAt`.
+- *`unitPriceCop` gap.* AD-COL-2 rule 2 sets `acquiredPriceCop` from the line's `unitPriceCop` "when present". The `OrderClosed` payload lines carry no `unitPriceCop`, so as written `acquiredPriceCop` is always null. Decided in #48.
+- *Source of "Orders closed within 14 days".* ADD-§10 computes the metric from `closedAt − createdAt`, but `Order` has no `closedAt` column. The order's close fact is `buyerItemReceivedConfirmedAt`. Decided in #49.
 
 **Correction of the agent's own statements in #35.**
 - The status of finding g said `closedAt` "is an order column, not a payload field". That is wrong: `Order` has no `closedAt` column (checked against the data model on 2026-09-27). The corrected finding is the second new flag above.
@@ -891,3 +895,166 @@ The Plan-1 source files are not edited.
 **IDs:** FR-COL-7, AD-COL-2, AD-9, A-43, #27.
 **Persona/skill:** finding from the agent (#35); decision rule set by the team; evaluation by the agent against that rule.
 **Prompt (excerpt):** "Aquí queremos que hagas una última comprobación semántica antes de modificar el modelo."
+
+---
+
+## Pre-submission review round (2026-09-27)
+
+**What happened.** Before submission the team asked for a final review with three questions: how the package stands against the rubric, whether every module is covered well enough to end with a working product, and whether the package is comparable with the original statement. The agent answered without editing any file. It proposed five documentation fixes, A–E, and recommended A–D. The team approved all five.
+
+In the same message the team asked whether two wireframes are enough for 12 modules and whether they should be HTML. The agent offered four options with a recommendation, and the team chose it (#52).
+
+The agent applied only these decisions. It flagged every indirect consequence below. It did not apply the new findings it found while applying them.
+
+| # | Finding | Team decision | Tag |
+| --- | --- | --- | --- |
+| 46 | No entry records the adoption of the PRD review triage, and the report still says its triage is not a decision | A: triage adopted in full; counts line added | — |
+| 47 | Appendix A calls the rubric descriptors unchanged, but several were adapted | B: weights unchanged, adapted descriptors listed | — |
+| 48 | `OrderClosed` lines carry no `unitPriceCop`, so `acquiredPriceCop` is always null (a new finding from the follow-up round) | C: `unitPriceCop` on card and sealed lines | `[CORRECTED]` |
+| 49 | The ADD-§10 metric reads `closedAt`, which `Order` does not have (a new finding from the follow-up round) | C: the metric uses `buyerItemReceivedConfirmedAt` | `[CORRECTED]` |
+| 50 | The field rule says every entry records a prompt, alternatives and a rationale; many entries do not | D: those fields are recorded where applicable; no prompt is reconstructed | — |
+| 51 | The 15 Mermaid diagrams were never checked with a renderer | E: checked, all valid; no change | — |
+| 52 | Two wireframes for 12 modules | 12 interactive HTML key-screen mocks, one per module | — |
+
+#48 and #49 are tagged because they correct the agent's own payload design and metric. #46, #47, #50 and #51 are untagged: they fix statements in the record and change no AI design proposal. #52 is untagged because the team adopted the agent's recommendation.
+
+**Consequences flagged and applied.** Each follows directly from an accepted decision.
+- The counts line in the PRD review report records two later outcomes (#46):
+  - the Defer item F-29 was taken into V1 as FR-MSG-8 (#15);
+  - the Gate item F-15 became OQ-12 (#14).
+- FR-COL-7 in prd.md now states the accept rule: `acquiredPriceCop` is the line's `unitPriceCop` when present, otherwise null. AD-COL-2 rule 2 already said so (#48).
+- Appendix A gains a "Decision-log entry fields" row, because the rule it states changed (#50).
+- Under Layout Structure, each of the 12 mocked page specs links to its mock, with the sentence "this spec and the spines win on any conflict". `00-ux-scenarios.md` and `EXPERIENCE.md` name the `mockups/` folder next to `wireframes/` (#52).
+- The UX memlog records that the mocks supersede an earlier choice: ASCII layouts instead of HTML mocks. The ASCII layouts stay in the specs (#52).
+
+**New findings, flagged and not applied.** These are for the team to decide.
+1. *Bundle purchases have no acquired price.*
+   - Under #48 a bundle's component lines carry no `unitPriceCop`, because the order snapshot holds no per-component price. An entry bought in a bundle therefore gets `acquiredPriceCop` null.
+   - This is the agent's design detail, not a team decision.
+   - The alternative, splitting the bundle price across components, would invent prices, so the agent does not recommend it.
+2. *Page 9.2 does not say per unit or total.* The manual-entry field "Precio pagado (opcional)" does not say whether it is a unit price or a total. `acquiredPriceCop` from #48 is a unit price. Recommendation: relabel it "Precio pagado por unidad".
+3. *Page 5.2 mixes address forms.*
+   - The Approved state on this *usted* surface (#34) asks for two pieces of copy: the microcopy §1.1 body, and the COM "never funded" line "Recarga tu saldo para empezar a vender." from microcopy §5. The COM line exists only in *tú*.
+   - The mock shows the §1.1 body alone, which already asks for a top-up in *usted*.
+   - Recommendation: the spec drops the COM line on this page, because it repeats the §1.1 body.
+4. *Page 3.1 layout.* The ASCII layout selects the "Cartas" view but draws flat listing rows. The view table defines flat rows for "Publicaciones" and one tile per card for "Cartas". The mock follows the view table. Minor.
+5. *Page 12.2 counter.* The ASCII layout draws "0/2.000", but the composer table shows the counter only from 1.800 characters. The mock follows the table. Minor.
+6. *Gender agreement in the §10 template.* The microcopy §10 command template ends in "puedes repetirla sin riesgo". That does not agree with a masculine object such as "tu mensaje". Page 1.2 already adapts it to "repetirlo", and the 12.2 mock does the same. Recommendation: microcopy §10 states the agreement rule.
+7. *The statement names no HTML format.* The task statement asks for at least two key-screen wireframes or mocks as "ASCII diagram, Mermaid UI layout, or SVG/PNG asset", and its package tree shows only `ux/wireframes/`. The two SVG wireframes meet that requirement on their own; the HTML mocks are additional evidence. Recommendation: add `mockups/` to the package tree. Not applied, because it edits the task statement.
+
+### 46. The PRD adversarial-review triage is adopted in full (Pre-submission review — A)
+**Finding:**
+- `review-prd-adversarial.md` said its triage columns "are not decisions until the team confirms them".
+- Its frontmatter says it was resolved at the Phase 1 gate, but no entry recorded the adoption. The Phase 2 triage and #19 are recorded that way.
+- The report also had no counts line.
+
+**AI proposal:** remove the stale sentence, add the counts line, and record the adoption in the log. The agent said it could not assume the adoption. It asked the team to confirm that the team had adopted the full triage at the Phase 1 gate.
+**Decision:** "haz todos de a a e" (2026-09-27), the team's reply to that proposal.
+**Applied:**
+- The report's opening now says the team adopted the triage in full (this entry), and that the Gate item F-15 became OQ-12, answered at the Phase 1 gate (#14).
+- A counts line: 30 findings, 28 Accept (F-14 partial), 1 Defer (F-29, later FR-MSG-8, #15), 1 Gate (F-15 → OQ-12, #14), 0 Reject.
+
+**Rationale:** without a recorded adoption the report read as open triage. A reader could take that for an incomplete review.
+**IDs:** F-14, F-15, F-29, OQ-12, FR-MSG-8, #14, #15, #19.
+**Persona/skill:** finding and proposal from the agent's pre-submission review; decision by the team.
+**Prompt (excerpt):** "Ok. Ahora hagamos la revision final antes de entregar. Como estamos respecto a la rubrica, tenemos todos los modulos cubiertos para que terminemos con algo verdaderamente funcional? y por ultimo, es comparable a el enunciado adjunto?"
+
+### 47. Appendix A: rubric weights unchanged, descriptors adapted (Pre-submission review — B)
+**Finding:** the "Unchanged" row of Appendix A in `task-statement.md` listed the "rubric weights and descriptors". The weights are unchanged, but several §7 descriptors were adapted to the 12-module package.
+**Decision:** "haz todos de a a e" (2026-09-27).
+**Applied:** Appendix A gains a "Rubric descriptors" row that lists each adapted descriptor:
+- **PRD.** Outstanding traces "all 4 scenarios of every module" and "every FR to a CAP", with named TEZG protagonists. Beginning reads "brief/SPEC" for "system brief".
+- **UX.** Outstanding designs explainability for "rejections/pauses/hides" and adds "extends Trusted Ledger coherently".
+- **Architecture.** Outstanding uses the single-package reading of "6–8" and adds three items: "Status/" in the 5-part list, "each Rule machine-checkable" and "consistent with inherited AD-1..19". Developing adds "contradicts an inherited AD".
+
+The "Unchanged" row now lists the rubric weights and the Readiness, AI Governance and Adversarial Review descriptors.
+**Rationale:** Appendix A is where a reader compares the package with the original statement, so its "unchanged" claim has to be exact.
+**IDs:** `task-statement.md` §7 and Appendix A.
+**Persona/skill:** finding and proposal from the agent's pre-submission review; decision by the team.
+
+### 48. `[CORRECTED]` `OrderClosed` card and sealed lines carry `unitPriceCop` (Pre-submission review — C; new finding from the follow-up round)
+**Finding:** AD-COL-2 rule 2 sets `acquiredPriceCop` from the line's `unitPriceCop` "when present". The `OrderClosed` payload lines carried only `{ itemRef, title, qty }`, so as written `acquiredPriceCop` was always null for platform purchases. The agent flagged this in the follow-up round and did not apply it.
+**AI proposal (original, ADD-§5, FR-ORD-5, AD-ORD-2):** `OrderClosed` lines with no price.
+**Decision:** "haz todos de a a e" (2026-09-27). This adopts the recommendation to add `unitPriceCop` from the order snapshot, which already holds it.
+**Applied:**
+- ADD-§5: `lines: [{ itemRef, title, qty, unitPriceCop? }]`.
+- prd.md FR-ORD-5 and FR-COL-7:
+  - FR-ORD-5 adds `unitPriceCop` to the payload lines;
+  - in FR-COL-7, accept sets `acquiredPriceCop` from the line when present, otherwise null.
+- In ARCHITECTURE: AD-ORD-2 rule 5, the §7 event catalog row and two §15.2 PRD-sync rows.
+
+A card or sealed line carries the order's unit price. A bundle component line carries none, because the snapshot holds no per-component price. That split is the agent's design detail; it is flagged above as new finding 1.
+**Rationale:** the price was already in the order snapshot. Without it the "when present" rule could never fire. The field is shown only in the collection. Valuation uses reference prices and is unaffected.
+**IDs:** FR-ORD-5, FR-COL-7, AD-ORD-2, AD-COL-2, ADD-§5, #45.
+**Persona/skill:** finding and proposal from the agent (follow-up round and pre-submission review); decision by the team.
+
+### 49. `[CORRECTED]` "Orders closed within 14 days" is computed from `buyerItemReceivedConfirmedAt` (Pre-submission review — C; new finding from the follow-up round)
+**Finding:** ADD-§10 computed the metric from `closedAt − createdAt`, but `Order` has no `closedAt` column. The order's close fact is `buyerItemReceivedConfirmedAt`. The agent's #35 status had also called `closedAt` an order column; the follow-up round corrected that statement.
+**AI proposal (original, ADD-§10):** the metric by `closedAt`.
+**Decision:** "haz todos de a a e" (2026-09-27), adopting the recommendation.
+**Applied:**
+- The ADD-§10 row now reads `buyerItemReceivedConfirmedAt − createdAt ≤ 14 d`.
+- A §15.2 PRD-sync row in ARCHITECTURE records the change.
+
+**Rationale:** a metric has to read a column that exists, and the buyer's confirmation is the fact that closes an order.
+**IDs:** ADD-§10, AD-ORD-2, #35, #43.
+**Persona/skill:** finding and proposal from the agent; decision by the team.
+
+### 50. Decision-log fields are recorded where applicable (Pre-submission review — D)
+**Finding:**
+- Line 312 of `task-statement.md` and this log's Purpose line said that every entry records the alternatives, the rationale and the key prompt.
+- The review counted 22 entries with no prompt, 20 with no alternatives and 9 with no rationale.
+- Several entries are not AI proposals (for example #1).
+- The original statement asks only for documented prompts in general.
+
+**AI proposal:** change the rule to "where applicable" and mark the entries that are not AI proposals. The agent recommended against reconstructing old prompts after the fact.
+**Decision:** "haz todos de a a e" (2026-09-27).
+**Applied:**
+- The Purpose line of this log and line 312 of `task-statement.md` now state the rule:
+  - every entry records the decision and its persona/skill or human source;
+  - alternatives, rationale and key prompt are recorded where applicable;
+  - an entry decided through a choice menu or a gate presentation cites that as its source;
+  - prompts are not reconstructed.
+- Appendix A gains a "Decision-log entry fields" row.
+- #21 now says "Not an AI proposal." #1 already did.
+
+**Rationale:** a prompt written after the fact would be a fabricated record. The rule now matches what the log actually keeps.
+**IDs:** `task-statement.md` line 312 and Appendix A, #1, #21.
+**Persona/skill:** finding and proposal from the agent's pre-submission review; decision by the team.
+
+### 51. The 15 Mermaid diagrams render without errors (Pre-submission review — E)
+**Finding:** the review had not checked the Mermaid diagrams with a renderer.
+**Decision:** "haz todos de a a e" (2026-09-27). E was proposed as optional.
+**Applied:** no file change. On 2026-09-27, mermaid-cli 11.17.0 rendered all 15 Mermaid blocks in `planning/ARCHITECTURE.md` without errors.
+**IDs:** the ARCHITECTURE context diagram and the per-module component diagrams.
+**Persona/skill:** check run by the agent.
+
+### 52. Twelve interactive HTML key-screen mocks, one per module (Pre-submission review)
+**Question from the team:** "tambien tenemos suficientes wireframes? y los wireframes no deberian ser htmls? siento que para 12 modulos hay muy pocos".
+**AI proposal and alternatives considered:** the agent explained two points:
+- the statement asks for at least two wireframes or mocks and does not require HTML;
+- in BMad, the Excalidraw wireframes go in `ux/wireframes/` and the HTML key-screen mocks go in `ux/mockups/`.
+
+It offered four options:
+- one HTML mock per module in `ux/mockups/`, with the DESIGN.md tokens and a state selector, keeping the two Excalidraw wireframes (recommended);
+- ten more Excalidraw wireframes with SVG, in the format of 5.3 and 8.2 (consistent, but static: no states and no real tokens);
+- both (about twice the work, for little gain over the first option);
+- keep the two current wireframes (meets the literal minimum).
+
+**Decision:** "12 mocks HTML (Recomendado)".
+**Applied:**
+- **Folder contents.** `ux/mockups/` holds four kinds of file:
+  - 12 mocks: 1.3, 2.2, 3.1, 4.3, 5.2, 6.2, 7.1, 8.1, 9.1, 10.1, 11.2 and 12.2;
+  - an `index.html`;
+  - the shared `_tokens.css` (the DESIGN.md tokens);
+  - the shared `_states.js` (the state selector).
+- **Page choice.** The agent chose the page for each module: the page where layout drives behaviour.
+- **States.** Each mock shows one view per row of its spec's Page States table, 112 views in total, including the Loading, Empty and Error states and the explainability banners. A state can be linked with `#state=<name>`.
+- **Copy.** All Spanish copy comes from the page specs or `microcopy-es-CO.md`. Values the specs leave open stay as placeholders, such as `{texto}`. English mock notes mark illustrative fixture data and the points where a spec is ambiguous; those points are new findings 3–6 above.
+- **Wireframes.** The two Excalidraw wireframes (5.3, 8.2) stay.
+- **Links.** The spec links and the memlog entry are listed under the consequences above.
+
+**Rationale:** taken from the recommended option. One mock per module shows the tokens, the four states and the explainability banners for every module; two static wireframes cannot. The mocks are illustrative; the page specs and the spines win on any conflict.
+**IDs:** DESIGN.md, EXPERIENCE.md, the 12 page specs, `00-ux-scenarios.md`.
+**Persona/skill:** options and mocks by the agent (`bmad-ux` key-screen mocks); decision by the team.
+**Prompt (excerpt):** "haz todos de a a e, tambien tenemos suficientes wireframes? y los wireframes no deberian ser htmls? siento que para 12 modulos hay muy pocos".
