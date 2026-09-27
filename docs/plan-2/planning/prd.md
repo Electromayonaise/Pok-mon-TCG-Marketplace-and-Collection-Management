@@ -619,7 +619,7 @@ It also owns:
   Further rules:
   - Reasons are never deleted, only deactivated.
   - Every change writes a `RejectionReasonChange` row with before and after values.
-  - At least one active reason must exist at all times (refused otherwise, with `RequestValidationFailed`).
+  - At least one active reason must exist at all times (refused otherwise, with `LastActiveReasonRequired`).
 - *Acceptance:* changing `DataMismatch` from 7 to 14 days affects only rejections decided after the change. Existing snapshots are unchanged.
 
 **FR-VER-9 — Business payment instructions for orders.** · CAP-20 · AD-15
@@ -1023,6 +1023,7 @@ No tables of its own.
   - It excludes listings that are hidden, withdrawn or deactivated, or sold out (unless `includeSoldOut=true`).
   - `view=entries` returns every catalog entry matching the catalog filters. Each entry carries `listings[]`, the top 5 listings passing the listing filters ranked per FR-DSC-5; `moreCount`, the number of further matching listings; and `hasActiveListings = (listings.length + moreCount) > 0`. The full list is reached through the card detail (FR-DSC-7) or `view=listings`.
   - `view=listings` returns the listings flat, ranked per FR-DSC-5.
+  - With `view=listings`, catalog filters that match more than 20,000 entries are refused with `SearchFilterTooBroad`, which asks the caller to narrow them.
 - *Output:* results plus `excluded: { unusableLocation: n }` (FR-DSC-3).
 - *Acceptance:* with Camila at Medellín centre and `radiusKm=15`, `view=listings` returns both individual and business rows from the same call.
 
@@ -1159,8 +1160,8 @@ No tables of its own.
 - *Rules:*
   - Buyer only.
   - With no comprobante, reject with `ComprobanteNotYetUploaded`.
-  - If the order is cancelled or expired, reject with `OrderNoLongerActive`, citing which terminal state and when.
-  - Otherwise a conditional update sets the fact where `buyerPaidConfirmedAt IS NULL AND cancelledAt IS NULL AND expiredAt IS NULL`. The terminal-state predicates close the check-then-act race with the expiry sweep (FR-ORD-8): whichever write commits first wins, and the loser affects 0 rows.
+  - If the order is cancelled or expired, including an order past `expiresAt` whose expiry is not yet stored, reject with `OrderNoLongerActive`, citing which terminal state and when.
+  - Otherwise a conditional update sets the fact where `buyerPaidConfirmedAt IS NULL AND cancelledAt IS NULL AND expiredAt IS NULL AND expiresAt > now`. The predicates close the check-then-act race with expiry (FR-ORD-8): whichever write commits first wins, and the loser affects 0 rows.
   - If 0 rows are affected, re-read the order: if the fact is already set, return `OrderAlreadyConfirmedByRole` with the original timestamp (a safe retry; nothing changes); if the order became cancelled or expired, return `OrderNoLongerActive`.
   - From this fact onward the business can see the order (AD-15).
 - *Acceptance:* a double submit yields one timestamp and one explained repeat response. "Paid" appears only after both the upload and the confirmation.
@@ -1215,14 +1216,15 @@ No tables of its own.
 
 **FR-ORD-8 — Expire unpaid orders.** · CAP-17 · AD-6, AD-2
 - *Rules:*
-  - A sweep runs every 10 minutes [ASSUMPTION] and on demand in tests (virtual clock).
-  - For each order with `buyerPaidConfirmedAt IS NULL` and `now ≥ expiresAt`, in one transaction, a conditional update sets `expiredAt` where `buyerPaidConfirmedAt`, `cancelledAt` and `expiredAt` are all null, and the reservation is released only if that update affected 1 row.
-  - The sweep is idempotent and safe to run concurrently.
+  - Expiry is derived at read and enforced by every command: an order with `buyerPaidConfirmedAt IS NULL` and `now ≥ expiresAt` is shown as expired and refused with `OrderNoLongerActive`, whether or not the expiry is stored yet.
+  - Scheduled jobs materialize it hourly and daily, and a new purchase on the same listing materializes it first. In tests it runs on demand (virtual clock).
+  - Materializing an order is one transaction: a conditional update sets `expiredAt` where `buyerPaidConfirmedAt`, `cancelledAt` and `expiredAt` are all null and `expiresAt ≤ now`, and the reservation is released only if that update affected 1 row.
+  - Materialization is idempotent and safe to run concurrently.
   - The buyer sees "This order expired because payment wasn't confirmed within 48 hours."
   - Orders the buyer has confirmed as paid **never** expire automatically. A stalled paid order has no escalation (AD-2 accepted gap). This is shown to the buyer as "Waiting for \<business\> to confirm payment", with no deadline.
 - *Acceptance:*
-  - The 10 seeded stale orders expire and their units are restored.
-  - A second sweep changes nothing.
+  - The 10 seeded stale orders show as expired at once, and after materialization their units are restored.
+  - A second materialization run changes nothing.
   - Paid-but-unconfirmed seed orders are untouched.
 
 **FR-ORD-9 — Closed-purchase query.** · CAP-7 · AD-2
@@ -1245,7 +1247,7 @@ No tables of its own.
   - the business confirming before any comprobante;
   - double-clicks on every confirmation;
   - two concurrent tabs per role;
-  - the buyer's paid confirmation racing the expiry sweep at `now = expiresAt`: the order ends either paid with its reservation held, or expired with the reservation released exactly once and the buyer told `OrderNoLongerActive`, never both.
+  - the buyer's paid confirmation racing expiry at `now = expiresAt`: the order ends either paid with its reservation held, or expired with the reservation released exactly once and the buyer told `OrderNoLongerActive`, never both.
 
   In every repetition:
   - each fact is set at most once;
@@ -1388,7 +1390,8 @@ No tables of its own.
 **FR-COM-7 — Configure the commission rate.** · CAP-21 · NFR-SYS-8
 - *Rules:*
   - Admin only.
-  - `rateBps` must be an integer from 0 to 10,000, with an `effectiveFrom` of now or a future time.
+  - `rateBps` must be an integer from 0 to 10,000, with an `effectiveFrom` of now or a future time. A past `effectiveFrom` is refused with `CommissionRateNotFutureDated`.
+  - A migration seeds the A-24 rate (800 bps) effective from the epoch, so a rate always applies.
   - Settings are append-only, so the history is kept.
   - Every change is audited.
   - The value itself is out of scope (SPEC non-goal).
@@ -1499,7 +1502,8 @@ No tables of its own.
   - An action on a non-`Open` offer gets `TradeOfferNotOpen`, citing the current status.
   - Every action is a conditional update on `(status='Open', turn=actor, version=v)`, so a stale tab gets `TradeOfferNotOpen` or `NotYourTurn`, never a double action.
   - `counter` replaces the terms (validated as in FR-TRD-1), appends a round and flips the turn.
-  - At most 10 rounds [ASSUMPTION]; after that only accept or reject are allowed.
+  - A counter whose terms equal the current round's terms (the same items and quantities, the same cash) is refused with `TradeCounterUnchanged`.
+  - At most 10 rounds [ASSUMPTION]; after that only accept or reject are allowed, and an 11th counter is refused with `TradeRoundLimitReached`.
   - `reject` ends the offer.
   - Every round is visible to both parties.
 - *Acceptance:* after Valentina counters, a second counter from her gets `NotYourTurn`, and Julián sees the counter terms and the round history.
@@ -1529,14 +1533,14 @@ No tables of its own.
   - Proposers see the explanation "Valentina accepted another offer for this card, so this one can't go ahead." The reason is recorded with the round history.
   - If an `Unfulfillable` offer's listing is restocked or a reservation is released, the offer is **not** reopened [ASSUMPTION]; the proposer can make a new offer.
   - **The losing accept.** The winner's marking must never wait on an offer row held by a concurrent accept; the requirement is no deadlock and no lost resolution, and Phase 3 picks the mechanism (for example, skipping locked rows). An acceptance attempt that loses a last-unit race ends in one of two ways:
-    - `InsufficientQuantity`: its transaction is aborted. It then runs a follow-up conditional transaction `Open → Unfulfillable` on its own offer, which is a no-op if the winner already marked it. Either way the offer's final state is `Unfulfillable`.
+    - `InsufficientQuantity`, or a refusal from `getTradeability` (the listing is gone, hidden, deactivated or no longer open to trade): its transaction is aborted. It then runs a follow-up conditional transaction `Open → Unfulfillable` on its own offer, which is a no-op if the winner already marked it. Either way the offer's final state is `Unfulfillable`.
     - `TradeOfferNotOpen`: the winner has already marked it. The citation shows its `Unfulfillable` status.
   - No offer on an exhausted listing is left `Open` once both transactions have finished.
 - *Acceptance:* the mandatory edge case (NFR-TRD-1).
 
 **FR-TRD-6 — Contact handoff reuses the listings service.** · CAP-25, CAP-6 · AD-4
 - *Rules:*
-  - On acceptance, `trading` calls `listings.generateContactMessage({ kind: 'trade', listingId, counterpartId, tradeSummary })` (FR-MSG-1).
+  - On acceptance, `trading` calls `listings.generateContactMessage({ kind: 'trade', listingId, requesterId, tradeSummary })` (FR-MSG-1), where `requesterId` is the proposer.
   - The trade summary lists the offered items (name and condition), the cash in COP and the listing card.
   - The proposer receives the seller's external-contact link; the seller receives a copyable summary and the proposer's display name.
   - `trading` renders nothing itself.
@@ -1669,6 +1673,8 @@ No tables of its own.
 - *Rules:*
   - At most 30 contact messages per requester per rolling hour and 10 per requester per seller per day [ASSUMPTION]. Beyond that the request gets `ContactRateLimited`, citing when it can be retried.
   - A per-IP limit of 60 contact messages per rolling hour applies on top of the per-requester limits, with the same code (NFR-SYS-14). It blunts harvesting through several free accounts.
+  - A repeat request for the same `(requesterId, listingId)` within 60 minutes returns the same message and is not counted.
+  - Trade handoffs (FR-TRD-6) are not rate-limited.
   - Phone numbers are never logged or included in `Decision` citations.
 - *Acceptance:* the 31st request in an hour is refused and cites the retry time.
 
@@ -1791,7 +1797,7 @@ AD-7's `BinderEntry` is realised as `CollectionEntry` plus the collection's bind
 **FR-COL-1 — Named collections.** · CAP-11
 - *Rules:*
   - A name is 1–60 characters and unique per owner, case- and accent-insensitive (`CollectionNameTaken`).
-  - An owner has at most 50 collections.
+  - An owner has at most 50 collections (`CollectionLimitReached`).
   - A "General" collection is created on first use.
   - A collection can be renamed.
   - Deleting a collection requires an explicit confirmation and removes its entries [ASSUMPTION: this is user-owned data, not moderated content, so hide-never-delete does not apply].
@@ -1807,7 +1813,7 @@ AD-7's `BinderEntry` is realised as `CollectionEntry` plus the collection's bind
   - `acquiredPriceCop`, optional, an integer from 0 to 100,000,000.
 - *Rules:*
   - `source` is always `Manual` on this path. `PlatformPurchase` can be set only through FR-COL-7.
-  - A catalog `cardRef` must resolve (`InvalidItemRef`, owned by `listings`, is not reused here; unknown ids get `RequestValidationFailed`).
+  - A catalog `cardRef` must resolve (`InvalidItemRef`, owned by `listings`, is not reused here; unknown ids get `InvalidCatalogEntry`).
   - The same card can appear in several entries, for example with different acquisition dates.
 - *Acceptance:* a `Manual` entry and a `PlatformPurchase` entry sit in the same collection, each showing its source badge.
 
@@ -2125,15 +2131,15 @@ Each open question has an owner phase and a recommended answer. **Gate** means t
 | # | Question | Why it matters | Recommendation | Owner |
 | --- | --- | --- | --- | --- |
 | OQ-1 | Can a business whose latest application is `Rejected` complete the individual-seller profile instead? | It is the reverse of the "graduation" path, and AD-18 is silent on it. | No: keep them blocked with `BusinessApplicationOnFile` while any application is on file. This is simpler and consistent with no graduation. | **Resolved at gate:** No (as recommended) |
-| OQ-2 | AD-19 places the deduction "in the same transaction as setting `sellerReceivedConfirmedAt`", while AD-3 and AD-10 make it a post-commit event subscriber that is never retried. Which holds? | A deduction lost to a failed subscriber is lost revenue at launch. | Keep the event (AD-3) and add a durable delivery record so a failed deduction is detectable and replayable (NFR-SYS-6, for example a transactional outbox). Record an AD-SYS that supersedes AD-19's transaction clause. | Phase 3 |
+| OQ-2 | AD-19 places the deduction "in the same transaction as setting `sellerReceivedConfirmedAt`", while AD-3 and AD-10 make it a post-commit event subscriber that is never retried. Which holds? | A deduction lost to a failed subscriber is lost revenue at launch. | Keep the event (AD-3) and add a durable delivery record so a failed deduction is detectable and replayable (NFR-SYS-6, for example a transactional outbox). Record an AD-SYS that supersedes AD-19's transaction clause. | **Resolved in Phase 3:** AD-SYS-2, AD-SYS-3 (ARCHITECTURE §12.1) |
 | OQ-3 | FR-ORD-5 lets a buyer close an order before the business confirms payment. A business that never confirms is never charged commission. | Commission avoidance. | Add an admin view of closed-but-unconfirmed orders at launch (the audited lookup in FR-ORD-10 is the base for it), and decide at the gate whether `OrderClosed` without a prior seller confirmation should also trigger a deduction. That would amend AD-3's "only" trigger. | **Resolved at gate:** charge on whichever comes first, business confirmation or buyer close, once per order (FR-COM-4). Phase 3 records the AD-3 amendment as an AD-SYS. |
-| OQ-4 | Where do the failed-delivery log and admin replay live (NFR-SYS-6)? | Durability of event effects. | A shared-kernel outbox table written in the publisher's transaction, with a dispatcher; each subscriber stays idempotent. | Phase 3 |
+| OQ-4 | Where do the failed-delivery log and admin replay live (NFR-SYS-6)? | Durability of event effects. | A shared-kernel outbox table written in the publisher's transaction, with a dispatcher; each subscriber stays idempotent. | **Resolved in Phase 3:** AD-SYS-2, ARCHITECTURE §7.3 |
 | OQ-5 | Platform-wide personal-data consent (NFR-SYS-12) goes beyond AD-13's `legalIdentity` scope. Is it adopted? | Ley 1581 applies to phone numbers, locations and message bodies. | Adopt it: record the sign-up consent and the phone-sharing consent. | **Resolved at gate:** adopted |
-| OQ-6 | `trading → catalog` is not an AD-1 edge. | Validating offered items. | Route through `listings.resolveItemRefs`, which delegates to `catalog`. No new edge. | Phase 3 (confirm) |
-| OQ-7 | Can `shared-kernel` own a boundary error code (`RequestValidationFailed`)? | AD-11 lists module owners only. | Yes, as the single transport-validation code, kept separate from domain codes. | Phase 3 |
-| OQ-8 | Card detail and catalog browse need `hasActiveListings` and the listing price, but `catalog` cannot depend on `listings`. | AD-1 direction. | Compose them in `listings` (FR-DSC-7, FR-DSC-1). `catalog` stays dependency-free. | Phase 3 (confirm) |
+| OQ-6 | `trading → catalog` is not an AD-1 edge. | Validating offered items. | Route through `listings.resolveItemRefs`, which delegates to `catalog`. No new edge. | **Resolved in Phase 3:** as recommended, AD-TRD-3 rule 5 |
+| OQ-7 | Can `shared-kernel` own a boundary error code (`RequestValidationFailed`)? | AD-11 lists module owners only. | Yes, as the single transport-validation code, kept separate from domain codes. | **Resolved in Phase 3:** yes, produced only by the input parser (AD-SYS-1 rule 7) |
+| OQ-8 | Card detail and catalog browse need `hasActiveListings` and the listing price, but `catalog` cannot depend on `listings`. | AD-1 direction. | Compose them in `listings` (FR-DSC-7, FR-DSC-1). `catalog` stays dependency-free. | **Resolved in Phase 3:** as recommended, AD-DSC-2 |
 | OQ-9 | Which production catalog and price feed, and under what licence? | Launch blocker outside the architecture. | Keep the feed behind a port and evaluate candidate providers before launch. Fixtures are used until then. | Team, pre-launch |
-| OQ-10 | AD-6 keys `InventoryUnit` by `(sellerId, itemRef)`, but `condition` lives on `Listing` (AD-7). Two copies in different conditions cannot share a pool. | Oversell or under-sell across conditions. | Key the unit by `(sellerId, itemRef, condition)`, and record an `AD-INV` refining AD-6. | Phase 3 |
+| OQ-10 | AD-6 keys `InventoryUnit` by `(sellerId, itemRef)`, but `condition` lives on `Listing` (AD-7). Two copies in different conditions cannot share a pool. | Oversell or under-sell across conditions. | Key the unit by `(sellerId, itemRef, condition)`, and record an `AD-INV` refining AD-6. | **Resolved in Phase 3:** as recommended, AD-INV-1 |
 | OQ-11 | Product parameters: unpaid-order TTL (48 h); open-offer TTL (7 days); contact rate limits (30/h, 10 per seller per day, 60/h per IP); top-up bounds (COP 20,000–10,000,000); open-order limits (3 per buyer, 1 per buyer per business); auth throttles (10 failed attempts per account and 30 per IP per 15 min, 5 sign-ups per IP per hour). | They affect the UX and abuse resistance. | Adopt the stated defaults as configuration, and revisit them after 30 days of launch data. | **Resolved at gate:** defaults adopted as configuration |
 | OQ-12 | How long is each class of regulated personal data kept: legal-identity documents (including rejected and barred applicants), payment comprobantes, top-up proofs, phone numbers, message bodies? | Ley 1581 requires a stated purpose and retention period. Keeping everything forever is a liability, and deleting too early breaks audits and disputes. | Adopt `[ASSUMPTION]` defaults for launch: legal-identity documents for 5 years after the last decision; buyer comprobantes for 5 years; top-up proofs for 10 years, since they support the platform's own accounting (`ADD-§9.4`); phone numbers and message bodies until account closure plus 1 year. Get legal review before launch. Data-subject requests (access, correction, deletion) are handled manually by an admin at launch. | **Resolved at gate:** defaults adopted; legal review before launch remains a pre-launch task |
 
@@ -2172,14 +2178,14 @@ Every `[ASSUMPTION]` in this document, for triage at the gate. "Blocking?" says 
 | A-12 | FR-CAT-4 | The feed gives reprints distinct external keys | No |
 | A-13 | FR-CAT-7 | Fixture freshness threshold 36 h (24 h period + 12 h grace); the real value is measured at implementation | No |
 | A-14 | §11 out of scope | No admin hand-editing of catalog entries in V1 | No |
-| A-15 | FR-INV-1 | `InventoryUnit` keyed by condition as well (OQ-10) | Phase 3 |
+| A-15 | FR-INV-1 | `InventoryUnit` keyed by condition as well (OQ-10) | Resolved in Phase 3 (AD-INV-1) |
 | A-16 | FR-INV-2 | A bundle has at least 2 cards | No |
 | A-17 | §12 out of scope | No per-listing photos in V1 | No |
 | A-18 | FR-DSC-6 | No caching of browse results at launch | No |
 | A-19 | NFR-DSC-1 | 50,000 listings is the launch-year scale bound | No |
 | A-20 | §13 out of scope | No free-text geocoding; the buyer picks a point or uses geolocation | No |
 | A-21 | FR-ORD-1 | Unpaid-order TTL 48 h (OQ-11) | Resolved at gate |
-| A-22 | FR-ORD-8 | Expiry sweep every 10 minutes | No |
+| A-22 | FR-ORD-8 | Expiry sweep every 10 minutes | Retired in Phase 3: expiry is derived; jobs only materialize it (AD-ORD-2) |
 | A-23 | §14 out of scope | One listing per order (no cart) | No |
 | A-24 | §15 seed | Fixture commission rate 800 bps | No |
 | A-25 | FR-COM-2 | Top-up bounds COP 20,000–10,000,000 | Resolved at gate (OQ-11) |

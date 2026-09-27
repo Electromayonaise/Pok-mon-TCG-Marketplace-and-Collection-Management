@@ -165,7 +165,7 @@ Input may arrive with dots or a hyphen ("890.903.938-8"). It is normalised to di
 
 ### 3.1 DomainError codes with triggers
 
-This is the contract-test source for NFR-SYS-1: every row has at least one test that triggers it and asserts the full `Decision` shape. The owners match PRD §4.2. "Propagated by" lists modules that re-throw a code unchanged.
+This is the contract-test source for NFR-SYS-1: every row has at least one test that triggers it and asserts the full `Decision` shape. The owners match PRD §4.2. "Propagated by" lists modules that re-throw a code unchanged. Phase 3 added the rows of ARCHITECTURE §8.1 and adjusted three triggers per §8.3.
 
 | Code | Owner | Trigger | FR |
 | --- | --- | --- | --- |
@@ -187,6 +187,8 @@ This is the contract-test source for NFR-SYS-1: every row has at least one test 
 | `ReapplicationBarred` | identity | Reapplying after a rejection whose reason bars reapplication | FR-VER-6 |
 | `LegalIdentityAccessDenied` | identity | Any access to `legalIdentity` or documents other than `getApplicationForReview` by an admin. Audited | FR-VER-5 |
 | `RejectionReasonUnknown` | identity | Rejecting with an inactive or unknown reason code | FR-VER-4 |
+| `LastActiveReasonRequired` | identity | Deactivating the only active rejection reason | FR-VER-8 |
+| `InvalidDocumentFile` | identity | A VER document that fails the upload pipeline (size, magic bytes, scanner). The cause is cited | FR-VER-1, NFR-SYS-14 |
 | `CatalogEntryNotFound` | catalog | Unknown catalog entry id on card detail or provenance | FR-CAT-2, FR-CAT-6 |
 | `FeedRunInProgress` | catalog | Starting an ingestion while another run is active | FR-CAT-3 |
 | `InvalidItemRef` | listings | Unknown or kind-mismatched `itemRef` on a listing, bundle component or trade item. Propagated by `trading` | FR-INV-1, FR-INV-2, FR-TRD-1 |
@@ -203,7 +205,8 @@ This is the contract-test source for NFR-SYS-1: every row has at least one test 
 | `ListingNotOwnedByCaller` | listings | A non-owner edits, pauses, deactivates or restocks a listing | FR-INV-9 |
 | `ListingNotPurchasable` | listings | Order attempt on a business listing that is `Unverified`, `Paused`, withdrawn or deactivated. The citation carries the DecisionCode or the state | FR-INV-3, FR-INV-7 |
 | `InvalidSearchArea` | listings | Radius outside 1–300 km, or a centre outside ADD-§2.4 | FR-DSC-1 |
-| `ContactRateLimited` | listings | Over 30 contact messages per hour, 10 per seller per day, or 60 per IP per hour | FR-MSG-3, NFR-SYS-14 |
+| `SearchFilterTooBroad` | listings | `view=listings` catalog filters that match more than 20,000 entries | FR-DSC-1 |
+| `ContactRateLimited` | listings | Over 30 contact messages per hour, 10 per seller per day, or 60 per IP per hour. Not raised for a repeat within 60 min for the same `(requesterId, listingId)`, nor for a trade handoff | FR-MSG-3, NFR-SYS-14 |
 | `SelfPurchaseNotAllowed` | orders | Buying one's own listing | FR-ORD-1 |
 | `ComprobanteInvalidFile` | orders | A comprobante whose sniffed type is not JPEG, PNG or PDF, or that is over 5 MB | FR-ORD-2 |
 | `ComprobanteLocked` | orders | Replacing a comprobante after the buyer confirmed payment | FR-ORD-2 |
@@ -214,15 +217,20 @@ This is the contract-test source for NFR-SYS-1: every row has at least one test 
 | `OrderNotVisibleToCaller` | orders | The business reads or acts on an order before the buyer confirmed payment; any third party | FR-ORD-4, FR-ORD-6 |
 | `OrderNotOwnedByCaller` | orders | A wrong-role actor on an order they can see | FR-ORD-2, FR-ORD-4 |
 | `OrderNotCancellable` | orders | Cancelling after payment confirmation, or after cancel or expiry. Confirmations on a cancelled or expired order get `OrderNoLongerActive` instead | FR-ORD-7 |
-| `OrderNoLongerActive` | orders | A confirmation (buyer paid, business received, buyer item received) on an order that is cancelled or expired, including the loser of the paid-vs-expiry race | FR-ORD-3, FR-ORD-4, FR-ORD-5 |
+| `OrderNoLongerActive` | orders | A confirmation (buyer paid, business received, buyer item received) on an order that is cancelled or expired (including one past `expiresAt` whose expiry is not yet stored), including the loser of the paid-vs-expiry race | FR-ORD-3, FR-ORD-4, FR-ORD-5 |
 | `TooManyOpenOrders` | orders | A new order while the buyer already holds 3 `AwaitingPayment` orders, or 1 with the same business (OQ-11) | FR-ORD-1 |
 | `TopUpAmountInvalid` | commission | Top-up outside COP 20,000–10,000,000 | FR-COM-2 |
 | `TopUpNotPending` | commission | Confirming or rejecting a top-up that is already decided | FR-COM-3 |
 | `TopUpNotVisibleToCaller` | commission | A business reads another business's top-up request | FR-COM-3 |
+| `TopUpProofInvalidFile` | commission | A top-up proof that fails the upload pipeline | FR-COM-2, NFR-SYS-14 |
+| `TopUpNotFound` | commission | An unknown top-up id on an admin read or decision | FR-COM-3 |
+| `CommissionRateNotFutureDated` | commission | Setting a rate whose `effectiveFrom` is earlier than now (60 s tolerance) | FR-COM-7 |
 | `SelfTradeNotAllowed` | trading | An offer on one's own listing | FR-TRD-1 |
 | `EmptyTradeOffer` | trading | An offer or counter with no items and COP 0 | FR-TRD-1 |
 | `DuplicateOpenOffer` | trading | A second `Open` offer by the same proposer on a listing | FR-TRD-1 |
 | `NotYourTurn` | trading | An action by the party whose turn it isn't | FR-TRD-2 |
+| `TradeCounterUnchanged` | trading | A counter whose terms equal the current round's terms (normalized item multiset and `cashCop`) | FR-TRD-2 |
+| `TradeRoundLimitReached` | trading | A counter that would create round 11 | FR-TRD-2 |
 | `TradeOfferNotOpen` | trading | An action on a non-`Open` offer (stale version, expired, or already resolved) | FR-TRD-2, FR-TRD-5, FR-TRD-9 |
 | `TradeOfferNotVisibleToCaller` | trading | Any third party reading an offer | FR-TRD-3 |
 | `TradeNotAccepted` | trading | Confirming completion of an offer that is not `Accepted` | FR-TRD-7 |
@@ -232,15 +240,18 @@ This is the contract-test source for NFR-SYS-1: every row has at least one test 
 | `BusinessCannotInitiate` | messaging | A business opens a new conversation | FR-MSG-4 |
 | `CollectionNotFound` | collections | Unknown or foreign collection id | FR-COL-1 |
 | `CollectionNameTaken` | collections | A duplicate name, case- and accent-insensitive | FR-COL-1 |
+| `CollectionLimitReached` | collections | Creating a 51st collection | FR-COL-1 |
 | `CollectionEntryNotFound` | collections | Unknown or foreign entry id on move, copy, edit or remove | FR-COL-4 |
 | `InvalidExternalLink` | collections | A link entry whose URL, title or image fails the rules | FR-COL-3 |
+| `InvalidCatalogEntry` | collections | Adding a catalog entry whose id `catalog.getEntries` reports as missing | FR-COL-2 |
 | `PromptAlreadyResolved` | collections | Accepting or dismissing a prompt that is not `Pending` | FR-COL-7 |
 | `InvalidValuationPeriod` | collections | Period outside {7, 30, 90, 365} | FR-VAL-2 |
 | `TargetNotFound` | reviews | Review target not an `Approved` business nor a complete individual seller | FR-REP-1, FR-REP-2 |
 | `NotVerifiedPurchaser` | reviews | Business review with no closed purchase | FR-REP-1 |
 | `DuplicateReview` | reviews | A second review of the same target by the same reviewer | FR-REP-1, FR-REP-2 |
 | `ReviewNotFound` | reviews | Unknown review id on edit, hide or unhide | FR-REP-4 |
-| `RequestValidationFailed` | shared-kernel | Shape-level input failure (type, length, required, enum), with issues per field (OQ-7) | all |
+| `RequestValidationFailed` | shared-kernel | Shape-level input failure (type, length, required, enum), with issues per field. Produced only by the tRPC input parser; a module never raises it (OQ-7, AD-SYS-1 rule 7) | all |
+| `EventDeliveryNotReplayable` | shared-kernel | Replaying an event delivery that is not `failed` | NFR-SYS-6 |
 
 ### 3.2 DecisionCodes
 
@@ -254,7 +265,8 @@ These are non-error decisions returned in `Decision.reasonCode` or as citations 
 | `ReferencePriceStale` | catalog | Price older than the freshness threshold, shown with its date | FR-CAT-7 |
 | `TrendNoBaseline` | catalog | No observation at or before the trend start | FR-CAT-6 |
 | `FxRateCarriedForward` | catalog | No TRM covers the date; the latest earlier rate is used | FR-CAT-8 |
-| `ListingNoLongerAvailable` | trading | Offer made `Unfulfillable` because the last unit went to another accepted offer | FR-TRD-5 |
+| `FxRateSourceMismatch` | catalog | A TRM re-fetch returned a value different from the stored rate for the same validity date. The stored rate is kept and the conflict is logged | FR-CAT-8, NFR-CAT-3 |
+| `ListingNoLongerAvailable` | trading | Offer made `Unfulfillable` because the last unit went to another accepted offer, or because its own accept found the listing no longer tradeable | FR-TRD-5 |
 | `RecipientNotYetVerified` | messaging | Recipient is a `Pending` business; the message is allowed with a notice | FR-MSG-4 |
 | `ExternalEntryNotInCatalog` | collections | Link-added entry excluded from valuation | FR-VAL-3 |
 | `NoReferencePrice` | collections | Catalog entry with no price, excluded from valuation | FR-VAL-3 |
@@ -471,7 +483,7 @@ Data-subject requests (access, correction, deletion) are handled manually by an 
 
 | Metric (PRD §22) | Source | Computation |
 | --- | --- | --- |
-| Oversell incidents | `InventoryUnit` invariant check (nightly) | count of units with `reserved > quantity` or a negative availability |
+| Oversell incidents | `InventoryUnit` invariant check (nightly) | placeholder: count of units with a negative quantity. It stays 0 under the `quantity >= 0` CHECK, so a stocked-total check replaces it before launch (ARCHITECTURE §14) |
 | Ledger discrepancies | the FR-COM-8 reconcile job | Σ \|stored balance − Σ ledger entries\| across accounts |
 | Explained-decision coverage | API logs of `DomainError` responses | share of responses with a non-empty `reasonCode`, `humanMessage` and ≥ 1 citation |
 | Applications decided in ≤ 3 business days | `BusinessApplication` timestamps | `decidedAt − submittedAt` in Colombian business days (holiday calendar from configuration) |

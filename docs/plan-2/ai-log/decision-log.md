@@ -165,3 +165,70 @@
 - Every Defer in the triage has an owner, and every Reject cites the line where the case is already handled.
 
 **Persona/skill:** `bmad-ux` open items and `bmad-review-edge-case-hunter` triage. Presented at the Phase 2 gate with recommendations.
+
+### 17. Phase 3 gate items G-1 to G-4 accepted
+**Decision:** the team accepted all four recommendations in ARCHITECTURE.md §15.1.
+- **G-1:** the server refuses a counter-offer whose terms equal the current round's, with `TradeCounterUnchanged`.
+- **G-2:** the 50-collection limit has its own code, `CollectionLimitReached`.
+- **G-3:** a free GitHub Actions hourly tick (`5 12-23,0-1 * * *` UTC, 07:05–20:05 Bogotá) retries the TRM and materializes expiries, alongside the two Vercel Hobby daily crons.
+- **G-4:** `StructuralScanner` is the V1 `MalwareScanner`, with the sandboxed viewer as the compensating control. ClamAV-class scanning is deferred (§14).
+
+**Alternatives considered:**
+- G-1: allow an identical counter as a valid round that still counts toward the 10-round limit.
+- G-2: name an existing generic code, which would break the one-owner rule of AD-SYS-1.
+- G-3: no tick, so NFR-CAT-4 falls to two TRM attempts per day and quantity is reclaimed with a lag of up to 17.5 h.
+- G-4: block uploads until a hosted scanner is chosen, which blocks VER, ORD and COM.
+
+**Rationale:**
+- G-1: the client-side check alone can be bypassed (EC-11).
+- G-2: the UX needs a specific message.
+- G-3: it costs nothing and keeps the overnight lag to about 6.5 h. Correctness never depends on it.
+- G-4: it unblocks three modules without a paid host.
+
+**Persona/skill:** `bmad-architecture` gate items. Presented at the Phase 3 gate with recommendations, and the team chose them.
+
+### 18. PRD-sync edits from the architecture applied to prd.md and addendum.md
+**Decision:** the §15.2 edits were applied, except NFR-CAT-4, which only applied if G-3 were rejected.
+- **prd.md:**
+  - FR-TRD-6 renames `counterpartId` to `requesterId`.
+  - FR-TRD-2 gains `TradeCounterUnchanged` and `TradeRoundLimitReached`.
+  - FR-ORD-8 is rewritten: expiry is derived at read, enforced by every command and materialized by jobs. This retires A-22.
+  - FR-ORD-3 adds `expiresAt > now`.
+  - FR-MSG-3 adds the 60-minute de-duplication and the trade exemption.
+  - FR-COL-1 gains `CollectionLimitReached`.
+  - FR-VER-8 uses `LastActiveReasonRequired`.
+  - FR-DSC-1 gains `SearchFilterTooBroad`.
+  - FR-COM-7 gains `CommissionRateNotFutureDated` and the 800 bps seed (A-24).
+- **Three follow-on rows**, added to §15.2 because they follow from the accepted triage and §8.3:
+  - FR-TRD-5: a tradeability refusal also marks the losing accept's own offer `Unfulfillable` (F-09).
+  - FR-COL-2: an unknown catalog id uses `InvalidCatalogEntry`.
+  - §21 and §23: OQ-2, OQ-4, OQ-6, OQ-7, OQ-8, OQ-10, A-15 and A-22 are marked resolved.
+- **addendum.md:**
+  - ADD-§3.1 gains the eleven §8.1 codes and the §8.3 changes of use (`ContactRateLimited`, `OrderNoLongerActive`, `RequestValidationFailed`).
+  - ADD-§3.2 gains `FxRateSourceMismatch` and the broader `ListingNoLongerAvailable` meaning.
+  - ADD-§10's oversell metric becomes a placeholder.
+
+**Alternatives considered:** apply all but the two new rows (FR-COM-7, ADD-§10), or leave every edit listed as pending for Phase 4.
+**Rationale:** the PRD and the addendum stay the contract-test source. Unapplied edits would appear as inconsistencies in the Phase 4 readiness check.
+**Persona/skill:** `bmad-architecture` (Finalize, input reconciliation). Presented at the Phase 3 gate with a recommendation, and the team chose it.
+
+### 19. Architecture review triage adopted; deferred items owned by the team
+**Decision:** the triage of both architecture reviews is adopted in full.
+- `reviews/review-arch-adversarial.md`: 17 findings. 14 Accept, 1 Defer (F-14) and 2 Reject (F-16, F-17).
+- `reviews/review-arch-edge-cases.md`: 19 findings. 17 Accept and 2 Defer (AEC-18, AEC-19).
+
+The three deferred items are owned by the team (both members) and are reviewed again in the Phase 4 readiness report:
+- F-14: a meaningful oversell metric, before launch.
+- AEC-18: retrying `deferredNoFx` rows, with the production feed (OQ-9).
+- AEC-19: an operations check that the GitHub Actions schedule stays enabled.
+
+**Alternatives considered:**
+- Reopen F-16 (hide paused listings from browse) or F-17 (lock purchasability on reserve).
+- Name a single owner for the deferred items.
+
+**Rationale:**
+- Every Accept is already applied to ARCHITECTURE.md and verified by the document checks.
+- The rejections cite where the case is handled: prd.md keeps paused listings visible, and AD-19 accepts a negative balance, so no money is lost.
+- No role split between the two team members has been set yet.
+
+**Persona/skill:** `bmad-review-adversarial-general` and `bmad-review-edge-case-hunter`. Presented at the Phase 3 gate with recommendations.
