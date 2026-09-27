@@ -28,6 +28,13 @@ documentsAssessed:
 - **Remediation.** The team approved fixes R-1..R-6 at the gate, and all six were applied (§8).
 - **Post-remediation run: clean.** 0 MAJOR and 0 MINOR findings. The 4 REVIEW items left are the verified false positives in Step 4.A.
 
+> **Post-issue note (added after sign-off).** The body of this report is kept as issued and signed off on 2026-09-27; it is not rewritten. Two human review rounds came after it and changed decisions it describes: decision log #26–#35 (the review of existing decisions) and #36–#45 (the follow-up on the #35 findings). Read those entries for the current state. What changed after issue:
+> - The sandboxed viewer named here as the G-4 compensating control became viewers that render only the sanitized rendition; the PDF mechanism is pending (G-5) and blocks launch (LG-3) (#28, #44).
+> - Uploads go directly to a quarantine bucket and are promoted only after validation (#36).
+> - The F-14 deferral closed differently: "Oversell incidents" is not measured in production in V1, and `oversell-check` was removed (#29).
+> - The AEC-19 deferral is covered by the best-effort tick hardening (`JobRun` and the silence alert, #30), and the tick moved to `17 12-23,0-1 * * *` (#37).
+> - Launch gates LG-1..LG-5 were added, with `launchReady: false` (#32, #33, #38). The PASS verdict covers the planning package, not a production launch.
+
 Steps 1–4 describe the package as found on the initial run. Each gap they record names the fix that closed it.
 
 This report has three parts. Steps 1–5 follow the `bmad-check-implementation-readiness` workflow. §6 covers the cross-module consistency checks the task statement adds. §7–§11 hold the terminal audit, the blocker resolution log, the deferred items, the ops checklist and the sign-off.
@@ -1151,7 +1158,7 @@ SUMMARY
 ### Pre-launch ops checklist
 
 - [ ] **AEC-19:**
-  - [ ] The GitHub Actions workflow with the hourly tick `5 12-23,0-1 * * *` is enabled.
+  - [ ] The GitHub Actions workflow with the hourly tick `5 12-23,0-1 * * *` is enabled. *(Post-issue: the schedule is now `17 12-23,0-1 * * *`, decision log #37.)*
   - [ ] An alert fires when no tick is logged for 2 h inside that window.
   - [ ] The repository shows activity at least every 60 days, or someone re-enables the workflow after a pause.
 - [ ] `JOBS_SECRET` is set in Vercel environment variables and in GitHub Actions secrets, and it matches.

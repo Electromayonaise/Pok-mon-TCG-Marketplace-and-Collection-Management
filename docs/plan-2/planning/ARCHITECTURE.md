@@ -2117,6 +2117,31 @@ No correctness rule depends on any row in this table (AD-SYS-6 rule 5). Every jo
 
 **Gate outcome (2026-09-27).** The team accepted all four recommendations (decision log #17). The "If rejected" column stays for the record.
 
+**Human review outcome (2026-09-27, decision log #26–#35).** An external human review raised objections against existing decisions. Each one was evaluated, and the team decided:
+- G-3 is kept, and hardened as best-effort with `JobRun` and a silence alert (§4; #30).
+- G-4's compensating control changes from the sandboxed viewer to viewers that render only the sanitized rendition (AD-SYS-8 rules 9 and 11; #28). The G-4 row above keeps its original text for the record.
+- G-5 is new and pending validation.
+
+**Follow-up review outcome (2026-09-27, decision log #36–#45).** The team decided on the findings recorded in #35:
+- uploads go directly to a quarantine bucket and are promoted only after validation (AD-SYS-8 rule 5; #36);
+- the hourly tick moves to minute 17, as a best-effort choice (§4; #37);
+- LG-4 and LG-5 stay open, each split into the verified fact, the architectural decision and the pending decision (#38);
+- "admin home" is replaced by the existing admin surfaces (#39), and the delivery read procedures get stable names (§7.3; #42);
+- ADD-§1.1 states the surface rule for *tú* and *usted* (#40), and the readiness report gains a post-issue note (#41);
+- the NFR-SYS-6 metric counts stuck `pending` deliveries, and `EventDelivery` separates `firstFailedAt`, `lastFailedAt` and `lastAttemptAt` (AD-SYS-2; #43);
+- the inherited Plan-1 comprobante viewer is bound to the sanitized-only policy, and its PDF branch is blocked by LG-3 (#44);
+- `PostPurchasePrompt` keeps the order's close fact for `acquiredAt` (#45).
+
+**G-5 evaluation of server-side pdf.js** (the four points the team asked for):
+1. *Limits.* A Vercel Hobby function has 2 GB of memory, 1 vCPU, a 300 s maximum duration and a 4.5 MB request body limit (verified 2026-09-27). Rendering would be CPU-bound work inside the same instances that serve tRPC. Bounding one render needs a worker with its own memory limit and a timeout.
+2. *Size and pages.* Uploads are up to 5 MiB, above the 4.5 MB function body limit (decision log #35, finding a). Uploads now go directly to `upload-quarantine` and never pass through a function body (AD-SYS-8 rule 5; decision log #36), so that limit no longer applies to the upload; a render must still fit the function's memory. One A4 page at 150 dpi is about 1240 × 1754 px, which is about 8.7 MB of RGBA pixels, so memory grows with the page count. A page cap and a resolution must come out of the spike; this document does not invent them.
+3. *Malformed PDFs.* pdf.js tries to recover from broken files, so hostile input can parse partially, run long or exhaust memory. Any mechanism needs a timeout, a memory limit, and rejection with the owner's invalid-file code on any failure.
+4. *Security boundary.* In the main deployment, pdf.js would share a process with `DATABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. CVE-2024-4367 (CVSS 9.8; arbitrary JavaScript through a crafted font matrix; fixed in pdf.js 4.2.67, mitigated by `isEvalSupported: false`) shows that this parser class can be exploited. An exploit would run next to those secrets. **Server-side pdf.js in the main deployment therefore does not satisfy the boundary.**
+
+The client-side candidate runs the parser on the uploader's own device, where an exploit reaches only the attacker's data. The server keeps the existing image path (rule 7). Its costs:
+- the original PDF, its text layer and any digital signature are lost;
+- its performance on low-end phones is unknown and needs a spike.
+
 ### 15.2 PRD-sync edits
 
 These edits make the PRD match the architecture. The gate approved them, and they were applied to `prd.md` and `addendum.md` on 2026-09-27 (decision log #18). The NFR-CAT-4 row was not applied, because G-3 was accepted. The last three rows follow from the accepted review triage and §8.3.
@@ -2137,6 +2162,21 @@ These edits make the PRD match the architecture. The gate approved them, and the
 | FR-TRD-5 | The losing accept also marks its own offer `Unfulfillable` when `getTradeability` refuses (listing gone, hidden, deactivated or closed to trade), not only on `InsufficientQuantity` | F-09; AD-TRD-2 rule 3 |
 | FR-COL-2 | An unknown catalog id gets `InvalidCatalogEntry`, not `RequestValidationFailed` | §8.3; AD-COL-1 rule 3 |
 | §21, §23 | OQ-2, OQ-4, OQ-6, OQ-7, OQ-8, OQ-10, A-15 and A-22 are marked resolved, citing §12.1 | §12.1 |
+
+**Human review PRD-sync edits (2026-09-27).** Applied to `prd.md` and `addendum.md` with the human review round.
+
+| FR | Edit | Source |
+| --- | --- | --- |
+| NFR-SYS-6 | "No automatic retry" becomes "no automatic retry of a recorded failure; a delivery whose failure was never recorded gets at most 3 automatic attempts". The alert badge also counts deliveries stuck in `pending` for more than 24 h | AD-SYS-2 rules 4–6 and 9; decision log #26 |
+| ADD-§3.1, ADD-§7 | New row `DeliveryAttemptsExhausted`; the event-delivery sentence names `pending` rows and the 3-attempt cap | §8.1; decision log #26 |
+| FR-ORD-4, FR-ORD-5, ADD-§5 | Both order-event payloads carry `sellerReceivedConfirmedAt` and `buyerItemReceivedConfirmedAt`; `confirmedAt` and `closedAt` are removed | AD-SYS-3; decision log #27 |
+| FR-COM-4, ADD-§5 | The trigger is computed by `commissionTrigger(facts)` over the two facts; the semantics are unchanged | AD-SYS-3 rule 2; decision log #27 |
+| NFR-SYS-14 | Viewers show only a sanitized rendition, never the original; the PDF mechanism is pending (G-5) | AD-SYS-8 rule 11; decision log #28 |
+| ADD-§10, PRD §22 | "Oversell incidents" is not measured in production in V1 | decision log #29 |
+| ADD-§9.4, OQ-12, A-58 | The periods are provisional defaults; the regulated purge runs in dry-run until explicit legal approval | AD-SYS-8 rule 10; LG-2; decision log #33 |
+| NFR-SYS-6, PRD §22, ADD-§10 | The metric counts deliveries unresolved for more than 24 h: `failed` by `firstFailedAt`, or still `pending` by `createdAt` | AD-SYS-2 rules 3 and 9; decision log #43 |
+| ADD-§1.1 | The address rule depends on the surface that renders the message, not on the owning module | decision log #40 |
+| FR-COL-7 | The prompt keeps `buyerItemReceivedConfirmedAt` from the `OrderClosed` payload | AD-COL-2 rule 1; decision log #45 |
 
 The addendum gained the §8.1 and §8.2 rows in ADD-§3.1 and ADD-§3.2, and the §8.3 changes of use, so it stays the contract-test source.
 
