@@ -301,7 +301,7 @@ Decision {
 - **NFR-SYS-10 Concurrency proofs run on PostgreSQL.** Every concurrency NFR runs against the Docker Compose PostgreSQL instance under real concurrent connections (at least 50 in the pool), never against SQLite or in-memory stores. Each proof runs 100 repetitions with zero violations. At minimum this covers IDN, VER, INV, ORD, COM, TRD and COL.
 - **NFR-SYS-11 Accessibility.** Responsive (R) and desktop-first (D) surfaces meet WCAG 2.2 AA: contrast, keyboard operation, focus order, and status messages announced through live regions. Status is never conveyed by colour alone, which matters for the Trusted Ledger `status-*` tokens. Verified by automated axe checks with zero serious or critical violations, plus a manual keyboard pass per page spec.
 - **NFR-SYS-12 Platform personal-data consent** [ASSUMPTION; extends beyond AD-13's `legalIdentity`-only scope, see OQ-5].
-  - **At sign-up:** account creation records `signupConsentVersion` and `signupConsentAt` on `User`, in the same insert as the user, so no personal data is stored without them (AD-IDN-3).
+  - **At sign-up:** account creation records `signupConsentVersion` and `signupConsentAt` on `User`, in the same insert as the `User` row, so no personal data is stored without them (AD-IDN-3).
   - **At profile completion:** the individual-seller profile step records a separate consent to share the contact phone number with buyers who request contact (FR-IDN-2).
 - **NFR-SYS-13 Error-code integrity.** In CI:
   - every thrown `DomainError` resolves to exactly one owning module in the registry (§4.2 / `ADD-§3`);
@@ -405,7 +405,7 @@ It also owns:
   - A seeded buyer with an unverified email yields `canBuy=false`, with `derivedFrom` citing `emailVerified=false`.
 
 **FR-IDN-2 — Complete the individual-seller profile step.** · CAP-19 · AD-18
-- *Trigger:* the user submits the profile step.
+- *Trigger:* a buyer who wants to sell as an individual (for example Valentina) submits the profile step.
 - *Inputs:*
   - `displayName`: 2–40 Unicode grapheme clusters.
   - `contactPhone`: a Colombian mobile number, stored in E.164 form as `+57` followed by 10 digits starting with `3`.
@@ -465,7 +465,7 @@ It also owns:
 - `getSellerKinds(userIds[])` returns `sellerKind` for up to 500 ids in one call.
 - *Acceptance:* each query answers with the current state on every call. A status change is reflected on the next call, with no cache.
 
-**FR-IDN-7 — Authentication and admin gating.** · (all) · AD-16, AD-12
+**FR-IDN-7 — Authentication and admin gating.** · CAP-15, CAP-28 (admin gating); cross-cutting to every authenticated CAP (authentication) · AD-16, AD-12
 - *Rules:* A missing or expired session returns `NotAuthenticated`. A non-admin calling an admin procedure receives `AdminOnly`. Both return a `Decision` whose human message says what to do next, for example "Sign in to continue."
 - *Acceptance:* NFR-SYS-7's generated test passes for every procedure.
 
@@ -891,7 +891,7 @@ It also owns the reservation commands, the contact-message service (MSG, §17), 
 - *Rules:* Increments each unit by the reserved amount. The caller guarantees release happens exactly once by pairing it with a conditional transition of its own record (FR-ORD-7, FR-ORD-8, FR-TRD-8).
 - *Acceptance:* releasing once restores the pre-reservation quantity. A second release attempt never reaches `listings`, because the caller's conditional transition affects 0 rows.
 
-**FR-INV-6 — Aborted caller transaction restores quantity.** · AD-6
+**FR-INV-6 — Aborted caller transaction restores quantity.** · CAP-17, CAP-25 · AD-6
 - *Rules:* Because the decrement runs in the caller's transaction, any abort after a successful reserve rolls back the decrement. That covers a failed `Order` insert, a thrown error and a lost connection. There is no compensating write and no reservation-hold table.
 - *Acceptance:* the mandatory edge case (NFR-INV-3).
 

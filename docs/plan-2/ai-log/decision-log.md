@@ -6,6 +6,18 @@
 
 **Operating rule:** the agent drafts each phase and presents proposals and review triage with a recommendation; the team decides at a per-phase gate; the log records exactly what the team decided, never an agent-inferred decision.
 
+**Tagged AI proposals (index):**
+
+| Entry | Tag | AI proposal | Origin of the proposal and of the decision |
+| --- | --- | --- | --- |
+| #12 | `[CORRECTED]` | FX source "the Google rate" | The team's own instruction, corrected after the agent's viability check. The team changed its decision. |
+| #22 | `[REJECTED]` | Hide a paused shop's listings from browse (F-16) | Architecture adversarial review. Reject recommended in the triage and adopted by the team at the Phase 3 gate. |
+| #23 | `[REJECTED]` | Lock purchasability on every reserve (F-17) | Architecture adversarial review. Reject recommended in the triage and adopted by the team at the Phase 3 gate. |
+| #24 | `[REJECTED]` | Empty state on headless consoles (EC-09) | UX edge-case review. Reject recommended in the triage and adopted by the team at the Phase 2 gate. |
+| #25 | `[REJECTED]` | Rounding guard for the valuation total (EC-23) | UX edge-case review. Reject recommended in the triage and adopted by the team at the Phase 2 gate. |
+
+The review triages reject 11 AI findings in total (9 in `review-ux-edge-cases.md`, 2 in `review-arch-adversarial.md`). Beyond the four above, six were already handled (EC-12, EC-13, EC-20, EC-21, EC-22, EC-24) and one is unreachable (EC-52). The four entries above are the rejections with a design trade-off behind them.
+
 ---
 
 ### 1. Plan all 12 modules as one single package (Phase 0 — Scope)
@@ -272,3 +284,49 @@ The re-run audit shows 0 MAJOR and 0 MINOR findings. The gate verdict moved from
 **Rationale:** an alternating, per-scope split, together with the joint-work note, records both members as accountable without implying a division of authorship that did not exist.
 
 **Persona/skill:** `bmad-check-implementation-readiness` (the sign-off block). The split was recorded at Martín Gómez's instruction on 2026-09-27.
+
+### 22. `[REJECTED]` Hide a paused shop's listings from browse (Phase 3 gate — review F-16)
+**AI proposal:** the adversarial architecture review (`bmad-review-adversarial-general`, finding F-16) proposed removing from browse and discovery every listing of a shop whose commission balance is exhausted, because "a buyer sees items they cannot buy".
+**Decision:** rejected. Paused listings stay visible and editable. Only the purchase is blocked, through the `purchasable` predicate (prd.md FR-INV-7: "Paused listings stay visible and editable"; ARCHITECTURE AD-INV-3 rule 1). Browse and detail show a `Decision` label that explains the pause.
+**Alternatives considered:** hide paused listings from browse (the proposal); hide them only from the "Solo comprables" filter, which already happens because that filter uses `purchasable`.
+**Rationale:**
+- A pause is a short, reversible state of the shop's commission account, not a defect of the listing. It clears on the next `CommissionBalanceReplenished`. Hiding and re-showing the whole catalog at each balance crossing would make discovery results unstable for buyers and would add a second visibility rule that DSC ranking must mirror.
+- The buyer is not stuck. The row still offers "Escribir a la tienda" (page 3.1), so the shop keeps the lead while it tops up.
+- The rule that matters for money is already enforced: `purchasable` is false while `pausedAt` is set, the check is fail-closed (AD-INV-3 rule 3), and the reserve re-checks it inside the transaction. Hiding would add no protection, only fewer explanations.
+- The UX principle of explaining a denied action (EXPERIENCE.md explainability banners) favours a visible, labelled row over a silent disappearance.
+
+**Persona/skill:** proposal from `bmad-review-adversarial-general`; the triage in `reviews/review-arch-adversarial.md` recommended Reject; the team adopted the rejection at the Phase 3 gate (entry #19).
+
+### 23. `[REJECTED]` Lock purchasability on every reserve (Phase 3 gate — review F-17)
+**AI proposal:** the same review (finding F-17) pointed out that `reserveForPurchase` reads `pausedAt` and the verification status without a lock, so an order can commit in the same instant that a commission crossing pauses the shop. It proposed locking the commission state during the reserve.
+**Decision:** rejected. The reserve keeps reading purchasability in its own transaction without locking the commission account.
+**Alternatives considered:** lock the shop's `SellerCommissionState` row `FOR UPDATE` in every reserve (the proposal); lock it `FOR SHARE`, which still blocks the pause event behind every in-flight reserve.
+**Rationale:**
+- The race is bounded: at most one order per request that is already in flight when the balance crosses zero. It cannot grow into unbounded commission-free selling, because every later reserve sees `pausedAt`.
+- No money is lost. The commission for that order is still charged exactly once, keyed by `orderId` (AD-COM-2), and the balance is allowed to go negative (inherited AD-19, AD-COM-2 rule 5). The next top-up must cover the deficit before the shop resumes (page 7.1, "Recarga al menos…").
+- The lock has a real cost. Every purchase from a shop would serialize on one commission row and would add that row to the global lock order (AD-SYS-4), which increases the risk of contention and deadlock on the hottest path of the product, the purchase of a last unit (NFR-INV race tests).
+- Correctness is traded for a bounded, fully audited exposure that the ledger already records, which is the trade-off AD-19 made in Plan-1.
+
+**Persona/skill:** proposal from `bmad-review-adversarial-general`; the triage recommended Reject; the team adopted the rejection at the Phase 3 gate (entry #19).
+
+### 24. `[REJECTED]` Require an Empty state on the headless developer consoles (Phase 2 gate — review EC-09)
+**AI proposal:** the UX edge-case review (`bmad-review-edge-case-hunter`, finding EC-09) flagged that the H consoles (the `x.3` explorers and the simulators, such as 7.5, 8.4, 10.3 and 12.3) have no "Empty" row, which implies adding one to each.
+**Decision:** rejected. The four-state rule (Loading, Empty, Error, Success) binds R and D surfaces (EXPERIENCE.md, State Patterns: "Every R and D surface specifies Loading, Empty, Error and Success"). H consoles specify their own states instead: Idle (a preset chosen and not run), Running, Passed, Failed, Command refused, Error — fixture and Not available in production.
+**Alternatives considered:** add an Empty row to every H console (the implied fix); rename Idle to Empty.
+**Rationale:**
+- An H console is never empty in the product sense: it always starts from a seeded fixture or a preset, and "nothing to show" is the Idle state before a run, which is already specified with its own copy and actions.
+- Forcing the end-user template onto developer tools would add rows with no behaviour behind them. That is the kind of padding the spec discipline avoids, and it would make the real states (Passed/Failed with seeds, Reproducir) harder to find.
+- The form-factor split (R, D, H) comes from the task statement's Phase 2 instructions, and the state rule follows it.
+
+**Persona/skill:** proposal from `bmad-review-edge-case-hunter`; the triage in `reviews/review-ux-edge-cases.md` recommended Reject; the team adopted it at the Phase 2 gate (entry #16).
+
+### 25. `[REJECTED]` Guard against rounding drift between per-item values and the collection total (Phase 2 gate — review EC-23)
+**AI proposal:** the UX edge-case review (finding EC-23) warned that the valuation pages could round each item's value and then show a total that differs from the sum of the displayed rows. It named no specific guard, so the implied fix was a rounding or reconciliation step in the valuation display.
+**Decision:** rejected. The drift cannot occur, so the page needs no reconciliation. FR-VAL-1 defines `totalCop = Σ entryValueCop` as an exact integer sum, and each `unitCop` is already an integer COP value. The USD→COP conversion rounds exactly once, at the catalog (`ADD-§2.1`), so the sum of the per-item values equals the total by construction (prd.md FR-VAL-1).
+**Alternatives considered:** a client-side reconciliation line (the implied fix); keep decimals on each item and round only the total.
+**Rationale:**
+- Money is integer COP end to end (AD-SYS-7, branded money with `bigint` columns; FR-VAL-5 money-shape separation). A rounding step inside the page would reintroduce the float path the architecture forbids.
+- The only drift the PRD admits is against a hypothetical "convert the USD totals once" figure, `convertOnce`, and FR-VAL-1 already defines it per rate date. It is a documented comparison, not a display bug.
+- A reconciliation line on screen would suggest that the numbers could disagree, which undermines the "Trusted Ledger" identity of the design.
+
+**Persona/skill:** proposal from `bmad-review-edge-case-hunter`; the triage recommended Reject; the team adopted it at the Phase 2 gate (entry #16). The triage row cites prd.md:1918; after later PRD edits the rule sits in FR-VAL-1 (prd.md:1934).

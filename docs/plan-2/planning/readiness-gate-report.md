@@ -89,7 +89,7 @@ All of the documents listed above. The scratch working files (`.memlog.md`) were
 | FR-IDN-4 | Guard seller-type exclusivity atomically | CAP-5, CAP-19 · AD-18 |
 | FR-IDN-5 | Capability audit trace for admins | CAP-15 (support) · AD-16, AD-13 |
 | FR-IDN-6 | Messaging, review-target and seller-kind queries | CAP-18, CAP-7, CAP-1 · AD-1 |
-| FR-IDN-7 | Authentication and admin gating | (all) · AD-16, AD-12 |
+| FR-IDN-7 | Authentication and admin gating | CAP-15, CAP-28 (admin gating); cross-cutting to every authenticated CAP · AD-16, AD-12 |
 
 #### VER (9)
 
@@ -127,7 +127,7 @@ All of the documents listed above. The scratch working files (`.memlog.md`) were
 | FR-INV-3 | Reserve inventory atomically in the caller's transaction | CAP-17, CAP-25 · AD-6 |
 | FR-INV-4 | Shared-quantity reconciliation | CAP-4, CAP-16 · AD-6 |
 | FR-INV-5 | Release a reservation | CAP-17, CAP-25 · AD-6 |
-| FR-INV-6 | Aborted caller transaction restores quantity | AD-6 |
+| FR-INV-6 | Aborted caller transaction restores quantity | CAP-17, CAP-25 · AD-6 |
 | FR-INV-7 | Purchasability, verified badge and commission pause | CAP-5, CAP-21 · AD-3 |
 | FR-INV-8 | Withdraw on rejection, restore on approval | CAP-5, CAP-15 · (Plan-2 decision) |
 | FR-INV-9 | Edit, restock and deactivate | CAP-4 · AD-6 |
@@ -1214,7 +1214,7 @@ None was a critical collision, and all 42 are fixed. Every fix is a document edi
 
 The gate is signed only by the team; the assessor adds no signature of its own.
 
-**Joint work.** Martín Gómez and Mateo Rubio built the Plan-2 package together, and its deliverables cannot be separated by author. The signatures are therefore split by scope: each person signs some scopes and the other signs the rest. Each signature is made on behalf of both team members. The rows below were recorded at Martín Gómez's instruction on 2026-09-27.
+**Joint work.** Martín Gómez and Mateo Rubio built the Plan-2 package together, and its deliverables cannot be separated by author. The signatures are therefore split by scope: each person signs some scopes and the other signs the rest.
 
 | Scope | Signed by (on behalf of the team) | Verdict | Date |
 | --- | --- | --- | --- |
@@ -1231,3 +1231,39 @@ The gate is signed only by the team; the assessor adds no signature of its own.
 - OQ-9 and OQ-12 are resolved before launch.
 - F-14, AEC-18 and AEC-19 are revisited under their §10 conditions.
 - When epics and stories are created, the Step 5 epic checks are run against them.
+
+## 12. Post-sign-off amendments (2026-09-27)
+
+These changes were made after the sign-off in §11. None changes the gate verdict. The captured terminal output in §7 and §9 is left as it was run; this section records what was wrong in it and what the corrected run shows.
+
+**Erratum: R9 over-counted the decision-log tags.** The R9 check counted every `[REJECTED]`, `[CORRECTED]` or `[IMPROVED]` string anywhere in `ai-log/decision-log.md`. That included the purpose paragraph (which names all three tags) and a second mention inside entry #12. The real count at 21 entries was **one tagged entry** (#12, `[CORRECTED]`). With a correct counter, the §9 run would have raised **R9 MAJOR** ("fewer than 3 tags"), and the verdict in §9 would have been CONCERNS until it was fixed. The counter now reads tags from entry headings only.
+
+**Fix applied.** Decision-log entries #22–#25 record four AI proposals that the team rejected at the phase gates, each with its technical rationale, plus an index of tagged entries at the top of the log:
+
+| Entry | Tag | AI proposal | Review finding |
+| --- | --- | --- | --- |
+| #22 | `[REJECTED]` | Hide a paused shop's listings from browse | F-16, `review-arch-adversarial.md` |
+| #23 | `[REJECTED]` | Lock purchasability on every reserve | F-17, `review-arch-adversarial.md` |
+| #24 | `[REJECTED]` | Empty state on headless consoles | EC-09, `review-ux-edge-cases.md` |
+| #25 | `[REJECTED]` | Rounding guard for the valuation total | EC-23, `review-ux-edge-cases.md` |
+
+**Re-run after the fix (R9 output, corrected counter):**
+
+```
+==============================================================================
+R9  AI decision log
+==============================================================================
+  entries: 25 (last #25)  tags: {'CORRECTED': 1, 'REJECTED': 4}
+```
+
+Every other rule gives output identical to §9: 0 MAJOR, 0 MINOR, and the same 4 REVIEW items.
+
+**PRD trace and wording fixes** (no change to any requirement's behaviour):
+
+- FR-IDN-7 now names its CAPs: CAP-15 and CAP-28 for admin gating; authentication is cross-cutting to every authenticated CAP. It previously read "(all)". The Step 2 inventory row above is updated to match.
+- FR-INV-6 now traces to CAP-17 and CAP-25, the same CAPs as the reserve it rolls back (FR-INV-3, FR-INV-5). The inventory row above is updated.
+- FR-IDN-2's trigger names the actor ("a buyer who wants to sell as an individual") instead of "the user", and the FR-IDN consent rule says "the `User` row".
+
+**UX:** the R and D page specs that had no explicit "Empty" row now state it, or state why it does not apply: 2.2, 3.1, 4.1, 7.1, 8.1 and 11.1. H consoles stay out of scope, per EXPERIENCE.md State Patterns (EC-09, decision-log #24).
+
+**Verdict:** PASS stands. The §11 signatures were given before these amendments; the team re-confirms them or re-signs at its discretion.
