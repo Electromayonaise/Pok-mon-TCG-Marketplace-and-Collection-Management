@@ -1194,7 +1194,7 @@ flowchart LR
      - cancelled or expired, or `expiresAt ≤ now` with no payment → `OrderNoLongerActive`, citing the state and its time;
      - item before paid → `OrderConfirmationOutOfOrder`.
   4. When the loser finds `expiresAt ≤ now` with `expiredAt` null, it materializes the expiry (rule 6) in the same transaction, commits, and only then returns `OrderNoLongerActive`. The transaction helper supports "commit, then return the error".
-  5. Business confirm enqueues `OrderPaymentConfirmedByBusiness`. Item confirm enqueues `OrderClosed`, with bundle lines expanded per component (`qty = perBundleQty × order qty`). Each is enqueued only when its update affected 1 row.
+  5. Business confirm enqueues `OrderPaymentConfirmedByBusiness`. Item confirm enqueues `OrderClosed`, with bundle lines expanded per component (`qty = perBundleQty × order qty`). A card or sealed line carries the snapshot's `unitPriceCop`; a component line carries none. Each is enqueued only when its update affected 1 row.
   6. `expireDue(scope)` runs one transaction per order: `UPDATE … SET "expiredAt"=:now, "cancelReason"='Unpaid' WHERE id AND "buyerPaidConfirmedAt" IS NULL AND "cancelledAt" IS NULL AND "expiredAt" IS NULL AND "expiresAt" <= :now RETURNING "reservationRef"`. On 1 row it calls `releaseReservation(tx, ref)`. Cancel is identical, setting `cancelledAt`, and requires `expiresAt > :now` (otherwise `OrderNotCancellable`, and the order is materialized as expired).
   7. `expireDue` has four triggers:
      - the `orders.create` pre-step: a separate short transaction per order before the main transaction, scoped to `reservedUnitIds && :listingUnitIds`, `ORDER BY "expiresAt"`, limit 20;
@@ -1842,7 +1842,7 @@ Every event is an `OutboxEvent` row written in the publisher's transaction (AD-S
 | | | | listings → `onBusinessApplicationApproved` | `applicationId`: `AppliedApplicationDecision` PK (AD-INV-3 rule 5) | Clears `withdrawnAt` on listings withdrawn for `ApplicationRejected`, if this is the newest decision. The badge is never stored (AD-DSC-2 rule 3) |
 | `BusinessApplicationRejected` | identity: `verification.reject` (AD-VER-1) | `{ applicationId, businessId, reasonCode, reapplyNotBefore \| barred, rejectedAt }` | listings → `onBusinessApplicationRejected` | `applicationId`: `AppliedApplicationDecision` PK (AD-INV-3 rule 5) | Withdraws the business's listings with `withdrawnReason='ApplicationRejected'`, if this is the newest decision |
 | `OrderPaymentConfirmedByBusiness` | orders: `orders.confirmPaymentReceived` (AD-ORD-2) | `{ orderId, businessId, buyerId, totalCop, lines, sellerReceivedConfirmedAt, buyerItemReceivedConfirmedAt }` | commission → `onOrderPaymentConfirmedByBusiness` | `orderId`: partial unique `CommissionLedgerEntry(orderId) WHERE kind='Deduction'` (AD-COM-2 rule 2) | One deduction if first (AD-SYS-3) |
-| `OrderClosed` | orders: `orders.confirmItemReceived` (AD-ORD-2) | `{ orderId, buyerId, businessId, totalCop, lines, sellerReceivedConfirmedAt, buyerItemReceivedConfirmedAt }`, bundles expanded | commission → `onOrderClosed` | `orderId`: same partial unique index | One deduction if first (AD-SYS-3) |
+| `OrderClosed` | orders: `orders.confirmItemReceived` (AD-ORD-2) | `{ orderId, buyerId, businessId, totalCop, lines, sellerReceivedConfirmedAt, buyerItemReceivedConfirmedAt }`, bundles expanded; `unitPriceCop` on card and sealed lines only | commission → `onOrderClosed` | `orderId`: same partial unique index | One deduction if first (AD-SYS-3) |
 | | | | collections → `onOrderClosed` | `orderId`: `PostPurchasePrompt.orderId` unique (AD-COL-2) | One `Pending` prompt |
 | `CommissionBalanceExhausted` | commission: `LedgerService.apply` on a crossing to ≤ 0, and account opening (AD-COM-1) | `{ businessId, ledgerSeq, balanceAfter }` | listings → `onCommissionBalanceExhausted` | `ledgerSeq` gate: apply if no `SellerCommissionState` row or `ledgerSeq > lastAppliedSeq` (AD-INV-3 rule 4) | Sets `pausedAt` on the business's listings |
 | `CommissionBalanceReplenished` | commission: `LedgerService.apply` on a crossing to > 0 (AD-COM-1) | `{ businessId, ledgerSeq, balanceAfter }` | listings → `onCommissionBalanceReplenished` | same `ledgerSeq` gate | Clears `pausedAt` |
@@ -2163,7 +2163,7 @@ These edits make the PRD match the architecture. The gate approved them, and the
 | FR-COL-2 | An unknown catalog id gets `InvalidCatalogEntry`, not `RequestValidationFailed` | §8.3; AD-COL-1 rule 3 |
 | §21, §23 | OQ-2, OQ-4, OQ-6, OQ-7, OQ-8, OQ-10, A-15 and A-22 are marked resolved, citing §12.1 | §12.1 |
 
-**Human review PRD-sync edits (2026-09-27).** Applied to `prd.md` and `addendum.md` with the human review round.
+**Human review PRD-sync edits (2026-09-27).** Applied to `prd.md` and `addendum.md` with the human review rounds (#26–#45) and the pre-submission review (#48, #49).
 
 | FR | Edit | Source |
 | --- | --- | --- |
@@ -2177,6 +2177,8 @@ These edits make the PRD match the architecture. The gate approved them, and the
 | NFR-SYS-6, PRD §22, ADD-§10 | The metric counts deliveries unresolved for more than 24 h: `failed` by `firstFailedAt`, or still `pending` by `createdAt` | AD-SYS-2 rules 3 and 9; decision log #43 |
 | ADD-§1.1 | The address rule depends on the surface that renders the message, not on the owning module | decision log #40 |
 | FR-COL-7 | The prompt keeps `buyerItemReceivedConfirmedAt` from the `OrderClosed` payload | AD-COL-2 rule 1; decision log #45 |
+| FR-ORD-5, ADD-§5, FR-COL-7 | `OrderClosed` lines carry `unitPriceCop` on card and sealed lines (bundle component lines omit it); accept sets `acquiredPriceCop` from it | AD-ORD-2 rule 5; AD-COL-2 rule 2; decision log #48 |
+| ADD-§10 | "Orders closed within 14 days" is computed from `buyerItemReceivedConfirmedAt − createdAt`; `Order` has no `closedAt` column | decision log #49 |
 
 The addendum gained the §8.1 and §8.2 rows in ADD-§3.1 and ADD-§3.2, and the §8.3 changes of use, so it stays the contract-test source.
 

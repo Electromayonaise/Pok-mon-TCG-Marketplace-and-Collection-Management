@@ -1181,7 +1181,7 @@ No tables of its own.
   - Requires `buyerPaidConfirmedAt`, otherwise `OrderConfirmationOutOfOrder`.
   - `sellerReceivedConfirmedAt` is **not** required, because the item can arrive before the business confirms payment. Closing still triggers the commission deduction if the business has not confirmed (FR-COM-4, gate decision on OQ-3).
   - A conditional update sets `buyerItemReceivedConfirmedAt` where it is null and `cancelledAt` and `expiredAt` are null. This is the only fact that closes the order. On 0 rows, return `OrderAlreadyConfirmedByRole` or `OrderNoLongerActive` as in FR-ORD-3.
-  - After commit, publish `OrderClosed { orderId, buyerId, businessId, totalCop, lines: [{ itemRef, title, qty }], sellerReceivedConfirmedAt, buyerItemReceivedConfirmedAt }`, where `sellerReceivedConfirmedAt` is null if the business has not confirmed. For a card or sealed listing there is one line. For a bundle, `lines` expands to one line per component, with `itemRef` = the component's catalog entry and `qty = perBundleQty × order qty`.
+  - After commit, publish `OrderClosed { orderId, buyerId, businessId, totalCop, lines: [{ itemRef, title, qty, unitPriceCop? }], sellerReceivedConfirmedAt, buyerItemReceivedConfirmedAt }`, where `sellerReceivedConfirmedAt` is null if the business has not confirmed. For a card or sealed listing there is one line, carrying the order's `unitPriceCop`. For a bundle, `lines` expands to one line per component, with `itemRef` = the component's catalog entry and `qty = perBundleQty × order qty`; component lines carry no `unitPriceCop`, because the order snapshot holds no per-component price.
   - The order never creates a collection entry.
 - *Acceptance:*
   - The order shows as closed only after this fact exists.
@@ -1863,7 +1863,7 @@ AD-7's `BinderEntry` is realised as `CollectionEntry` plus the collection's bind
 **FR-COL-7 — Exactly one post-purchase prompt per closed order.** · CAP-27 · AD-9, AD-10
 - *Rules:*
   - On `OrderClosed`, a `PostPurchasePrompt { orderId (unique), buyerId, lines snapshot, buyerItemReceivedConfirmedAt (the order's close fact, which sets the entries' acquired date), status: Pending }` is created. A redelivery hits the unique key and does nothing.
-  - Accept (`collectionId`): a conditional transition `Pending → Accepted`, and in the same transaction one entry per line with `source=PlatformPurchase`, the `orderId` and `qty`. A second accept gets `PromptAlreadyResolved` and creates nothing.
+  - Accept (`collectionId`): a conditional transition `Pending → Accepted`, and in the same transaction one entry per line with `source=PlatformPurchase`, the `orderId`, `qty`, and `acquiredPriceCop` = the line's `unitPriceCop` when present, otherwise null. A second accept gets `PromptAlreadyResolved` and creates nothing.
   - Dismiss: a conditional transition `Pending → Dismissed`.
   - Ignoring the prompt leaves it `Pending` with no expiry [ASSUMPTION], and it creates nothing.
   - The order's closed state is never read or written by `collections`.
