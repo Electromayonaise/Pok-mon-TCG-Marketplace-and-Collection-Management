@@ -1810,7 +1810,7 @@ AD-7's `BinderEntry` is realised as `CollectionEntry` plus the collection's bind
   - `cardRef`;
   - `qty`, 1–999;
   - `acquiredAt`, a date not in the future (default today, `America/Bogota`);
-  - `acquiredPriceCop`, optional, an integer from 0 to 100,000,000.
+  - `acquiredPriceCop`, optional: the price of one copy, an integer from 0 to 100,000,000.
 - *Rules:*
   - `source` is always `Manual` on this path. `PlatformPurchase` can be set only through FR-COL-7.
   - A catalog `cardRef` must resolve (`InvalidItemRef`, owned by `listings`, is not reused here; unknown ids get `InvalidCatalogEntry`).
