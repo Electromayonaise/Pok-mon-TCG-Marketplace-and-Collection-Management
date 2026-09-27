@@ -40,7 +40,7 @@ Entries #26–#35 record the human review round of 2026-09-27: ten objections ra
 
 Entries #36–#45 record the follow-up round of the same day: the team's decisions on the #35 findings. #40 and #41 are untagged, because they complete #34 and add a record note without changing an AI proposal.
 
-Entries #46–#52 record the pre-submission review of the same day: the team's decisions on fixes A–E and on the key-screen mocks. Only #48 and #49 are tagged, because they correct the agent's own design; the others fix statements in the record or adopt a recommendation. #53 records the team's decisions on the new findings of that round. It is untagged, because its fixes align the agent's page specs with their own tables and with #34 and change no design choice.
+Entries #46–#52 record the pre-submission review of the same day: the team's decisions on fixes A–E and on the key-screen mocks. Only #48 and #49 are tagged, because they correct the agent's own design; the others fix statements in the record or adopt a recommendation. #53 records the team's decisions on the new findings of that round. It is untagged, because its fixes align the agent's page specs with their own tables and with #34 and change no design choice. #54 closes the four findings #53 flagged. It is untagged for the same reason, and it records the agent's correction of its own recommendation on page 3.1.
 
 ---
 
@@ -916,6 +916,7 @@ The agent applied only these decisions. It flagged every indirect consequence be
 | 51 | The 15 Mermaid diagrams were never checked with a renderer | E: checked, all valid; no change | — |
 | 52 | Two wireframes for 12 modules | 12 interactive HTML key-screen mocks, one per module | — |
 | 53 | The seven new findings of this round | 1: kept as designed; 2–7: applied as recommended | — |
+| 54 | The four findings flagged in #53 | All applied; page 3.1 opens on "Cartas" | — |
 
 #48 and #49 are tagged because they correct the agent's own payload design and metric. #46, #47, #50 and #51 are untagged: they fix statements in the record and change no AI design proposal. #52 is untagged because the team adopted the agent's recommendation.
 
@@ -1082,8 +1083,26 @@ It offered four options:
 **IDs:** FR-COL-2, FR-ORD-5, ADD-§5, #34, #48, #52; pages 3.1, 5.2, 9.2, 12.2; microcopy §1.1, §5, §10.
 **Persona/skill:** findings and recommendations by the agent; decision by the team.
 
-**New findings, flagged and not applied.** These are for the team to decide.
+**New findings, flagged and not applied.** These are for the team to decide. All four were decided in #54.
 1. *The PRD does not say per unit.* FR-COL-2 describes `acquiredPriceCop` as "optional, an integer from 0 to 100,000,000" and does not say it is a unit price, which page 9.2 now says. Recommendation: add "the price of one copy" to FR-COL-2.
 2. *Microcopy §10 has only *tú* templates.* Its transport rows ("Revisa tu conexión…", "Actualiza…", "puedes repetirla") are cited by *usted* pages: 5.1 and the admin pages 5.3, 7.3 and 11.3. The microcopy rule says a code rendered on both kinds of surface has one template per surface. Recommendation: add *usted* variants of the §10 rows.
 3. *Appendix A has no row for `ux/mockups/`.* The appendix maps each difference from the default statement, and the package tree now differs. Recommendation: add a row saying the tree adds `ux/mockups/` and the minimum of two wireframes or mocks is unchanged.
 4. *Page 3.1 names no default view.* Neither the page spec nor FR-DSC-1 says which view opens first. Recommendation: "Publicaciones", the view that scenario S1 and the page layout use.
+
+### 54. The four findings flagged in #53 are closed (Pre-submission review)
+**Findings:** the four new findings flagged in #53.
+**AI proposal:** the recommendation stated with each finding.
+**Decision:** "aplicalos, que no queden como abiertos" (2026-09-27), then "Cartas (Recomendado)" for page 3.1.
+
+**Correction of the agent's own recommendation on page 3.1.** Finding 4 in #53 recommended "Publicaciones" as "the view that scenario S1 and the page layout use". While applying it, the agent found that S1 step 1 reads "switch to 'Publicaciones'", so the page opens on another view, and that the original layout selected "Cartas". The agent withdrew the recommendation before applying it. It then offered two options: "Cartas" (recommended, since it keeps S1 and the original layout), or "Publicaciones", which would change S1 step 1. The team chose "Cartas".
+
+**Applied:**
+- **1, PRD.** FR-COL-2 reads "`acquiredPriceCop`, optional: the price of one copy, an integer from 0 to 100,000,000".
+- **2, microcopy §10.** It now has *usted* rows for the two load messages and for the command-not-confirmed message ("Revise su conexión y vuelva a intentarlo", "Actualice…; si no se guardó, puede repetirla sin riesgo"). A new address rule says that the admin panel and pages 5.1 and 5.2 use the *usted* rows, and that `{qué}` and `{acción}` follow the same address. The page specs that cite §10 need no change, because the rule picks the row by surface, as #34 does.
+- **3, task statement.** Appendix A gains a "Key-screen mocks" row. The minimum and formats are the same as the default statement's, and the two SVG wireframes meet them. The tree adds `ux/mockups/` as extra evidence.
+- **4, page 3.1.** The View row says the page opens on "Cartas" and that S1 switches to "Publicaciones". A line above the layout says it shows the "Publicaciones" view. The mock note says the same. Scenario S1 is unchanged.
+- The readiness report's post-issue note now covers #54.
+
+**Rationale:** taken from the recommendations; on page 3.1, from the corrected one.
+**IDs:** FR-COL-2, FR-DSC-1, DSC-S1, #34, #52, #53; page 3.1; microcopy §10; task statement Appendix A.
+**Persona/skill:** findings, recommendations and the correction by the agent; decisions by the team.
