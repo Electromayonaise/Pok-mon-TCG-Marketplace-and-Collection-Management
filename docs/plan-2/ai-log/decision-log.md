@@ -40,7 +40,7 @@ Entries #26–#35 record the human review round of 2026-09-27: ten objections ra
 
 Entries #36–#45 record the follow-up round of the same day: the team's decisions on the #35 findings. #40 and #41 are untagged, because they complete #34 and add a record note without changing an AI proposal.
 
-Entries #46–#52 record the pre-submission review of the same day: the team's decisions on fixes A–E and on the key-screen mocks. Only #48 and #49 are tagged, because they correct the agent's own design; the others fix statements in the record or adopt a recommendation.
+Entries #46–#52 record the pre-submission review of the same day: the team's decisions on fixes A–E and on the key-screen mocks. Only #48 and #49 are tagged, because they correct the agent's own design; the others fix statements in the record or adopt a recommendation. #53 records the team's decisions on the new findings of that round. It is untagged, because its fixes align the agent's page specs with their own tables and with #34 and change no design choice.
 
 ---
 
@@ -915,6 +915,7 @@ The agent applied only these decisions. It flagged every indirect consequence be
 | 50 | The field rule says every entry records a prompt, alternatives and a rationale; many entries do not | D: those fields are recorded where applicable; no prompt is reconstructed | — |
 | 51 | The 15 Mermaid diagrams were never checked with a renderer | E: checked, all valid; no change | — |
 | 52 | Two wireframes for 12 modules | 12 interactive HTML key-screen mocks, one per module | — |
+| 53 | The seven new findings of this round | 1: kept as designed; 2–7: applied as recommended | — |
 
 #48 and #49 are tagged because they correct the agent's own payload design and metric. #46, #47, #50 and #51 are untagged: they fix statements in the record and change no AI design proposal. #52 is untagged because the team adopted the agent's recommendation.
 
@@ -927,7 +928,7 @@ The agent applied only these decisions. It flagged every indirect consequence be
 - Under Layout Structure, each of the 12 mocked page specs links to its mock, with the sentence "this spec and the spines win on any conflict". `00-ux-scenarios.md` and `EXPERIENCE.md` name the `mockups/` folder next to `wireframes/` (#52).
 - The UX memlog records that the mocks supersede an earlier choice: ASCII layouts instead of HTML mocks. The ASCII layouts stay in the specs (#52).
 
-**New findings, flagged and not applied.** These are for the team to decide.
+**New findings, flagged and not applied.** These are for the team to decide. All seven were decided in #53.
 1. *Bundle purchases have no acquired price.*
    - Under #48 a bundle's component lines carry no `unitPriceCop`, because the order snapshot holds no per-component price. An entry bought in a bundle therefore gets `acquiredPriceCop` null.
    - This is the agent's design detail, not a team decision.
@@ -1058,3 +1059,31 @@ It offered four options:
 **IDs:** DESIGN.md, EXPERIENCE.md, the 12 page specs, `00-ux-scenarios.md`.
 **Persona/skill:** options and mocks by the agent (`bmad-ux` key-screen mocks); decision by the team.
 **Prompt (excerpt):** "haz todos de a a e, tambien tenemos suficientes wireframes? y los wireframes no deberian ser htmls? siento que para 12 modulos hay muy pocos".
+
+### 53. The new findings of the pre-submission round: one kept, six applied (Pre-submission review)
+**Findings:** new findings 1–7 of the pre-submission round (listed above).
+**AI proposal:** the agent's recommendation on each:
+- 1: keep `acquiredPriceCop` null for bundle components, because splitting the bundle price would invent prices;
+- 2–6: the fixes stated with each finding;
+- 7: add `mockups/` to the package tree.
+
+**Decision:** "Aplica lo que dices que falta" (2026-09-27), the team's reply to that list.
+**Applied:**
+- **1, bundles.** No change. FR-ORD-5 and ADD-§5 already state that bundle component lines omit `unitPriceCop`, so an entry bought in a bundle has no acquired price.
+- **2, page 9.2.** The field reads "Precio pagado por unidad (opcional)" in the layout and the field table, and the table says `acquiredPriceCop` is the price of one copy.
+- **3, page 5.2.** The Approved state drops the COM "never funded" line (*tú*). The microcopy §1.1 body already asks for a top-up in *usted*, as #34 requires on this page. The "Recargar saldo" action stays. The mock note is updated.
+- **4, page 3.1.** The layout selects "Publicaciones", the view whose flat rows it draws. The mock note is updated.
+- **5, page 12.2.** The layout no longer draws "0/2.000"; the counter appears from 1.800 characters, as the composer table says. The mock note is updated.
+- **6, microcopy §10.** A new agreement rule: "repetirla" for a feminine noun in `{acción}`, "repetirlo" for a masculine one. The 12.2 and 9.1 mock notes cite it.
+- **7, task statement.** The Phase 2 deliverables and the package tree list `ux/mockups/` next to `ux/wireframes/`. The requirement itself, "at least two key-screen wireframes/mocks (ASCII diagram, Mermaid UI layout, or SVG/PNG asset)", is unchanged, so the package stays comparable with the original statement.
+- The readiness report's post-issue note now covers #53.
+
+**Rationale:** taken from the recommendations. Each fix makes a page spec agree with its own table, or with a rule the team already set (#34, #48).
+**IDs:** FR-COL-2, FR-ORD-5, ADD-§5, #34, #48, #52; pages 3.1, 5.2, 9.2, 12.2; microcopy §1.1, §5, §10.
+**Persona/skill:** findings and recommendations by the agent; decision by the team.
+
+**New findings, flagged and not applied.** These are for the team to decide.
+1. *The PRD does not say per unit.* FR-COL-2 describes `acquiredPriceCop` as "optional, an integer from 0 to 100,000,000" and does not say it is a unit price, which page 9.2 now says. Recommendation: add "the price of one copy" to FR-COL-2.
+2. *Microcopy §10 has only *tú* templates.* Its transport rows ("Revisa tu conexión…", "Actualiza…", "puedes repetirla") are cited by *usted* pages: 5.1 and the admin pages 5.3, 7.3 and 11.3. The microcopy rule says a code rendered on both kinds of surface has one template per surface. Recommendation: add *usted* variants of the §10 rows.
+3. *Appendix A has no row for `ux/mockups/`.* The appendix maps each difference from the default statement, and the package tree now differs. Recommendation: add a row saying the tree adds `ux/mockups/` and the minimum of two wireframes or mocks is unchanged.
+4. *Page 3.1 names no default view.* Neither the page spec nor FR-DSC-1 says which view opens first. Recommendation: "Publicaciones", the view that scenario S1 and the page layout use.

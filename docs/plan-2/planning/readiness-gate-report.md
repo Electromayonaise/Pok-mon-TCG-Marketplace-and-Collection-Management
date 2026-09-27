@@ -34,7 +34,7 @@ documentsAssessed:
 > - The F-14 deferral closed differently: "Oversell incidents" is not measured in production in V1, and `oversell-check` was removed (#29).
 > - The AEC-19 deferral is covered by the best-effort tick hardening (`JobRun` and the silence alert, #30), and the tick moved to `17 12-23,0-1 * * *` (#37).
 > - Launch gates LG-1..LG-5 were added, with `launchReady: false` (#32, #33, #38). The PASS verdict covers the planning package, not a production launch.
-> - A pre-submission review followed (#46–#52). It changed no verdict. It records the adoption of the PRD review triage (#46). It adds `unitPriceCop` to the `OrderClosed` card and sealed lines (#48) and computes "Orders closed within 14 days" from `buyerItemReceivedConfirmedAt` (#49). It also adds 12 HTML key-screen mocks in `ux/mockups/`, next to the wireframes listed in Step 1 (#52).
+> - A pre-submission review followed (#46–#53). It changed no verdict. It records the adoption of the PRD review triage (#46). It adds `unitPriceCop` to the `OrderClosed` card and sealed lines (#48) and computes "Orders closed within 14 days" from `buyerItemReceivedConfirmedAt` (#49). It also adds 12 HTML key-screen mocks in `ux/mockups/`, next to the wireframes listed in Step 1 (#52), and aligns four page specs, microcopy §10 and the task-statement tree with the round's new findings (#53).
 
 Steps 1–4 describe the package as found on the initial run. Each gap they record names the fix that closed it.
 
