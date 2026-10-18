@@ -15,6 +15,12 @@
 | #1 | `[IMPROVED]` | The agent framed Solu-1 as possibly done elsewhere and offered "skip", "implement one feature" or "fold into Solu-2" | Mateo chose to implement it here for all 12 modules |
 | #8 | `[REJECTED]` ×3 | Review findings F-22, F-23, F-24 on the contracts | Rejected with reasons at the Phase 1 gate |
 | #8 | `[CORRECTED]` | AD-COM-2 rule 3 (Plan-2, AI-drafted): "roll back the transaction" on a duplicate deduction | Corrected to a savepoint (review F-03) |
+| #13 | `[IMPROVED]` | AD-IDN-2 Alternatives: "cross-table exclusivity cannot be expressed without triggers" | Composite FK kept as defense-in-depth |
+| #14 | `[REJECTED]` ×2 | Schema review findings E-14 (deferrable unique positions), E-16 (FK on prompt history) | Rejected with reasons |
+| #15 | `[CORRECTED]` | The agent's own F-01 fix, which broke AD-1 (`catalog → identity`) | Guard moved to `adminProcedure` |
+| #16 | `[CORRECTED]` / `[REJECTED]` | Tests asserting the test double's subscriber list (T-05); split `seed.ts` (T-08) | Assertions replaced; split rejected |
+| #18 | `[CORRECTED]` | The agent's "46 of ~99 FRs" estimate | Counted: 56 of 96 |
+| #19 | `[REJECTED]` | Story review F-11 (shorten titles for shorter sprint keys) | Rejected with reason |
 
 ---
 
@@ -224,3 +230,51 @@
 - **Human decision:** ACCEPT, run it now.
 - **Reason:** A matrix row in which a skill is claimed without a run is the same failure the rubric penalizes as "gate verdict claimed without output". The validation found two real gaps, a missing `.env.example` and a missing test README, plus no JUnit reporter for CI. All three were fixed in the same run.
 - **Artifact changed:** `docs/solu-1/tests/framework-validation-report.md` (PASS after fixes); `.env.example`; `test-support/README.md`; `.github/workflows/solu1-quality-gate.yml`; `tests/tea-skill-matrix.md` (TF row).
+
+---
+
+### 18. `[CORRECTED]` A deterministic readiness audit gates sprint planning; 12 epics × 37 stories; traceability scoped to contract-bound FRs (Phase 4 — pre-draft gate)
+
+- **Phase:** 4.
+- **Persona/Skill:** John and Amelia (`bmad-create-epics-and-stories`); Winston for the gate mechanism.
+- **Prompt (summary):** Mateo directs: *"derive contract-bound technical stories from contracts.md using the Solu-1 story template; one epic per module in AD-1 dependency order; John (PM) + Amelia (Dev) review for implementability."*
+- **AI output (summary):** Three items went to the gate.
+  - **(a) The gate.** The agent found at intake that the installed `bmad-sprint-planning` has no readiness audit, while the statement requires it to print IR-PASS. Options: a deterministic audit script wired in through BMAD's supported `_bmad/custom` override *(recommended)*; `bmad-check-implementation-readiness` as an LLM verdict; or both.
+  - **(b) Epic design.** 12 epics (one per module) and 37 stories (one per contract) *(recommended)*, or 9 host-module epics.
+  - **(c) Traceability scope.** "100 %" measured over the FRs the contracts bind *(recommended)*, or stories for every PRD FR without contracts.
+- **Human decision:** ACCEPT (a), (b) and (c), at the choice menus.
+- `[CORRECTED]` **The agent's own figure.** The agent first told Mateo that the contracts bind "46 of ~99 FRs". That was an estimate. A script then counted **56 of 96**: the first pass had matched `FR-INV-1` inside `NFR-INV-1` and missed a second header line. The decision stands; the backlog, the audit and the report carry the exact numbers, and the 40 out-of-scope FRs are listed by id.
+- **Reason:**
+  - (a) A gate is only evidence if it is reproducible and can fail. An LLM verdict cannot be re-run with the same result, and the gate drill would depend on the model noticing.
+  - (b) A 1:1 contract → story → ATDD-block map is exactly what the audit checks.
+  - (c) Stories without P/Q/I would break the rule "contracts before stories".
+- **Artifact changed:** `scripts/readiness-audit.mjs`; `_bmad/custom/bmad-sprint-planning.toml`; `docs/solu-1/planning/epics.md`; `docs/solu-1/planning/readiness-gate-report.md`.
+
+### 19. Story review triage: 9 Accept, 2 Defer, 1 `[REJECTED]`; gate drill by DTO rename (Phase 4 gate)
+
+- **Phase:** 4.
+- **Persona/Skill:** `bmad-review-adversarial-general` (report 4 of 4) on `epics.md`, run after the audit's first IR-PASS so that it could hunt what the audit cannot see.
+- **AI output (summary):** 12 findings. Two of them showed the first IR-PASS was blind:
+  - **F-4:** stories consumed neighbour commands (`listings.releaseReservation`, `reserveForTrade`, `identity.getReviewTarget`, …) that no story produces;
+  - **F-5:** the red check demanded that *every* ATDD test fail, so implementing the first story would have broken the gate.
+- **Human decision:** ACCEPT the triage in full. For the drill, ACCEPT "rename a DTO in one story (Recommended)".
+- `[REJECTED]` **F-11:** *"sprint keys will be long"*. Keys are generated once and never typed, and a full title is self-describing in `sprint-status.yaml`. Shortening titles to shorten keys would make the backlog worse at its main job.
+- **What the accepted fixes changed:**
+  - a Consumed ports line on 11 stories, plus audit check C9, which was verified to fail when one line is removed;
+  - a status-aware red check (tests of `done` stories must pass), verified with a scratch status;
+  - a backlog Definition of Done;
+  - audit check C10 (code citations);
+  - real dependencies only;
+  - NFR-IDN-2's 100 repetitions.
+- **The drill (§3 of the gate report):** Story 4.2's Target DTO was renamed and the gate re-run, giving **IR-FAIL** in 8 s (`[C3 schema/DTO binding] Story 4.2 names DTO ReserveForPurchaseInputDTO, which no src file exports`), with `sprint-status.yaml` byte-identical. After the name was restored, the gate returned **IR-PASS** in 8 s.
+- **Artifact changed:** `epics.md`; `idn-contracts.test.ts`; `scripts/check-atdd-red.mjs`; `scripts/readiness-audit.mjs`; `reviews/review-stories-adversarial.md` (triaged); `implementation-artifacts/sprint-status.yaml` (generated after IR-PASS).
+
+### 20. Commits are atomic, with short summary titles (process — Mateo's own instruction)
+
+- **Phase:** process (Phase 4 onward).
+- **Source:** Mateo's words, mid-Phase 4: *"from now on keep the commit names more atomic without the solu-# and phase #, just a short summary of what was made."*
+- **Human decision:** a new rule, not an AI proposal. From that point every commit is one logical change, with a title such as "Add the readiness gate report" or "Make the red check follow sprint status".
+- **Reason:** the history should read as what changed, not as course bookkeeping.
+- **Artifact changed:** git history from commit `4cf53eb` ("Add contract-bound epics and stories") onward.
+
+**Open at the time of writing:** the readiness gate report's sign-off (§5) is pending Mateo's explicit sign-off. It is not inferred from his instruction to push the branch.
