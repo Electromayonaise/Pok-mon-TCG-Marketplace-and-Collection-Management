@@ -18,7 +18,11 @@ status: draft — pending review 4 and the Phase 4 gate
 
 This backlog derives **one technical story per behavioral contract**: 37 stories in 12 epics, one epic per Plan-2 module, in AD-1 dependency order (decision log #18). Every story binds a contract of `contracts.md`, its DTOs (`src/modules/*/dto/`), its tables (`schemas/*.sql`) and its red ATDD block (`docs/solu-1/tests/atdd/`). A developer agent can therefore implement it without inventing a decision. Following the contracts-before-stories rule, no story exists without a contract.
 
-**Story format.** Each story uses the Solu-1 template (Description, Contract Reference, Target DTO, Database Tables, ATDD Test File, Given-When-Then) plus two lines the readiness audit parses: **Traceability** (the FRs the contract binds) and **Depends on** (earlier stories only).
+**Story format.** Each story uses the Solu-1 template (Description, Contract Reference, Target DTO, Database Tables, ATDD Test File, Given-When-Then) plus lines the readiness audit parses:
+
+- **Traceability:** the FRs the contract binds.
+- **Depends on:** earlier stories only, derived from a real call or data dependency.
+- **Consumed ports:** every neighbour command or query the story's code calls, and who provides it: an earlier story, or a fake whose provider is outside Solu-1's contract set (review F-4). Without this line, a story that runs in isolation could look shippable in the composed monolith while its provider does not exist yet.
 
 ## Requirements Inventory
 
@@ -198,6 +202,7 @@ Sebastián ingests the catalog feed without ever creating a second identity for 
 - **ATDD Test File:** `docs/solu-1/tests/atdd/cat-contracts.test.ts`
 - **Traceability:** FR-CAT-3, FR-IDN-7
 - **Depends on:** none
+- **Consumed ports:** `identity.requireAdmin` → faked; provider outside Solu-1 (contracts §15)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Sebastián is an admin.
   - **When:** the `adminProcedure` guard in `src/server/trpc/admin-guard.ts` runs `assertCatalogAdmin({ actorId })`.
@@ -277,6 +282,7 @@ Andrés sells his last Pikachu ex once, however many buyers press "Comprar" at t
 - **ATDD Test File:** `docs/solu-1/tests/atdd/inv-contracts.test.ts`
 - **Traceability:** FR-INV-3, FR-INV-6
 - **Depends on:** Story 1.3 (reads `getSellerVerification` in the caller's transaction)
+- **Consumed ports:** `identity.getSellerVerification` → Story 1.3
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Andrés is `Approved` and unpaused, and has one unit of Pikachu ex.
   - **When:** 50 buyers call `reserveForPurchase(tx, { listingId, qty: 1, buyerId })` at once, each in its own `orders.create` transaction.
@@ -293,6 +299,7 @@ Andrés sells his last Pikachu ex once, however many buyers press "Comprar" at t
 - **ATDD Test File:** `docs/solu-1/tests/atdd/inv-contracts.test.ts`
 - **Traceability:** FR-COL-6
 - **Depends on:** Story 4.2 (reuses `purchasable` and `availability`)
+- **Consumed ports:** `identity.getSellerKinds` → faked; provider outside Solu-1 (FR-IDN-6)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Pikachu ex is listed by a `Pending` business (not purchasable) and by Valentina at 60,000.
   - **When:** `collections.wishlist` asks for `[charizard, pikachu]`.
@@ -327,6 +334,7 @@ Camila in Medellín finds nearby listings from individual sellers and shops in o
 - **ATDD Test File:** `docs/solu-1/tests/atdd/dsc-contracts.test.ts`
 - **Traceability:** FR-DSC-1, FR-DSC-2, FR-DSC-3, FR-DSC-4, FR-DSC-5, FR-DSC-6
 - **Depends on:** Story 5.1 (validates the area first)
+- **Consumed ports:** `catalog.matchEntryIds` → faked; provider outside Solu-1 (FR-CAT-1); `identity.getSellerKinds` → faked; provider outside Solu-1 (FR-IDN-6)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Valentina 0.66 km away and Andrés 6.33 km away, plus hidden, sold-out, 15.0002 km-away and unusable-location listings.
   - **When:** Camila searches 15 km around Medellín.
@@ -342,6 +350,7 @@ Camila in Medellín finds nearby listings from individual sellers and shops in o
 - **ATDD Test File:** `docs/solu-1/tests/atdd/dsc-contracts.test.ts`
 - **Traceability:** FR-DSC-7
 - **Depends on:** Story 5.2 (runs the `search` statement)
+- **Consumed ports:** `catalog.getEntry` → faked; provider outside Solu-1 (FR-CAT-2); `catalog.getPriceProvenance` → faked; provider outside Solu-1 (FR-CAT-6); `identity.getSellerKinds` → faked; provider outside Solu-1 (FR-IDN-6); `identity.getSellerVerification` → Story 1.3
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Pikachu ex is listed only in Bogotá.
   - **When:** Camila opens it with a 15 km Medellín area.
@@ -376,6 +385,7 @@ Camila confirms she paid only once a comprobante exists. Andrés sees the order 
 - **ATDD Test File:** `docs/solu-1/tests/atdd/ord-contracts.test.ts`
 - **Traceability:** FR-ORD-3
 - **Depends on:** Story 6.1 (maps an invisible order with the same predicate)
+- **Consumed ports:** `listings.releaseReservation` → faked; provider outside Solu-1 (FR-INV-5)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Camila uploaded a comprobante, and the order expires at seed + 48 h.
   - **When:** she confirms twice at the same instant, one hour after creation.
@@ -474,6 +484,7 @@ Julián and Valentina negotiate turn by turn. When she accepts, the last unit go
 - **ATDD Test File:** `docs/solu-1/tests/atdd/trd-contracts.test.ts`
 - **Traceability:** FR-TRD-4, FR-TRD-5, FR-TRD-6
 - **Depends on:** Story 8.1 (its precondition `assertActorTurn`)
+- **Consumed ports:** `listings.getTradeability` → faked; provider outside Solu-1 (FR-TRD-4); `listings.reserveForTrade` → faked; provider outside Solu-1 (FR-INV-3); `listings.generateContactMessage` → faked; provider outside Solu-1 (FR-MSG-1)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** two `Open` offers (Julián's and another proposer's) compete for Valentina's last unit.
   - **When:** she accepts both from two tabs at the same instant.
@@ -523,6 +534,7 @@ Camila messages a verified shop. A pending one is flagged, a rejected one is exp
 - **ATDD Test File:** `docs/solu-1/tests/atdd/msg-contracts.test.ts`
 - **Traceability:** FR-MSG-4, FR-MSG-5, FR-MSG-6
 - **Depends on:** Story 9.1 (reply path checks participation)
+- **Consumed ports:** `identity.requireMessagingEligibility` → faked; provider outside Solu-1 (contracts §15); `identity.getSellerKinds` → faked; provider outside Solu-1 (FR-IDN-6)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Andrés is `Approved`.
   - **When:** Camila sends `clientMessageId='c1'` and the browser retries it.
@@ -587,6 +599,7 @@ Camila's purchase becomes collection entries exactly once, whatever the double c
 - **ATDD Test File:** `docs/solu-1/tests/atdd/col-contracts.test.ts`
 - **Traceability:** FR-COL-5
 - **Depends on:** Story 10.1 (its precondition `assertCollectionOwner`)
+- **Consumed ports:** `catalog.getEntries` → faked; provider outside Solu-1 (FR-CAT-2); `catalog.getSetSummaries` → faked; provider outside Solu-1 (ARCH §6.3)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Valentina owns two of SV1's three cards (one in two copies), a booster box and a link-added promo.
   - **When:** page 9.1 loads SV1.
@@ -621,6 +634,7 @@ Valentina's collection value is an exact peso sum, explained entry by entry, and
 - **ATDD Test File:** `docs/solu-1/tests/atdd/val-contracts.test.ts`
 - **Traceability:** FR-VAL-1, FR-VAL-3
 - **Depends on:** Story 10.1 (its precondition `assertCollectionOwner`)
+- **Consumed ports:** `catalog.getReferencePricesAsOf` → Story 3.4
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** 500 entries priced at an FX-derived 401 COP.
   - **When:** the collection is valued.
@@ -655,6 +669,7 @@ Camila reviews Andrés's shop only after her purchase closed. Sebastián hides a
 - **ATDD Test File:** `docs/solu-1/tests/atdd/rep-contracts.test.ts`
 - **Traceability:** FR-REP-1, FR-REP-2
 - **Depends on:** Story 6.3 (calls `orders.hasClosedPurchase`)
+- **Consumed ports:** `identity.getReviewTarget` → faked; provider outside Solu-1 (FR-IDN-6); `orders.hasClosedPurchase` → Story 6.3
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Camila's order with Andrés is closed.
   - **When:** she starts a review.
