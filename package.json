@@ -10,7 +10,12 @@
   "scripts": {
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:schema:solu1": "vitest run --project solu1-schema",
+    "test:atdd:solu1": "vitest run --project solu1-atdd",
+    "gate:atdd-red:solu1": "node scripts/check-atdd-red.mjs solu1-atdd 131",
+    "gate:codes:solu1": "node scripts/check-code-citations.mjs docs/solu-1/planning/contracts.md",
+    "gate:solu1": "npm run typecheck && npm run test:schema:solu1 && npm run gate:atdd-red:solu1 && npm run gate:codes:solu1"
   },
   "devDependencies": {
     "@paralleldrive/cuid2": "3.3.0",

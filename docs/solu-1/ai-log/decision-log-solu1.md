@@ -195,3 +195,32 @@
 - **Human decision:** ACCEPT moving it to `src/server/trpc/admin-guard.ts`.
 - **Reason:** Amending an inherited invariant needs "an explicit, logged decision and a stated reason" (Plan-2 constraint 8). There is no reason to pay that cost, because admin gating is a transport concern that the procedure builder already owns (AD-SYS-8 rule 1). `catalog` stays testable with no `identity` fake.
 - **Artifact changed:** `src/server/trpc/admin-guard.ts` (new); `catalog/ports/cat.ts`, `application/cat.ts`, `index.ts`, `dto/cat.dto.ts` (port removed); `contracts.md` §3; `ports-and-adapters.md` §3.
+
+---
+
+### 16. Test-quality review triage: 6 Accept (one `[CORRECTED]` test design), 1 Defer, 1 `[REJECTED]` (Phase 3 gate)
+
+- **Phase:** 3.
+- **Persona/Skill:** Murat (`bmad-testarch-test-review`, report 3 of 4, a self-review scored by the skill's deduction ledger).
+- **Prompt (summary):** Mateo directs: *"review docs/solu-1/tests/atdd/ (12 files, 130 red tests) plus test-support/ for determinism, isolation, assertion depth, tautologies (assertions on fakes we configured), hidden assertions, length; score and list findings for triage."*
+- **AI output (summary):** **65/100, grade D, verdict Request Changes.** The deductions:
+  - one CRITICAL C3 tautology the agent itself had written in `dsc` (`expect([valentina, andres]).toHaveLength(2)`, which cannot fail);
+  - two M2 repeated-payload findings;
+  - one M3 two-scenarios-in-one-test finding.
+
+  Four further findings, outside the registry, came with recommendations.
+- **Human decision:** ACCEPT the triage in full ("Adopt in full (Recommended)"). The offered alternative of building the Decision-shape assertions (T-07) now was not taken.
+- `[CORRECTED]` **T-05: assertions on the test double.** Four contract tests asserted the `EventDelivery` subscriber list. That list is produced by `test-support/outbox.ts`'s `SUBSCRIBERS` table, so those assertions checked the double, not the code under test. They were replaced by event-type and payload assertions, which the code under test does decide.
+- **Deferred:** T-07 (full AD-SYS-1 `Decision` shape on every refusal) goes to Solu-2's mandatory `explain_assert` fixture, built once instead of patched into 130 tests.
+- `[REJECTED]` **T-08:** *"split `test-support/seed.ts` (341 lines)"*. H5's 300-line rule targets test files. `seed.ts` is a flat vocabulary of 25 independent single-table factories, each under 25 lines. Splitting it per module would scatter the Given steps every module needs at once: an ORD test needs users, listings and units.
+- **Result:** rescored **100/100, grade A, Approve**. The red check reports 131/131 red for the right reason; the M3 split added one test.
+- **Artifact changed:** `dsc`, `inv`, `ver`, `com`, `trd` ATDD files; `reviews/review-atdd-test-quality.md` (triaged and rescored); `package.json` and CI (minimum 131 tests).
+
+### 17. The framework skill is run in Validate mode, so the TEA matrix reports a real run (Phase 3 gate)
+
+- **Phase:** 3.
+- **Persona/Skill:** Murat (`bmad-testarch-framework`, Validate mode).
+- **AI output (summary):** The agent flagged its own process gap before writing the TEA matrix. The harness had been built inside the ATDD workflow's prerequisite step, but `bmad-testarch-framework` was never invoked. The matrix row was therefore written as "applied in the ATDD prerequisite step; skill not invoked separately". Options: run the skill in Validate mode now *(recommended)*; leave the row as documented.
+- **Human decision:** ACCEPT, run it now.
+- **Reason:** A matrix row in which a skill is claimed without a run is the same failure the rubric penalizes as "gate verdict claimed without output". The validation found two real gaps, a missing `.env.example` and a missing test README, plus no JUnit reporter for CI. All three were fixed in the same run.
+- **Artifact changed:** `docs/solu-1/tests/framework-validation-report.md` (PASS after fixes); `.env.example`; `test-support/README.md`; `.github/workflows/solu1-quality-gate.yml`; `tests/tea-skill-matrix.md` (TF row).
