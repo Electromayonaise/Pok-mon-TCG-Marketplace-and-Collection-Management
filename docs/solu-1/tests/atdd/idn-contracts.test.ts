@@ -83,8 +83,8 @@ describe('Solu-1 ATDD: IDN — claimSellerTrack (contended mutation, AD-IDN-2, A
     expect(httpOf(error)).toBe(409);
   });
 
-  it('RED (mandatory edge case NFR-IDN-2): simultaneous individual and business claims — exactly one wins, 25 times', async () => {
-    for (let i = 0; i < 25; i++) {
+  it('RED (mandatory edge case NFR-IDN-2): simultaneous individual and business claims — exactly one wins, 100 times', async () => {
+    for (let i = 0; i < 100; i++) {
       // Given a fresh account and both claims fired behind a barrier on two connections
       const uid = await seed.user(db, { id: id(`dual${i}`) });
       const outcome = await race(2, (n) =>
