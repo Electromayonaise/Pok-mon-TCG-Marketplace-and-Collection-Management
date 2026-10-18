@@ -3,7 +3,7 @@ title: Adversarial review — Solu-1 epics and stories
 reviewed: docs/solu-1/planning/epics.md (against contracts.md, docs/solu-1/tests/atdd/, scripts/readiness-audit.mjs, docs/plan-2/planning/prd.md)
 skill: bmad-review-adversarial-general
 date: 2026-10-18
-status: findings recorded; triage pending the Phase 4 gate
+status: triaged — Phase 4 gate, 2026-10-18 (decision log #19)
 ---
 
 # Adversarial review — Solu-1 epics and stories
@@ -34,7 +34,9 @@ status: findings recorded; triage pending the Phase 4 gate
 - **F-11 Sprint keys will be long.** `bmad-sprint-planning` kebab-cases each full title (for example `1-1-answer-listing-eligibility-from-derived-capabilities`).
 - **F-12 Stories name the consuming UX surface inconsistently.** Some name the page (7.3 "page 7.1", 10.3 "page 9.1"), and most do not. A developer cannot tell which UI state each contract result backs.
 
-## Triage — recommendation (pending the Phase 4 gate)
+## Triage
+
+Mateo adopted the recommendation below in full at the Phase 4 gate on 2026-10-18 (decision log #19). The accepts are applied in `epics.md` (commits "Apply story review fixes to the backlog", "List each story's consumed neighbour ports", "Add a Definition of Done to the backlog"), in the IDN ATDD file, in `scripts/check-atdd-red.mjs` and in `scripts/readiness-audit.mjs` (C9, C10).
 
 | # | Recommendation | Fix / reason |
 |---|---|---|
