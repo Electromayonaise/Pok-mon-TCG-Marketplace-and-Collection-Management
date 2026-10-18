@@ -24,6 +24,17 @@ This backlog derives **one technical story per behavioral contract**: 37 stories
 - **Depends on:** earlier stories only, derived from a real call or data dependency.
 - **Consumed ports:** every neighbour command or query the story's code calls, and who provides it: an earlier story, or a fake whose provider is outside Solu-1's contract set (review F-4). Without this line, a story that runs in isolation could look shippable in the composed monolith while its provider does not exist yet.
 
+## Definition of Done (every story)
+
+A story moves to `done` in `implementation-artifacts/sprint-status.yaml` only when all of these hold (review F-5):
+
+1. The ATDD block(s) of its contract pass. `npm run gate:atdd-red:solu1` reads the status file and now *requires* them green, while every not-done story's block stays red for the right reason.
+2. The GREEN schema suite passes, and no migration constraint was removed or weakened.
+3. `npm run typecheck` passes. `domain/` imports nothing but `shared-kernel` (ports-and-adapters layer rule 1), and the stop-point lifts only for this story's own code.
+4. Every `DomainError` the story raises is a row of `shared-kernel/codes.ts` owned by the story's module, with an es-CO template and a triggering test (AD-SYS-1 rule 6).
+5. Each consumed port is bound at the composition root to its provider's real application service once the providing story is `done`. Until then the story is done *in isolation* against the fake, and its Consumed ports line says so.
+6. `bmad-code-review` has reviewed the change, and the readiness audit (`node scripts/readiness-audit.mjs --package docs/solu-1`) still reports IR-PASS.
+
 ## Requirements Inventory
 
 ### Functional Requirements
