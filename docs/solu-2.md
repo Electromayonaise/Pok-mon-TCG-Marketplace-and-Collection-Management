@@ -1,0 +1,83 @@
+# Solu-2 — Deliverable map
+
+Where every deliverable of the Solu-2 task lives, how to open or run it, and how far along it is. The adapted statement is [`docs/solu-2/task-statement.md`](solu-2/task-statement.md); the decisions behind everything below are in [`docs/solu-2/ai-log/decision-log-solu2.md`](solu-2/ai-log/decision-log-solu2.md).
+
+**Status legend:** ✅ done · 🟡 in progress · ⬜ not started
+
+## How to get started
+
+```bash
+git checkout solu-2                  # this package's branch (built on solu-1)
+npm ci                               # exact-pinned toolchain (Node 22, TypeScript 7, Vitest 5)
+npm run db:up                        # PostgreSQL 16 in Docker on 127.0.0.1:55432 (throwaway)
+```
+
+Documents live under `docs/solu-2/`. Code-shaped artifacts — interface stubs, DTO types, the test harness — live at the repository root (`src/`, `test-support/`), the layout ARCHITECTURE §3 fixes for the real code, shared with Solu-1.
+
+## Phase 0 — Intake & architecture gap audit
+
+| Deliverable (statement §) | Path | How to reach / run | Status |
+|---|---|---|---|
+| Adapted statement, TEZG seed table of the 39 core operations (§3.0.1, Annex A) | `docs/solu-2/task-statement.md` | read | ✅ |
+| Implementability gap audit, ≥ 6 gaps, triaged (§3.0.2) | `docs/solu-2/reviews/review-arch-implementability.md` | read | ⬜ |
+| Stack declaration (§3.0.3) | `docs/solu-2/planning/ARCHITECTURE.md` → "Stack Decisions" | read | ⬜ |
+
+## Phase 1 — Behavioral contracts
+
+| Deliverable | Path | How to reach / run | Status |
+|---|---|---|---|
+| 39 core-operation contracts (P/Q/I, concurrency, time, latency) | `docs/solu-2/planning/detailed-design/contracts.md` §1–§12 | read | ⬜ |
+| Typed error catalog | same file, "Typed Error Catalog" | read; `node scripts/check-code-citations.mjs <file>` checks every cited code against `src/shared-kernel/codes.ts` | ⬜ |
+| Invariant binding table (AD → enforcement point → red test) | same file, "Invariant Binding Table" | read | ⬜ |
+| Supporting contracts (every FR not bound by a core operation) | same file, "Supporting contracts" | read | ⬜ |
+
+## Phase 2 — Ports & adapters, schemas, DTOs, events
+
+| Deliverable | Path | How to reach / run | Status |
+|---|---|---|---|
+| Hexagonal map + layer-tagged Mermaid diagram | `docs/solu-2/planning/detailed-design/ports-and-adapters.md` | read (Mermaid renders on GitHub) | ⬜ |
+| Complete schema (every Plan-2 entity, `audit_events`, ≥ 2 physical invariants) | `docs/solu-2/planning/detailed-design/schemas/001_tezg_schema.sql` | applied by the test harness; or `psql -v ON_ERROR_STOP=1 -U tezg -d tezg < …` against `npm run db:up` | ⬜ |
+| DTOs (request/response per operation, `ErrorBody`, `ExplanationDTO`) | `docs/solu-2/planning/detailed-design/schemas/dto.ts` | `npm run typecheck` | ⬜ |
+| Event catalog (`eventId`, `occurredAt`, `schemaVersion`) | `docs/solu-2/planning/detailed-design/schemas/events.md` | read | ⬜ |
+| OpenAPI for every ingress procedure and error | `docs/solu-2/planning/detailed-design/schemas/openapi.yaml` | open in any OpenAPI viewer | ⬜ |
+| Interface stubs (no production logic) | `src/modules/<host>/{application,domain,ports,infra,dto}/` | `npm run typecheck` | ⬜ |
+| Detailed-design review (adversarial + edge-case hunter), triaged | `docs/solu-2/reviews/review-detailed-design.md` | read | ⬜ |
+
+## Phase 3 — Test preparation (TEA)
+
+| Deliverable | Path | How to reach / run | Status |
+|---|---|---|---|
+| Risk register (≥ 8, every MEC P0), level allocation, thresholds, testability gaps | `docs/solu-2/test/test-design.md` | read | ⬜ |
+| Fixtures: `fake_clock`, `seed_marketplace`, `sim_events`, `db`, `explain_assert` | `test-support/` (shared harness), indexed in `docs/solu-2/test/fixtures/README.md` | used by every suite | ⬜ |
+| ATDD red suite, one file per module | `docs/solu-2/test/atdd/<module>_contracts.test.ts` | `npm run gate:atdd-red:solu2` (every test must fail on `NotImplementedError`) | ⬜ |
+| CI quality gate | `docs/solu-2/test/ci/quality-gate.yml` (run by GitHub Actions) | runs on push to `solu-*` branches | ⬜ |
+| NFR evidence plan | `docs/solu-2/test/nfr-evidence.md` | read | ⬜ |
+| Traceability matrix (FR/NFR → scenario → AD → clause → test → story) | `docs/solu-2/test/traceability-matrix.md` | read | ⬜ |
+| TEA skill matrix (artifact + defect caught per skill) | `docs/solu-2/test/tea-skill-matrix.md` | read | ⬜ |
+| Test-quality review, triaged | `docs/solu-2/reviews/review-test-quality.md` | read | ⬜ |
+
+## Phase 4 — Backlog & readiness gate
+
+| Deliverable | Path | How to reach / run | Status |
+|---|---|---|---|
+| Epics and stories (skeleton + 12 module epics) | `docs/solu-2/planning/epics.md` | read | ⬜ |
+| Readiness gate report (terminal output, sign-off, gate drill) | `docs/solu-2/planning/readiness-gate-report.md` | reproduce: `node scripts/readiness-audit.mjs --package docs/solu-2` | ⬜ |
+| Sprint status | `docs/solu-2/implementation-artifacts/sprint-status.yaml` | generated by `bmad-sprint-planning` after an IR-PASS | ⬜ |
+
+## Phase 5 — Wrap-up
+
+| Deliverable | Path | How to reach / run | Status |
+|---|---|---|---|
+| ARCHITECTURE v2 (links to the detailed design) | `docs/solu-2/planning/ARCHITECTURE.md` | read | ⬜ |
+| AI decision log (≥ 6 entries, ≥ 2 rejections, pair attribution) | `docs/solu-2/ai-log/decision-log-solu2.md` | read | 🟡 |
+| Final traceability run | `docs/solu-2/test/traceability-matrix.md` | read | ⬜ |
+| Repository tag | `solu2-ready` | `git show solu2-ready` | ⬜ |
+
+## Tooling shared with Solu-1
+
+| Tool | Path | Purpose |
+|---|---|---|
+| Readiness audit | `scripts/readiness-audit.mjs` | Deterministic IR-PASS / IR-FAIL; wired into `bmad-sprint-planning` by `_bmad/custom/bmad-sprint-planning.toml` |
+| Red check | `scripts/check-atdd-red.mjs` | Every ATDD test of a not-done story fails on `NotImplementedError`; done stories must pass |
+| Code citations | `scripts/check-code-citations.mjs` | Every `Code` (HTTP n, owner) matches the registry |
+| Harness | `test-support/` (see its `README.md`) | Per-file Postgres databases, virtual clock, deterministic ids, data factories, outbox double, race barrier |
