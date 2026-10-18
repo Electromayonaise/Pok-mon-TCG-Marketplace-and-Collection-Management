@@ -19,8 +19,8 @@ Documents live under `docs/solu-2/`. Code-shaped artifacts — interface stubs, 
 | Deliverable (statement §) | Path | How to reach / run | Status |
 |---|---|---|---|
 | Adapted statement, TEZG seed table of the 39 core operations (§3.0.1, Annex A) | `docs/solu-2/task-statement.md` | read | ✅ |
-| Implementability gap audit, ≥ 6 gaps, triaged (§3.0.2) | `docs/solu-2/reviews/review-arch-implementability.md` | read | ⬜ |
-| Stack declaration (§3.0.3) | `docs/solu-2/planning/ARCHITECTURE.md` → "Stack Decisions" | read | ⬜ |
+| Implementability gap audit, ≥ 6 gaps, triaged (§3.0.2) | `docs/solu-2/reviews/review-arch-implementability.md` | read: 17 gaps, triaged at the Phase 0 gate (log #6) | ✅ |
+| Stack declaration (§3.0.3) | `docs/solu-2/planning/ARCHITECTURE.md` → "Stack Decisions" | read | ✅ |
 
 ## Phase 1 — Behavioral contracts
 
@@ -68,7 +68,7 @@ Documents live under `docs/solu-2/`. Code-shaped artifacts — interface stubs, 
 
 | Deliverable | Path | How to reach / run | Status |
 |---|---|---|---|
-| ARCHITECTURE v2 (links to the detailed design) | `docs/solu-2/planning/ARCHITECTURE.md` | read | ⬜ |
+| ARCHITECTURE v2 (a delta over Plan-2: refinements R-n, then links to the detailed design) | `docs/solu-2/planning/ARCHITECTURE.md` | read | 🟡 |
 | AI decision log (≥ 6 entries, ≥ 2 rejections, pair attribution) | `docs/solu-2/ai-log/decision-log-solu2.md` | read | 🟡 |
 | Final traceability run | `docs/solu-2/test/traceability-matrix.md` | read | ⬜ |
 | Repository tag | `solu2-ready` | `git show solu2-ready` | ⬜ |

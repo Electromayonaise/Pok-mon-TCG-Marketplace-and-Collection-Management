@@ -70,3 +70,26 @@
 - **Reason:** It keeps the pair attribution true to who made each call.
 - **Artifact changed:** this log's attribution rule.
 - **Decided by:** Mateo.
+
+### 6. Implementability gaps: 17 found, all accepted; `audit_events` and timestamps chosen; ARCHITECTURE v2 is a delta (Phase 0 gate)
+
+- **Phase:** 0.
+- **Persona/Skill:** `bmad-review-adversarial-general` (report 1 of 3), limited to implementability; Winston for the stack declaration.
+- **Prompt (summary):** Mateo directs: *"adversarial review limited to implementability of the 39 core operations and of the Solu-2 deliverables (OpenAPI, events with schemaVersion, audit_events, ErrorBody/ExplanationDTO, updatedAt); list where a developer agent would have to invent a decision; carry Solu-1's deferred findings (E-15, T-07, F-7, F-12)."*
+- **AI output (summary):** 17 gaps in `reviews/review-arch-implementability.md`, each with a resolution, a phase and an owner (A/B). Five are deliverables Plan-2 never had to define: the event envelope, the wire contract, `ErrorBody`, `audit_events`, timestamps. Seven leave a core operation open. Examples:
+  - the business-before-paid code (G-07, Solu-1 F-7);
+  - the buyer-cancel `cancelReason`, which Solu-1's own CHECK makes mandatory (G-08);
+  - the source of AD-TRD-1's `version = :v`, without which the stale-tab guarantee is silently void (G-09);
+  - a top-up confirmed before the commission account exists, which throws `'Unexpected'` (G-10).
+
+  Two are stack and repository gaps (Prisma vs SQL; Solu-1 and Solu-2 sharing `src/`). Three carry Solu-1's deferrals E-15, T-07 and F-12. The agent also drafted the 5-line "Stack Decisions" in `planning/ARCHITECTURE.md`.
+- **Human decision:** ACCEPT all 17 as recommended, plus three gate choices:
+  - G-04: a `shared-kernel` `audit_events` table written through an `AuditLog` port, over "a view over the 10 module tables" and "replace the module tables";
+  - G-05: `updatedAt` on mutable tables only, over "both columns on every table";
+  - ARCHITECTURE v2: a delta document, over "full copy, then edit".
+- **Reason:**
+  - The view would cover admin actions only and is not a table. Replacing the module tables would discard their domain snapshots (EC-35).
+  - An `updatedAt` on a table whose grants forbid `UPDATE` is a column that cannot mean anything.
+  - A delta keeps Plan-2 as the signed-off baseline, with one place to read what changed.
+- **Artifact changed:** `reviews/review-arch-implementability.md` (triaged); `planning/ARCHITECTURE.md` (Stack Decisions; refinements R-1..R-9).
+- **Decided by:** Mateo.
