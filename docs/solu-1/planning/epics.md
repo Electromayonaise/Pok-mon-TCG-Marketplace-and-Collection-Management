@@ -104,7 +104,7 @@ Valentina buys and sells from one account. TEZG derives what she may do from sto
   - **Given:** Valentina's `"User"."sellerTrack" = 'individual'`.
   - **When:** `listings` calls `identity.requireListingEligibility({ userId })` before `inventory.create`.
   - **Then:** the guard reads the facts in one statement and returns `{ listingKind: 'individual', verified: false }`, with zero writes.
-  - **Failure — Given:** Andrés's latest `"BusinessApplication"` is `Rejected` with `reapplyNotBefore = 2026-10-08T15:00Z`. **When:** the same call is made for him. **Then:** `SellerNotVerified` (HTTP 409) citing `{ applicationId, reapplyNotBefore }`, never `IndividualSellerProfileIncomplete`, and zero writes.
+  - **Failure — Given:** Andrés's latest `"BusinessApplication"` is `Rejected` with `reapplyNotBefore = 2026-10-08T15:00Z`. **When:** the same call is made for him. **Then:** `SellerNotVerified` (HTTP 409) citing `{ applicationId, reapplyNotBefore, barred }`, never `IndividualSellerProfileIncomplete`, and zero writes.
 
 ### Story 1.2: Claim exactly one seller track per account
 
@@ -114,11 +114,11 @@ Valentina buys and sells from one account. TEZG derives what she may do from sto
 - **Database Tables:** `"User"."sellerTrack"`, `"IndividualSellerProfile"`, `"BusinessApplication"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/idn-contracts.test.ts`
 - **Traceability:** FR-IDN-2, FR-IDN-4, FR-VER-1
-- **Depends on:** Story 1.1
+- **Depends on:** none
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** a fresh account with `"sellerTrack" IS NULL`.
   - **When:** `access.completeIndividualProfile` and `verification.submit` call `claimSellerTrack` at the same instant, on two connections.
-  - **Then:** exactly one conditional `UPDATE "User" SET "sellerTrack" … WHERE …` affects 1 row. The loser rolls back with `IndividualSellerProfileAlreadyComplete` or `BusinessApplicationOnFile` (HTTP 409). The composite FK `individual_profile_user_track_fk` / `business_application_user_track_fk` makes the other state physically impossible, and the result holds in 25 out of 25 repetitions.
+  - **Then:** exactly one conditional `UPDATE "User" SET "sellerTrack" … WHERE …` affects 1 row. The loser rolls back with `IndividualSellerProfileAlreadyComplete` or `BusinessApplicationOnFile` (HTTP 409). The composite FK `individual_profile_user_track_fk` / `business_application_user_track_fk` makes the other state physically impossible, and the result holds in 100 out of 100 repetitions (NFR-IDN-2).
   - **Failure — Given:** Valentina already completed her profile. **When:** she submits a business application. **Then:** `IndividualSellerProfileAlreadyComplete` and `"sellerTrack"` stays `'individual'`.
 
 ### Story 1.3: Resolve a seller's verification status
@@ -129,7 +129,7 @@ Valentina buys and sells from one account. TEZG derives what she may do from sto
 - **Database Tables:** `"BusinessApplication".status`, `"BusinessApplication"."submittedAt"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/idn-contracts.test.ts`
 - **Traceability:** FR-IDN-6, FR-INV-7
-- **Depends on:** Story 1.1
+- **Depends on:** Story 1.1 (reuses `deriveCapabilities`, AD-IDN-1 rule 2)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Andrés reapplied after a rejection, so his latest application is `Pending`.
   - **When:** `listings.reserveForPurchase` calls `getSellerVerification({ sellerId })` in its transaction.
@@ -148,7 +148,7 @@ Andrés applies once at a time. Sebastián's decision is the only path to verifi
 - **Database Tables:** `"BusinessApplication"."reapplyNotBefore"`, `"BusinessApplication"."reapplyBarred"`, `"BusinessApplication".status`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/ver-contracts.test.ts`
 - **Traceability:** FR-VER-1, FR-VER-6
-- **Depends on:** Story 1.2
+- **Depends on:** Story 1.2 (runs after `claimSellerTrack` in the same transaction)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Andrés's latest application is `Rejected` with `reapplyNotBefore = 2026-10-08T15:00:00Z`.
   - **When:** `verification.submit` runs the guard at virtual time `2026-10-08T14:59:59Z`, and again at `2026-10-08T15:00:00Z`.
@@ -163,10 +163,10 @@ Andrés applies once at a time. Sebastián's decision is the only path to verifi
 - **Database Tables:** `"BusinessApplication"`, `"ApplicationDecisionLog"`, `"RejectionReason"`, `"OutboxEvent"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/ver-contracts.test.ts`
 - **Traceability:** FR-VER-3, FR-VER-4
-- **Depends on:** Story 2.1
+- **Depends on:** none
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Andrés's application is `Pending` and `DataMismatch` is an active reason with a 7-day cooldown.
-  - **When:** Sebastián approves and Laura rejects at the same instant.
+  - **When:** Sebastián approves and a second admin rejects at the same instant.
   - **Then:** exactly one `UPDATE … WHERE status='Pending'` affects 1 row. One `"ApplicationDecisionLog"` row and one `OutboxEvent` of the winner's type (`BusinessApplicationApproved` or `BusinessApplicationRejected`) are written. The loser gets `ApplicationNotPending` (HTTP 409) citing the winning decision.
   - **Failure — Given:** an unknown application id. **When:** it is decided. **Then:** `ApplicationNotFound` (HTTP 404) comes before any reason check, with zero writes.
 
@@ -178,7 +178,7 @@ Andrés applies once at a time. Sebastián's decision is the only path to verifi
 - **Database Tables:** `"BusinessProfile"`, `"BusinessApplication".status`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/ver-contracts.test.ts`
 - **Traceability:** FR-VER-9
-- **Depends on:** Story 2.2
+- **Depends on:** Story 2.2 (needs an `Approved` application)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Andrés is `Approved` with a savings account at Bancolombia.
   - **When:** `orders.create` calls `getBusinessPaymentInstructions({ businessId })`.
@@ -191,7 +191,7 @@ Sebastián ingests the catalog feed without ever creating a second identity for 
 
 ### Story 3.1: Gate catalog administration in the procedure builder
 
-- **Description:** As Sebastián, I want catalog administration to be reachable only by admins, without `catalog` depending on `identity`, so that the module stays independently testable.
+- **Description:** As Sebastián, I want only admins to be able to start or alter catalog ingestion, so that nobody else can rewrite the card catalog every collector and seller relies on.
 - **Contract Reference:** `assertCatalogAdmin` (AD-16, AD-SYS-8)
 - **Target DTO:** `AssertCatalogAdminRequestDTO`
 - **Database Tables:** `"User"."isAdmin"`
@@ -212,7 +212,7 @@ Sebastián ingests the catalog feed without ever creating a second identity for 
 - **Database Tables:** `"FeedIngestionRun"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/cat-contracts.test.ts`
 - **Traceability:** FR-CAT-3
-- **Depends on:** Story 3.1
+- **Depends on:** Story 3.1 (built behind the admin guard)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** no run is `Running`.
   - **When:** five starts arrive at the same instant.
@@ -227,7 +227,7 @@ Sebastián ingests the catalog feed without ever creating a second identity for 
 - **Database Tables:** `"CatalogEntry"."externalKey"`, `"CatalogEntryRevision"`, `"FeedIngestionRun"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/cat-contracts.test.ts`
 - **Traceability:** FR-CAT-2, FR-CAT-4
-- **Depends on:** Story 3.2
+- **Depends on:** Story 3.2 (runs inside a leased `Running` run)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** entry `pikachu` with `externalKey='sv1-025'` named "Pikachu".
   - **When:** a batch of the running run upserts the row renamed "Pikachu ex".
@@ -242,7 +242,7 @@ Sebastián ingests the catalog feed without ever creating a second identity for 
 - **Database Tables:** `"ReferencePriceObservation"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/cat-contracts.test.ts`
 - **Traceability:** FR-CAT-5, FR-CAT-7
-- **Depends on:** Story 3.3
+- **Depends on:** none
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** observations at 2026-09-29 (40,000 COP) and 2026-10-01 12:00 (45,000 COP), plus a later 99,000 one.
   - **When:** VAL asks for the price as of 2026-10-01 15:00.
@@ -276,7 +276,7 @@ Andrés sells his last Pikachu ex once, however many buyers press "Comprar" at t
 - **Database Tables:** `"InventoryUnit".quantity`, `"Listing"`, `"BundleComponent"`, `"SellerCommissionState"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/inv-contracts.test.ts`
 - **Traceability:** FR-INV-3, FR-INV-6
-- **Depends on:** Story 1.3
+- **Depends on:** Story 1.3 (reads `getSellerVerification` in the caller's transaction)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Andrés is `Approved` and unpaused, and has one unit of Pikachu ex.
   - **When:** 50 buyers call `reserveForPurchase(tx, { listingId, qty: 1, buyerId })` at once, each in its own `orders.create` transaction.
@@ -292,7 +292,7 @@ Andrés sells his last Pikachu ex once, however many buyers press "Comprar" at t
 - **Database Tables:** `"Listing"`, `"InventoryUnit".quantity`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/inv-contracts.test.ts`
 - **Traceability:** FR-COL-6
-- **Depends on:** Story 4.2
+- **Depends on:** Story 4.2 (reuses `purchasable` and `availability`)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Pikachu ex is listed by a `Pending` business (not purchasable) and by Valentina at 60,000.
   - **When:** `collections.wishlist` asks for `[charizard, pikachu]`.
@@ -326,7 +326,7 @@ Camila in Medellín finds nearby listings from individual sellers and shops in o
 - **Database Tables:** `"Listing"`, `"InventoryUnit"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/dsc-contracts.test.ts`
 - **Traceability:** FR-DSC-1, FR-DSC-2, FR-DSC-3, FR-DSC-4, FR-DSC-5, FR-DSC-6
-- **Depends on:** Story 5.1
+- **Depends on:** Story 5.1 (validates the area first)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Valentina 0.66 km away and Andrés 6.33 km away, plus hidden, sold-out, 15.0002 km-away and unusable-location listings.
   - **When:** Camila searches 15 km around Medellín.
@@ -341,7 +341,7 @@ Camila in Medellín finds nearby listings from individual sellers and shops in o
 - **Database Tables:** `"Listing"`, `"InventoryUnit"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/dsc-contracts.test.ts`
 - **Traceability:** FR-DSC-7
-- **Depends on:** Story 5.2
+- **Depends on:** Story 5.2 (runs the `search` statement)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Pikachu ex is listed only in Bogotá.
   - **When:** Camila opens it with a 15 km Medellín area.
@@ -350,7 +350,7 @@ Camila in Medellín finds nearby listings from individual sellers and shops in o
 
 ## Epic 6: Orders and comprobante confirmation (ORD)
 
-Camila confirms she paid only once a comprobante exists. Andrés sees the order only after that, and a stale or double confirmation is explained, never applied twice.
+Camila confirms she paid only once a comprobante exists. Andrés sees the order only after that, and a stale or double confirmation is explained, never applied twice. This epic covers the ORD mandatory edge case for a **repeated** confirmation and for the expiry race. The **out-of-order** case (a business confirming before the buyer's "paid") needs `confirmPaymentReceived` and `confirmItemReceived`, which are outside Solu-1's contract set and are covered in Solu-2 (review F-7, deferred).
 
 ### Story 6.1: Show an order only to whoever may see it
 
@@ -375,7 +375,7 @@ Camila confirms she paid only once a comprobante exists. Andrés sees the order 
 - **Database Tables:** `"Order"."buyerPaidConfirmedAt"`, `"Order"."comprobanteObjectKey"`, `"Order"."expiresAt"`, `"Order"."expiredAt"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/ord-contracts.test.ts`
 - **Traceability:** FR-ORD-3
-- **Depends on:** Story 6.1
+- **Depends on:** Story 6.1 (maps an invisible order with the same predicate)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Camila uploaded a comprobante, and the order expires at seed + 48 h.
   - **When:** she confirms twice at the same instant, one hour after creation.
@@ -390,7 +390,7 @@ Camila confirms she paid only once a comprobante exists. Andrés sees the order 
 - **Database Tables:** `"Order"."buyerItemReceivedConfirmedAt"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/ord-contracts.test.ts`
 - **Traceability:** FR-ORD-9
-- **Depends on:** Story 6.2
+- **Depends on:** none
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Camila's order with Andrés is paid but not closed.
   - **When:** `reviews` asks `hasClosedPurchase({ buyerId, businessId })`.
@@ -424,7 +424,7 @@ Andrés's prepaid balance is charged exactly once per sale, at the rate in force
 - **Database Tables:** `"CommissionAccount"`, `"CommissionLedgerEntry"`, `"CommissionRateSetting"`, `"OutboxEvent"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/com-contracts.test.ts`
 - **Traceability:** FR-COM-4, FR-COM-5, FR-COM-6
-- **Depends on:** Story 7.1
+- **Depends on:** none
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Andrés's balance is 4,000. Orders A and B, each of 45,007 COP, are confirmed at the same instant, and A's event is delivered twice.
   - **When:** the three deliveries run their handler transactions at once.
@@ -439,7 +439,7 @@ Andrés's prepaid balance is charged exactly once per sale, at the rate in force
 - **Database Tables:** `"CommissionAccount"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/com-contracts.test.ts`
 - **Traceability:** FR-COM-8
-- **Depends on:** Story 7.2
+- **Depends on:** none
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Andrés's account holds 12,500 COP at seq 3.
   - **When:** page 7.1 loads.
@@ -473,7 +473,7 @@ Julián and Valentina negotiate turn by turn. When she accepts, the last unit go
 - **Database Tables:** `"TradeOffer"`, `"TradeOfferRound"`, `"OutboxEvent"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/trd-contracts.test.ts`
 - **Traceability:** FR-TRD-4, FR-TRD-5, FR-TRD-6
-- **Depends on:** Story 8.1
+- **Depends on:** Story 8.1 (its precondition `assertActorTurn`)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** two `Open` offers (Julián's and another proposer's) compete for Valentina's last unit.
   - **When:** she accepts both from two tabs at the same instant.
@@ -488,7 +488,7 @@ Julián and Valentina negotiate turn by turn. When she accepts, the last unit go
 - **Database Tables:** `"TradeOffer"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/trd-contracts.test.ts`
 - **Traceability:** FR-TRD-1
-- **Depends on:** Story 8.2
+- **Depends on:** none
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Julián has one `Open` offer on the listing.
   - **When:** page 8.1 loads.
@@ -522,12 +522,12 @@ Camila messages a verified shop. A pending one is flagged, a rejected one is exp
 - **Database Tables:** `"Conversation"`, `"ConversationParticipant"`, `"Message"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/msg-contracts.test.ts`
 - **Traceability:** FR-MSG-4, FR-MSG-5, FR-MSG-6
-- **Depends on:** Story 9.1
+- **Depends on:** Story 9.1 (reply path checks participation)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Andrés is `Approved`.
   - **When:** Camila sends `clientMessageId='c1'` and the browser retries it.
   - **Then:** one `"Conversation"` (`conversation_one_per_pair`), two participants and one `"Message"` at seq 1 (`message_idempotent_send`); the retry returns the original message.
-  - **Failure — Given:** the business is `Rejected`. **When:** Camila sends. **Then:** `identity`'s `NotBusinessAccount` (HTTP 409) propagates unchanged and nothing is stored. A business opening a conversation gets `BusinessCannotInitiate`.
+  - **Failure — Given:** the business is `Rejected`. **When:** Camila sends. **Then:** `identity`'s `NotBusinessAccount` (HTTP 409) propagates unchanged and nothing is stored. A business opening a conversation gets `BusinessCannotInitiate` (HTTP 409).
 
 ### Story 9.3: Find an existing conversation
 
@@ -537,7 +537,7 @@ Camila messages a verified shop. A pending one is flagged, a rejected one is exp
 - **Database Tables:** `"Conversation"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/msg-contracts.test.ts`
 - **Traceability:** FR-MSG-4
-- **Depends on:** Story 9.2
+- **Depends on:** none
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** a conversation between Camila and Andrés.
   - **When:** the composer opens.
@@ -571,7 +571,7 @@ Camila's purchase becomes collection entries exactly once, whatever the double c
 - **Database Tables:** `"PostPurchasePrompt"`, `"CollectionEntry"`, `"Collection"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/col-contracts.test.ts`
 - **Traceability:** FR-COL-7
-- **Depends on:** Story 10.1
+- **Depends on:** none
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** a `Pending` prompt for an order closed at 2026-10-02T03:00Z, with two lines.
   - **When:** Camila accepts it from two tabs at the same instant.
@@ -586,7 +586,7 @@ Camila's purchase becomes collection entries exactly once, whatever the double c
 - **Database Tables:** `"CollectionEntry"."cardKind"`, `"CollectionEntry"."catalogEntryId"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/col-contracts.test.ts`
 - **Traceability:** FR-COL-5
-- **Depends on:** Story 10.1
+- **Depends on:** Story 10.1 (its precondition `assertCollectionOwner`)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Valentina owns two of SV1's three cards (one in two copies), a booster box and a link-added promo.
   - **When:** page 9.1 loads SV1.
@@ -620,7 +620,7 @@ Valentina's collection value is an exact peso sum, explained entry by entry, and
 - **Database Tables:** `"CollectionEntry"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/val-contracts.test.ts`
 - **Traceability:** FR-VAL-1, FR-VAL-3
-- **Depends on:** Story 11.1
+- **Depends on:** Story 10.1 (its precondition `assertCollectionOwner`)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** 500 entries priced at an FX-derived 401 COP.
   - **When:** the collection is valued.
@@ -635,7 +635,7 @@ Valentina's collection value is an exact peso sum, explained entry by entry, and
 - **Database Tables:** none (pure function)
 - **ATDD Test File:** `docs/solu-1/tests/atdd/val-contracts.test.ts`
 - **Traceability:** FR-VAL-2
-- **Depends on:** Story 11.1
+- **Depends on:** none
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** the ADD-§2.2 vectors.
   - **When:** each change is computed.
@@ -654,7 +654,7 @@ Camila reviews Andrés's shop only after her purchase closed. Sebastián hides a
 - **Database Tables:** `"Review"."purchaseVerified"`, `"Review"."targetKind"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/rep-contracts.test.ts`
 - **Traceability:** FR-REP-1, FR-REP-2
-- **Depends on:** Story 6.3
+- **Depends on:** Story 6.3 (calls `orders.hasClosedPurchase`)
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** Camila's order with Andrés is closed.
   - **When:** she starts a review.
@@ -669,10 +669,10 @@ Camila reviews Andrés's shop only after her purchase closed. Sebastián hides a
 - **Database Tables:** `"Review"."hiddenAt"`, `"ReviewModerationLog"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/rep-contracts.test.ts`
 - **Traceability:** FR-REP-4
-- **Depends on:** Story 12.1
+- **Depends on:** none
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** a visible spam review.
-  - **When:** Sebastián and Laura hide it at the same instant.
+  - **When:** Sebastián and a second admin hide it at the same instant.
   - **Then:** exactly one `UPDATE … WHERE "hiddenAt" IS NULL` commits with one `"ReviewModerationLog"` row carrying the rating and text snapshot. The other gets `allowedWithNotice` citing the existing hide. `DELETE` is revoked for `tezg_app`.
   - **Failure — Given:** an unknown review id. **When:** hidden. **Then:** `ReviewNotFound` (HTTP 404).
 
@@ -684,7 +684,7 @@ Camila reviews Andrés's shop only after her purchase closed. Sebastián hides a
 - **Database Tables:** `"Review".rating`, `"Review"."hiddenAt"`
 - **ATDD Test File:** `docs/solu-1/tests/atdd/rep-contracts.test.ts`
 - **Traceability:** FR-REP-3
-- **Depends on:** Story 12.2
+- **Depends on:** none
 - **Acceptance Criteria (Given-When-Then):**
   - **Given:** 12 visible reviews summing 51 and one hidden 1-star review.
   - **When:** page 2.2 loads the aggregates.
