@@ -110,3 +110,88 @@
   - `[REJECTED]` **F-24** — "`explanation: string` is untyped." The typed parts are FR-DSC-5's rendering concern. A contract test asserts order and inclusion, not prose, so typing the string adds nothing a test can check.
 - `[CORRECTED]` **AD-COM-2 rule 3** (Plan-2, AI-drafted): "the transaction rolls back … the handler returns success" becomes `SAVEPOINT apply_deduction` / `ROLLBACK TO SAVEPOINT`, so the delivery row still commits as `delivered`. Without the fix, two racing deliveries of one order event could exhaust the 3 automatic attempts (AD-SYS-2 rule 4) and leave a correctly charged order looking like a failed delivery on the admin's Entregas tab.
 - **Artifact changed:** `contracts.md` (each fix marked `review F-nn`); `reviews/review-contracts-adversarial.md` (status: triaged).
+
+---
+
+### 9. The Solu-1 DDL template's id and timestamp defaults are not used (Phase 2 — pre-draft gate)
+
+- **Phase:** 2.
+- **Persona/Skill:** Winston (`bmad-agent-architect`).
+- **Prompt (summary):** Mateo directs: *"write the SQL migration DDL for the tables that enforce the contracts"* (task statement §4.2.A).
+- **AI output (summary):** Before drafting, Winston flagged a conflict between the course template and the project's inherited rules:
+  - the template prescribes `id UUID PRIMARY KEY DEFAULT gen_random_uuid()` and `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`;
+  - `project-context.md` says "cuid2 string primary keys everywhere — never auto-increment ints or UUIDs";
+  - AD-SYS-6 rule 1 bans SQL `now()`.
+
+  Options: (a) reject the defaults *(recommended)*; (b) follow the template literally; (c) a hybrid that keeps `DEFAULT NOW()` as a "safety net".
+- **Human decision:** ACCEPT (a), at the choice menu.
+- **Reason:**
+  - A `DEFAULT NOW()` on `createdAt` silently stamps wall-clock time whenever code forgets to pass the `Clock` value. Under the virtual clock seeded at `2026-10-01T15:00:00Z`, that produces rows dated in the real present, and every test that orders or ages rows becomes time-of-day dependent, exactly what AD-SYS-6 prevents. Without the default, a forgotten value fails `NOT NULL` at once.
+  - `gen_random_uuid()` contradicts the cuid2 rule. The id is still "generated", by the `IdGenerator` port, and `CHECK (tezg_is_cuid(id))` keeps it physically valid.
+  - The hybrid (c) keeps the hidden failure mode of (b).
+- **Artifact changed:** every file in `docs/solu-1/planning/schemas/`; conventions in `schemas/README.md`.
+
+### 10. Test runner: Vitest + fast-check (Phase 2 — pre-draft gate)
+
+- **Phase:** 2 (it carries into Phase 3 and Solu-2).
+- **Persona/Skill:** Winston, citing `project-context.md` ("test framework/runner … not yet decided").
+- **AI output (summary):** Options: Vitest + fast-check *(recommended)*, Jest + ts-jest, `node:test`.
+- **Human decision:** ACCEPT Vitest + fast-check.
+- **Reason:** native TypeScript/ESM, a JSON reporter for the "red for the right reason" check, and fast-check for the AD-SYS-7 property tests over 10,000 random inputs. Solu-2 names the same pair.
+- **Artifact changed:** `package.json` (exact pins: `vitest@5.0.5`, `fast-check@4.10.2`, `typescript@7.0.2`, `pg@8.23.1`).
+
+### 11. SQL-first migrations are the authoritative DDL (Phase 2 — pre-draft gate)
+
+- **Phase:** 2.
+- **Persona/Skill:** Winston.
+- **AI output (summary):** Partial unique indexes, CHECKs and exclusion constraints carry most of the invariants, and `schema.prisma` cannot express them. Options: SQL-first, with Prisma introspected later *(recommended)*; or Prisma-first, with hand-patched migrations.
+- **Human decision:** ACCEPT SQL-first.
+- **Reason:** One source of truth per constraint. With Prisma-first, every partial index would exist twice and could drift.
+- **Artifact changed:** `docs/solu-1/planning/schemas/*.sql`; the harness applies them with `pg`.
+
+### 12. GAP-4: a feed row that changes `kind` is quarantined as `KindChanged` (Phase 2 — pre-draft gate)
+
+- **Phase:** 2.
+- **Persona/Skill:** Winston, surfaced while writing `upsertCatalogEntry` (#7).
+- **AI output (summary):** Plan-2 does not say what happens when a feed row's `kind` differs from the stored entry's. Options: quarantine with `KindChanged` *(recommended)*; apply the new kind; fail the whole run.
+- **Human decision:** ACCEPT `KindChanged`.
+- **Reason:** Applying the new kind could turn a card that sits in `BundleComponent` rows into a sealed product, which AD-INV-1 rule 5 forbids. Failing the run would block 9,999 good rows for one bad one.
+- **Artifact changed:** `003_create_catalog.sql` (`QuarantinedFeedRow.reasonCode`); `catalog/domain/cat.ts` (`QuarantineReason`).
+
+### 13. `[IMPROVED]` Seller-track exclusivity made physical with a composite foreign key (Phase 2 gate)
+
+- **Phase:** 2.
+- **Persona/Skill:** Winston (DDL draft).
+- **AI output (summary):** AD-IDN-2's *Alternatives* block (Plan-2, AI-drafted) rejected a cross-table guard because "Postgres cannot express a uniqueness constraint that spans two tables without triggers". Winston's draft shows that it can, for this invariant:
+  - `"User"` gets `UNIQUE (id, "sellerTrack")`;
+  - `IndividualSellerProfile(userId, sellerTrack = 'individual')` and `BusinessApplication(businessId, sellerTrack = 'business')` reference it `ON UPDATE RESTRICT`.
+
+  This was verified on `postgres:16.6`: an application insert for an individual-track user fails with `business_application_user_track_fk`, and a track change under an existing profile fails with `individual_profile_user_track_fk`.
+- **Human decision:** ACCEPT, as defense-in-depth. AD-IDN-2's conditional `UPDATE` stays the primary guard.
+- **Reason:** With only the conditional write, the invariant depends on every future writer remembering the `WHERE "sellerTrack" IS NULL` predicate. The FK makes the database refuse the forbidden state whatever the code does. It also enforces AD-IDN-2 rule 4 ("`sellerTrack` is never cleared") physically. The cost is one constant discriminator column per table.
+- **Artifact changed:** `001_…sql`, `002_…sql`; `schemas/README.md` P-1. Review E-02 later extended the same pattern to `BusinessProfile`.
+
+### 14. Schema review triage: 20 Accept, 2 `[REJECTED]`, 1 Defer (Phase 2 gate)
+
+- **Phase:** 2.
+- **Persona/Skill:** `bmad-review-edge-case-hunter` (report 2 of 4, a self-review by path tracing).
+- **Prompt (summary):** Mateo directs: *"walk every boundary and branch of the Solu-1 DDL and DTOs against contracts.md; report only unhandled edge cases."*
+- **AI output (summary):** 23 unhandled paths, each with a recommendation. Among them:
+  - a listing could point at **another seller's** `InventoryUnit`, so a purchase would decrement someone else's stock (E-05, E-06);
+  - order facts were ordered in presence but not in time (E-08);
+  - a message could be stored by a non-participant (E-12).
+- **Human decision:** ACCEPT the triage in full. The offered alternatives (accept E-14; decide E-15 now) were not taken.
+- **The two rejected AI findings:**
+  - `[REJECTED]` **E-14** — *"add `UNIQUE (collectionId, manualPosition) DEFERRABLE INITIALLY DEFERRED`"*. The binder order already ends in a deterministic `entryId` tie-break (AD-COL-1 rule 5), so equal positions are never ambiguous. Review F-13's `col:owner` lock already serializes every writer of positions. A deferred unique on a column that `reorder` rewrites in bulk adds a deferred check to every move, and a mid-reorder violation could only surface at commit, as an opaque error, with no user-visible gain.
+  - `[REJECTED]` **E-16** — *"`acceptedIntoCollectionId` dangles after the collection is deleted"*. The column is history: where the buyer accepted the prompt. It is never dereferenced, and an FK would force either blocking collection deletion or nulling the history, both worse than a documented dangling id.
+- **Deferred:** E-15 (deleting a collection cascades its purchase entries, and the prompt, already `Accepted`, cannot re-create them). This is an FR-COL-1 product decision, not a DDL one, and it is carried to Solu-2's gap audit.
+- **Artifact changed:** migrations 001, 002, 004, 005, 007, 008, 010, 099; DTOs `dsc`, `inv`, `msg`, `rep`, `val`; `contracts.md` (marked `review E-nn`); `reviews/review-schema-edge-cases.md` (status: triaged).
+
+### 15. `[CORRECTED]` The agent's own Phase 1 fix broke AD-1; the admin guard moves to `adminProcedure` (Phase 2 gate — review E-23)
+
+- **Phase:** 2.
+- **Persona/Skill:** `bmad-review-edge-case-hunter` (E-23), on code written by the agent at #8.
+- **AI output (summary):** Review F-01 (#8) moved the admin check into `identity.requireAdmin`. But `assertCatalogAdmin` still lived in `catalog` and called it, which gave `catalog` a runtime dependency on `identity`. AD-1's graph gives `catalog` **no** module dependencies (ARCH §6.3). Options: move the guard to the `adminProcedure` driving adapter *(recommended)*; or amend AD-1 with a `catalog → identity` edge.
+- **Human decision:** ACCEPT moving it to `src/server/trpc/admin-guard.ts`.
+- **Reason:** Amending an inherited invariant needs "an explicit, logged decision and a stated reason" (Plan-2 constraint 8). There is no reason to pay that cost, because admin gating is a transport concern that the procedure builder already owns (AD-SYS-8 rule 1). `catalog` stays testable with no `identity` fake.
+- **Artifact changed:** `src/server/trpc/admin-guard.ts` (new); `catalog/ports/cat.ts`, `application/cat.ts`, `index.ts`, `dto/cat.dto.ts` (port removed); `contracts.md` §3; `ports-and-adapters.md` §3.

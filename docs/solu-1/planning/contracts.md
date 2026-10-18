@@ -32,6 +32,8 @@ memlog: docs/solu-1/planning/.memlog.md
 | "zero writes" | The call issues no `INSERT`, `UPDATE` or `DELETE` on any table and enqueues no `OutboxEvent` |
 | "rolls back" | The enclosing transaction aborts. Every row it changed returns to its prior value, and no `OutboxEvent` or `EventDelivery` row it inserted survives (AD-SYS-2 rule 1) |
 
+**From contract to code.** Each function is an inbound-port method in `src/modules/<host>/application/<code>.ts`. Its parameters other than `tx` and `now` are the fields of its request DTO (`src/modules/<host>/dto/<code>.dto.ts`), passed as one object. `now` is read once from the injected `Clock` at the start of the transaction and is never a DTO field (AD-SYS-6). Positional parameters in this document are therefore exactly those DTO fields, and the names match one to one.
+
 **Typed errors.** `Code` (HTTP *n*, owner *module*). The HTTP status is the one tRPC 11 emits for the code's family in AD-SYS-1:
 
 | Family | HTTP |
@@ -193,12 +195,14 @@ A code raised by a module other than its owner is propagated unchanged (AD-11). 
 
 *Guard. FR-CAT-3, FR-IDN-7. Precedes `catalog.feed.start`, `catalog.feed.continue`, `catalog.feed.runs`, `catalog.feed.quarantine`, `catalog.fx.retry`.*
 
+*Placement (review E-23, decision log #15).* This guard is the `adminProcedure` check that the `catalog` router's procedures are built with, in `src/server/trpc/admin-guard.ts`. That file is a driving adapter, and it may call `identity`. It does **not** live inside `catalog`: AD-1 gives `catalog` no module dependencies, and a call from `catalog` to `identity.requireAdmin` would add one. `catalog`'s own use cases run only after this guard has passed.
+
 - **Precondition (P):**
   - `actorId` MUST be the session's `userId`. A missing session is refused by the procedure builder with `NotAuthenticated` (HTTP 401, identity) before the call.
 - **Postcondition (Q):**
-  - Calls `identity.requireAdmin(actorId)` once. That `identity` application-service function reads the `"User"."isAdmin"` fact through `deriveCapabilities` and is the only code that constructs `AdminOnly`. AD-SYS-1 rule 2 and lint `tezg/error-owner` forbid `catalog` from raising an `identity` code (review F-01).
+  - Calls `identity.requireAdmin(actorId)` once from the procedure builder. That `identity` function reads the `"User"."isAdmin"` fact through `deriveCapabilities` and is the only code that constructs `AdminOnly`. AD-SYS-1 rule 2 and lint `tezg/error-owner` forbid any other module from raising it (review F-01).
   - Returns `void` when `isAdmin = true`.
-  - Otherwise `identity.requireAdmin` throws `AdminOnly` (HTTP 403, owner identity), and `assertCatalogAdmin` lets it propagate unchanged, without catching or rewrapping it. Citation: `{ rule: 'FR-IDN-7', inputs: { userId: actorId } }`.
+  - Otherwise `identity.requireAdmin` throws `AdminOnly` (HTTP 403, owner identity), and the guard lets it propagate unchanged, without catching or rewrapping it. No `catalog` code runs. Citation: `{ rule: 'FR-IDN-7', inputs: { userId: actorId } }`.
   - Zero writes.
 - **Invariant (I):**
   - Admin status comes only from `"User"."isAdmin"`, read server-side. No procedure input carries a key named `role`, `roles`, `isAdmin` or `capabilities` (bound to AD-16, AD-SYS-8 rules 1–2).
@@ -230,7 +234,8 @@ A code raised by a module other than its owner is propagated unchanged (AD-11). 
   - `row` MUST satisfy `validateRow(row) = ok`. A row that fails it is written to `"QuarantinedFeedRow"` and never reaches this function.
   - `"CatalogSet"` with `code = row.setCode` MUST exist, inserted earlier by the same run.
 - **Postcondition (Q):**
-  - Runs `INSERT INTO "CatalogEntry" (id, "externalKey", "setId", kind, name, "nameKey", number, "numberSort", pokemon, colour, style, artist, "imageUrl") VALUES (:newId, …) ON CONFLICT ("externalKey") DO UPDATE SET <attributes> = EXCLUDED.<attributes> WHERE ("CatalogEntry".name, …) IS DISTINCT FROM (EXCLUDED.name, …) RETURNING id, (xmax = 0) AS inserted`.
+  - Runs `INSERT INTO "CatalogEntry" (id, "externalKey", "setId", kind, name, number, "numberSort", pokemon, colour, style, artist, "imageUrl", "createdAt", "updatedAt") VALUES (:newId, …, :now, :now) ON CONFLICT ("externalKey") DO UPDATE SET "setId", name, number, "numberSort", pokemon, colour, style, artist, "imageUrl" = EXCLUDED.<same>, "updatedAt" = :now WHERE ("CatalogEntry"."setId", name, number, "numberSort", pokemon, colour, style, artist, "imageUrl") IS DISTINCT FROM (EXCLUDED.<same>) RETURNING id, (xmax = 0) AS inserted`.
+  - **The `DO UPDATE SET` list is exactly the nine attributes above.** It never contains `id`, `"externalKey"`, `kind` or `"createdAt"`, so an upsert cannot reassign the identity or turn a card into a sealed product. `"nameKey"` is a generated column and follows `name` (review E-04).
   - Returns:
     - `outcome: 'created'` when the row was inserted, with `catalogEntryId = :newId`;
     - `outcome: 'updated'` when an existing row's attributes changed, with `catalogEntryId` = **the existing `id`**. The same `tx` inserts one `"CatalogEntryRevision" { catalogEntryId, runId, changedFields, before, after }`;
@@ -283,7 +288,7 @@ A code raised by a module other than its owner is propagated unchanged (AD-11). 
 
 *Fills the contended slot (decision log #4). FR-DSC-1..6. Concurrent writers are `reserveForPurchase` (availability to 0), `hideListing` (`hiddenAt`) and the commission projection (`pausedAt`).*
 
-`SearchInput = { view: 'listings'; catalogFilters?: CatalogFilters; area?: { lat; lng; radiusKm }; maxPriceCop?: Cop; condition?: Condition[]; purchasableOnly?: boolean; includeSoldOut?: boolean (default false); page: number (≥ 1); pageSize: 24 }`
+`SearchInput = { view: 'listings'; catalogFilters?: CatalogFilters; area?: { lat; lng; radiusKm }; maxPriceCop?: Cop; condition?: Condition[]; purchasableOnly?: boolean; includeSoldOut?: boolean (default false); page: integer 1..417; pageSize: 24 }`. The cap 417 = ⌈10,000 seeded listings / 24⌉ bounds the `OFFSET` (review E-19); a larger `page` is refused as `RequestValidationFailed`.
 
 This contract covers FR-DSC-1's `view: 'listings'`. FR-DSC-1's other view, `entries`, pages over `catalog.browse` with the same predicate and ranking functions (AD-DSC-1 rule 7) and is outside this contract (review F-18).
 
@@ -382,7 +387,7 @@ This contract covers FR-DSC-1's `view: 'listings'`. FR-DSC-1's other view, `entr
 *Resolver. FR-COL-6. Called by `collections.wishlist.*`.*
 
 - **Precondition (P):**
-  - `catalogEntryIds` MUST contain 1–500 distinct `CuidId` values. More than 500 throws `'Unexpected'` (HTTP 500), because `collections` chunks at 500.
+  - `catalogEntryIds` MUST contain 1–500 distinct `CuidId` values. More than 500 throws `'Unexpected'` (HTTP 500), because `collections` chunks at 500. Duplicates are refused by the input parser as `RequestValidationFailed` (review E-22).
   - When `area` is present, `assertSearchArea(area)` MUST have returned.
 - **Postcondition (Q):**
   - Returns exactly one element per input id, in input order.
@@ -546,7 +551,7 @@ This contract covers FR-DSC-1's `view: 'listings'`. FR-DSC-1's other view, `entr
     3. `listings.getTradeability(listingId)` in the ambient `tx`. A refusal, such as `ListingNotOpenToTrade` (HTTP 409, owner listings), propagates unchanged.
     4. `listings.reserveForTrade(tx, listingId, 1)`. `InsufficientQuantity` (HTTP 409, owner listings) propagates unchanged.
     5. Stores `"reservationRef"` on the offer and inserts `"TradeOfferRound" { action: 'accept', actor: 'seller', at: now }`.
-    6. `UPDATE "TradeOffer" SET status='Unfulfillable', "unfulfillableReason"='ListingNoLongerAvailable' WHERE "listingId" = ANY(:exhaustedListingIds) AND status='Open' AND id <> :offerId RETURNING id`, then inserts one `markedUnfulfillable` round per returned id.
+    6. `UPDATE "TradeOffer" SET status='Unfulfillable', "unfulfillableReason"='ListingNoLongerAvailable' WHERE "listingId" = ANY(:exhaustedListingIds) AND status='Open' AND id <> :offerId RETURNING id`, then inserts one `markedUnfulfillable` round per returned id, with `actor='seller'` and `round = max(round) + 1` of that offer. `"roundCount"` is **not** incremented; it counts offer and counter rounds only, so a sibling already at 10 rounds never breaches `CHECK ("roundCount" BETWEEN 1 AND 10)` (review E-10). The own offer's `accept` round in step 5 follows the same rule.
     7. Enqueues `TradeAccepted { tradeOfferId, listingId, sellerId, proposerId, terms, acceptedAt }`, with zero `"EventDelivery"` rows (no V1 subscriber).
   - After commit, it calls `listings.generateContactMessage({ kind: 'trade', listingId, requesterId: proposerId, tradeSummary })` exactly once and returns its `{ text, externalUrl, copyText }` as `handoff`.
   - **Post-commit handoff failure (review F-14):** if that call throws (for example `ListingNotFound` because the listing was hidden between commit and call), the accept stays committed. The function returns success with `handoff: null` and logs the error code at `warn`, without the message text. Page 8.2 regenerates the handoff later through `trading.handoff`, which runs the same deterministic composition. The caller never sees an error for a committed accept.
@@ -592,9 +597,10 @@ This contract covers FR-DSC-1's `view: 'listings'`. FR-DSC-1's other view, `entr
 *Contended mutation. FR-MSG-4, FR-MSG-5, FR-MSG-6. Contenders: a network retry with the same `clientMessageId`, two first messages that both start a conversation, and two concurrent sends in one conversation.*
 
 - **Precondition (P):**
-  - `senderId` MUST equal `actorId`, and `requireCanBuy` MUST have passed (`EmailNotVerified`, HTTP 409, identity, otherwise).
+  - `senderId` MUST equal `actorId`, and `requireCanBuy` MUST have passed (`EmailNotVerified`, HTTP 403, identity, otherwise — family `FORBIDDEN` in AD-SYS-1).
   - `body` MUST be 1–2,000 characters after NFC normalization.
   - `clientMessageId` MUST be 1–64 characters of `[A-Za-z0-9_-]`. The browser generates a cuid2 per composed message and reuses it on retry (GAP-3, adopted at the Phase 1 gate, decision log #6).
+  - The target MUST be exactly one of `{ recipientId }` or `{ conversationId }`. The input parser uses two `.strict()` objects, so a payload carrying both keys, or neither, is `RequestValidationFailed` (review E-21).
   - With `{ conversationId }`, `assertConversationParticipant(conversationId, senderId)` MUST have returned.
 - **Postcondition (Q):**
   - **Start path** (`{ recipientId }`):
@@ -727,6 +733,7 @@ This contract covers FR-DSC-1's `view: 'listings'`. FR-DSC-1's other view, `entr
     - price `null` → added to `notValued` with `NoReferencePrice`;
     - otherwise its value is `cop × qty`, and it is counted in `staleCount` when `stale`.
   - `totalCop` is the exact `BigInt` sum of valued entries. `conversionDriftBoundCop = floor(Σ qty over entries with copDerivation='fxDerived' / 2)`, reported and never applied to `totalCop`.
+  - When `totalCop > Number.MAX_SAFE_INTEGER` (9,007,199,254,740,991), the DTO mapping throws `'Unexpected'` (HTTP 500) through `assertSafeInteger` instead of returning a rounded number (AD-SYS-7 rule 1; review E-20).
   - Zero writes. Nothing about the valuation is stored.
   - **Concurrency and repetition:**
     - Two calls with equal `now` against equal committed entries and observations return byte-identical `Valuation` objects.
@@ -801,7 +808,7 @@ This contract covers FR-DSC-1's `view: 'listings'`. FR-DSC-1's other view, `entr
 *Resolver. FR-REP-3. Composed in the 2.2 and 3.1 RSC pages.*
 
 - **Precondition (P):**
-  - `sellerIds` MUST contain 1–500 distinct `CuidId` values.
+  - `sellerIds` MUST contain 1–500 distinct `CuidId` values. Duplicates are refused by the input parser as `RequestValidationFailed` (review E-22).
 - **Postcondition (Q):**
   - Runs one statement over `"Review" WHERE "hiddenAt" IS NULL AND "targetUserId" = ANY(:sellerIds)` that returns `count` and `sum(rating)` per target.
   - `averageTenths = floor((20 × sum + count) / (2 × count))` in `BigInt`. For example, sum 51 and count 12 give 43, which renders "4,3".
@@ -854,7 +861,7 @@ This contract covers FR-DSC-1's `view: 'listings'`. FR-DSC-1's other view, `entr
 
 | Addition | Owner | Introduced by |
 |---|---|---|
-| `identity.requireAdmin(actorId)` — throws `AdminOnly` | identity | review F-01 |
+| `identity.requireAdmin(actorId)` — throws `AdminOnly`; called only from `src/server/trpc/admin-guard.ts` | identity | review F-01, E-23 |
 | `identity.requireMessagingEligibility(userId)` — throwing projection of `getMessagingEligibility` | identity | review F-02 |
 | DomainError `PromptNotFound` (`NOT_FOUND`) | collections | GAP-1 |
 | Better Auth `advanced.database.generateId` bound to cuid2 | identity | review F-04 |
