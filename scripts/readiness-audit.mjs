@@ -30,7 +30,8 @@ if (!cfg) {
   console.error(`unknown --package ${pkg}; known: ${Object.keys(PACKAGES).join(', ')}`);
   process.exit(2);
 }
-const read = (p) => fs.readFileSync(p, 'utf8');
+// Normalized to LF: Windows checkouts (core.autocrlf) and Windows editors write CRLF.
+const read = (p) => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
 const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]));
 const expandFr = (s) => {
   const out = [];
