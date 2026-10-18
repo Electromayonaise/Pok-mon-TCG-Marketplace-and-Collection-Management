@@ -20,6 +20,16 @@ const PACKAGES = {
     atdd: 'docs/solu-1/tests/atdd',
     prd: 'docs/plan-2/planning/prd.md',
     dtoRoots: ['src/modules', 'src/server'],
+    // C9: neighbour ports each module declares, and the epics whose stories must list them.
+    neighbourPorts: [
+      { file: 'src/server/trpc/admin-guard.ts', epics: [3] },
+      { file: 'src/modules/listings/ports/listings.ts', epics: [4, 5] },
+      { file: 'src/modules/orders/ports/ord.ts', epics: [6] },
+      { file: 'src/modules/trading/ports/trd.ts', epics: [8] },
+      { file: 'src/modules/messaging/ports/msg.ts', epics: [9] },
+      { file: 'src/modules/collections/ports/collections.ts', epics: [10, 11] },
+      { file: 'src/modules/reviews/ports/rep.ts', epics: [12] },
+    ],
     greenProject: 'solu1-schema',
     redProject: 'solu1-atdd',
     redMinimum: 131,
@@ -84,7 +94,7 @@ for (const l of epicLines) {
   }
   if (!story) continue;
   story.body.push(l);
-  const f = l.match(/^- \*\*(Description|Contract Reference|Target DTO|Database Tables|ATDD Test File|Traceability|Depends on|Acceptance Criteria \(Given-When-Then\)):\*\*\s*(.*)$/);
+  const f = l.match(/^- \*\*(Description|Contract Reference|Target DTO|Database Tables|ATDD Test File|Traceability|Depends on|Consumed ports|Acceptance Criteria \(Given-When-Then\)):\*\*\s*(.*)$/);
   if (f) story.fields[f[1]] = f[2];
 }
 
@@ -157,6 +167,43 @@ for (const s of stories) {
   seen.add(s.id);
 }
 for (const n of contracts.keys()) if (!covered.has(n)) fail('C2 contract binding', `Contract ${n} has no story`);
+
+// C9 consumed ports (review F-4): every neighbour port a module declares is listed by one of its
+// stories, and every listing names an earlier providing story or a referenced fake.
+const consumedByEpic = new Map();
+const order = stories.map((s) => s.id);
+for (const s of stories) {
+  const line = s.fields['Consumed ports'];
+  if (line === undefined) continue;
+  const entries = [...line.matchAll(/`(\w+\.\w+)` → (?:Story (\d+\.\d+)|faked; provider outside Solu-1 \(([^)]+)\))/g)];
+  if (entries.length === 0) fail('C9 consumed ports', `Story ${s.id} has a Consumed ports line with no parseable entry`);
+  for (const [, port, provider, ref] of entries) {
+    if (!consumedByEpic.has(s.epic)) consumedByEpic.set(s.epic, new Set());
+    consumedByEpic.get(s.epic).add(port);
+    if (provider && !(order.includes(provider) && order.indexOf(provider) < order.indexOf(s.id))) {
+      fail('C9 consumed ports', `Story ${s.id} consumes ${port} from Story ${provider}, which is not an earlier story`);
+    }
+    for (const fr of ref ? expandFr(ref) : []) if (!prdFrs.has(fr)) fail('C9 consumed ports', `Story ${s.id} cites ${fr} for ${port}, which the PRD does not define`);
+  }
+}
+for (const np of cfg.neighbourPorts) {
+  const src = read(np.file);
+  for (const m of src.matchAll(/export interface (\w+) \{([\s\S]*?)\n\}/g)) {
+    const owner = m[1].match(/^(Identity|Catalog|Listings|Orders)(?:For\w+|AdminGuard)$/)?.[1];
+    if (!owner) continue;
+    for (const method of m[2].matchAll(/^\s+(\w+)\(/gm)) {
+      const port = `${owner.toLowerCase()}.${method[1]}`;
+      if (!np.epics.some((e) => consumedByEpic.get(e)?.has(port))) {
+        fail('C9 consumed ports', `${np.file} declares ${port}, but no story of epic ${np.epics.join('/')} lists it`);
+      }
+    }
+  }
+}
+
+// C10 error-code citations (review F-10): every `Code` (HTTP n, owner) matches the registry.
+const codeCheck = spawnSync('node', ['scripts/check-code-citations.mjs', cfg.contracts, cfg.epics], { encoding: 'utf8', shell: true });
+const codeLine = (codeCheck.stdout.trim().split('\n').pop() ?? '').trim();
+if (codeCheck.status !== 0) fail('C10 code citations', codeCheck.stdout.trim().split('\n').slice(0, 3).join(' | '));
 for (const f of boundFrs) if (!tracedFrs.has(f)) fail('C5 FR traceability', `${f} (bound by a contract) reaches no story`);
 for (const a of boundAds) if (!enforcedAds.has(a)) fail('C4 invariant binding', `${a} (bound by a contract) appears in no story`);
 
@@ -188,6 +235,8 @@ const lines = [
   row(`Cross-Document Traceability: ${pct(frOk, boundFrs.size)} (${frOk}/${boundFrs.size} contract-bound FRs -> stories -> AD -> DTOs/Tables)`),
   row(`Contract Coverage: ${pct(covered.size, contracts.size)} (${covered.size}/${contracts.size} contracts bound to a story and an ATDD block)`),
   row(`Invariant Enforceability: ${pct(adOk, boundAds.size)} (${adOk}/${boundAds.size} ADs bound to a story, a contract and a red test)`),
+  row(`Consumed ports: ${[...consumedByEpic.values()].reduce((n, s) => n + s.size, 0)} listed, each backed by an earlier story or a referenced fake`),
+  row(`Error-code citations: ${codeLine}`.slice(0, W - 4)),
   row(`GREEN schema suite: ${green}`.slice(0, W - 4)),
   row(`ATDD: ${red}`.slice(0, W - 4)),
   row(pass ? 'Action: Sprint tracking file may be generated. System ready for implementation.' : 'Action: HALT. Do not generate sprint-status.yaml; fix the findings below.'),
