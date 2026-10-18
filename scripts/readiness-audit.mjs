@@ -33,6 +33,7 @@ const PACKAGES = {
     greenProject: 'solu1-schema',
     redProject: 'solu1-atdd',
     redMinimum: 131,
+    statusFile: 'docs/solu-1/implementation-artifacts/sprint-status.yaml',
   },
 };
 const cfg = PACKAGES[pkg];
@@ -214,7 +215,7 @@ if (runTests) {
   const gLine = (g.stdout.match(/Tests\s+(.+)/) ?? [])[1] ?? 'no result';
   green = gLine.trim();
   if (g.status !== 0) fail('C8 executable gates', `GREEN schema suite failed: ${green}`);
-  const r = spawnSync('node', ['scripts/check-atdd-red.mjs', cfg.redProject, String(cfg.redMinimum)], { encoding: 'utf8', shell: true });
+  const r = spawnSync('node', ['scripts/check-atdd-red.mjs', cfg.redProject, String(cfg.redMinimum), '--status', cfg.statusFile, '--epics', cfg.epics], { encoding: 'utf8', shell: true });
   red = (r.stdout.split('\n')[0] ?? '').trim();
   if (r.status !== 0) fail('C8 executable gates', `ATDD red check failed: ${r.stdout.trim().split('\n').slice(0, 4).join(' | ')}`);
 }

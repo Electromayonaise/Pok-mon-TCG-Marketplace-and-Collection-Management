@@ -1,13 +1,41 @@
-// Red-for-the-right-reason gate (Solu-2 §6, Solu-1 Phase 3): runs one ATDD project with the
-// JSON reporter and fails unless EVERY test failed and every failure names NotImplemented.
-// A test that passes (tautology or premature implementation) or fails for another reason
-// (broken Given step, wrong fixture, harness error) is reported with its file and title.
+// Red-for-the-right-reason gate. Runs one ATDD project with the JSON reporter.
+// A test of a contract whose story is not yet `done` must FAIL, and its failure must name
+// NotImplemented: a pass is a tautology or a premature implementation, and another failure
+// reason is a broken Given step, fixture or harness. A test of a contract whose story IS
+// `done` in sprint-status.yaml must PASS (review F-5), so implementing a story never breaks
+// the gate. Without --status every story counts as not done.
 // Usage: node scripts/check-atdd-red.mjs <vitest-project> [minimumTestCount]
+//          [--status <sprint-status.yaml> --epics <epics.md>]
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 
-const project = process.argv[2];
-const minimum = Number(process.argv[3] ?? 1);
+const argv = process.argv.slice(2);
+const flag = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : null);
+const project = argv[0];
+const minimum = Number(argv[1] && !argv[1].startsWith('--') ? argv[1] : 1);
+const statusFile = flag('--status');
+const epicsFile = flag('--epics');
+
+/** Contracts whose story is `done`: story key (bmad-sprint-planning rule) → status → contract names. */
+function doneContracts() {
+  if (!statusFile || !epicsFile || !fs.existsSync(statusFile)) return new Set();
+  const status = new Map();
+  for (const m of fs.readFileSync(statusFile, 'utf8').matchAll(/^\s+([\w-]+):\s*([\w-]+)\s*$/gm)) status.set(m[1], m[2]);
+  const done = new Set();
+  let key = null;
+  for (const line of fs.readFileSync(epicsFile, 'utf8').split(/\r?\n/)) {
+    const s = line.match(/^### Story (\d+)\.(\d+): (.+)$/);
+    if (s) {
+      const slug = s[3].toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      key = `${s[1]}-${s[2]}-${slug}`;
+      continue;
+    }
+    const ref = line.match(/^- \*\*Contract Reference:\*\*(.*)$/);
+    if (key && ref && status.get(key) === 'done') for (const c of ref[1].matchAll(/`(\w+)`/g)) done.add(c[1]);
+  }
+  return done;
+}
+const done = doneContracts();
 if (!project) {
   console.error('usage: node scripts/check-atdd-red.mjs <vitest-project> [minimumTestCount]');
   process.exit(2);
@@ -22,18 +50,26 @@ if (!fs.existsSync(out)) {
 const report = JSON.parse(fs.readFileSync(out, 'utf8'));
 
 let total = 0;
+let greenDone = 0;
 const wrong = [];
 for (const file of report.testResults) {
   const name = file.name.split(/[\\/]/).slice(-2).join('/');
   if (file.assertionResults.length === 0) wrong.push(`${name}: file failed to load — ${(file.message ?? '').split('\n')[0]}`);
   for (const t of file.assertionResults) {
     total++;
+    const contract = (t.ancestorTitles ?? []).join(' ').match(/— (\w+) \(/)?.[1];
     const message = (t.failureMessages ?? []).join('\n');
-    if (t.status !== 'failed') wrong.push(`${name} › ${t.title}: status ${t.status} (a red test must fail)`);
+    if (contract && done.has(contract)) {
+      if (t.status === 'passed') greenDone++;
+      else wrong.push(`${name} › ${t.title}: story of ${contract} is done, so this test must pass — ${message.split('\n')[0]}`);
+    } else if (t.status !== 'failed') wrong.push(`${name} › ${t.title}: status ${t.status} (a red test must fail)`);
     else if (!/NotImplemented/.test(message)) wrong.push(`${name} › ${t.title}: failed for another reason — ${message.split('\n')[0]}`);
   }
 }
-console.log(`${project}: ${total} tests in ${report.testResults.length} files; ${total - wrong.length} red for the right reason; ${wrong.length} not`);
+console.log(
+  `${project}: ${total} tests in ${report.testResults.length} files; ${total - wrong.length - greenDone} red for the right reason; ` +
+    `${greenDone} green for done stories (${done.size} contracts done); ${wrong.length} not as expected`,
+);
 for (const w of wrong) console.log(`  ✗ ${w}`);
 if (total < minimum) console.log(`  ✗ expected at least ${minimum} tests`);
 process.exit(wrong.length === 0 && total >= minimum ? 0 : 1);
