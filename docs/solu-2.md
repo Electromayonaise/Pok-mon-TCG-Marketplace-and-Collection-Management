@@ -35,13 +35,15 @@ Documents live under `docs/solu-2/`. Code-shaped artifacts — interface stubs, 
 
 | Deliverable | Path | How to reach / run | Status |
 |---|---|---|---|
-| Hexagonal map + layer-tagged Mermaid diagram | `docs/solu-2/planning/detailed-design/ports-and-adapters.md` | read (Mermaid renders on GitHub) | ⬜ |
-| Complete schema (every Plan-2 entity, `audit_events`, ≥ 2 physical invariants) | `docs/solu-2/planning/detailed-design/schemas/001_tezg_schema.sql` | applied by the test harness; or `psql -v ON_ERROR_STOP=1 -U tezg -d tezg < …` against `npm run db:up` | ⬜ |
-| DTOs (request/response per operation, `ErrorBody`, `ExplanationDTO`) | `docs/solu-2/planning/detailed-design/schemas/dto.ts` | `npm run typecheck` | ⬜ |
-| Event catalog (`eventId`, `occurredAt`, `schemaVersion`) | `docs/solu-2/planning/detailed-design/schemas/events.md` | read | ⬜ |
-| OpenAPI for every ingress procedure and error | `docs/solu-2/planning/detailed-design/schemas/openapi.yaml` | open in any OpenAPI viewer | ⬜ |
-| Interface stubs (no production logic) | `src/modules/<host>/{application,domain,ports,infra,dto}/` | `npm run typecheck` | ⬜ |
-| Detailed-design review (adversarial + edge-case hunter), triaged | `docs/solu-2/reviews/review-detailed-design.md` | read | ⬜ |
+| Hexagonal map + layer-tagged Mermaid diagram | `docs/solu-2/planning/detailed-design/ports-and-adapters.md` | read (Mermaid renders on GitHub); `npm run gate:purity` enforces hard rule 1 | ✅ |
+| Complete schema (every Plan-2 entity, `audit_events`, ≥ 2 physical invariants) | `docs/solu-2/planning/detailed-design/schemas/001_tezg_schema.sql` (55 tables) | applied by the test harness; or `psql -v ON_ERROR_STOP=1 -U tezg -d tezg < …` against `npm run db:up` | ✅ |
+| DTOs (request/response per operation, `ErrorBody`, `ExplanationDTO`) | `docs/solu-2/planning/detailed-design/schemas/dto.ts` (an index; each DTO lives in `src/modules/<host>/dto/*.v2.dto.ts`; `ErrorBody` and `ExplanationDTO` in `src/shared-kernel/explanation.ts`) | `npm run typecheck` | ✅ |
+| Event catalog (`eventId`, `occurredAt`, `schemaVersion`) | `docs/solu-2/planning/detailed-design/schemas/events.md` (types: `src/shared-kernel/events.ts`) | read | ✅ |
+| OpenAPI for every ingress procedure and error | `docs/solu-2/planning/detailed-design/schemas/openapi.yaml` (111 procedures, generated) | open in any OpenAPI viewer; `npm run gate:api:solu2` fails on drift from `operations.json` | ✅ |
+| Interface stubs (no production logic) | `src/modules/<host>/application/*.v2.ts`, `ports/*.v2.ts` (generated); `src/shared-kernel/external.ts`; simulated adapters in `test-support/simulated/` | `npm run typecheck`; `npm run gen:api:solu2` regenerates them | ✅ |
+| Operation registry: the single source for the OpenAPI, the DTO index, the stubs and the ports | `docs/solu-2/planning/detailed-design/schemas/operations.json` | `npm run gen:api:solu2` / `npm run gate:api:solu2` | ✅ |
+| UI state → contract and DTO map (readiness check 2; review G-17) | `docs/solu-2/planning/detailed-design/ui-states.md`, from `schemas/ui-states.json` | `npm run gate:ui:solu2` (43 pages, 327 states) | ✅ |
+| Detailed-design review (adversarial + edge-case hunter), triaged | `docs/solu-2/reviews/review-detailed-design.md` (16 findings, triaged; log #9) | read | ✅ |
 
 ## Phase 3 — Test preparation (TEA)
 
