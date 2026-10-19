@@ -12,7 +12,7 @@
 
 > This is the Solu-2 course statement adapted from its default case study (the *University AI Compute Fabric*) to **TEZG**, the project this repository plans. The phases, outputs, rules and rubric are unchanged in intent. The domain, the Annex A seed table, the fixtures and the scope (Appendix B) are TEZG-specific, and Appendix A maps every substitution. The verbatim course statement is kept outside version control (`task2.md`), as Plan-2 and Solu-1 did.
 >
-> **Scope (decided by Mateo Rubio, 2026-10-18, decision log Solu-2 #1–#4).** The default statement has each pair take one module of a system split across many groups. TEZG is the pair's own 12-module project, so Solu-2 covers **all 12 modules** in one package. That means 39 core operations in the full contract template, supporting contracts so that every one of the PRD's 96 FRs traces to a story, a walking-skeleton epic plus one vertical epic per module, and one readiness gate.
+> **Scope (decided by Mateo Rubio, 2026-10-18, decision log Solu-2 #1–#4).** The default statement has each pair take one module of a system split across many groups. TEZG is the pair's own 12-module project, so Solu-2 covers **all 12 modules** in one package. That means 37 core operations in the full contract template, supporting contracts so that every one of the PRD's 96 FRs traces to a story, a walking-skeleton epic plus one vertical epic per module, and one readiness gate.
 
 > **The Solutioning Stop-Point Rule (same as Solu-1).** Solutioning halts at Epic/Story creation and the Sprint Readiness Audit (`bmad-sprint-planning`). Autonomous implementation agents (`bmad-dev-story`, `bmad-dev-auto`, `bmad-quick-dev`, the installed equivalents of `bmad-build`) are **not** invoked. Interface stubs and failing tests only; no production logic.
 
@@ -35,7 +35,7 @@
 | Phase | Work | Skills |
 |---|---|---|
 | 0 Intake & gap audit | Select the core operations (Annex A); run an implementability review of the architecture (≥ 6 gaps); declare the stack | `bmad-review-adversarial-general` |
-| 1 Contracts | 39 core operations × P/Q/I, a typed error catalog, an invariant binding table, supporting contracts for the remaining FRs | `bmad-architecture` / `bmad-agent-architect` |
+| 1 Contracts | 37 core operations × P/Q/I, a typed error catalog, an invariant binding table, supporting contracts for the remaining FRs | `bmad-architecture` / `bmad-agent-architect` |
 | 2 Ports, schemas, DTOs, events | Hexagonal map, one complete schema, `dto.ts`, `events.md`, `openapi.yaml`; Amelia audits the simulated adapters | `bmad-architecture`, `bmad-agent-dev` |
 | 3 Test preparation | Risk register, fixtures, ATDD suite, CI gate, NFR evidence plan, traceability matrix, test review | `bmad-testarch-test-design`, `-framework`, `-atdd`, `-ci`, `-nfr`, `-test-review`, `-trace` |
 | 4 Backlog & gate | `epics.md`, readiness audit → `sprint-status.yaml`, gate drill | `bmad-create-epics-and-stories`, `bmad-sprint-planning` |
@@ -216,7 +216,7 @@ DSC and VAL own no state. Their "R" slot is a concurrency-safe, repeat-safe read
 
 | Default rule | Reading in this package |
 |---|---|
-| 3 core operations of *your module* | ≥ 3 per module: 39 core operations (Annex A) in the full template |
+| 3 core operations of *your module* | ≥ 3 per module: 37 core operations (Annex A) in the full template |
 | Every FR traces to a story | All 96 PRD FRs. FRs the core operations do not bind get **supporting contracts** (compact P/Q/I, typed errors, AD binding, one happy and one failure red test), so every story has a contract and an ATDD path (decision log Solu-2 #3) |
 | 3–4 epics, 9–16 stories | Epic 1 is a cross-module walking skeleton. Epics 2–13 are one vertical epic per module with 3–6 stories, each with a dedicated MEC story and ≥ 2 failure-state stories (decision log Solu-2 #4) |
 | Mandatory Edge Case of *your module* | All 12 MECs (Annex A), each with a contract invariant, a physical enforcement, a P0 risk, a red test and a story |
