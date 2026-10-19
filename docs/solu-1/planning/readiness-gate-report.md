@@ -5,7 +5,7 @@ created: 2026-10-18
 skill: bmad-sprint-planning (with the readiness-audit prepend of _bmad/custom/bmad-sprint-planning.toml)
 audit: scripts/readiness-audit.mjs --package docs/solu-1
 directed_by: Mateo Rubio
-signoff: pending
+signoff: "Mateo Rubio, 2026-10-19"
 ---
 
 # Sprint readiness gate report
@@ -118,4 +118,4 @@ For review 4, the 9 accepts (F-1 to F-6, F-8 to F-10) are applied in `epics.md`,
 
 ## 5. Sign-off
 
-*Pending Mateo Rubio's sign-off at the Phase 4 gate.*
+**Signed off by Mateo Rubio on 2026-10-19**, at the Solu-2 Phase 4 gate. The Solu-1 audit was IR-PASS and its drill blocked the planted defects. Its gate still passes on 2026-10-19: 32 green schema tests, and 131 ATDD tests red for the right reason.
