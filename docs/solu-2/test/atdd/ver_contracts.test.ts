@@ -1,7 +1,7 @@
 // ATDD — VER (contracts.md §2, §15). Red phase: every test must fail with NotImplementedError.
 import { describe, expect, it } from 'vitest';
-import { VerServiceV2 } from '../../../../src/modules/identity/index.js';
-import type { SubmitApplicationRequest } from '../../../../src/modules/identity/index.js';
+import { IdnServiceV2, VerServiceV2 } from '../../../../src/modules/identity/index.js';
+import type { CompleteIndividualProfileRequest, SubmitApplicationRequest } from '../../../../src/modules/identity/index.js';
 import { useTestDatabase } from '../../../../test-support/db.js';
 import { caught, citedInputs, httpOf } from '../../../../test-support/errors.js';
 import { codeOf, race } from '../../../../test-support/concurrency.js';
@@ -165,6 +165,21 @@ describe('VER-2 — submitApplication (contracts.md §2)', () => {
     const outcome = await race<unknown>(2, () => { const { w, ver } = setup(); return ver.submitApplication(application(id('andres'), w)); });
     expect(outcome.rejected.map(codeOf)).toEqual(['ApplicationAlreadyPending']);
     expect(await rows(db, 'BusinessApplication', `status = 'Pending'`)).toHaveLength(1);
+  });
+
+  it('[VER-2.I2] a submit racing a profile completion, 100 repetitions on fresh accounts: exactly one wins, never both a profile and an application (IDN-1, NFR-IDN-2)', async () => {
+    for (let rep = 0; rep < 100; rep++) {
+      const u = id(`race${rep}`);
+      await user(db, { id: u });
+      const { w, ver } = setup();
+      const profile: CompleteIndividualProfileRequest = { userId: u, displayName: 'Valentina', contactPhone: '+573001234567', phoneSharingConsent: true, phoneSharingConsentVersion: 'phone-v1', defaultMeetingPoint: { lat: 4.711, lng: -74.0721, city: 'Bogotá' } };
+      const outcome = await race<unknown>(2, (i) => (i === 0 ? new IdnServiceV2(w).completeIndividualProfile(profile) : ver.submitApplication(application(u, w))));
+      expect(outcome.rejected.map(codeOf).filter((c) => !['IndividualSellerProfileAlreadyComplete', 'AlreadyVerifiedBusiness', 'BusinessApplicationOnFile'].includes(c))).toEqual([]);
+      expect(outcome.fulfilled).toHaveLength(1);
+      const [{ both } = { both: -1 }] = await db.query<{ both: number }>(
+        `SELECT count(*)::int AS both FROM "IndividualSellerProfile" p JOIN "BusinessApplication" a ON a."businessId" = p."userId" WHERE p."userId" = $1`, [u]);
+      expect(both).toBe(0);
+    }
   });
 });
 

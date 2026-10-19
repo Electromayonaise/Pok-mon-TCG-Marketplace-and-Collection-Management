@@ -1,8 +1,8 @@
 // ATDD — IDN (contracts.md §1, §15). Red phase: every test calls a v2 stub and must fail with
 // NotImplementedError (scripts/check-atdd-red.mjs). Given steps use the Solu-2 schema factories.
 import { describe, expect, it } from 'vitest';
-import { IdnServiceV2, VerServiceV2 } from '../../../../src/modules/identity/index.js';
-import type { CompleteIndividualProfileRequest, SubmitApplicationRequest } from '../../../../src/modules/identity/index.js';
+import { IdnServiceV2 } from '../../../../src/modules/identity/index.js';
+import type { CompleteIndividualProfileRequest } from '../../../../src/modules/identity/index.js';
 import { useTestDatabase } from '../../../../test-support/db.js';
 import { caught, httpOf, citedInputs } from '../../../../test-support/errors.js';
 import { codeOf, race } from '../../../../test-support/concurrency.js';
@@ -10,17 +10,10 @@ import { admin, business, explainAssert, id, individualSeller, ins, rows, T0, us
 
 const db = useTestDatabase();
 const idn = () => new IdnServiceV2(wiring(db));
-const ver = () => new VerServiceV2(wiring(db));
 
 const profileInput = (userId: string): CompleteIndividualProfileRequest => ({
   userId, displayName: 'Valentina', contactPhone: '+573001234567', phoneSharingConsent: true, phoneSharingConsentVersion: 'phone-v1',
   defaultMeetingPoint: { lat: 4.711, lng: -74.0721, city: 'Bogotá' },
-});
-const applicationInput = (businessId: string): SubmitApplicationRequest => ({
-  businessId, businessName: 'Cartas Andrés', legalIdentity: { type: 'NIT', number: '9001234563' }, documentUploadKeys: [`business-document/${businessId}/doc1`],
-  externalPresenceUrl: 'https://instagram.com/cartasandres', city: 'Medellín',
-  paymentInstructions: { bankName: 'Bancolombia', accountType: 'savings', accountNumber: '12345678901', holderName: 'Andrés', qrUploadKey: null },
-  consentAccepted: true, consentVersion: 'privacy-v1',
 });
 
 describe('IDN-1 — claimSellerTrack (contracts.md §1)', () => {
@@ -58,16 +51,20 @@ describe('IDN-1 — claimSellerTrack (contracts.md §1)', () => {
     expect(await rows(db, 'User', 'id = $1', [id('valentina')])).toMatchObject([{ sellerTrack: 'individual' }]);
   });
 
-  it('[IDN-1.MEC] profile completion races an application submit, 100 repetitions on fresh accounts: exactly one wins each time (NFR-IDN-2)', async () => {
+  // The claim level is the contention point (IDN-1 concurrency clause); the end-to-end race through
+  // verification.submit is [VER-2.I2], in the later VER epic, so this story has no forward dependency.
+  it('[IDN-1.MEC] profile completion races a business claim, 100 repetitions on fresh accounts: exactly one track wins each time (NFR-IDN-2)', async () => {
     for (let rep = 0; rep < 100; rep++) {
       const u = id(`race${rep}`);
       await user(db, { id: u });
-      const outcome = await race<unknown>(2, (i) => (i === 0 ? idn().completeIndividualProfile(profileInput(u)) : ver().submitApplication(applicationInput(u))));
-      expect(outcome.rejected.map(codeOf).filter((c) => !['IndividualSellerProfileAlreadyComplete', 'AlreadyVerifiedBusiness', 'BusinessApplicationOnFile'].includes(c))).toEqual([]);
+      const outcome = await race<unknown>(2, (i) => (i === 0
+        ? idn().completeIndividualProfile(profileInput(u))
+        : db.transactions.run((tx) => idn().claimSellerTrack(tx, { userId: u, track: 'business' }))));
+      expect(outcome.rejected.map(codeOf).filter((c) => !['IndividualSellerProfileAlreadyComplete', 'BusinessApplicationOnFile'].includes(c))).toEqual([]);
       expect(outcome.fulfilled).toHaveLength(1);
-      const [{ both } = { both: -1 }] = await db.query<{ both: number }>(
-        `SELECT count(*)::int AS both FROM "IndividualSellerProfile" p JOIN "BusinessApplication" a ON a."businessId" = p."userId" WHERE p."userId" = $1`, [u]);
-      expect(both).toBe(0);
+      const [row] = await db.query<{ track: string | null; profiles: number }>(
+        `SELECT u."sellerTrack" AS track, (SELECT count(*)::int FROM "IndividualSellerProfile" p WHERE p."userId" = u.id) AS profiles FROM "User" u WHERE u.id = $1`, [u]);
+      expect([['individual', 1], ['business', 0]]).toContainEqual([row!.track, row!.profiles]);
     }
   });
 

@@ -20,7 +20,7 @@
     "test:fitness:solu2": "vitest run --project solu2-fitness",
     "gate:api:solu2": "node scripts/gen-solu2-api.mjs --check",
     "gate:codes:solu2": "node scripts/check-code-citations.mjs docs/solu-2/planning/detailed-design/contracts.md",
-    "gate:atdd-red:solu2": "node scripts/check-atdd-red.mjs solu2-atdd 351",
+    "gate:atdd-red:solu2": "node scripts/check-atdd-red.mjs solu2-atdd 352",
     "gate:nfr-red:solu2": "node scripts/check-atdd-red.mjs solu2-nfr 3",
     "gate:purity": "node scripts/check-domain-purity.mjs",
     "gate:ui:solu2": "node scripts/check-ui-states.mjs --check",

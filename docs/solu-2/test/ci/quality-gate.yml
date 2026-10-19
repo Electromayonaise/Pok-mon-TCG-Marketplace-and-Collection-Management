@@ -70,7 +70,7 @@ jobs:
         run: npm run gate:purity
       - name: GREEN — fitness functions and seed profile (JUnit report)
         run: npx vitest run --project solu2-fitness --reporter=default --reporter=junit --outputFile.junit=.vitest-results/solu2-fitness.junit.xml
-      - name: RED — ATDD fails for the right reason (≥ 351 tests)
+      - name: RED — ATDD fails for the right reason (≥ 352 tests)
         run: npm run gate:atdd-red:solu2
       - name: RED — NFR benchmarks fail for the right reason (≥ 3)
         run: npm run gate:nfr-red:solu2

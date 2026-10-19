@@ -262,7 +262,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - I1 At most one `Pending` application per business. Bound to: AD-VER-3 rule 2; partial unique `("businessId") WHERE status='Pending'`. A concurrent second submit that passed P5 fails at the insert with `ApplicationAlreadyPending`.
   - I2 Reapplication is judged only from the decided row's snapshot (`"reapplyBarred"`, `"reapplyNotBefore"`), never from the current `"RejectionReason"`. Bound to: AD-VER-3, AD-VER-1 rule 5.
   - I3 Legal identity is written and read only by `legalIdentityRepository`. Bound to: AD-VER-2, AD-13.
-- **Concurrency / idempotency:** a double submit produces one `Pending` row and one `ApplicationAlreadyPending`. Submit racing `completeIndividualProfile` → exactly one wins (IDN-1).
+- **Concurrency / idempotency:** a double submit produces one `Pending` row and one `ApplicationAlreadyPending` (`[VER-2.I1]`). Submit racing `completeIndividualProfile` → exactly one wins (IDN-1; `[VER-2.I2]`, the end-to-end form of `[IDN-1.MEC]`).
 - **Time:** `Clock`, once. The cooldown is half-open: refused for `now < reapplyNotBefore`, accepted at `now = reapplyNotBefore` (FR-VER-6 boundary test: 1 s before is refused, the exact instant succeeds).
 - **Latency budget (NFR):** command p95 ≤ 800 ms at N = 1, excluding the upload transfer (NFR-SYS-9). Upload plus validation p95 ≤ 10 s on 10 Mbps (NFR-VER-4), measured in the Phase 3 NFR plan.
 

@@ -23,7 +23,7 @@
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
 | NFR evidence status | Red — ATDD: 36; Red — benchmark: 4; Green — gate: 7; Deferred — launch: 2; Planned — story DoD: 12 |
-| Contract clauses / test ids | 112 / 370 (358 red, 12 green) |
+| Contract clauses / test ids | 112 / 371 (359 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -33,16 +33,16 @@
 | FR-IDN-1 | Derive capabilities server-side (CAP-19, CAP-5) | IDN-2, IDN-3 | AD-IDN-1, AD-16, AD-VER-2, AD-13 | 9 — `IDN-2.I1`, `IDN-2.Q1`, `IDN-2.QF1` +6 | Phase 4 | red |
 | FR-IDN-2 | Complete the individual-seller profile step (CAP-19) | IDN-1 | AD-SYS-4, AD-IDN-2, AD-18 | 7 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +4 | Phase 4 | red |
 | FR-IDN-3 | Answer listing eligibility (CAP-19, CAP-5) | IDN-2 | AD-IDN-1, AD-16 | 4 — `IDN-2.I1`, `IDN-2.Q1`, `IDN-2.QF1` +1 | Phase 4 | red |
-| FR-IDN-4 | Guard seller-type exclusivity atomically (CAP-5, CAP-19) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 13 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +10 | Phase 4 | red |
+| FR-IDN-4 | Guard seller-type exclusivity atomically (CAP-5, CAP-19) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | Phase 4 | red |
 | FR-IDN-5 | Capability audit trace for admins (CAP-15) | IDN-3 | AD-IDN-1, AD-VER-2, AD-13, AD-SYS-8 | 5 — `IDN-3.I1`, `IDN-3.I3`, `IDN-3.P2` +2 | Phase 4 | red |
 | FR-IDN-6 | Messaging, review-target and seller-kind queries (CAP-18, CAP-7, CAP-1) | MSG-3, S-FR-IDN-6 | AD-IDN-1, AD-MSG-2 | 5 — `MSG-3.MEC`, `MSG-3.Q1`, `MSG-3.QF1` +2 | Phase 4 | red |
 | FR-IDN-7 | Authentication and admin gating (CAP-15, CAP-28) | S-FR-IDN-7 | AD-16, AD-IDN-3, AD-SYS-8 | 2 — `S-FR-IDN-7.f`, `S-FR-IDN-7.h` | Phase 4 | red |
-| FR-VER-1 | Submit a business application (CAP-15, CAP-5) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 13 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +10 | Phase 4 | red |
+| FR-VER-1 | Submit a business application (CAP-15, CAP-5) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | Phase 4 | red |
 | FR-VER-2 | Admin review queue (CAP-15) | VER-3, S-FR-VER-2 | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 8 — `VER-3.I1`, `VER-3.I2`, `VER-3.I3` +5 | Phase 4 | red |
 | FR-VER-3 | Approve (CAP-15, CAP-5) | VER-1 | AD-VER-1, AD-SYS-5, AD-SYS-2 | 7 — `VER-1.I1`, `VER-1.MEC`, `VER-1.P2` +4 | Phase 4 | red |
 | FR-VER-4 | Reject with a policy reason (CAP-15) | VER-1 | AD-VER-1, AD-SYS-5, AD-SYS-2 | 7 — `VER-1.I1`, `VER-1.MEC`, `VER-1.P2` +4 | Phase 4 | red |
 | FR-VER-5 | Access to legal identity only through admin review (CAP-15) | VER-3, S-FR-VER-5.audit | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 7 — `VER-3.I1`, `VER-3.I2`, `VER-3.I3` +4 | Phase 4 | red |
-| FR-VER-6 | Reapplication policy (CAP-15) | VER-2 | AD-SYS-8, AD-VER-3, AD-VER-1, AD-VER-2 | 6 — `VER-2.I1`, `VER-2.P1`, `VER-2.P3` +3 | Phase 4 | red |
+| FR-VER-6 | Reapplication policy (CAP-15) | VER-2 | AD-SYS-8, AD-VER-3, AD-VER-1, AD-VER-2 | 7 — `VER-2.I1`, `VER-2.I2`, `VER-2.P1` +4 | Phase 4 | red |
 | FR-VER-7 | Applicant status view (CAP-15) | S-FR-VER-7 | AD-VER-3 | 2 — `S-FR-VER-7.f`, `S-FR-VER-7.h` | Phase 4 | red |
 | FR-VER-8 | Rejection-reason policy settings (CAP-15) | S-FR-VER-8, S-FR-VER-8.list | AD-VER-1 | 3 — `S-FR-VER-8.f`, `S-FR-VER-8.h`, `S-FR-VER-8.list.h` | Phase 4 | red |
 | FR-VER-9 | Business payment instructions for orders (CAP-20) | S-FR-VER-9 | AD-9 | 2 — `S-FR-VER-9.f`, `S-FR-VER-9.h` | Phase 4 | red |
@@ -289,7 +289,7 @@
 | IDN-2 | core | FR-IDN-3, FR-IDN-1 | AD-IDN-1, AD-16 | 4 | red |
 | IDN-3 | core | FR-IDN-5, FR-IDN-1 | AD-IDN-1, AD-VER-2, AD-13, AD-SYS-8 | 5 | red |
 | VER-1 | core | FR-VER-3, FR-VER-4 | AD-VER-1, AD-SYS-5, AD-SYS-2 | 7 | red |
-| VER-2 | core | FR-VER-1, FR-VER-6, FR-IDN-4 | AD-SYS-8, AD-VER-3, AD-VER-1, AD-VER-2 | 6 | red |
+| VER-2 | core | FR-VER-1, FR-VER-6, FR-IDN-4 | AD-SYS-8, AD-VER-3, AD-VER-1, AD-VER-2 | 7 | red |
 | VER-3 | core | FR-VER-5, FR-VER-2 | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 6 | red |
 | CAT-1 | core | FR-CAT-3 | AD-1, AD-CAT-1 | 5 | red |
 | CAT-2 | core | FR-CAT-2, FR-CAT-4 | AD-CAT-1, AD-7, AD-8 | 9 | red |
