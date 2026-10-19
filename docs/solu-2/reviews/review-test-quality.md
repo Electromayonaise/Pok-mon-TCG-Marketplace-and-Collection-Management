@@ -479,11 +479,45 @@ This review applies the rubric consistently. Context can reveal additional findi
 
 ## Triage (Phase 3 gate)
 
-*Filled from Martín's decisions at the Phase 3 gate (decision log Solu-2 #11).*
+*Martín's decisions at the Phase 3 gate, relayed by Mateo (decision log Solu-2 #11).*
 
 | Finding | Decision | Outcome |
 |---|---|---|
-| R-1 to R-6 (H3 ×5, H4) | pending | — |
-| R-7 to R-12 (H5 ×6) | pending | — |
-| R-13 (M2 ×6) | pending | — |
-| R-14 (L6) | pending | — |
+| R-1 to R-6 (H3 ×5, H4) | **Accepted: fix now** | Each assertion is now unconditional: `[REP-1.MEC]` asserts the first call outside the loop; `[COM-3.Q4]` asserts `decision` exists and then explains it; `[DSC-1.I4]` maps listing id → point and fails on an unknown id; `[IDN-3.I3]` compares the whole capability map; `[MSG-2.MEC]` uses a `[price, shown]` table. REP `targets` is frozen, and `[REP-3.MEC]` copies it (commit `4626187`) |
+| R-7 to R-12 (H5 ×6) | **Accepted: split the supporting contracts** | `inv`, `ord`, `com`, `trd`, `ver`, `col`: the core operations stay in `<module>_contracts.test.ts` (202–255 lines); §15/§15.11/§15.12 move to `<module>_supporting.test.ts` (107–196 lines). Unused imports and helpers are pruned per file. Ids unchanged; `contracts.md` §0 and §14 name both paths |
+| R-13 (M2 ×6) | **Accepted: fix now** | Builders `addInput`, `sendInput`, `counterInput`, `write`, `topUpInput` and `searchInput`, with overrides; each call states only the fields that differ (commit `4626187`) |
+| R-14 (L6) | **Accepted: fix now** | The VAL spread constant is commented |
+| Observations | Applied where cheap | The `[SYS-4.R9]` watchdog is cleared in `finally`. Race runtimes go into each MEC story's DoD (Phase 4) |
+
+## Re-review after the fixes (2026-10-19)
+
+Re-run over the 19 files now in `docs/solu-2/test/atdd/` plus the 5 fitness, fixture and NFR files.
+
+```
+Starting Score:          100
+Critical Violations:     -0 × 10 = -0
+High Violations:         -0 × 5 = -0
+Medium Violations:       -0 × 2 = -0
+Low Violations:          -0 × 1 = -0
+
+Bonus Points:
+  Excellent BDD:         +5
+  Comprehensive Fixtures: +5
+  Data Factories:        +5
+  Network-First:         +0
+  Perfect Isolation:     +5
+  All Test IDs:          +0
+                         --------
+Total Bonus:             +20
+
+Final Score:             100/100 (clamped)
+Grade:                   A
+```
+
+**Recommendation (re-review)**: Approve. No row fires:
+
+- the largest file is 294 lines (`cat_contracts.test.ts`);
+- `grep` finds no conditional assertion and no module-level mutable state written by a test;
+- the C4/C5 scan is clean over all 366 bodies.
+
+`gate:atdd-red:solu2` reports 351 tests in 19 files, all red for the right reason. `gate:ids:solu2` and `gate:trace:solu2` pass with the same 370 ids.
