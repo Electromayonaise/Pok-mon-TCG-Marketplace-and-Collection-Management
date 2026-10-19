@@ -14,6 +14,8 @@
 | Entry | Tag | AI proposal | Outcome | Decided by |
 | --- | --- | --- | --- | --- |
 | #1 | `[REJECTED]` | Scope Solu-2 to the INV+ORD+COM "purchase spine" | All 12 modules | Mateo |
+| #7 | `[CORRECTED]` | "39 core operations"; review G-07's "two incompatible codes" | 37 operations; G-07 restated | Mateo |
+| #8 | `[CORRECTED]` | Refinement R-7: `commission` refuses with identity's `NotBusinessAccount` | New code `CommissionAccountNotOpen`; R-7 amended | Mateo |
 
 ---
 
@@ -28,7 +30,7 @@
 - **Artifact changed:** `docs/solu-2/task-statement.md` (Appendix B).
 - **Decided by:** Mateo.
 
-### 2. 39 core operations approved (Phase 0.1)
+### 2. 39 core operations approved (Phase 0.1) — *the count was wrong: 37, see #7*
 
 - **Phase:** 0.
 - **Persona/Skill:** Winston.
@@ -92,4 +94,40 @@
   - An `updatedAt` on a table whose grants forbid `UPDATE` is a column that cannot mean anything.
   - A delta keeps Plan-2 as the signed-off baseline, with one place to read what changed.
 - **Artifact changed:** `reviews/review-arch-implementability.md` (triaged); `planning/ARCHITECTURE.md` (Stack Decisions; refinements R-1..R-9).
+- **Decided by:** Mateo.
+
+### 7. `[CORRECTED]` Two of the agent's own Phase 0 errors: the operation count and review G-07 (Phase 1 gate)
+
+- **Phase:** 1.
+- **Persona/Skill:** Winston, while deriving `contracts.md`.
+- **What was wrong:**
+  - **(a) The count.** Entry #2, the statement (§1, Appendix B), the deliverable map and the implementability review all said "39 core operations". Annex A lists 11 modules × 3 plus ORD × 4, which is **37**. The agent found it when the assembled `contracts.md` had 37 `### Operation:` sections, not 39. Nothing was missing: the table was always 37 rows, and the total was miscounted when it was first written.
+  - **(b) Review G-07.** It claimed the ORD edge case "business confirms before paid" had "two incompatible codes". While writing ORD-3, the agent read PRD FR-ORD-4, which already states `OrderNotVisibleToCaller`. Only ARCHITECTURE is silent, so the finding overstated the ambiguity. Its resolution (R-4) was right and is unchanged.
+- **Human decision:** "Log both as `[CORRECTED]`", over "fix silently".
+- **What changed:** "39" → "37" in `task-statement.md`, `docs/solu-2.md`, `reviews/review-arch-implementability.md` and `contracts.md`. G-07 carries a correction note. Entry #2's heading points here, and its body stays as written. The memlog keeps its original line plus a correction line.
+- **Reason:** a decision log that silently rewrites its own numbers cannot be audited. The miscount had not yet reached any count-dependent artifact (stories, audit thresholds), so correcting it now costs nothing downstream.
+- **Decided by:** Mateo.
+
+### 8. Contracts approved; four contract gaps adopted, one of them `[CORRECTED]`s accepted refinement R-7 (Phase 1 gate)
+
+- **Phase:** 1.
+- **Persona/Skill:** Winston (`bmad-agent-architect`).
+- **Prompt (summary):** Mateo directs: *"derive the Solu-2 contracts for the 37 core operations in the full template (Layer, P with typed error and HTTP, Q1–Q4 and Q-fail, I bound to AD, concurrency, time, latency), the typed error catalog, an invariant binding table covering every AD, and supporting contracts so all 96 FRs trace."*
+- **AI output (summary):** `planning/detailed-design/contracts.md`, with:
+  - the 37 operations, 17 of them restated from Solu-1;
+  - an error catalog of 88 codes plus `'Unexpected'`, each with an es-CO template and a retryable flag;
+  - a binding table with one row for each of the 60 ADs plus R-2;
+  - 39 supporting contracts covering the 38 FRs the core operations leave unbound (FR-TRD-2's withdraw and reject get their own).
+
+  Four gaps went to the gate:
+  - C-GAP-1 `AccountNotFound`;
+  - C-GAP-2 `InvalidAcquiredDate`, because the parser cannot read the `Clock`;
+  - C-GAP-4 a business's mute as an explained no-op;
+  - **C-GAP-3**, which says the agent's own R-7, accepted at the Phase 0 gate, would make `commission` raise `NotBusinessAccount`, an `identity` code. AD-SYS-1 rule 2 and lint `tezg/error-owner` forbid that.
+- **Human decision:**
+  - C-GAP-3: "new commission code" (`CommissionAccountNotOpen`, `CONFLICT`, retryable), over "open the account on demand" (it would break AD-COM-1 rule 5) and over "keep R-7".
+  - C-GAP-1, C-GAP-2 and C-GAP-4: ACCEPT.
+  - Contracts: approved for Phase 2.
+- **Reason:** R-7 as first worded would have failed CI's owner check on the first implementation. Opening accounts on demand would give `commission` a second account-creation path that AD-COM-1 rule 5 exists to prevent.
+- **Artifact changed:** `planning/detailed-design/contracts.md` (final); `src/shared-kernel/codes.ts` (the ADD-§3.1 rows the contracts cite, plus the three new codes); `planning/ARCHITECTURE.md` (R-7 amended, R-10, R-11); `reviews/review-arch-implementability.md` (G-10 note).
 - **Decided by:** Mateo.

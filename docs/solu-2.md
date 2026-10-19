@@ -18,7 +18,7 @@ Documents live under `docs/solu-2/`. Code-shaped artifacts — interface stubs, 
 
 | Deliverable (statement §) | Path | How to reach / run | Status |
 |---|---|---|---|
-| Adapted statement, TEZG seed table of the 39 core operations (§3.0.1, Annex A) | `docs/solu-2/task-statement.md` | read | ✅ |
+| Adapted statement, TEZG seed table of the 37 core operations (§3.0.1, Annex A) | `docs/solu-2/task-statement.md` | read | ✅ |
 | Implementability gap audit, ≥ 6 gaps, triaged (§3.0.2) | `docs/solu-2/reviews/review-arch-implementability.md` | read: 17 gaps, triaged at the Phase 0 gate (log #6) | ✅ |
 | Stack declaration (§3.0.3) | `docs/solu-2/planning/ARCHITECTURE.md` → "Stack Decisions" | read | ✅ |
 
@@ -26,10 +26,10 @@ Documents live under `docs/solu-2/`. Code-shaped artifacts — interface stubs, 
 
 | Deliverable | Path | How to reach / run | Status |
 |---|---|---|---|
-| 39 core-operation contracts (P/Q/I, concurrency, time, latency) | `docs/solu-2/planning/detailed-design/contracts.md` §1–§12 | read | ⬜ |
-| Typed error catalog | same file, "Typed Error Catalog" | read; `node scripts/check-code-citations.mjs <file>` checks every cited code against `src/shared-kernel/codes.ts` | ⬜ |
-| Invariant binding table (AD → enforcement point → red test) | same file, "Invariant Binding Table" | read | ⬜ |
-| Supporting contracts (every FR not bound by a core operation) | same file, "Supporting contracts" | read | ⬜ |
+| 37 core-operation contracts (P/Q/I, concurrency, time, latency) | `docs/solu-2/planning/detailed-design/contracts.md` §1–§12 (operation map in §0.2) | read | ✅ |
+| Typed error catalog | same file, §13 | read; `node scripts/check-code-citations.mjs <file>` checks every cited code against `src/shared-kernel/codes.ts` (183 citations, 0 problems) | ✅ |
+| Invariant binding table (AD → enforcement point → red test) | same file, §14 (every AD, plus R-2) | read | ✅ |
+| Supporting contracts (every FR not bound by a core operation) | same file, §15 (38 FRs) | read | ✅ |
 
 ## Phase 2 — Ports & adapters, schemas, DTOs, events
 
