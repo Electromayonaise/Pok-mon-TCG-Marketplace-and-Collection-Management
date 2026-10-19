@@ -44,7 +44,7 @@ export default defineConfig({
       {
         test: {
           name: 'solu2-fitness',
-          include: ['docs/solu-2/test/fitness/**/*.test.ts'],
+          include: ['docs/solu-2/test/fitness/**/*.test.ts', 'docs/solu-2/test/fixtures/**/*.test.ts'],
           globalSetup: ['test-support/global-setup.ts'],
           setupFiles: ['test-support/solu2/network-guard.ts'],
           provide: { migrationsDir: 'docs/solu-2/planning/detailed-design/schemas', templateDb: 'tezg_tpl_solu2' },
