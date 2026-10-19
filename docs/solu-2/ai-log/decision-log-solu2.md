@@ -158,3 +158,17 @@
 - **Reason:** each Accept closes a gap a developer agent would otherwise have filled by guessing (S-1, E-1), or a test double that would have let a test pass for the wrong reason (S-3).
 - **Artifact changed:** `reviews/review-detailed-design.md` (triaged); `test-support/simulated/index.ts`; `src/shared-kernel/events.ts`; `scripts/gen-solu2-api.mjs`; `scripts/check-ui-states.mjs`; `schemas/{operations,ui-states}.json` and the generated files; `contracts.md`; `ports-and-adapters.md`; `ARCHITECTURE.md` (R-12..R-14).
 - **Decided by:** Mateo.
+
+### 10. Test preparation scope: full ATDD, red NFR benchmarks, a separate Solu-2 CI gate (Phase 3, pre-draft)
+
+- **Phase:** 3.
+- **Persona/Skill:** Murat (`bmad-tea`), with `bmad-testarch-test-design`, `-atdd` and `-ci` scoping.
+- **Prompt (summary):** Mateo relays Martín's direction: *"scope the Solu-2 test preparation: ATDD depth, how NFR evidence is produced, and where the CI gate runs."*
+- **AI output (summary):** Three options went to the gate:
+  - **(a) ATDD scope:** *full*, meaning core operations (happy, precondition violation, invariant under concurrency, repetition or boundary) + 12 MECs + 1 happy and 1 failure test per supporting contract, about 290 red tests *(recommended)*; or core and MEC only, about 125, with the supporting tests left for the stories.
+  - **(b) NFR evidence:** a plan plus red benchmarks for three representative NFRs (latency, reliability, security) *(recommended)*; or a plan only.
+  - **(c) CI:** a new Solu-2 workflow *(recommended)*; or extending Solu-1's.
+- **Human decision:** ACCEPT (a) full, (b) plan + red benchmarks, and (c) a new workflow.
+- **Reason:** with the full scope, every test id that `contracts.md` §14 and §15 cite exists, so the trace can prove "no AD without a red test" mechanically instead of by promise. Red benchmarks make the three NFR rows executable evidence rather than prose. A separate workflow keeps Solu-1's gate exactly as it was signed off.
+- **Artifact changed:** the Phase 3 plan (`test/test-design.md`, `test/atdd/`, `test/nfr-evidence.md`, `.github/workflows/solu2-quality-gate.yml`).
+- **Decided by:** Martín (Test-lead), relayed by Mateo.
