@@ -106,3 +106,11 @@ export interface RequireMessagingEligibilityResponse {
   verified: boolean;
   decision: ExplanationDTO;
 }
+
+// VER-1 wire inputs (verification.approve / verification.reject)
+export interface ApproveApplicationInput { applicationId: CuidId }
+export interface RejectApplicationInput { applicationId: CuidId; reasonCode: string; note: string | null }
+
+// Offered port (contracts.md §15.11)
+export interface GetBusinessNameRequest { businessId: CuidId }
+export interface GetBusinessNameResponse { businessName: string | null }

@@ -50,3 +50,30 @@ export interface CheckAuthThrottleRequest {
   ipHmac: string;
 }
 export interface CheckAuthThrottleResponse { allowed: true }
+
+// IDN-1 ingress: access.completeIndividualProfile (claims 'individual', then inserts the profile)
+export interface CompleteIndividualProfileRequest {
+  userId: CuidId;
+  displayName: string;
+  /** Regulated (AD-SYS-8): +57 3XXXXXXXXX. */
+  contactPhone: string;
+  phoneSharingConsent: true;
+  phoneSharingConsentVersion: string;
+  defaultMeetingPoint: { lat: number; lng: number; city: string };
+}
+export interface CompleteIndividualProfileResponse { sellerKind: 'individual'; completedAt: IsoInstant; decision: ExplanationDTO }
+
+// Offered ports (contracts.md §15.11)
+export interface GetCapabilitiesRequest { userId: CuidId }
+export interface GetCapabilitiesResponse {
+  capabilities: Record<CapabilityName, boolean>;
+  sellerKind: SellerKind;
+  derivedFrom: { fact: string; value: string | boolean | null }[];
+}
+export interface GetSellerVerificationRequest { sellerId: CuidId }
+export interface GetSellerVerificationResponse { status: 'Approved' | 'Pending' | 'Rejected' | 'none' }
+export interface GetContactCardRequest { sellerId: CuidId }
+/** contactPhoneE164 is regulated; only listings' contact service receives it. */
+export interface GetContactCardResponse { displayName: string; contactPhoneE164: string }
+export interface GetDisplayNamesRequest { userIds: CuidId[] }
+export interface GetDisplayNamesResponse { names: { userId: CuidId; displayName: string }[] }

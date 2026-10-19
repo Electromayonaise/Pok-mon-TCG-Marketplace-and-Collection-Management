@@ -94,3 +94,23 @@ export interface GetFxRateResponse {
   stale: boolean;
   decision: ExplanationDTO;
 }
+
+// CAT-2 ingress: catalog.feed.continue (runs batches of CAT-2 under the lease)
+export interface ContinueFeedRunRequest { actorId: CuidId; runId: CuidId }
+export interface ContinueFeedRunResponse { done: boolean; status: 'Running' | 'Completed' | 'Failed'; cursor: number }
+
+// Offered ports (contracts.md §15.11)
+export interface GetEntryRequest { catalogEntryId: CuidId }
+export type GetEntryResponse = CatalogEntryDTO;
+export interface GetEntriesRequest { catalogEntryIds: CuidId[] }
+export interface GetEntriesResponse { entries: CatalogEntryDTO[]; missing: CuidId[] }
+export interface MatchEntryIdsRequest { filters: CatalogFilters }
+export type MatchEntryIdsResponse = { ids: CuidId[]; tooBroad: false } | { ids: []; tooBroad: true };
+export interface ResolveItemRefsRequest { refs: CuidId[] }
+export interface ResolveItemRefsResponse { resolved: { ref: CuidId; kind: CatalogKind }[]; missing: CuidId[] }
+export interface GetReferencePricesAsOfRequest { catalogEntryIds: CuidId[]; asOf: IsoInstant }
+export interface GetReferencePricesAsOfResponse { prices: { catalogEntryId: CuidId; price: ObservedPriceDTO | null; stale: boolean }[] }
+export interface GetPriceHistoryRequest { catalogEntryIds: CuidId[]; from: IsoInstant; to: IsoInstant }
+export interface GetPriceHistoryResponse { series: { catalogEntryId: CuidId; observations: ObservedPriceDTO[] }[] }
+export interface GetSetSummariesRequest { setIds: CuidId[] }
+export interface GetSetSummariesResponse { sets: { setId: CuidId; name: string; cardEntryCount: number }[] }

@@ -8,9 +8,11 @@ import type { ReviewHideReason } from '../domain/rep.js';
 export interface WriteReviewRequest { reviewerId: CuidId; targetUserId: CuidId; rating: 1 | 2 | 3 | 4 | 5; text: string }
 export interface WriteReviewResponse { reviewId: CuidId; targetKind: 'business' | 'individual'; purchaseVerified: boolean; decision: ExplanationDTO }
 
-// REP-2 hideReview (unhide is the mirror, FR-REP-4)
-export interface SetReviewHiddenRequest { adminId: CuidId; reviewId: CuidId; hidden: boolean; reasonCode: ReviewHideReason; note: string | null }
-export interface SetReviewHiddenResponse { decision: ExplanationDTO }
+// REP-2 hideReview, and its FR-REP-4 mirror unhideReview (supporting)
+export interface HideReviewRequest { adminId: CuidId; reviewId: CuidId; reasonCode: ReviewHideReason; note: string | null }
+export interface HideReviewResponse { decision: ExplanationDTO }
+export type UnhideReviewRequest = HideReviewRequest;
+export type UnhideReviewResponse = HideReviewResponse;
 
 // REP-3 getAggregates
 export interface GetAggregatesRequest { sellerIds: CuidId[] }

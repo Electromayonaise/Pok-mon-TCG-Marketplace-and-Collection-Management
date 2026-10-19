@@ -125,3 +125,15 @@ export interface ListingModerationLogRow {
   at: IsoInstant;
 }
 export interface ListListingModerationLogResponse { rows: ListingModerationLogRow[]; nextCursor: string | null }
+
+// Offered ports (contracts.md §15.11)
+export interface GetListingForPurchaseRequest { listingId: CuidId }
+export interface GetListingForPurchaseResponse { sellerId: CuidId; kind: 'single' | 'bundle'; visible: true }
+export interface ReserveForTradeRequest { listingId: CuidId; qty: 1 }
+export interface ReserveForTradeResponse { reservationRef: ReservationRefDTO; exhaustedListingIds: CuidId[] }
+export interface GetTradeabilityRequest { listingId: CuidId }
+export interface GetTradeabilityResponse { sellerId: CuidId; availability: number; decision: ExplanationDTO }
+export interface GetInventoryUnitIdsRequest { listingId: CuidId }
+export interface GetInventoryUnitIdsResponse { unitIds: CuidId[] }
+export interface GetAvailabilitySummaryRequest { catalogEntryIds: CuidId[]; area: { lat: number; lng: number; radiusKm: number } | null }
+export interface GetAvailabilitySummaryResponse { items: { catalogEntryId: CuidId; lowestPriceCop: Cop | null; availableCount: number }[] }
