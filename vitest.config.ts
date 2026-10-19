@@ -40,6 +40,18 @@ export default defineConfig({
           hookTimeout: 60_000,
         },
       },
+      // GREEN: static fitness functions of the cross-cutting ADs; they must stay green.
+      {
+        test: {
+          name: 'solu2-fitness',
+          include: ['docs/solu-2/test/fitness/**/*.test.ts'],
+          globalSetup: ['test-support/global-setup.ts'],
+          setupFiles: ['test-support/solu2/network-guard.ts'],
+          provide: { migrationsDir: 'docs/solu-2/planning/detailed-design/schemas', templateDb: 'tezg_tpl_solu2' },
+          testTimeout: 30_000,
+          hookTimeout: 60_000,
+        },
+      },
       {
         test: {
           name: 'solu2-nfr',
