@@ -34,7 +34,7 @@ function asSql(client: pg.Pool | pg.PoolClient): Sql {
 }
 
 /** Test binding of the TransactionRunner port: BEGIN … COMMIT on one pooled connection. */
-class PgTransactionRunner implements TransactionRunner {
+export class PgTransactionRunner implements TransactionRunner {
   constructor(private readonly pool: pg.Pool) {}
   async run<T>(work: (tx: Tx) => Promise<T>, options?: { isolation?: 'READ COMMITTED' | 'REPEATABLE READ'; readOnly?: boolean }): Promise<T> {
     const client = await this.pool.connect();
