@@ -25,7 +25,9 @@
     "gate:purity": "node scripts/check-domain-purity.mjs",
     "gate:ui:solu2": "node scripts/check-ui-states.mjs --check",
     "gate:ids:solu2": "node scripts/check-test-ids.mjs",
-    "gate:solu2": "npm run typecheck && npm run gate:api:solu2 && npm run gate:ui:solu2 && npm run gate:codes:solu2 && npm run gate:ids:solu2 && npm run gate:purity && npm run test:fitness:solu2 && npm run gate:atdd-red:solu2 && npm run gate:nfr-red:solu2"
+    "gen:trace:solu2": "node scripts/gen-solu2-trace.mjs",
+    "gate:trace:solu2": "node scripts/gen-solu2-trace.mjs --check",
+    "gate:solu2": "npm run typecheck && npm run gate:api:solu2 && npm run gate:ui:solu2 && npm run gate:codes:solu2 && npm run gate:ids:solu2 && npm run gate:trace:solu2 && npm run gate:purity && npm run test:fitness:solu2 && npm run gate:atdd-red:solu2 && npm run gate:nfr-red:solu2"
   },
   "devDependencies": {
     "@paralleldrive/cuid2": "3.3.0",

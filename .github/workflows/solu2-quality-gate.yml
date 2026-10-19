@@ -4,7 +4,8 @@
 #   1. the stubs, DTOs, ports and tests typecheck;
 #   2. the generated surface (openapi.yaml, dto.ts, v2 stubs, ports) is current with
 #      operations.json, every UI state is backed, every error code and test id cited by
-#      contracts.md exists, and the domain cores are pure;
+#      contracts.md exists, the traceability matrix is current with no FR, AD or P0 risk
+#      left without a test, and the domain cores are pure;
 #   3. the static fitness functions and the seed profile are GREEN (AD-1, AD-8, AD-9,
 #      AD-SYS-6, AD-SYS-8, R-2; PRD §3);
 #   4. every ATDD test and NFR benchmark is RED for the right reason: it fails on
@@ -63,6 +64,8 @@ jobs:
         run: npm run gate:codes:solu2
       - name: Every cited test id exists exactly once
         run: npm run gate:ids:solu2
+      - name: Every FR, AD and P0 risk traces to a red test; the matrix is current
+        run: npm run gate:trace:solu2
       - name: Domain cores are pure
         run: npm run gate:purity
       - name: GREEN — fitness functions and seed profile (JUnit report)
