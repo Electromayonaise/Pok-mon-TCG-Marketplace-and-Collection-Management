@@ -19,6 +19,7 @@ export interface SearchRequest {
   condition?: Condition[];
   purchasableOnly?: boolean;
   includeSoldOut?: boolean;
+  /** Bounds the OFFSET (Solu-1 review E-19). @minimum 1 @maximum 417 */
   page: number;
   pageSize: 24;
 }

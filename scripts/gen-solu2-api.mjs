@@ -52,8 +52,15 @@ const typeFiles = [
     ['dto', 'domain'].flatMap((d) => (fs.existsSync(rel('src/modules', h, d)) ? listTs(`src/modules/${h}/${d}`) : []))),
 ];
 const decls = new Map(); // name -> { file, kind: 'interface'|'alias', body }
+// JSDoc comments survive as placeholder tokens so member constraint tags (review A-2) reach the
+// schema; every other comment is stripped. Placeholders hold no braces, so body scanning is safe.
+const docs = [];
+const DOC = (n) => `\u0000DOC${n}\u0000`;
 for (const file of typeFiles) {
-  const src = read(rel(file)).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const src = read(rel(file))
+    .replace(/\/\*\*[\s\S]*?\*\//g, (d) => { docs.push(d); return DOC(docs.length - 1); })
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '');
   const re = /export (interface|type) (\w+)(<[^>]*>)?\s*(=)?/g;
   let m;
   while ((m = re.exec(src))) {
@@ -82,16 +89,49 @@ for (const file of typeFiles) {
 
 function tokenize(s) {
   const toks = [];
-  const re = /\s*(\.\.\.|'(?:[^'\\]|\\.)*'|-?\d+(?:\.\d+)?|[A-Za-z_$][\w$]*|[{}[\]()<>|&:;,?=])/gy;
+  const re = /\s*(\u0000DOC\d+\u0000|\.\.\.|'(?:[^'\\]|\\.)*'|-?\d+(?:\.\d+)?|[A-Za-z_$][\w$]*|[{}[\]()<>|&:;,?=])/gy;
   let m;
   while ((m = re.exec(s)) && m[0].length) toks.push(m[1]);
   return toks;
 }
+// JSON Schema keywords a DTO member may carry as JSDoc tags, and the schema type each needs.
+const TAGS = { minimum: 'number', maximum: 'number', minLength: 'string', maxLength: 'string', pattern: 'string', minItems: 'array', maxItems: 'array' };
+function constraintsOf(memberDocs, name) {
+  const c = {};
+  for (const d of memberDocs) {
+    for (const m of d.matchAll(/@(\w+)\s+(\S+)/g)) {
+      const [, tag, raw] = m;
+      if (!TAGS[tag]) throw new Error(`member ${name}: unknown constraint tag @${tag}`);
+      c[tag] = tag === 'pattern' ? raw : Number(raw);
+      if (tag !== 'pattern' && !Number.isFinite(c[tag])) throw new Error(`member ${name}: @${tag} needs a number, got ${raw}`);
+    }
+  }
+  return Object.keys(c).length ? c : null;
+}
+/** Applies member constraints to a primitive schema, or to the non-null branch of `T | null`. */
+function withConstraints(schema, c, name) {
+  if (!c) return schema;
+  if (schema.anyOf) {
+    const nonNull = schema.anyOf.filter((s) => s.type !== 'null');
+    if (nonNull.length !== 1) throw new Error(`member ${name}: constraints on a union with ${nonNull.length} non-null branches`);
+    return { anyOf: schema.anyOf.map((s) => (s === nonNull[0] ? withConstraints(s, c, name) : s)) };
+  }
+  const kind = schema.type === 'integer' || schema.type === 'number' ? 'number' : Array.isArray(schema.type) ? schema.type[0] : schema.type;
+  for (const tag of Object.keys(c)) {
+    if (TAGS[tag] !== kind) throw new Error(`member ${name}: @${tag} cannot apply to a ${kind ?? 'reference'} schema`);
+  }
+  // A `number` member bounded only by integer tags is a count, not a measure: emit `integer`
+  // (quantities, pages, seqs). Fractional bounds (lat/lng) keep `number`.
+  const bounds = ['minimum', 'maximum'].filter((t) => t in c).map((t) => c[t]);
+  const type = schema.type === 'number' && bounds.length && bounds.every(Number.isInteger) ? 'integer' : schema.type;
+  return { ...schema, type, ...c };
+}
 function parseType(src) {
   const t = tokenize(src);
   let i = 0;
-  const peek = () => t[i];
-  const eat = (x) => { if (x !== undefined && t[i] !== x) throw new Error(`expected ${x} got ${t[i]} in ${src}`); return t[i++]; };
+  const isDoc = (x) => typeof x === 'string' && x.startsWith('\u0000DOC');
+  const peek = () => { while (isDoc(t[i])) i++; return t[i]; };
+  const eat = (x) => { peek(); if (x !== undefined && t[i] !== x) throw new Error(`expected ${x} got ${t[i]} in ${src}`); return t[i++]; };
   function union() {
     if (peek() === '|') eat('|');
     const parts = [inter()];
@@ -136,12 +176,15 @@ function parseType(src) {
   function object() {
     eat('{');
     const props = [];
-    while (peek() !== '}') {
+    for (;;) {
+      const memberDocs = [];
+      while (isDoc(t[i])) memberDocs.push(docs[Number(t[i++].slice(4, -1))]);
+      if (peek() === '}') break;
       if (peek() === 'readonly') eat('readonly');
       const name = eat();
       const optional = peek() === '?' ? (eat('?'), true) : false;
       eat(':');
-      props.push({ name, optional, type: union() });
+      props.push({ name, optional, type: union(), constraints: constraintsOf(memberDocs, name) });
       if (peek() === ';' || peek() === ',') eat();
     }
     eat('}');
@@ -181,7 +224,7 @@ function schemaOf(node) {
     case 'object': {
       const properties = {};
       const required = [];
-      for (const p of node.props) { properties[p.name] = schemaOf(p.type); if (!p.optional) required.push(p.name); }
+      for (const p of node.props) { properties[p.name] = withConstraints(schemaOf(p.type), p.constraints, p.name); if (!p.optional) required.push(p.name); }
       return { type: 'object', additionalProperties: false, properties, ...(required.length ? { required } : {}) };
     }
     case 'inter': return { allOf: node.parts.map(schemaOf) };
@@ -208,10 +251,15 @@ const ref = (name) => schemaOf({ k: 'ref', name });
 
 // ---------------------------------------------------------------- consistency checks
 const coreIds = [...read(rel('docs/solu-2/planning/detailed-design/contracts.md')).matchAll(/^\| ([A-Z]{3}-\d) \| [A-Z]{3} \| `(\w+)`/gm)].map((m) => [m[1], m[2]]);
+const contractsMd = read(rel('docs/solu-2/planning/detailed-design/contracts.md'));
 for (const [id, name] of coreIds) {
   const op = opsById.get(id);
   if (!op) problems.push(`core operation ${id} (${name}) has no registry entry`);
   else if (op.method !== name) problems.push(`core operation ${id}: contract names ${name}, registry method is ${op.method}`);
+  // Review A-1: the contract section names exactly the registry's DTOs.
+  else if (!contractsMd.includes(`### Operation: \`${name}(`) || !contractsMd.includes(`*DTOs:* \`${op.request}\` → \`${op.response}\``)) {
+    problems.push(`core operation ${id}: contracts.md does not name its DTOs ${op.request} → ${op.response}`);
+  }
 }
 for (const op of registry.operations) {
   if (!registry.modules[op.module]) problems.push(`${op.id}: unknown module ${op.module}`);
@@ -222,6 +270,23 @@ for (const g of registry.ingress) {
   if (!opsById.has(g.op)) problems.push(`${g.procedure}: unknown operation ${g.op}`);
   for (const c of g.errors) if (!codeStatus.has(c)) problems.push(`${g.procedure}: error ${c} is not in codes.ts`);
   if (g.input && !decls.has(g.input)) problems.push(`${g.procedure}: unknown input type ${g.input}`);
+  for (const f of Object.keys(g.fixed ?? {})) if (!g.omit.includes(f)) problems.push(`${g.procedure}: fixed field ${f} is not omitted from the wire input`);
+}
+// Review E-1: procedures that share an operation and the same wire input must each fix the
+// omitted fields that tell them apart, with distinct values, or a mis-wired router is invisible.
+const shared = new Map();
+for (const g of registry.ingress.filter((x) => x.input)) {
+  const k = `${g.op}|${g.input}`;
+  shared.set(k, [...(shared.get(k) ?? []), g]);
+}
+for (const group of shared.values()) {
+  if (group.length < 2) continue;
+  const seen = new Set();
+  for (const g of group) {
+    const key = JSON.stringify(g.fixed ?? null);
+    if (!g.fixed || seen.has(key)) problems.push(`${g.procedure}: shares ${g.op} and ${g.input} with ${group.filter((x) => x !== g).map((x) => x.procedure).join(', ')} but has no distinct 'fixed' input`);
+    seen.add(key);
+  }
 }
 if (problems.length) { console.error(problems.join('\n')); process.exit(1); }
 
@@ -276,7 +341,8 @@ for (const g of registry.ingress) {
     summary,
     tags: [g.procedure.split('.')[0]],
     'x-procedure-builder': g.builder,
-    'x-actor-fields-from-session': g.omit,
+    'x-actor-fields-from-session': g.omit.filter((f) => !(f in (g.fixed ?? {}))),
+    ...(g.fixed ? { 'x-fixed-input': g.fixed } : {}),
     ...(g.builder === 'public' ? {} : { security: [{ session: [] }] }),
     responses,
   };
@@ -386,7 +452,9 @@ function importBlock(names, fromFile) {
 }
 
 // ---------------------------------------------------------------- stubs, ports, index blocks
-const STD_DEPS = [['sql', 'Sql'], ['transactions', 'TransactionRunner'], ['clock', 'Clock'], ['ids', 'IdGenerator'], ['outbox', 'Outbox'], ['audit', 'AuditLog']];
+// Review A-4: no raw `Sql` reaches an application service; persistence goes through the module's
+// repository port (implemented by infra/pg.ts). Review S-1: the outbox is the R-1 `OutboxV2`.
+const STD_DEPS = [['transactions', 'TransactionRunner'], ['clock', 'Clock'], ['ids', 'IdGenerator'], ['outbox', 'OutboxV2'], ['audit', 'AuditLog']];
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const camel = (host) => host.replace(/-(\w)/g, (_, c) => c.toUpperCase());
 const indexBlocks = new Map();
@@ -425,11 +493,27 @@ for (const [code, mod] of Object.entries(registry.modules)) {
   const depsName = `${mod.service}V2Deps`;
   const portsHeader = [
     `import type { AuditLog } from '${path.posix.relative(path.posix.dirname(portsFile), 'src/shared-kernel/audit.ts').replace(/\.ts$/, '.js').replace(/^(?!\.)/, './')}';`,
-    `import type { Clock, IdGenerator, Outbox, Sql, TransactionRunner${needsTx(consumed) ? ', Tx' : ''} } from '${path.posix.relative(path.posix.dirname(portsFile), 'src/shared-kernel/ports.ts').replace(/\.ts$/, '.js').replace(/^(?!\.)/, './')}';`,
+    `import type { OutboxV2 } from '${skFrom('events.ts')}';`,
+    `import type { Clock, IdGenerator, TransactionRunner${needsTx(consumed) ? ', Tx' : ''} } from '${skFrom('ports.ts')}';`,
     external.length ? `import type { ${[...new Set(external.map(([, t]) => t))].sort().join(', ')} } from '${skFrom('external.ts')}';` : '',
     importBlock(portTypes, portsFile),
   ].filter(Boolean);
-  const portsBody = [...portLines, `/** Everything ${code} reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2), external systems behind ports that tests bind to simulated adapters, and its neighbours. */`, `export interface ${depsName} {`, ...depsLines, '}'];
+  const repoName = `${mod.service}Repository`;
+  depsLines.unshift(`  repo: ${repoName};`);
+  const portsBody = [
+    ...portLines,
+    `/**`,
+    ` * Repository port of ${code} (review A-4): the only way its application service reads or writes`,
+    ` * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with`,
+    ` * \`Tx\` where the contract joins a transaction; \`infra/pg.ts\` implements them. Empty until then.`,
+    ` */`,
+    `export interface ${repoName} {}`,
+    '',
+    `/** Everything ${code} reaches outside its domain core: its repository, time, ids, the outbox, the audit log (AD-SYS-6, R-2), external systems behind ports that tests bind to simulated adapters, and its neighbours. */`,
+    `export interface ${depsName} {`,
+    ...depsLines,
+    '}',
+  ];
 
   const useCases = `${mod.service}V2UseCases`;
   const svc = `${mod.service}ServiceV2`;

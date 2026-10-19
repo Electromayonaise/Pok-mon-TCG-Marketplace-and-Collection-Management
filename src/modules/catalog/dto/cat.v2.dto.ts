@@ -38,7 +38,11 @@ export interface ObservedPriceDTO {
   copDerivation: CopDerivation;
   fxRateDate: IsoDate | null;
 }
-export interface GetPriceProvenanceRequest { catalogEntryIds: CuidId[]; period: 7 | 30 | 90 }
+export interface GetPriceProvenanceRequest {
+  /** @minItems 1 @maxItems 500 */
+  catalogEntryIds: CuidId[];
+  period: 7 | 30 | 90;
+}
 export interface PriceProvenanceDTO {
   catalogEntryId: CuidId;
   lastTransactionReference: ObservedPriceDTO | null;
@@ -76,7 +80,13 @@ export interface CatalogEntryDTO {
   artist: string | null;
   imageUrl: string | null;
 }
-export interface BrowseCatalogRequest { filters: CatalogFilters; page: number; pageSize: number }
+export interface BrowseCatalogRequest {
+  filters: CatalogFilters;
+  /** @minimum 1 */
+  page: number;
+  /** @minimum 1 @maximum 100 */
+  pageSize: number;
+}
 export interface BrowseCatalogResponse {
   entries: CatalogEntryDTO[];
   total: number;

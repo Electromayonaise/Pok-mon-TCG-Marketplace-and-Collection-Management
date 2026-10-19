@@ -6,7 +6,14 @@ import type { OfferRole, OfferStatus } from '../domain/trd.js';
 // Solu-2 DTOs — TRD (contracts.md §8, §15). trading reads listings' public types (AD-1).
 
 export interface TradeTermsDTO {
-  offeredItems: { itemRef: CuidId; condition: Condition; qty: number }[];
+  /** @maxItems 10 */
+  offeredItems: {
+    itemRef: CuidId;
+    condition: Condition;
+    /** @minimum 1 @maximum 4 */
+    qty: number;
+  }[];
+  /** @maximum 100000000 */
   cashCop: Cop;
   requestedQty: 1;
 }

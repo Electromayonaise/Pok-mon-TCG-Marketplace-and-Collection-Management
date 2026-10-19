@@ -13,7 +13,12 @@ export interface OrderPaymentInstructionsDTO {
 }
 
 // ORD-1 createOrder
-export interface CreateOrderRequest { listingId: CuidId; qty: number; buyerId: CuidId }
+export interface CreateOrderRequest {
+  listingId: CuidId;
+  /** @minimum 1 */
+  qty: number;
+  buyerId: CuidId;
+}
 export interface CreateOrderResponse {
   orderId: CuidId;
   status: 'AwaitingPayment';

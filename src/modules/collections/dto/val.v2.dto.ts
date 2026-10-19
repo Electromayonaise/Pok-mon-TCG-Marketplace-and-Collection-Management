@@ -33,7 +33,12 @@ export interface ValuationTrendResponse {
 }
 
 // VAL-3 valuationHistory
-export interface ValuationHistoryRequest { collectionId: CuidId; days: number; actorId: CuidId }
+export interface ValuationHistoryRequest {
+  collectionId: CuidId;
+  /** @minimum 1 @maximum 365 */
+  days: number;
+  actorId: CuidId;
+}
 export interface ValuationHistoryResponse {
   points: { date: IsoDate; valueCop: Cop; stale: boolean }[];
   label: 'current-cards-were-worth';

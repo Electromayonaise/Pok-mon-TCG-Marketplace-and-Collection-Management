@@ -26,9 +26,12 @@ export interface CreateListingRequest {
   sellerId: CuidId;
   itemRef: CuidId;
   condition: Condition;
+  /** @minimum 1000 @maximum 100000000 */
   priceCop: Cop;
+  /** @minimum 1 @maximum 999 */
   quantity: number;
   location: { lat: number; lng: number } | null;
+  /** @maxLength 1000 */
   description: string;
   openToTrade: boolean;
 }
@@ -53,10 +56,21 @@ export interface ApplyCommissionProjectionResponse { applied: boolean; listingsC
 // S-FR-INV-2 createBundle
 export interface CreateBundleRequest {
   sellerId: CuidId;
+  /** @minLength 1 @maxLength 120 */
   title: string;
+  /** @minimum 1000 @maximum 100000000 */
   priceCop: Cop;
-  components: { itemRef: CuidId; condition: CardCondition; perBundleQty: number; quantity: number }[];
+  /** @minItems 1 @maxItems 20 */
+  components: {
+    itemRef: CuidId;
+    condition: CardCondition;
+    /** @minimum 1 @maximum 4 */
+    perBundleQty: number;
+    /** @minimum 1 @maximum 999 */
+    quantity: number;
+  }[];
   location: { lat: number; lng: number } | null;
+  /** @maxLength 1000 */
   description: string;
 }
 export interface CreateBundleResponse { listingId: CuidId; state: ListingState; availability: number; decision: ExplanationDTO }
@@ -109,6 +123,7 @@ export interface SetListingHiddenRequest {
   listingId: CuidId;
   hidden: boolean;
   reasonCode: ListingHideReason;
+  /** Required, 10–500 characters, when the reason is Other (ADD-§9.2). @maxLength 500 */
   note: string | null;
 }
 export interface SetListingHiddenResponse { decision: ExplanationDTO }

@@ -28,7 +28,12 @@ export interface ConfirmTopUpResponse {
   neededToResumeCop: Cop | null;
   decision: ExplanationDTO;
 }
-export interface RejectTopUpRequest { topUpRequestId: CuidId; adminId: CuidId; reason: string }
+export interface RejectTopUpRequest {
+  topUpRequestId: CuidId;
+  adminId: CuidId;
+  /** @minLength 10 @maxLength 300 */
+  reason: string;
+}
 export interface RejectTopUpResponse { topUpRequestId: CuidId; status: 'Rejected'; decision: ExplanationDTO }
 
 // COM-3 reconcile
@@ -45,11 +50,23 @@ export interface OpenCommissionAccountResponse { opened: boolean }
 // S-FR-COM-2 request top-up
 export interface CreateTopUpProofUploadRequest { businessId: CuidId }
 export interface CreateTopUpProofUploadResponse { uploadKey: string; signedUrl: string; token: string }
-export interface RequestTopUpRequest { businessId: CuidId; amountCop: Cop; transferReference: string; uploadKey: string }
+export interface RequestTopUpRequest {
+  businessId: CuidId;
+  /** @minimum 20000 @maximum 10000000 */
+  amountCop: Cop;
+  /** @minLength 4 @maxLength 40 */
+  transferReference: string;
+  uploadKey: string;
+}
 export interface RequestTopUpResponse { topUpRequestId: CuidId; status: 'Pending'; submittedAt: IsoInstant; decision: ExplanationDTO }
 
 // S-FR-COM-7 rate
-export interface SetCommissionRateRequest { adminId: CuidId; rateBps: number; effectiveFrom: IsoInstant }
+export interface SetCommissionRateRequest {
+  adminId: CuidId;
+  /** @minimum 0 @maximum 10000 */
+  rateBps: number;
+  effectiveFrom: IsoInstant;
+}
 export interface SetCommissionRateResponse { rateBps: number; effectiveFrom: IsoInstant; decision: ExplanationDTO }
 
 // S-FR-COM-9 my account (low-balance notice)

@@ -54,12 +54,21 @@ export interface CheckAuthThrottleResponse { allowed: true }
 // IDN-1 ingress: access.completeIndividualProfile (claims 'individual', then inserts the profile)
 export interface CompleteIndividualProfileRequest {
   userId: CuidId;
+  /** FR-IDN-2: 2–40 grapheme clusters (parser); code-point bounds here. @minLength 2 @maxLength 400 */
   displayName: string;
   /** Regulated (AD-SYS-8): +57 3XXXXXXXXX. */
+  /** @pattern ^\+573[0-9]{9}$ */
   contactPhone: string;
   phoneSharingConsent: true;
   phoneSharingConsentVersion: string;
-  defaultMeetingPoint: { lat: number; lng: number; city: string };
+  defaultMeetingPoint: {
+    /** ADD-§2.4 @minimum -4.23 @maximum 13.39 */
+    lat: number;
+    /** @minimum -81.73 @maximum -66.85 */
+    lng: number;
+    /** @minLength 2 @maxLength 60 */
+    city: string;
+  };
 }
 export interface CompleteIndividualProfileResponse { sellerKind: 'individual'; completedAt: IsoInstant; decision: ExplanationDTO }
 

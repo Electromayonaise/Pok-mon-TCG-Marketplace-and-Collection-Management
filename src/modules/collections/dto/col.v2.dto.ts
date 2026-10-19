@@ -20,16 +20,27 @@ export interface AddEntryRequest {
   ownerId: CuidId;
   collectionId: CuidId | null;
   catalogEntryId: CuidId;
+  /** @minimum 1 @maximum 999 */
   qty: number;
   acquiredAt: IsoDate;
+  /** One copy (FR-COL-2). @maximum 100000000 */
   acquiredPriceCop: Cop | null;
 }
 export interface AddEntryResponse { entryId: CuidId; collectionId: CuidId; createdGeneral: boolean; decision: ExplanationDTO }
 
 // S-FR-COL-1 collections
-export interface CreateCollectionRequest { ownerId: CuidId; name: string }
+export interface CreateCollectionRequest {
+  ownerId: CuidId;
+  /** @minLength 1 @maxLength 60 */
+  name: string;
+}
 export interface CreateCollectionResponse { collectionId: CuidId; name: string; decision: ExplanationDTO }
-export interface RenameCollectionRequest { ownerId: CuidId; collectionId: CuidId; name: string }
+export interface RenameCollectionRequest {
+  ownerId: CuidId;
+  collectionId: CuidId;
+  /** @minLength 1 @maxLength 60 */
+  name: string;
+}
 export interface DeleteCollectionRequest { ownerId: CuidId; collectionId: CuidId; confirm: true }
 export interface DeleteCollectionResponse { entriesRemoved: number; platformPurchaseEntriesRemoved: number; decision: ExplanationDTO }
 
@@ -37,9 +48,13 @@ export interface DeleteCollectionResponse { entriesRemoved: number; platformPurc
 export interface AddExternalEntryRequest {
   ownerId: CuidId;
   collectionId: CuidId;
+  /** @pattern ^https:// @maxLength 2048 */
   url: string;
+  /** @minLength 1 @maxLength 120 */
   title: string;
+  /** @pattern ^https:// */
   imageUrl: string | null;
+  /** @minimum 1 @maximum 999 */
   qty: number;
   acquiredAt: IsoDate;
 }
@@ -51,7 +66,13 @@ export interface MoveOrCopyEntryResponse { entryId: CuidId; collectionId: CuidId
 
 // S-FR-COL-5 binder
 export type BinderSortKey = 'setNumber' | 'name' | 'acquiredAt' | 'acquiredPriceCop' | 'manual';
-export interface GetBinderRequest { ownerId: CuidId; collectionId: CuidId; sort: BinderSortKey[]; setId: CuidId | null }
+export interface GetBinderRequest {
+  ownerId: CuidId;
+  collectionId: CuidId;
+  /** @maxItems 3 */
+  sort: BinderSortKey[];
+  setId: CuidId | null;
+}
 export interface BinderEntryDTO {
   entryId: CuidId;
   cardKind: 'catalog' | 'external';
@@ -63,12 +84,26 @@ export interface BinderEntryDTO {
   manualPosition: number;
 }
 export interface GetBinderResponse { rows: number; cols: number; entries: BinderEntryDTO[]; completion: SetCompletionDTO | null }
-export interface SetBinderLayoutRequest { ownerId: CuidId; collectionId: CuidId; rows: number; cols: number }
+export interface SetBinderLayoutRequest {
+  ownerId: CuidId;
+  collectionId: CuidId;
+  /** @minimum 1 @maximum 5 */
+  rows: number;
+  /** @minimum 1 @maximum 5 */
+  cols: number;
+}
 export interface ReorderEntriesRequest { ownerId: CuidId; collectionId: CuidId; orderedEntryIds: CuidId[] }
 export interface CollectionChangeResponse { collectionId: CuidId; updatedAt: IsoInstant }
 
 // S-FR-COL-6 wishlist
-export interface AddWishlistRequest { ownerId: CuidId; catalogEntryId: CuidId; maxPriceCop: Cop | null; note: string | null }
+export interface AddWishlistRequest {
+  ownerId: CuidId;
+  catalogEntryId: CuidId;
+  /** @minimum 1000 @maximum 100000000 */
+  maxPriceCop: Cop | null;
+  /** @maxLength 200 */
+  note: string | null;
+}
 export interface RemoveWishlistRequest { ownerId: CuidId; catalogEntryId: CuidId }
 export interface ListWishlistRequest { ownerId: CuidId }
 export interface WishlistRowDTO { catalogEntryId: CuidId; maxPriceCop: Cop | null; lowestPriceCop: Cop | null; availableCount: number }

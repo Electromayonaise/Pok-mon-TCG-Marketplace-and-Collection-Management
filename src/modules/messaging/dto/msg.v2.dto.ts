@@ -5,7 +5,14 @@ import type { ExplanationDTO } from '../../../shared-kernel/explanation.js';
 
 // MSG-1 sendMessage
 export type SendTarget = { recipientId: CuidId } | { conversationId: CuidId };
-export interface SendMessageRequest { target: SendTarget; body: string; clientMessageId: string; senderId: CuidId }
+export interface SendMessageRequest {
+  target: SendTarget;
+  /** After NFC normalization. @minLength 1 @maxLength 2000 */
+  body: string;
+  /** @pattern ^[A-Za-z0-9_-]{1,64}$ */
+  clientMessageId: string;
+  senderId: CuidId;
+}
 export interface SendMessageResponse { conversationId: CuidId; messageId: CuidId; seq: number; decision: ExplanationDTO }
 
 // S-FR-MSG-7 inbox and read state
@@ -15,7 +22,12 @@ export interface ListInboxResponse { rows: InboxRowDTO[]; nextCursor: string | n
 export interface GetThreadRequest { actorId: CuidId; conversationId: CuidId; afterSeq: number }
 export interface ThreadMessageDTO { messageId: CuidId; seq: number; mine: boolean; body: string; at: IsoInstant }
 export interface GetThreadResponse { messages: ThreadMessageDTO[]; lastSeq: number; decision: ExplanationDTO }
-export interface MarkReadRequest { actorId: CuidId; conversationId: CuidId; seq: number }
+export interface MarkReadRequest {
+  actorId: CuidId;
+  conversationId: CuidId;
+  /** @minimum 0 */
+  seq: number;
+}
 export interface MarkReadResponse { lastReadSeq: number; unread: number }
 
 // S-FR-MSG-8 mute

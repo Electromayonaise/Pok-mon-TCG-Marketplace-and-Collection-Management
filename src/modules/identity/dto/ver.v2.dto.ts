@@ -20,17 +20,27 @@ export interface DecideApplicationResponse {
 export interface PaymentInstructionsInput {
   bankName: string;
   accountType: AccountType;
+  /** @pattern ^[0-9]{6,20}$ */
   accountNumber: string;
+  /** @minLength 2 @maxLength 80 */
   holderName: string;
   qrUploadKey: string | null;
 }
 export interface SubmitApplicationRequest {
   businessId: CuidId;
+  /** @minLength 2 @maxLength 80 */
   businessName: string;
   /** Regulated: travels only into legalIdentityRepository (AD-VER-2). */
-  legalIdentity: { type: 'NIT' | 'CC'; number: string };
+  legalIdentity: {
+    type: 'NIT' | 'CC';
+    /** CC 6–10 digits; NIT 6–10 digits + check digit (ADD-§2.5). @pattern ^[0-9]{6,11}$ */
+    number: string;
+  };
+  /** @minItems 1 @maxItems 3 */
   documentUploadKeys: string[];
+  /** @pattern ^https:// @maxLength 2048 */
   externalPresenceUrl: string;
+  /** @minLength 2 @maxLength 60 */
   city: string;
   paymentInstructions: PaymentInstructionsInput;
   consentAccepted: true;
@@ -79,7 +89,9 @@ export interface GetMyApplicationStatusResponse {
 // S-FR-VER-8 rejection reasons
 export interface UpsertRejectionReasonRequest {
   adminId: CuidId;
+  /** @pattern ^[A-Z][A-Za-z]+$ */
   code: string;
+  /** @minLength 10 @maxLength 300 */
   textEsCo: string;
   policy: { barred: true } | { barred: false; cooldownDays: number };
 }
@@ -109,7 +121,12 @@ export interface RequireMessagingEligibilityResponse {
 
 // VER-1 wire inputs (verification.approve / verification.reject)
 export interface ApproveApplicationInput { applicationId: CuidId }
-export interface RejectApplicationInput { applicationId: CuidId; reasonCode: string; note: string | null }
+export interface RejectApplicationInput {
+  applicationId: CuidId;
+  reasonCode: string;
+  /** @maxLength 500 */
+  note: string | null;
+}
 
 // Offered port (contracts.md §15.11)
 export interface GetBusinessNameRequest { businessId: CuidId }
