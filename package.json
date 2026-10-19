@@ -18,7 +18,8 @@
     "gate:solu1": "npm run typecheck && npm run test:schema:solu1 && npm run gate:atdd-red:solu1 && npm run gate:codes:solu1",
     "gen:api:solu2": "node scripts/gen-solu2-api.mjs",
     "gate:api:solu2": "node scripts/gen-solu2-api.mjs --check",
-    "gate:codes:solu2": "node scripts/check-code-citations.mjs docs/solu-2/planning/detailed-design/contracts.md"
+    "gate:codes:solu2": "node scripts/check-code-citations.mjs docs/solu-2/planning/detailed-design/contracts.md",
+    "gate:purity": "node scripts/check-domain-purity.mjs"
   },
   "devDependencies": {
     "@paralleldrive/cuid2": "3.3.0",
