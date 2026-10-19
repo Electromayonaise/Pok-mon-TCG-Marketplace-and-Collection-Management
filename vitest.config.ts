@@ -28,6 +28,29 @@ export default defineConfig({
           hookTimeout: 60_000,
         },
       },
+      // Solu-2 (docs/solu-2/test/): the detailed-design schema, with the NFR-SYS-3 network guard.
+      {
+        test: {
+          name: 'solu2-atdd',
+          include: ['docs/solu-2/test/atdd/**/*.test.ts'],
+          globalSetup: ['test-support/global-setup.ts'],
+          setupFiles: ['test-support/solu2/network-guard.ts'],
+          provide: { migrationsDir: 'docs/solu-2/planning/detailed-design/schemas', templateDb: 'tezg_tpl_solu2' },
+          testTimeout: 60_000,
+          hookTimeout: 60_000,
+        },
+      },
+      {
+        test: {
+          name: 'solu2-nfr',
+          include: ['docs/solu-2/test/nfr/**/*.test.ts'],
+          globalSetup: ['test-support/global-setup.ts'],
+          setupFiles: ['test-support/solu2/network-guard.ts'],
+          provide: { migrationsDir: 'docs/solu-2/planning/detailed-design/schemas', templateDb: 'tezg_tpl_solu2' },
+          testTimeout: 300_000,
+          hookTimeout: 300_000,
+        },
+      },
     ],
   },
 });
