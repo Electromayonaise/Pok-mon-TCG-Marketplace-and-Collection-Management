@@ -85,21 +85,28 @@ const risks = [...read(DESIGN).matchAll(/^\| (R-\d+) \| ([^|]+) \| ([^|]+) \| ([
   .map((m) => ({ id: m[1], risk: m[2].trim(), module: m[3].trim(), priority: m[5], tests: IDS(m[6]), level: m[7].trim() }));
 
 // ------------------------------------------------------------ stories (Phase 4) and their status
-const storyOf = new Map(); // unit id or FR → [story keys]
+// A story covers an FR its Traceability line lists, and a test id its ATDD path binds; a risk
+// or an AD reaches a story through the story that owns one of its red tests.
+const storyOf = new Map(); // FR or test id → [story keys]
 const storyStatus = new Map();
 if (fs.existsSync(EPICS)) {
   let key = null;
+  const add = (k, story) => storyOf.set(k, uniq([...(storyOf.get(k) ?? []), story]));
   for (const line of read(EPICS).split('\n')) {
     const s = /^### Story (\d+)\.(\d+): (.+)$/.exec(line);
     if (s) { key = `${s[1]}.${s[2]}`; continue; }
-    if (!key || /^## /.test(line)) { if (/^## /.test(line)) key = null; continue; }
-    for (const m of line.matchAll(/\b(S-FR-[A-Z]+-\d+w?(?:\.[\w-]+)?|P-[A-Z]+\.\w+|S-SYS\.\w+|[A-Z]{3}-\d+(?:\.[\w-]+)?|FR-[A-Z]+-\d+|NFR-[A-Z]+-\d+|R-\d{2})\b/g)) storyOf.set(m[1], uniq([...(storyOf.get(m[1]) ?? []), key]));
+    if (/^## /.test(line)) { key = null; continue; }
+    if (!key) continue;
+    const tr = /^- \*\*Traceability:\*\* (.*)$/.exec(line);
+    if (tr) for (const f of FRS(tr[1])) add(f, key);
+    const at = /^- \*\*ATDD path:\*\* (.*)$/.exec(line);
+    if (at) for (const i of at[1].matchAll(/`\[([^\]]+)\]`/g)) add(i[1], key);
   }
   if (fs.existsSync(STATUS)) {
     for (const m of read(STATUS).matchAll(/^\s+(\d+)-(\d+)-[\w-]+:\s*([\w-]+)\s*$/gm)) storyStatus.set(`${m[1]}.${m[2]}`, m[3]);
   }
 }
-const stories = (...keys) => uniq(keys.flatMap((k) => storyOf.get(k) ?? []));
+const stories = (...keys) => uniq(keys.flatMap((k) => storyOf.get(k) ?? [])).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
 const storyCell = (list) => (fs.existsSync(EPICS) ? (list.length ? list.map((k) => `${k}${storyStatus.has(k) ? ` (${storyStatus.get(k)})` : ''}`).join(', ') : '**none**') : 'Phase 4');
 const state = (ids) => {
   const s = ids.filter((t) => tests.has(t)).map((t) => tests.get(t).state);
@@ -129,8 +136,9 @@ const mecModules = ['IDN', 'VER', 'CAT', 'DSC', 'INV', 'ORD', 'COM', 'TRD', 'MSG
 for (const m of mecModules) if (!risks.some((r) => r.module === m && r.priority === 'P0' && r.tests.some((t) => /\.MEC\d?$/.test(t)))) problems.push(`${m}: no P0 risk with a MEC test`);
 for (const u of units) for (const t of u.cited) if (/^(S-FR-|P-|S-SYS|[A-Z]{3}-\d)/.test(t) && !tests.has(t)) problems.push(`${u.id}: cites [${t}], which is not defined`);
 if (fs.existsSync(EPICS)) {
-  for (const { fr } of frRows) if (!stories(fr.id, ...units.filter((u) => u.frs.includes(fr.id)).map((u) => u.id)).length) problems.push(`${fr.id}: no story`);
-  for (const r of risks.filter((x) => x.priority === 'P0')) if (!stories(r.id, ...r.tests.map((t) => t.replace(/\.[^.]+$/, ''))).length) problems.push(`${r.id}: P0 risk without a story`);
+  for (const { fr } of frRows) if (!stories(fr.id).length) problems.push(`${fr.id}: no story`);
+  for (const r of risks.filter((x) => x.priority === 'P0')) if (!stories(...r.tests).length) problems.push(`${r.id}: P0 risk without a story`);
+  for (const r of adRows) if (!stories(...r.tests).length) problems.push(`§14 ${r.ad}: no story owns its red tests`);
 }
 
 // ------------------------------------------------------------ NFR rows, joined with nfr-evidence.md
@@ -191,7 +199,7 @@ P();
 P('| FR | Scenario | Contract clauses | AD | Tests | Story | Status |');
 P('|---|---|---|---|---|---|---|');
 for (const { fr, us, ts } of frRows) {
-  P(`| ${fr.id} | ${fr.title}${fr.caps.length ? ` (${fr.caps.join(', ')})` : ''} | ${us.map((u) => u.id).join(', ') || '**none**'} | ${uniq(us.flatMap((u) => u.ads)).slice(0, 4).join(', ') || '—'} | ${ts.length} — ${short(ts, 3)} | ${storyCell(stories(fr.id, ...us.map((u) => u.id)))} | ${state(ts)} |`);
+  P(`| ${fr.id} | ${fr.title}${fr.caps.length ? ` (${fr.caps.join(', ')})` : ''} | ${us.map((u) => u.id).join(', ') || '**none**'} | ${uniq(us.flatMap((u) => u.ads)).slice(0, 4).join(', ') || '—'} | ${ts.length} — ${short(ts, 3)} | ${storyCell(stories(fr.id))} | ${state(ts)} |`);
 }
 P();
 P('## 3. Non-functional requirements');
@@ -204,15 +212,15 @@ for (const { n, us, ts, ev } of nfrRows) P(`| ${n.id} | ${n.title} | ${us.map((u
 P();
 P('## 4. Architecture decisions (§14)');
 P();
-P('| AD | Invariant | Enforcement point | Tests that turn red on violation | Status |');
-P('|---|---|---|---|---|');
-for (const r of adRows) P(`| ${r.ad} | ${r.invariant} | ${r.enforcement.replace(/\|/g, '\\|')} | ${short(r.tests, 5)} | ${state(r.tests)} |`);
+P('| AD | Invariant | Enforcement point | Tests that turn red on violation | Story | Status |');
+P('|---|---|---|---|---|---|');
+for (const r of adRows) P(`| ${r.ad} | ${r.invariant} | ${r.enforcement.replace(/\|/g, '\\|')} | ${short(r.tests, 5)} | ${storyCell(stories(...r.tests))} | ${state(r.tests)} |`);
 P();
 P('## 5. Risks (test-design.md §2)');
 P();
 P('| Risk | Priority | Module | Level | Tests | Story | Status |');
 P('|---|---|---|---|---|---|---|');
-for (const r of risks) P(`| ${r.id} ${r.risk.length > 70 ? `${r.risk.slice(0, 67)}…` : r.risk} | ${r.priority} | ${r.module} | ${r.level} | ${short(r.tests, 4)} | ${storyCell(stories(r.id, ...r.tests.map((t) => t.replace(/\.[^.]+$/, ''))))} | ${state(r.tests)} |`);
+for (const r of risks) P(`| ${r.id} ${r.risk.length > 70 ? `${r.risk.slice(0, 67)}…` : r.risk} | ${r.priority} | ${r.module} | ${r.level} | ${short(r.tests, 4)} | ${storyCell(stories(...r.tests))} | ${state(r.tests)} |`);
 P();
 P('## 6. Contract clauses');
 P();

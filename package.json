@@ -20,14 +20,16 @@
     "test:fitness:solu2": "vitest run --project solu2-fitness",
     "gate:api:solu2": "node scripts/gen-solu2-api.mjs --check",
     "gate:codes:solu2": "node scripts/check-code-citations.mjs docs/solu-2/planning/detailed-design/contracts.md",
-    "gate:atdd-red:solu2": "node scripts/check-atdd-red.mjs solu2-atdd 352",
+    "gate:atdd-red:solu2": "node scripts/check-atdd-red.mjs solu2-atdd 352 --status docs/solu-2/implementation-artifacts/sprint-status.yaml --epics docs/solu-2/planning/epics.md",
     "gate:nfr-red:solu2": "node scripts/check-atdd-red.mjs solu2-nfr 3",
     "gate:purity": "node scripts/check-domain-purity.mjs",
     "gate:ui:solu2": "node scripts/check-ui-states.mjs --check",
     "gate:ids:solu2": "node scripts/check-test-ids.mjs",
     "gen:trace:solu2": "node scripts/gen-solu2-trace.mjs",
     "gate:trace:solu2": "node scripts/gen-solu2-trace.mjs --check",
-    "gate:solu2": "npm run typecheck && npm run gate:api:solu2 && npm run gate:ui:solu2 && npm run gate:codes:solu2 && npm run gate:ids:solu2 && npm run gate:trace:solu2 && npm run gate:purity && npm run test:fitness:solu2 && npm run gate:atdd-red:solu2 && npm run gate:nfr-red:solu2"
+    "gen:epics:solu2": "node scripts/gen-solu2-epics.mjs",
+    "gate:epics:solu2": "node scripts/gen-solu2-epics.mjs --check",
+    "gate:solu2": "npm run typecheck && npm run gate:api:solu2 && npm run gate:ui:solu2 && npm run gate:codes:solu2 && npm run gate:ids:solu2 && npm run gate:trace:solu2 && npm run gate:epics:solu2 && npm run gate:purity && npm run test:fitness:solu2 && npm run gate:atdd-red:solu2 && npm run gate:nfr-red:solu2"
   },
   "devDependencies": {
     "@paralleldrive/cuid2": "3.3.0",
