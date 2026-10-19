@@ -1652,6 +1652,31 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
 | P-INV.availability | `listings.getAvailabilitySummary(ids ≤ 500, area?)` → collections (wishlist) | 1–500 distinct ids; DSC-3 for `area` | one element per id, in input order; purchasable business listings or contactable individual ones; `{ lowestPriceCop: null, availableCount: 0 }` when none (Solu-1 contract) | AD-INV-1 rule 2, AD-12 | `[P-INV.availability.h]` a `Pending` business's listing is not counted |
 | P-INV.refs | `listings.resolveItemRefs(refs ≤ 500)` → trading | 1–500 refs | delegates to P-CAT.refs, so `trading` never imports `catalog` | AD-1 (OQ-6, AD-TRD-3 rule 5) | `[P-INV.refs.h]` the answer equals P-CAT.refs on the same input |
 
+### Read models found by the UI-state check (§15.12)
+
+*Added in Phase 2 by readiness check 2 (review G-17).* `scripts/check-ui-states.mjs` mapped the 327 states of the 43 UX page specs to registry operations, and found pages whose states no operation backed. Sixteen of the 18 operations below are Plan-2 procedures the first registry missed; Plan-2 never named the other two, `collections.list` and `reputation.eligibility`. Each one is a read with zero writes, unless the row says otherwise. Visibility follows the module's existing predicate, and an admin read is `adminProcedure` (`AdminOnly`, HTTP 403, identity).
+
+| Id | Procedure | P | Q | I (AD) | Test |
+|---|---|---|---|---|---|
+| S-FR-VER-8.list | `verification.reasons.list` (5.5, 5.3) | admin | every reason, active and inactive, ordered by `code` | AD-VER-1 rule 5 | `[S-FR-VER-8.list.h]` |
+| S-FR-VER-5.audit | `verification.legalIdentityAudit` (5.4) | admin | `LegalIdentityAccessLog` rows newest first, 50 per page; `fieldsRead` names only, never values | AD-VER-2 rule 5, AD-13 | `[S-FR-VER-5.audit.h]` a denial row appears with `fieldsRead = []` |
+| CAT-1.runs | `catalog.feed.runs` (2.3) | admin | runs newest first, with their counters | AD-CAT-1 | `[CAT-1.runs.h]` |
+| CAT-2.quarantine | `catalog.feed.quarantine` (2.3) | admin; `runId` exists | the run's quarantined rows by `rowNumber`, optionally by reason; never `rawRow` | AD-CAT-1 rule 3 | `[CAT-2.quarantine.h]` a `KindChanged` row is listed |
+| S-FR-ORD-2.url | `orders.comprobanteUrl` (6.2, 6.3) | visible to the actor, else `OrderNotVisibleToCaller` (HTTP 403, orders) | a signed URL for the sanitized rendition (600 s), or `url: null` before any upload | AD-14, AD-17, AD-SYS-8 rule 11 | `[S-FR-ORD-2.url.h]` the URL expires at `now + 600 s` |
+| COM-2.queue | `commission.admin.topUpQueue` (7.3) | admin | `Pending` requests oldest first | AD-COM-3 | `[COM-2.queue.h]` |
+| S-FR-COM-2.mine | `commission.myTopUps` (7.1) | a business, else `NotBusinessAccount` (HTTP 409, identity, propagated) | own requests only, newest first | AD-COM-3 rule 4 | `[S-FR-COM-2.mine.h]` |
+| S-FR-COM-2.url | `commission.topUpProofUrl` (7.1, 7.3) | the owner or an admin; otherwise `TopUpNotVisibleToCaller` (HTTP 403, commission) | a signed URL for the sanitized rendition (600 s) | AD-14, AD-COM-3 rule 4 | `[S-FR-COM-2.url.h]` another business gets a body identical to an unknown id |
+| S-FR-COM-8.ledger | `commission.admin.ledger` (7.2) | admin | any account's ledger, newest first, filterable by `trigger` | AD-COM-1, FR-COM-8 | `[S-FR-COM-8.ledger.h]` `trigger=buyerClosed` shows only those deductions |
+| S-FR-COM-7.list | `commission.admin.rates` (7.4) | admin | every rate setting plus the rate in force at `now` | AD-COM-2 rule 6 | `[S-FR-COM-7.list.h]` the seed rate of 800 bps is current with no other row |
+| COM-3.last | `commission.admin.lastReconciliation` (7.4) | admin | the latest `ReconciliationRun`, or `null` | AD-COM-1 rule 4 | `[COM-3.last.h]` |
+| S-FR-TRD-3.mine | `trading.mine` (8.1, 8.3) | a session | offers where the actor is the proposer or the seller, status derived at read | AD-TRD-1 rules 4–5 | `[S-FR-TRD-3.mine.h]` an expired `Open` offer reads `Expired` without the job |
+| COL-1.list | `collections.prompts.list` (9.4, 6.2) | a session | the actor's prompts, optionally by status | AD-COL-2 | `[COL-1.list.h]` |
+| S-FR-COL-1.list | `collections.list` (9.1, 9.2, 9.4, 10.1). **Not in Plan-2** | a session | the owner's collections with entry counts, ordered by `nameKey` | AD-COL-1 | `[S-FR-COL-1.list.h]` |
+| REP-1.edit | `reputation.edit` (11.1). A Plan-2 procedure; FR-REP-1 "they can edit it" | `canBuy`; the reviewer's own, visible review | `UPDATE … SET rating, text, "editedAt"=:now WHERE id AND "reviewerId"=:actor AND "hiddenAt" IS NULL`; 0 rows → `ReviewNotFound` (HTTP 404, reviews) (EC-32); one audit row | AD-REP-1 rule 4 | `[REP-1.edit.f]` editing a hidden review → `ReviewNotFound`, text unchanged |
+| REP-1.check | `reputation.eligibility` (11.1). **Not in Plan-2** | a session; the target is a review target, else `TargetNotFound` (HTTP 404, reviews) | `{ eligible, existingReview }` from the same rules as REP-1 P2–P5, with no insert | AD-REP-1 | `[REP-1.check.h]` a paid-not-closed buyer reads `eligible=false`, citing `latestState` |
+| S-SYS.tick | `admin.jobs.tickHealth` (2.3) | admin | `{ lastTickStartedAt, tickSilent }` derived at read from `JobRun`: silent when read between 10:17 and 23:17 Bogotá with no tick in the previous 3 h | ARCH §4 | `[S-SYS.tick.h]` the virtual clock 3 h after the last tick reads `tickSilent=true` |
+| S-SYS.deliveries | `admin.events.deliveries` (2.3) | admin | 25 rows: `failed` by `firstFailedAt`, or `pending` older than 24 h by `createdAt` | AD-SYS-2 rule 9 | `[S-SYS.deliveries.h]` |
+
 **Mirrors and ingress wrappers.** The registry also carries five entries that reuse a core contract:
 - `IDN-1.ingress` (`completeIndividualProfile`: IDN-1 then the profile insert);
 - `CAT-2.ingress` (`continueFeedRun`: the lease plus CAT-2 batches, AD-CAT-1 rules 2–4);
