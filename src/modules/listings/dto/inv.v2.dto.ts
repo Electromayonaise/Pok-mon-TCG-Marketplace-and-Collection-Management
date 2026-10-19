@@ -2,6 +2,7 @@ import type { Cop, CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { CardCondition, Condition } from '../../../shared-kernel/types.js';
 import type { ExplanationDTO } from '../../../shared-kernel/explanation.js';
 import type { ReservationRefDTO } from './inv.dto.js';
+import type { ResolveItemRefsRequest, ResolveItemRefsResponse } from '../../catalog/index.js';
 
 // Solu-2 DTOs — INV, plus REP's listing moderation hosted in listings (contracts.md §5, §15).
 
@@ -152,3 +153,8 @@ export interface GetInventoryUnitIdsRequest { listingId: CuidId }
 export interface GetInventoryUnitIdsResponse { unitIds: CuidId[] }
 export interface GetAvailabilitySummaryRequest { catalogEntryIds: CuidId[]; area: { lat: number; lng: number; radiusKm: number } | null }
 export interface GetAvailabilitySummaryResponse { items: { catalogEntryId: CuidId; lowestPriceCop: Cop | null; availableCount: number }[] }
+
+// P-INV.refs: listings re-offers catalog's answer under its own names, so `trading` never imports
+// `catalog` (AD-1; OQ-6, AD-TRD-3 rule 5). Proven by fitness › [SYS-AD1].
+export type ItemRefsRequest = ResolveItemRefsRequest;
+export type ItemRefsResponse = ResolveItemRefsResponse;

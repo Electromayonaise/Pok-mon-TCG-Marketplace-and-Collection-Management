@@ -2,8 +2,7 @@
 import type { AuditLog } from '../../../shared-kernel/audit.js';
 import type { OutboxV2 } from '../../../shared-kernel/events.js';
 import type { Clock, IdGenerator, TransactionRunner, Tx } from '../../../shared-kernel/ports.js';
-import type { ResolveItemRefsRequest, ResolveItemRefsResponse } from '../../catalog/index.js';
-import type { GenerateContactMessageRequest, GenerateContactMessageResponse, GetTradeabilityRequest, GetTradeabilityResponse, ReleaseReservationRequest, ReleaseReservationResponse, ReserveForTradeRequest, ReserveForTradeResponse } from '../../listings/index.js';
+import type { GenerateContactMessageRequest, GenerateContactMessageResponse, GetTradeabilityRequest, GetTradeabilityResponse, ItemRefsRequest, ItemRefsResponse, ReleaseReservationRequest, ReleaseReservationResponse, ReserveForTradeRequest, ReserveForTradeResponse } from '../../listings/index.js';
 
 /** Neighbour port: `listings`, as consumed by TRD. Declared by the consumer and bound to the provider's
  * application service in the composition root, or to a fake in tests (Plan-2 §3, AD-1). */
@@ -15,7 +14,7 @@ export interface ListingsForTrd {
   /** P-INV.tradeability */
   getTradeability(tx: Tx, input: GetTradeabilityRequest): Promise<GetTradeabilityResponse>;
   /** P-INV.refs */
-  resolveItemRefs(input: ResolveItemRefsRequest): Promise<ResolveItemRefsResponse>;
+  resolveItemRefs(input: ItemRefsRequest): Promise<ItemRefsResponse>;
   /** MSG-2 */
   generateContactMessage(input: GenerateContactMessageRequest): Promise<GenerateContactMessageResponse>;
 }

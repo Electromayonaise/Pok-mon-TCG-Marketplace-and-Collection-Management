@@ -144,6 +144,8 @@ export type { GetTradeabilityRequest, GetTradeabilityResponse } from '../../../.
 export type { GetInventoryUnitIdsRequest, GetInventoryUnitIdsResponse } from '../../../../../src/modules/listings/index.js';
 // P-INV.availability getAvailabilitySummary
 export type { GetAvailabilitySummaryRequest, GetAvailabilitySummaryResponse } from '../../../../../src/modules/listings/index.js';
+// P-INV.refs resolveItemRefs
+export type { ItemRefsRequest, ItemRefsResponse } from '../../../../../src/modules/listings/index.js';
 
 // ===== CON (listings) — contracts.md §9 (MSG-2)
 // MSG-2 generateContactMessage

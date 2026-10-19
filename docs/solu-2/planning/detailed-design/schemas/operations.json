@@ -79,7 +79,7 @@
     { "id": "P-INV.tradeability", "module": "INV", "method": "getTradeability", "request": "GetTradeabilityRequest", "response": "GetTradeabilityResponse", "layer": "Outbound Port", "tx": true, "consumers": ["TRD"] },
     { "id": "P-INV.units", "module": "INV", "method": "getInventoryUnitIds", "request": "GetInventoryUnitIdsRequest", "response": "GetInventoryUnitIdsResponse", "layer": "Outbound Port", "consumers": ["ORD"] },
     { "id": "P-INV.availability", "module": "INV", "method": "getAvailabilitySummary", "request": "GetAvailabilitySummaryRequest", "response": "GetAvailabilitySummaryResponse", "layer": "Outbound Port", "consumers": ["COL"] },
-    { "id": "P-INV.refs", "module": "INV", "method": "resolveItemRefs", "request": "ResolveItemRefsRequest", "response": "ResolveItemRefsResponse", "layer": "Outbound Port", "consumers": ["TRD"] },
+    { "id": "P-INV.refs", "module": "INV", "method": "resolveItemRefs", "request": "ItemRefsRequest", "response": "ItemRefsResponse", "layer": "Outbound Port", "consumers": ["TRD"] },
 
     { "id": "MSG-2", "module": "CON", "method": "generateContactMessage", "request": "GenerateContactMessageRequest", "response": "GenerateContactMessageResponse", "layer": "Inbound Port", "consumers": ["TRD"] },
 

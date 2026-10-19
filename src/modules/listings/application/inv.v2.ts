@@ -2,8 +2,7 @@
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { InvV2Deps } from '../ports/inv.v2.js';
-import type { ResolveItemRefsRequest, ResolveItemRefsResponse } from '../../catalog/index.js';
-import type { ApplyApplicationDecisionRequest, ApplyApplicationDecisionResponse, ApplyCommissionProjectionRequest, ApplyCommissionProjectionResponse, CreateBundleRequest, CreateBundleResponse, CreateListingRequest, CreateListingResponse, GetAvailabilitySummaryRequest, GetAvailabilitySummaryResponse, GetInventoryUnitIdsRequest, GetInventoryUnitIdsResponse, GetListingForPurchaseRequest, GetListingForPurchaseResponse, GetListingRequest, GetListingResponse, GetTradeabilityRequest, GetTradeabilityResponse, ListListingModerationLogRequest, ListListingModerationLogResponse, ListMyListingsRequest, ListMyListingsResponse, ListingChangeResponse, ReleaseReservationRequest, ReleaseReservationResponse, ReserveForPurchaseRequest, ReserveForPurchaseResponse, ReserveForTradeRequest, ReserveForTradeResponse, RestockListingRequest, SetListingActiveRequest, SetListingHiddenRequest, SetListingHiddenResponse, UpdateListingRequest } from '../dto/inv.v2.dto.js';
+import type { ApplyApplicationDecisionRequest, ApplyApplicationDecisionResponse, ApplyCommissionProjectionRequest, ApplyCommissionProjectionResponse, CreateBundleRequest, CreateBundleResponse, CreateListingRequest, CreateListingResponse, GetAvailabilitySummaryRequest, GetAvailabilitySummaryResponse, GetInventoryUnitIdsRequest, GetInventoryUnitIdsResponse, GetListingForPurchaseRequest, GetListingForPurchaseResponse, GetListingRequest, GetListingResponse, GetTradeabilityRequest, GetTradeabilityResponse, ItemRefsRequest, ItemRefsResponse, ListListingModerationLogRequest, ListListingModerationLogResponse, ListMyListingsRequest, ListMyListingsResponse, ListingChangeResponse, ReleaseReservationRequest, ReleaseReservationResponse, ReserveForPurchaseRequest, ReserveForPurchaseResponse, ReserveForTradeRequest, ReserveForTradeResponse, RestockListingRequest, SetListingActiveRequest, SetListingHiddenRequest, SetListingHiddenResponse, UpdateListingRequest } from '../dto/inv.v2.dto.js';
 
 /** Solu-2 use cases of INV (contracts.md §5). Interface stubs only: the Solutioning stop-point. */
 export interface InvV2UseCases {
@@ -44,7 +43,7 @@ export interface InvV2UseCases {
   /** P-INV.availability · Outbound Port */
   getAvailabilitySummary(input: GetAvailabilitySummaryRequest): Promise<GetAvailabilitySummaryResponse>;
   /** P-INV.refs · Outbound Port */
-  resolveItemRefs(input: ResolveItemRefsRequest): Promise<ResolveItemRefsResponse>;
+  resolveItemRefs(input: ItemRefsRequest): Promise<ItemRefsResponse>;
 }
 
 /** Every method throws NotImplementedError until its story is done (red for the right reason). */
@@ -123,7 +122,7 @@ export class InvServiceV2 implements InvV2UseCases {
     throw new NotImplementedError('listings.getAvailabilitySummary');
   }
 
-  async resolveItemRefs(_input: ResolveItemRefsRequest): Promise<ResolveItemRefsResponse> {
+  async resolveItemRefs(_input: ItemRefsRequest): Promise<ItemRefsResponse> {
     throw new NotImplementedError('listings.resolveItemRefs');
   }
 }
