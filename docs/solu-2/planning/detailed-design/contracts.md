@@ -1627,6 +1627,40 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *I:* AD-REP-2 rule 2.
   - *Tests:* `[S-FR-REP-7.h]` a hidden review is neither listed nor counted; `[S-FR-REP-7.f]` an unknown user → `TargetNotFound`.
 
+### Offered ports (§15.11)
+
+*Added in Phase 2.* These are the queries and commands one module offers to another. They have no FR of their own, because each one serves the FR of its consumer. The operation registry (`schemas/operations.json`) lists each one with its consumers, and the generated consumer-side interfaces in `src/modules/<host>/ports/*.v2.ts` are built from it. Each has one happy red test. Missing data is a result, never an error, unless stated otherwise.
+
+| Id | Port (provider → consumers) | P | Q | I (AD) | Test |
+|---|---|---|---|---|---|
+| P-IDN.capabilities | `identity.getCapabilities(userId)` → commission | `userId` exists | `{ capabilities, sellerKind, derivedFrom[] }` from one `deriveCapabilities` read; zero writes | AD-IDN-1 rules 2, 4 (no cache) | `[P-IDN.capabilities.h]` an unverified email gives `canBuy=false` citing `emailVerified=false` |
+| P-IDN.verification | `identity.getSellerVerification(sellerId)` → listings (INV-1, in the ambient transaction) | a `CuidId` | `status` of the latest application, or `'none'`; reads through `db()`, never a second connection | AD-IDN-1, AD-SYS-4 rule 9 | `[P-IDN.verification.h]` called inside an open transaction with a pool of 1, it completes |
+| P-IDN.contact | `identity.getContactCard(sellerId)` → listings contact service only | an individual seller | `{ displayName, contactPhoneE164 }`; the phone is regulated and is never logged | AD-SYS-8 rules 3–4 | `[P-IDN.contact.h]` the canary phone never appears in captured logs |
+| P-IDN.names | `identity.getDisplayNames(userIds ≤ 500)` → messaging, reviews, listings | 1–500 distinct ids | one row per known id, with no phone and no email | AD-SYS-8 rule 3 | `[P-IDN.names.h]` 500 ids in one statement |
+| P-VER.name | `identity.getBusinessName(businessId)` → commission, messaging | a `CuidId` | `{ businessName }` from the latest application, or `null` | AD-1 | `[P-VER.name.h]` an approved business's name is returned |
+| P-CAT.entry | `catalog.getEntry(id)` → listings (DSC-2) | the id exists, else `CatalogEntryNotFound` (HTTP 404, catalog) | the entry DTO | AD-CAT-1 rule 5 | `[P-CAT.entry.h]` a renamed entry keeps its id |
+| P-CAT.entries | `catalog.getEntries(ids ≤ 500)` → collections, listings | 1–500 ids | `{ entries[], missing[] }` | AD-7 | `[P-CAT.entries.h]` an unknown id is listed in `missing`, not thrown |
+| P-CAT.match | `catalog.matchEntryIds(filters)` → listings (DSC-1) | — | `{ ids ≤ 20,000 }` or `{ tooBroad: true }` | AD-DSC-2 rule 2 | `[P-CAT.match.h]` a filter matching 20,001 entries answers `tooBroad` |
+| P-CAT.refs | `catalog.resolveItemRefs(refs ≤ 500)` → listings | 1–500 refs | `{ resolved: [{ ref, kind }], missing[] }` | AD-1 (OQ-6) | `[P-CAT.refs.h]` kinds are returned per ref |
+| P-CAT.asOf | `catalog.getReferencePricesAsOf(ids ≤ 500, asOf)` → collections (VAL) | 1–500 ids | the latest observation with `observedAt ≤ asOf`, ordered `(observedAt DESC, source, id)`; `stale` relative to `asOf`; `null` when none | AD-CAT-2 rules 3, 5 | `[P-CAT.asOf.h]` an observation after `asOf` is never returned |
+| P-CAT.history | `catalog.getPriceHistory(ids ≤ 500, from, to)` → collections (VAL-3) | `from ≤ to` | the observations in `[from, to]` plus the last one before `from` | AD-CAT-2 rule 5 | `[P-CAT.history.h]` the carried-in observation is present |
+| P-CAT.sets | `catalog.getSetSummaries(setIds ≤ 500)` → collections | 1–500 ids | `[{ setId, name, cardEntryCount }]`, counting `kind='card'` only | AD-COL-1 rule 5 | `[P-CAT.sets.h]` sealed products are not counted |
+| P-INV.purchase | `listings.getListingForPurchase(listingId)` → orders (ORD-1 P2) | visible, else `ListingNotFound` (HTTP 404, listings) | `{ sellerId, kind, visible: true }` | AD-ORD-1 rule 1 | `[P-INV.purchase.h]` a hidden listing gets `ListingNotFound` |
+| P-INV.trade | `listings.reserveForTrade(tx, listingId, 1)` → trading (TRD-1) | `tx` open; visible; an individual listing, else `NotIndividualSellerListing` (HTTP 409, listings); enough stock, else `InsufficientQuantity` (HTTP 409, listings) | the INV-1 decrement shape with `req = 1`; `exhaustedListingIds` | AD-INV-2, AD-6 | `[P-INV.trade.h]` the last unit reserved by trade leaves availability 0 |
+| P-INV.tradeability | `listings.getTradeability(listingId)` → trading, in the ambient transaction | visible; open to trade, else `ListingNotOpenToTrade` (HTTP 409, listings) | `{ sellerId, availability, decision }` | AD-4, AD-SYS-4 rule 9 | `[P-INV.tradeability.h]` `openToTrade=false` refuses with the code |
+| P-INV.units | `listings.getInventoryUnitIds(listingId)` → orders (expiry pre-step) | a `CuidId` | the unit ids of the listing or bundle; `[]` for unknown | AD-ORD-2 rule 7 | `[P-INV.units.h]` a 3-component bundle gives 3 ids |
+| P-INV.availability | `listings.getAvailabilitySummary(ids ≤ 500, area?)` → collections (wishlist) | 1–500 distinct ids; DSC-3 for `area` | one element per id, in input order; purchasable business listings or contactable individual ones; `{ lowestPriceCop: null, availableCount: 0 }` when none (Solu-1 contract) | AD-INV-1 rule 2, AD-12 | `[P-INV.availability.h]` a `Pending` business's listing is not counted |
+| P-INV.refs | `listings.resolveItemRefs(refs ≤ 500)` → trading | 1–500 refs | delegates to P-CAT.refs, so `trading` never imports `catalog` | AD-1 (OQ-6, AD-TRD-3 rule 5) | `[P-INV.refs.h]` the answer equals P-CAT.refs on the same input |
+
+**Mirrors and ingress wrappers.** The registry also carries five entries that reuse a core contract:
+- `IDN-1.ingress` (`completeIndividualProfile`: IDN-1 then the profile insert);
+- `CAT-2.ingress` (`continueFeedRun`: the lease plus CAT-2 batches, AD-CAT-1 rules 2–4);
+- `COL-1.dismiss` (`Pending → Dismissed`, the COL-1 shape);
+- `COM-2.reject` (`Pending → Rejected`, the COM-2 shape, with no ledger entry);
+- `REP-2.unhide` (the AD-REP-3 rule 2 mirror).
+
+Each one's clauses are those of the contract it wraps. The ATDD file holds one happy and one failure test for each.
+
 ---
 
 ## 16. Gaps found while deriving the contracts (Phase 1 gate)
