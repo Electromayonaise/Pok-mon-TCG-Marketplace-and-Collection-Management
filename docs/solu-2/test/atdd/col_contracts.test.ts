@@ -1,7 +1,7 @@
 // ATDD — COL (contracts.md §10, §15, §15.12). Red phase: every test must fail with NotImplementedError.
 import { describe, expect, it } from 'vitest';
 import { ColServiceV2 } from '../../../../src/modules/collections/index.js';
-import type { CatalogForCol, ListingsForCol } from '../../../../src/modules/collections/index.js';
+import type { AddEntryRequest, CatalogForCol, ListingsForCol } from '../../../../src/modules/collections/index.js';
 import type { OrderClosedV1 } from '../../../../src/shared-kernel/events.js';
 import { useTestDatabase } from '../../../../test-support/db.js';
 import { caught, citedInputs, httpOf } from '../../../../test-support/errors.js';
@@ -9,6 +9,8 @@ import { codeOf, race } from '../../../../test-support/concurrency.js';
 import { collection, entry, explainAssert, fake, id, ins, prompt, rows, user, wiring } from '../../../../test-support/solu2/fixtures.js';
 
 const db = useTestDatabase();
+/** An addEntry request: one Charizard into valentina's coll1, acquired 2026-09-01, no price, unless the test says otherwise. */
+const addInput = (o: Partial<AddEntryRequest> = {}): AddEntryRequest => ({ ownerId: id('valentina'), collectionId: id('coll1'), catalogEntryId: id('char'), qty: 1, acquiredAt: '2026-09-01', acquiredPriceCop: null, ...o });
 
 function setup() {
   const catalog = fake<CatalogForCol>('catalog', {
@@ -142,14 +144,14 @@ describe('COL-3 — addEntry (contracts.md §10)', () => {
     await user(db, { id: id('valentina') });
     await collection(db, { id: id('coll1'), ownerId: id('valentina'), name: 'Keep' });
     await entry(db, { id: id('e0'), collectionId: id('coll1'), catalogEntryId: id('e0c'), position: 4 });
-    const result = await setup().col.addEntry({ ownerId: id('valentina'), collectionId: id('coll1'), catalogEntryId: id('char'), qty: 2, acquiredAt: '2026-09-15', acquiredPriceCop: 40_000 });
+    const result = await setup().col.addEntry(addInput({ qty: 2, acquiredAt: '2026-09-15', acquiredPriceCop: 40_000 }));
     explainAssert(result.decision, { rule: 'FR-COL-2', inputs: { source: 'Manual', createdGeneral: false } });
     expect(await rows(db, 'CollectionEntry', 'id = $1', [result.entryId])).toMatchObject([{ source: 'Manual', orderId: null, qty: 2, manualPosition: 5 }]);
   });
 
   it('[COL-3.Q2] the first add with no collection creates "General" (EC-07, EC-08)', async () => {
     await user(db, { id: id('valentina') });
-    const result = await setup().col.addEntry({ ownerId: id('valentina'), collectionId: null, catalogEntryId: id('char'), qty: 1, acquiredAt: '2026-09-15', acquiredPriceCop: null });
+    const result = await setup().col.addEntry(addInput({ collectionId: null, acquiredAt: '2026-09-15' }));
     expect(result.createdGeneral).toBe(true);
     expect(await rows(db, 'Collection')).toMatchObject([{ id: result.collectionId, name: 'General' }]);
   });
@@ -158,24 +160,24 @@ describe('COL-3 — addEntry (contracts.md §10)', () => {
     await user(db, { id: id('valentina') });
     await collection(db, { id: id('coll1'), ownerId: id('valentina') });
     const svc = setup().col;
-    const error = await caught(() => svc.addEntry({ ownerId: id('valentina'), collectionId: id('coll1'), catalogEntryId: id('char'), qty: 1, acquiredAt: '2026-10-02', acquiredPriceCop: null }));
+    const error = await caught(() => svc.addEntry(addInput({ acquiredAt: '2026-10-02' })));
     expect(codeOf(error)).toBe('InvalidAcquiredDate');
     expect(citedInputs(error)).toEqual({ acquiredAt: '2026-10-02', today: '2026-10-01' });
-    expect((await svc.addEntry({ ownerId: id('valentina'), collectionId: id('coll1'), catalogEntryId: id('char'), qty: 1, acquiredAt: '2026-10-01', acquiredPriceCop: null })).entryId).toBeTruthy();
+    expect((await svc.addEntry(addInput({ acquiredAt: '2026-10-01' }))).entryId).toBeTruthy();
   });
 
   it('[COL-3.P3] another owner’s collection is CollectionNotFound (404) with no "General" created', async () => {
     await user(db, { id: id('valentina') });
     await user(db, { id: id('julian') });
     await collection(db, { id: id('collj'), ownerId: id('julian') });
-    expect(codeOf(await caught(() => setup().col.addEntry({ ownerId: id('valentina'), collectionId: id('collj'), catalogEntryId: id('char'), qty: 1, acquiredAt: '2026-09-01', acquiredPriceCop: null })))).toBe('CollectionNotFound');
+    expect(codeOf(await caught(() => setup().col.addEntry(addInput({ collectionId: id('collj') }))))).toBe('CollectionNotFound');
     expect(await rows(db, 'Collection', '"ownerId" = $1', [id('valentina')])).toHaveLength(0);
   });
 
   it('[COL-3.P4] an id the catalog reports missing is InvalidCatalogEntry (400)', async () => {
     await user(db, { id: id('valentina') });
     await collection(db, { id: id('coll1'), ownerId: id('valentina') });
-    const error = await caught(() => setup().col.addEntry({ ownerId: id('valentina'), collectionId: id('coll1'), catalogEntryId: id('ghost'), qty: 1, acquiredAt: '2026-09-01', acquiredPriceCop: null }));
+    const error = await caught(() => setup().col.addEntry(addInput({ catalogEntryId: id('ghost') })));
     expect(codeOf(error)).toBe('InvalidCatalogEntry');
     expect(httpOf(error)).toBe(400);
   });
@@ -183,7 +185,7 @@ describe('COL-3 — addEntry (contracts.md §10)', () => {
   it('[COL-3.I2] storage refuses an external entry that names a catalog id, and a manual entry that names an order (AD-7, AD-COL-1)', async () => {
     await user(db, { id: id('valentina') });
     await collection(db, { id: id('coll1'), ownerId: id('valentina') });
-    await setup().col.addEntry({ ownerId: id('valentina'), collectionId: id('coll1'), catalogEntryId: id('char'), qty: 1, acquiredAt: '2026-09-01', acquiredPriceCop: null });
+    await setup().col.addEntry(addInput());
     const external = await caught(() => ins(db, 'CollectionEntry', { id: id('x1'), collectionId: id('coll1'), cardKind: 'external', catalogEntryId: id('char'), externalUrl: 'https://x.org', externalTitle: 'X', source: 'Manual', qty: 1, acquiredAt: '2026-09-01', manualPosition: 9 }));
     const manualWithOrder = await caught(() => ins(db, 'CollectionEntry', { id: id('x2'), collectionId: id('coll1'), cardKind: 'catalog', catalogEntryId: id('char'), source: 'Manual', orderId: id('o1'), qty: 1, acquiredAt: '2026-09-01', manualPosition: 10 }));
     expect(String((external as Error).message)).toMatch(/collection_entry_catalog_tag/);
@@ -192,7 +194,7 @@ describe('COL-3 — addEntry (contracts.md §10)', () => {
 
   it('[COL-3.R1] two concurrent first-use adds create one "General" with distinct positions', async () => {
     await user(db, { id: id('valentina') });
-    const outcome = await race(2, () => setup().col.addEntry({ ownerId: id('valentina'), collectionId: null, catalogEntryId: id('char'), qty: 1, acquiredAt: '2026-09-01', acquiredPriceCop: null }));
+    const outcome = await race(2, () => setup().col.addEntry(addInput({ collectionId: null })));
     expect(outcome.rejected.map(codeOf)).toEqual([]);
     expect(await rows(db, 'Collection')).toHaveLength(1);
     expect(new Set((await rows<{ manualPosition: number }>(db, 'CollectionEntry')).map((e) => e.manualPosition)).size).toBe(2);

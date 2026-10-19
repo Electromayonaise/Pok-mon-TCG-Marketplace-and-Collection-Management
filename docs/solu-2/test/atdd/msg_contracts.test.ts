@@ -2,7 +2,7 @@
 // Red phase: every test must fail with NotImplementedError.
 import { describe, expect, it } from 'vitest';
 import { MsgServiceV2 } from '../../../../src/modules/messaging/index.js';
-import type { IdentityForMsg } from '../../../../src/modules/messaging/index.js';
+import type { IdentityForMsg, SendMessageRequest } from '../../../../src/modules/messaging/index.js';
 import { ContactServiceV2 } from '../../../../src/modules/listings/index.js';
 import type { CatalogForContact, IdentityForContact } from '../../../../src/modules/listings/index.js';
 import { VerServiceV2 } from '../../../../src/modules/identity/index.js';
@@ -12,6 +12,8 @@ import { codeOf, race } from '../../../../test-support/concurrency.js';
 import { at, business, catalogEntry, conversation, explainAssert, fake, HOUR, id, ins, listing, rows, T0, unit, user, wiring } from '../../../../test-support/solu2/fixtures.js';
 
 const db = useTestDatabase();
+/** A sendMessage request: camila's first 'Hola' to the business andres, unless the test says otherwise. */
+const sendInput = (o: Partial<SendMessageRequest> = {}): SendMessageRequest => ({ target: { recipientId: id('andres') }, body: 'Hola', clientMessageId: 'cm-1', senderId: id('camila'), ...o });
 const ver = () => new VerServiceV2(wiring(db));
 
 function msgService() {
@@ -49,7 +51,7 @@ describe('MSG-1 — sendMessage (contracts.md §9)', () => {
   it('[MSG-1.Q1] a buyer starts a conversation with an Approved business: one conversation, two participants, message seq 1, allowed', async () => {
     await user(db, { id: id('camila') });
     await business(db, id('andres'), 'Approved');
-    const result = await msgService().sendMessage({ target: { recipientId: id('andres') }, body: '¿Tienes el Charizard?', clientMessageId: 'cm-1', senderId: id('camila') });
+    const result = await msgService().sendMessage(sendInput({ body: '¿Tienes el Charizard?' }));
     expect(result.seq).toBe(1);
     explainAssert(result.decision, { outcome: 'allowed', rule: 'FR-MSG-4', inputs: { recipientStatus: 'Approved' } });
     expect(await rows(db, 'ConversationParticipant')).toHaveLength(2);
@@ -59,14 +61,14 @@ describe('MSG-1 — sendMessage (contracts.md §9)', () => {
   it('[MSG-1.Q2] a Pending business receives with the RecipientNotYetVerified notice', async () => {
     await user(db, { id: id('camila') });
     await business(db, id('andres'), 'Pending');
-    const result = await msgService().sendMessage({ target: { recipientId: id('andres') }, body: 'Hola', clientMessageId: 'cm-1', senderId: id('camila') });
+    const result = await msgService().sendMessage(sendInput());
     explainAssert(result.decision, { code: 'RecipientNotYetVerified', outcome: 'allowedWithNotice' });
   });
 
   it('[MSG-1.P4] a business opening a conversation is BusinessCannotInitiate (409)', async () => {
     await user(db, { id: id('camila') });
     await business(db, id('andres'), 'Approved');
-    const error = await caught(() => msgService().sendMessage({ target: { recipientId: id('camila') }, body: 'Promo', clientMessageId: 'cm-1', senderId: id('andres') }));
+    const error = await caught(() => msgService().sendMessage(sendInput({ target: { recipientId: id('camila') }, body: 'Promo', senderId: id('andres') })));
     expect(codeOf(error)).toBe('BusinessCannotInitiate');
     expect(await rows(db, 'Conversation')).toHaveLength(0);
   });
@@ -74,7 +76,7 @@ describe('MSG-1 — sendMessage (contracts.md §9)', () => {
   it('[MSG-1.P5] a Rejected business is NotBusinessAccount (409) propagated from identity; nothing is written', async () => {
     await user(db, { id: id('camila') });
     await business(db, id('andres'), 'Rejected');
-    const error = await caught(() => msgService().sendMessage({ target: { recipientId: id('andres') }, body: 'Hola', clientMessageId: 'cm-1', senderId: id('camila') }));
+    const error = await caught(() => msgService().sendMessage(sendInput()));
     expect(codeOf(error)).toBe('NotBusinessAccount');
     expect(httpOf(error)).toBe(409);
     expect(await db.counts(['Conversation', 'Message'])).toEqual({ Conversation: 0, Message: 0 });
@@ -85,15 +87,15 @@ describe('MSG-1 — sendMessage (contracts.md §9)', () => {
     await user(db, { id: id('julian') });
     await business(db, id('andres'), 'Approved');
     await conversation(db, { id: id('c1'), buyerId: id('camila'), businessId: id('andres') });
-    expect(codeOf(await caught(() => msgService().sendMessage({ target: { conversationId: id('c1') }, body: 'Hola', clientMessageId: 'cm-1', senderId: id('julian') })))).toBe('ConversationNotVisibleToCaller');
+    expect(codeOf(await caught(() => msgService().sendMessage(sendInput({ target: { conversationId: id('c1') }, senderId: id('julian') }))))).toBe('ConversationNotVisibleToCaller');
   });
 
   it('[MSG-1.I3] a retry with the same clientMessageId returns the original message and writes nothing (EC-14, AD-MSG-2 rule 4)', async () => {
     await user(db, { id: id('camila') });
     await business(db, id('andres'), 'Approved');
     const svc = msgService();
-    const first = await svc.sendMessage({ target: { recipientId: id('andres') }, body: 'Hola', clientMessageId: 'cm-1', senderId: id('camila') });
-    const retry = await svc.sendMessage({ target: { recipientId: id('andres') }, body: 'Hola', clientMessageId: 'cm-1', senderId: id('camila') });
+    const first = await svc.sendMessage(sendInput());
+    const retry = await svc.sendMessage(sendInput());
     expect(retry).toMatchObject({ messageId: first.messageId, seq: 1 });
     expect(await rows(db, 'Message')).toHaveLength(1);
     expect(await rows(db, 'Conversation')).toMatchObject([{ lastSeq: '1' }]);
@@ -102,7 +104,7 @@ describe('MSG-1 — sendMessage (contracts.md §9)', () => {
   it('[MSG-1.R1] two first messages open one conversation, and 20 concurrent sends get gapless seqs 1..20', async () => {
     await user(db, { id: id('camila') });
     await business(db, id('andres'), 'Approved');
-    const outcome = await race(20, (i) => msgService().sendMessage({ target: { recipientId: id('andres') }, body: `m${i}`, clientMessageId: `cm-${i}`, senderId: id('camila') }));
+    const outcome = await race(20, (i) => msgService().sendMessage(sendInput({ body: `m${i}`, clientMessageId: `cm-${i}` })));
     expect(outcome.rejected.map(codeOf)).toEqual([]);
     expect(await rows(db, 'Conversation')).toHaveLength(1);
     expect(outcome.fulfilled.map((r) => r.seq).sort((a, b) => a - b)).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
@@ -133,16 +135,16 @@ describe('MSG-2 — generateContactMessage (contracts.md §9)', () => {
 
   it('[MSG-2.MEC] every fixture name renders within 2,000 characters, round-trips exactly and keeps the full price (NFR-MSG-4)', async () => {
     const names = ['Ñandú Pokémon édition', 'Pikachu ⚡️🔥 Promo', 'x'.repeat(500), 'Mira https://evil.example/ ofertas'];
-    const prices = [1_000, 100_000_000];
+    const prices = [[1_000, '$1.000 COP'], [100_000_000, '$100.000.000 COP']] as const;
     let n = 0;
     for (const name of names) {
-      for (const price of prices) {
+      for (const [price, shown] of prices) {
         const listingId = id(`l${n++}`);
         await valentinaListing(price, listingId);
         const result = await contact(listingId, contactService(name));
         expect(result.externalUrl.length).toBeLessThanOrEqual(2000);
         expect(decodeText(result.externalUrl)).toBe(result.text.normalize('NFC'));
-        expect(result.text).toContain(price === 1_000 ? '$1.000 COP' : '$100.000.000 COP');
+        expect(result.text).toContain(shown);
       }
     }
   });
@@ -199,7 +201,7 @@ describe('MSG-3 — requireMessagingEligibility (contracts.md §9)', () => {
       const biz = id(`biz${rep}`);
       await business(db, biz, 'Approved');
       const outcome = await race<unknown>(2, (i) => (i === 0
-        ? msgService().sendMessage({ target: { recipientId: biz }, body: 'Hola', clientMessageId: `cm-${rep}`, senderId: id('camila') })
+        ? msgService().sendMessage(sendInput({ target: { recipientId: biz }, clientMessageId: `cm-${rep}` }))
         : db.query(`UPDATE "BusinessApplication" SET status = 'Rejected', "rejectionReasonCode" = 'DataMismatch', "reapplyNotBefore" = $1 WHERE "businessId" = $2`, [at(HOUR), biz])));
       expect(outcome.rejected.map(codeOf).filter((c) => c !== 'NotBusinessAccount')).toEqual([]);
       const sent = await db.query(`SELECT m.id FROM "Message" m JOIN "Conversation" c ON c.id = m."conversationId" WHERE c."businessId" = $1`, [biz]);

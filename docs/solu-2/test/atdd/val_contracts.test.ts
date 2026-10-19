@@ -88,6 +88,7 @@ describe('VAL-1 — valueCollection (contracts.md §11)', () => {
     let fxQty = 0;
     for (let i = 0; i < 500; i++) {
       const qty = (i % 7) + 1;
+      // A deterministic spread over 1,000–250,999 COP: 7,919 is prime, so i × 7,919 mod 250,000 never repeats within 500 entries.
       const cop = 1_000 + ((i * 7_919) % 250_000);
       const fx = i % 3 === 0;
       await entry(db, { id: id(`e${i}`), collectionId: id('coll1'), catalogEntryId: id(`c${i}`), qty, position: i });

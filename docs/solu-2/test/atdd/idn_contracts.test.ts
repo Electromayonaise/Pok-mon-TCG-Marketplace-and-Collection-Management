@@ -161,7 +161,7 @@ describe('IDN-3 — traceCapabilities (contracts.md §1)', () => {
     await business(db, id('andres'), 'Approved');
     const trace = await idn().traceCapabilities({ targetUserId: id('andres'), adminId: id('admin') });
     const caps = await idn().getCapabilities({ userId: id('andres') });
-    for (const line of trace.capabilities) expect(line.value).toBe(caps.capabilities[line.name]);
+    expect(Object.fromEntries(trace.capabilities.map((line) => [line.name, line.value]))).toEqual(caps.capabilities);
   });
 });
 

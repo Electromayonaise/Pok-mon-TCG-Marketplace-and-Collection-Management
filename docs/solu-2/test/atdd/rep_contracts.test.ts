@@ -2,7 +2,7 @@
 // `canBuy` and `admin` (REP-1 P1, REP-2 P1) are procedure-builder checks, proven in sys › [SYS-8.R2].
 import { describe, expect, it } from 'vitest';
 import { RepServiceV2 } from '../../../../src/modules/reviews/index.js';
-import type { IdentityForRep, OrdersForRep } from '../../../../src/modules/reviews/index.js';
+import type { IdentityForRep, OrdersForRep, WriteReviewRequest } from '../../../../src/modules/reviews/index.js';
 import type { OrderStatus } from '../../../../src/modules/orders/index.js';
 import { useTestDatabase } from '../../../../test-support/db.js';
 import { caught, citedInputs, httpOf } from '../../../../test-support/errors.js';
@@ -13,7 +13,7 @@ const db = useTestDatabase();
 
 type Kind = 'business' | 'individual' | 'none';
 /** Targets by user id; closed purchases keyed `${buyer}>${business}` with the latest order state. */
-function setup(o: { targets?: Record<string, Kind>; purchases?: Record<string, OrderStatus>; targetCalls?: string[] } = {}) {
+function setup(o: { targets?: Readonly<Record<string, Kind>>; purchases?: Record<string, OrderStatus>; targetCalls?: string[] } = {}) {
   const identity = fake<IdentityForRep>('identity', {
     getReviewTarget: async ({ userId }) => { o.targetCalls?.push(userId); const kind = o.targets?.[userId] ?? 'none'; return { kind, verified: kind !== 'none' }; },
     getDisplayNames: async ({ userIds }) => ({ names: userIds.map((u) => ({ userId: u, displayName: `Usuario ${u.slice(0, 4)}` })) }),
@@ -30,15 +30,18 @@ async function people(): Promise<void> {
   await user(db, { id: id('julian'), sellerTrack: 'individual' });
   await admin(db);
 }
-const targets: Record<string, Kind> = { [id('tienda')]: 'business', [id('julian')]: 'individual' };
-const hide = (reviewId: string, o: { reasonCode?: 'Spam' | 'Other' | 'Harassment'; note?: string | null; adminId?: string } = {}) =>
+/** Frozen: a test that needs more targets copies it (review R-6). */
+const targets: Readonly<Record<string, Kind>> = Object.freeze({ [id('tienda')]: 'business', [id('julian')]: 'individual' });
+/** A writeReview request: valentina rates the business 5 unless the test says otherwise. */
+const write = (o: Partial<WriteReviewRequest> = {}): WriteReviewRequest => ({ reviewerId: id('valentina'), targetUserId: id('tienda'), rating: 5, text: 'Excelente vendedor.', ...o });
+const hide =(reviewId: string, o: { reasonCode?: 'Spam' | 'Other' | 'Harassment'; note?: string | null; adminId?: string } = {}) =>
   ({ reviewId, reasonCode: o.reasonCode ?? 'Spam', note: o.note ?? null, adminId: o.adminId ?? id('admin') });
 
 describe('REP-1 — writeReview (contracts.md §12)', () => {
   it('[REP-1.Q1] a closed purchase lets the buyer review the business: one verified row, an audit row, no event', async () => {
     await people();
     const { w, rep } = setup({ targets, purchases: { [`${id('valentina')}>${id('tienda')}`]: 'Closed' } });
-    const result = await rep.writeReview({ reviewerId: id('valentina'), targetUserId: id('tienda'), rating: 5, text: 'Envío rápido y bien empacado.' });
+    const result = await rep.writeReview(write({ text: 'Envío rápido y bien empacado.' }));
     expect(result).toMatchObject({ targetKind: 'business', purchaseVerified: true });
     expect(await rows(db, 'Review', `id = $1`, [result.reviewId])).toMatchObject([{ reviewerId: id('valentina'), rating: 5, purchaseVerified: true, createdAt: new Date(w.clock.iso()) }]);
     expect(await rows(db, 'audit_events', `action = 'reviews.review.written'`)).toHaveLength(1);
@@ -48,7 +51,7 @@ describe('REP-1 — writeReview (contracts.md §12)', () => {
 
   it('[REP-1.Q1i] an individual seller is reviewed without a purchase, and the row is not marked verified (FR-REP-2)', async () => {
     await people();
-    const result = await setup({ targets }).rep.writeReview({ reviewerId: id('valentina'), targetUserId: id('julian'), rating: 4, text: 'Puntual en el encuentro.' });
+    const result = await setup({ targets }).rep.writeReview(write({ targetUserId: id('julian'), rating: 4, text: 'Puntual en el encuentro.' }));
     expect(result).toMatchObject({ targetKind: 'individual', purchaseVerified: false });
     explainAssert(result.decision, { rule: 'FR-REP-2' });
   });
@@ -56,7 +59,7 @@ describe('REP-1 — writeReview (contracts.md §12)', () => {
   it('[REP-1.P2] a self-review is TargetNotFound (404) before any neighbour read, with zero writes', async () => {
     await people();
     const targetCalls: string[] = [];
-    const error = await caught(() => setup({ targets, targetCalls }).rep.writeReview({ reviewerId: id('tienda'), targetUserId: id('tienda'), rating: 5, text: '' }));
+    const error = await caught(() => setup({ targets, targetCalls }).rep.writeReview(write({ reviewerId: id('tienda'), text: '' })));
     expect(codeOf(error)).toBe('TargetNotFound');
     expect(httpOf(error)).toBe(404);
     expect(targetCalls).toEqual([]);
@@ -66,21 +69,17 @@ describe('REP-1 — writeReview (contracts.md §12)', () => {
   it('[REP-1.P3] a user who is neither an approved business nor a complete individual seller is TargetNotFound', async () => {
     await people();
     await user(db, { id: id('nadie') });
-    expect(codeOf(await caught(() => setup({ targets }).rep.writeReview({ reviewerId: id('valentina'), targetUserId: id('nadie'), rating: 3, text: '' })))).toBe('TargetNotFound');
+    expect(codeOf(await caught(() => setup({ targets }).rep.writeReview(write({ targetUserId: id('nadie'), rating: 3, text: '' }))))).toBe('TargetNotFound');
   });
 
   it('[REP-1.MEC] paying is not enough: with the order Paid but not closed the review is NotVerifiedPurchaser citing latestState, 100/100 (NFR-REP-1)', async () => {
     await people();
     const { rep } = setup({ targets, purchases: { [`${id('valentina')}>${id('tienda')}`]: 'Paid' } });
+    const first = await caught(() => rep.writeReview(write({ text: 'Intento 0' })));
+    expect(codeOf(first)).toBe('NotVerifiedPurchaser');
+    expect(citedInputs(first)).toMatchObject({ latestState: 'Paid' });
     const codes = new Set<string>();
-    for (let i = 0; i < 100; i++) {
-      const error = await caught(() => rep.writeReview({ reviewerId: id('valentina'), targetUserId: id('tienda'), rating: 5, text: `Intento ${i}` }));
-      codes.add(codeOf(error));
-      if (i === 0) {
-        expect(codeOf(error)).toBe('NotVerifiedPurchaser');
-        expect(citedInputs(error)).toMatchObject({ latestState: 'Paid' });
-      }
-    }
+    for (let i = 1; i < 100; i++) codes.add(codeOf(await caught(() => rep.writeReview(write({ text: `Intento ${i}` })))));
     expect([...codes]).toEqual(['NotVerifiedPurchaser']);
     expect(await rows(db, 'Review')).toEqual([]);
   });
@@ -88,7 +87,7 @@ describe('REP-1 — writeReview (contracts.md §12)', () => {
   it('[REP-1.I2] a double submit leaves one row and one DuplicateReview (409)', async () => {
     await people();
     const { rep } = setup({ targets });
-    const outcome = await race(2, () => rep.writeReview({ reviewerId: id('valentina'), targetUserId: id('julian'), rating: 5, text: 'Muy amable.' }));
+    const outcome = await race(2, () => rep.writeReview(write({ targetUserId: id('julian'), text: 'Muy amable.' })));
     expect(outcome.rejected.map(codeOf).filter((c) => c !== 'DuplicateReview')).toEqual([]);
     expect(outcome.fulfilled).toHaveLength(1);
     expect(httpOf(outcome.rejected[0])).toBe(409);
@@ -97,7 +96,7 @@ describe('REP-1 — writeReview (contracts.md §12)', () => {
 
   it('[REP-1.I1] a business review is stored verified, and the CHECK refuses un-verifying it (AD-REP-1, AD-2)', async () => {
     await people();
-    const { reviewId } = await setup({ targets, purchases: { [`${id('valentina')}>${id('tienda')}`]: 'Closed' } }).rep.writeReview({ reviewerId: id('valentina'), targetUserId: id('tienda'), rating: 5, text: '' });
+    const { reviewId } = await setup({ targets, purchases: { [`${id('valentina')}>${id('tienda')}`]: 'Closed' } }).rep.writeReview(write({ text: '' }));
     await expect(db.query(`UPDATE "Review" SET "purchaseVerified" = false WHERE id = $1`, [reviewId])).rejects.toThrow(/review_business_iff_verified/);
   });
 });
@@ -228,15 +227,16 @@ describe('REP-3 — getAggregates (contracts.md §12)', () => {
 
   it('[REP-3.MEC] a hide racing a new post, 100 repetitions: every later read counts exactly the visible committed set (NFR-REP-1)', async () => {
     await people();
-    const { rep } = setup({ targets });
+    const local: Record<string, Kind> = { ...targets };
+    const { rep } = setup({ targets: local });
     for (let i = 0; i < 100; i++) {
       const target = id(`t${i}`);
       await user(db, { id: target, sellerTrack: 'individual' });
-      targets[target] = 'individual';
+      local[target] = 'individual';
       await review(db, { id: id(`old${i}`), reviewerId: id('julian'), targetUserId: target, targetKind: 'individual', rating: 1 });
       const [hid, wrote] = await Promise.allSettled([
         rep.hideReview(hide(id(`old${i}`))),
-        rep.writeReview({ reviewerId: id('valentina'), targetUserId: target, rating: 5, text: `Nueva ${i}` }),
+        rep.writeReview(write({ targetUserId: target, text: `Nueva ${i}` })),
       ]);
       expect([hid, wrote].filter((s) => s.status === 'rejected').map((s) => codeOf((s as PromiseRejectedResult).reason))).toEqual([]);
       const { aggregates } = await rep.getAggregates({ sellerIds: [target] });

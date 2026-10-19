@@ -2,7 +2,7 @@
 // DSC owns no tables: the neighbours (catalog, identity) are fakes, the listings are real rows.
 import { describe, expect, it } from 'vitest';
 import { DscServiceV2 } from '../../../../src/modules/listings/index.js';
-import type { CatalogForDsc, IdentityForDsc } from '../../../../src/modules/listings/index.js';
+import type { CatalogForDsc, IdentityForDsc, SearchRequest } from '../../../../src/modules/listings/index.js';
 import type { CatalogEntryDTO, PriceProvenanceDTO } from '../../../../src/modules/catalog/index.js';
 import { DomainError } from '../../../../src/shared-kernel/errors.js';
 import { useTestDatabase } from '../../../../test-support/db.js';
@@ -53,6 +53,8 @@ async function scene(points: { key: string; seller: 'andres' | 'valentina'; at: 
   }
 }
 const area = (radiusKm: number) => ({ lat: ORIGIN.lat, lng: ORIGIN.lng, radiusKm });
+/** A listings search: 15 km around Bogotá, first page of 24, unless the test says otherwise. */
+const searchInput = (o: Partial<SearchRequest> = {}): SearchRequest => ({ view: 'listings', area: area(15), page: 1, pageSize: 24, ...o });
 
 describe('DSC-3 — assertSearchArea (contracts.md §4)', () => {
   it('[DSC-3.Q1] a 15 km area around Bogotá is accepted', () => {
@@ -80,37 +82,37 @@ describe('DSC-3 — assertSearchArea (contracts.md §4)', () => {
 describe('DSC-1 — search (contracts.md §4)', () => {
   it('[DSC-1.Q1] results inside the area are ranked by distance, then price, then id, each with its explanation', async () => {
     await scene([{ key: 'far', seller: 'andres', at: north(10) }, { key: 'near', seller: 'valentina', at: north(2) }, { key: 'out', seller: 'andres', at: north(40) }]);
-    const result = await setup().search({ view: 'listings', area: area(15), page: 1, pageSize: 24 });
+    const result = await setup().search(searchInput());
     expect(result.results.map((r) => r.listingId)).toEqual([id('near'), id('far')]);
     explainAssert(result.results[0]!.explanation, { outcome: 'ranked', rule: 'FR-DSC-5' });
   });
 
   it('[DSC-1.I1] one query path serves both seller kinds: business and individual rows come back together (AD-5)', async () => {
     await scene([{ key: 'lb', seller: 'andres', at: north(1) }, { key: 'li', seller: 'valentina', at: north(3) }]);
-    const result = await setup().search({ view: 'listings', area: area(15), page: 1, pageSize: 24 });
+    const result = await setup().search(searchInput());
     expect(result.results.map((r) => [r.listingId, r.sellerKind, r.pickupAvailable])).toEqual([[id('lb'), 'business', false], [id('li'), 'individual', true]]);
   });
 
   it('[DSC-1.I2] a hidden listing is never returned (AD-12)', async () => {
     await scene([{ key: 'shown', seller: 'andres', at: north(1) }, { key: 'hid', seller: 'andres', at: north(1), hiddenAt: T0 }]);
-    const result = await setup().search({ view: 'listings', area: area(15), page: 1, pageSize: 24 });
+    const result = await setup().search(searchInput());
     expect(result.results.map((r) => r.listingId)).toEqual([id('shown')]);
   });
 
   it('[DSC-1.I4] the SQL distance equals the haversine reference within 1 m (AD-DSC-1, NFR-DSC-2)', async () => {
     const points = [north(0.5), { lat: 4.65, lng: -74.1 }, { lat: 4.75, lng: -74.02 }];
     await scene(points.map((p, i) => ({ key: `p${i}`, seller: 'andres' as const, at: p })));
-    const result = await setup().search({ view: 'listings', area: area(30), page: 1, pageSize: 24 });
-    for (const r of result.results) {
-      const p = points[Number(r.listingId === id('p0') ? 0 : r.listingId === id('p1') ? 1 : 2)]!;
-      expect(Math.abs((r.distanceKm ?? -1) - haversine(ORIGIN, p))).toBeLessThan(0.001);
-    }
+    const result = await setup().search(searchInput({ area: area(30) }));
     expect(result.results).toHaveLength(3);
+    const pointOf = new Map(points.map((p, i) => [id(`p${i}`), p]));
+    const errorsKm = result.results.map((r) => Math.abs((r.distanceKm ?? -1) - haversine(ORIGIN, pointOf.get(r.listingId)!)));
+    expect(result.results.map((r) => pointOf.has(r.listingId))).toEqual([true, true, true]);
+    expect(errorsKm.filter((e) => !(e < 0.001))).toEqual([]);
   });
 
   it('[DSC-1.Q4] listings with no usable coordinates are excluded and counted, explained with ListingLocationUnusable', async () => {
     await scene([{ key: 'ok', seller: 'andres', at: north(1) }, { key: 'nocoords', seller: 'andres', at: null }]);
-    const result = await setup().search({ view: 'listings', area: area(15), page: 1, pageSize: 24 });
+    const result = await setup().search(searchInput());
     expect(result.excluded.unusableLocation).toBe(1);
     explainAssert(result.decision, { code: 'ListingLocationUnusable', rule: 'FR-DSC-3', inputs: { unusableLocation: 1 } });
   });
@@ -123,7 +125,7 @@ describe('DSC-1 — search (contracts.md §4)', () => {
 
   it('[DSC-1.R1] the read is repeat-safe and concurrency-safe: 10 concurrent equal searches return byte-identical results (NFR-DSC-3)', async () => {
     await scene([{ key: 'a', seller: 'andres', at: north(2), priceCop: 45_000 }, { key: 'b', seller: 'andres', at: north(2), priceCop: 45_000 }, { key: 'c', seller: 'valentina', at: north(5) }]);
-    const outcome = await race(10, () => setup().search({ view: 'listings', area: area(15), page: 1, pageSize: 24 }));
+    const outcome = await race(10, () => setup().search(searchInput()));
     expect(outcome.rejected.map(codeOf)).toEqual([]);
     expect(new Set(outcome.fulfilled.map((r) => JSON.stringify(r.results))).size).toBe(1);
   });

@@ -136,14 +136,16 @@ describe('SYS-2.R6 — dispatch (AD-SYS-2 rules 1, 5, 6; AD-10)', () => {
 describe('SYS-4.R9 — getSellerVerification (AD-SYS-4 rule 9)', () => {
   it('[SYS-4.R9] a neighbour query inside an open transaction completes with a pool of 1 (no second connection)', async () => {
     const pool = new pg.Pool({ ...PG, database: (db.pool.options as { database: string }).database, max: 1 });
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
     try {
       const w = { ...wiring(db), transactions: new PgTransactionRunner(pool) };
       await user(db, { id: id('julian') });
       const idn = new IdnServiceV2(w);
-      const deadlock = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('deadlock: a second connection was requested')), 3_000));
+      const deadlock = new Promise<never>((_, reject) => { watchdog = setTimeout(() => reject(new Error('deadlock: a second connection was requested')), 3_000); });
       const result = await Promise.race([w.transactions.run(() => idn.getSellerVerification({ sellerId: id('julian') })), deadlock]);
       expect(result).toEqual({ status: 'none' });
     } finally {
+      clearTimeout(watchdog);
       await pool.end();
     }
   });

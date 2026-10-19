@@ -1,13 +1,15 @@
 // ATDD — COM (contracts.md §7, §15, §15.12). Red phase: every test must fail with NotImplementedError.
 import { describe, expect, it } from 'vitest';
 import { ComServiceV2 } from '../../../../src/modules/commission/index.js';
-import type { ApplyOrderDeductionRequest, IdentityForCom } from '../../../../src/modules/commission/index.js';
+import type { ApplyOrderDeductionRequest, IdentityForCom, RequestTopUpRequest } from '../../../../src/modules/commission/index.js';
 import { useTestDatabase } from '../../../../test-support/db.js';
 import { caught, citedInputs, httpOf } from '../../../../test-support/errors.js';
 import { codeOf, race } from '../../../../test-support/concurrency.js';
 import { admin, at, business, commissionAccount, DAY, explainAssert, fake, HOUR, id, ins, rows, T0, topUp, user, wiring } from '../../../../test-support/solu2/fixtures.js';
 
 const db = useTestDatabase();
+/** A requestTopUp request: andres asks for 50,000 COP with reference REF-1 and upload key 'x', unless the test says otherwise. */
+const topUpInput = (o: Partial<RequestTopUpRequest> = {}): RequestTopUpRequest => ({ businessId: id('andres'), amountCop: 50_000, transferReference: 'REF-1', uploadKey: 'x', ...o });
 
 function setup(o: { kind?: 'business' | 'individual' } = {}) {
   const w = wiring(db);
@@ -212,7 +214,8 @@ describe('COM-3 — reconcile (contracts.md §7)', () => {
     await admin(db);
     const result = await setup().com.reconcile({ businessId: id('ghost'), actor: { kind: 'admin', adminId: id('admin') } });
     expect(result).toMatchObject({ accountsChecked: 0, discrepancies: [] });
-    if ('decision' in result) explainAssert(result.decision, { outcome: 'allowedWithNotice', inputs: { businessId: id('ghost'), accountFound: false } });
+    expect(result).toHaveProperty('decision');
+    explainAssert((result as { decision: unknown }).decision, { outcome: 'allowedWithNotice', inputs: { businessId: id('ghost'), accountFound: false } });
   });
 
   it('[COM-3.P2] while another job run holds the lock, the job path is skipped', async () => {
@@ -264,21 +267,21 @@ describe('Supporting COM contracts (contracts.md §15, §15.12)', () => {
     const { w, com } = setup();
     const key = `topup-proof/${id('andres')}/p1`;
     w.storage.simulateDirectUpload(key, new Uint8Array([0xff, 0xd8, 0xff, 1, 0xff, 0xd9]), 'image/jpeg');
-    const result = await com.requestTopUp({ businessId: id('andres'), amountCop: 50_000, transferReference: 'REF-778899', uploadKey: key });
+    const result = await com.requestTopUp(topUpInput({ transferReference: 'REF-778899', uploadKey: key }));
     expect(result.status).toBe('Pending');
     expect((await account())?.balanceCop).toBe('1000');
   });
 
   it('[S-FR-COM-2.f] 19,999 COP is TopUpAmountInvalid (400) with zero rows', async () => {
     await shop(1_000);
-    const error = await caught(() => setup().com.requestTopUp({ businessId: id('andres'), amountCop: 19_999, transferReference: 'REF-1', uploadKey: 'x' }));
+    const error = await caught(() => setup().com.requestTopUp(topUpInput({ amountCop: 19_999 })));
     expect(codeOf(error)).toBe('TopUpAmountInvalid');
     expect(await rows(db, 'TopUpRequest')).toHaveLength(0);
   });
 
   it('[S-FR-COM-2.f2] before the account is open, a request is CommissionAccountNotOpen (409), never identity’s NotBusinessAccount (C-GAP-3)', async () => {
     await business(db, id('andres'), 'Approved');
-    const error = await caught(() => setup().com.requestTopUp({ businessId: id('andres'), amountCop: 50_000, transferReference: 'REF-1', uploadKey: 'x' }));
+    const error = await caught(() => setup().com.requestTopUp(topUpInput()));
     expect(codeOf(error)).toBe('CommissionAccountNotOpen');
     expect(citedInputs(error)).toMatchObject({ accountOpened: false });
   });

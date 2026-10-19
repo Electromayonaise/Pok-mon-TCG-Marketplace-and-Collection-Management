@@ -2,7 +2,7 @@
 // The `listings` fake honours its port contract (P-INV.trade): a conditional decrement in the caller's tx.
 import { describe, expect, it } from 'vitest';
 import { TrdServiceV2 } from '../../../../src/modules/trading/index.js';
-import type { ListingsForTrd, TradeTermsDTO } from '../../../../src/modules/trading/index.js';
+import type { CounterOfferRequest, ListingsForTrd, TradeTermsDTO } from '../../../../src/modules/trading/index.js';
 import { DomainError } from '../../../../src/shared-kernel/errors.js';
 import type { Tx } from '../../../../src/shared-kernel/ports.js';
 import { useTestDatabase } from '../../../../test-support/db.js';
@@ -49,6 +49,8 @@ const offer = (offerId: string, proposer: string, o: Parameters<typeof tradeOffe
   tradeOffer(db, { id: offerId, listingId: id('lv'), sellerId: id('valentina'), proposerId: id(proposer), ...o });
 const offerRow = async (offerId: string) => (await rows<Record<string, unknown>>(db, 'TradeOffer', 'id = $1', [offerId]))[0];
 const terms = (cashCop: number): TradeTermsDTO => ({ offeredItems: [{ itemRef: id('char'), condition: 'NM', qty: 1 }], cashCop, requestedQty: 1 });
+/** A counterOffer request: valentina (the seller, on turn) counters of1 at version 0 with 25,000 COP, unless the test says otherwise. */
+const counterInput = (o: Partial<CounterOfferRequest> = {}): CounterOfferRequest => ({ offerId: id('of1'), terms: terms(25_000), expectedVersion: 0, actorId: id('valentina'), ...o });
 
 describe('TRD-1 — acceptOffer (contracts.md §8)', () => {
   it('[TRD-1.Q1] the seller accepts: Accepted with a reservation, one accept round, one TradeAccepted with no delivery, and one handoff for the proposer', async () => {
@@ -132,7 +134,7 @@ describe('TRD-2 — counterOffer (contracts.md §8)', () => {
     await scene();
     await offer(id('of1'), 'julian');
     await offerRound(db, id('of1'), 1);
-    const result = await setup().trd.counterOffer({ offerId: id('of1'), terms: terms(30_000), expectedVersion: 0, actorId: id('valentina') });
+    const result = await setup().trd.counterOffer(counterInput({ terms: terms(30_000) }));
     expect(result).toMatchObject({ offerId: id('of1'), version: 1, turn: 'proposer', roundCount: 2 });
     explainAssert(result.decision, { rule: 'FR-TRD-2', inputs: { offerId: id('of1'), round: 2, turn: 'proposer' } });
     expect(await rows(db, 'TradeOfferRound', '"offerId" = $1 AND round = 2', [id('of1')])).toMatchObject([{ actor: 'seller', action: 'counter' }]);
@@ -141,7 +143,7 @@ describe('TRD-2 — counterOffer (contracts.md §8)', () => {
   it('[TRD-2.P2] a counter with no item and no cash is EmptyTradeOffer (400)', async () => {
     await scene();
     await offer(id('of1'), 'julian');
-    const error = await caught(() => setup().trd.counterOffer({ offerId: id('of1'), terms: { offeredItems: [], cashCop: 0, requestedQty: 1 }, expectedVersion: 0, actorId: id('valentina') }));
+    const error = await caught(() => setup().trd.counterOffer(counterInput({ terms: { offeredItems: [], cashCop: 0, requestedQty: 1 } })));
     expect(codeOf(error)).toBe('EmptyTradeOffer');
     expect(httpOf(error)).toBe(400);
   });
@@ -149,13 +151,13 @@ describe('TRD-2 — counterOffer (contracts.md §8)', () => {
   it('[TRD-2.P5] the party whose turn it is not gets NotYourTurn', async () => {
     await scene();
     await offer(id('of1'), 'julian');
-    expect(codeOf(await caught(() => setup().trd.counterOffer({ offerId: id('of1'), terms: terms(25_000), expectedVersion: 0, actorId: id('julian') })))).toBe('NotYourTurn');
+    expect(codeOf(await caught(() => setup().trd.counterOffer(counterInput({ actorId: id('julian') }))))).toBe('NotYourTurn');
   });
 
   it('[TRD-2.P6] a stale tab (old version) is TradeOfferNotOpen citing the latest round', async () => {
     await scene();
     await offer(id('of1'), 'julian', { version: 2, roundCount: 3 });
-    const error = await caught(() => setup().trd.counterOffer({ offerId: id('of1'), terms: terms(25_000), expectedVersion: 1, actorId: id('valentina') }));
+    const error = await caught(() => setup().trd.counterOffer(counterInput({ expectedVersion: 1 })));
     expect(codeOf(error)).toBe('TradeOfferNotOpen');
     expect(citedInputs(error)).toMatchObject({ latestRound: 3 });
   });
@@ -163,14 +165,14 @@ describe('TRD-2 — counterOffer (contracts.md §8)', () => {
   it('[TRD-2.P7] a counter that would create round 11 is TradeRoundLimitReached (409)', async () => {
     await scene();
     await offer(id('of1'), 'julian', { roundCount: 10, version: 9 });
-    expect(codeOf(await caught(() => setup().trd.counterOffer({ offerId: id('of1'), terms: terms(25_000), expectedVersion: 9, actorId: id('valentina') })))).toBe('TradeRoundLimitReached');
+    expect(codeOf(await caught(() => setup().trd.counterOffer(counterInput({ expectedVersion: 9 }))))).toBe('TradeRoundLimitReached');
   });
 
   it('[TRD-2.P8] terms equal to the latest round are TradeCounterUnchanged citing the round (G-1)', async () => {
     await scene();
     await offer(id('of1'), 'julian', { terms: terms(20_000) });
     await offerRound(db, id('of1'), 1, { terms: terms(20_000) });
-    const error = await caught(() => setup().trd.counterOffer({ offerId: id('of1'), terms: terms(20_000), expectedVersion: 0, actorId: id('valentina') }));
+    const error = await caught(() => setup().trd.counterOffer(counterInput({ terms: terms(20_000) })));
     expect(codeOf(error)).toBe('TradeCounterUnchanged');
     expect(citedInputs(error)).toMatchObject({ round: 1 });
   });
@@ -178,7 +180,7 @@ describe('TRD-2 — counterOffer (contracts.md §8)', () => {
   it('[TRD-2.I3] two tabs of the same party countering with one version: one round, one TradeOfferNotOpen (AD-TRD-1, AD-SYS-5)', async () => {
     await scene();
     await offer(id('of1'), 'julian');
-    const outcome = await race(2, (i) => setup().trd.counterOffer({ offerId: id('of1'), terms: terms(30_000 + i), expectedVersion: 0, actorId: id('valentina') }));
+    const outcome = await race(2, (i) => setup().trd.counterOffer(counterInput({ terms: terms(30_000 + i) })));
     expect(outcome.rejected.map(codeOf)).toEqual(['TradeOfferNotOpen']);
     expect(await rows(db, 'TradeOfferRound', '"offerId" = $1 AND action = $2', [id('of1'), 'counter'])).toHaveLength(1);
   });
