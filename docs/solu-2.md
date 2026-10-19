@@ -49,14 +49,15 @@ Documents live under `docs/solu-2/`. Code-shaped artifacts — interface stubs, 
 
 | Deliverable | Path | How to reach / run | Status |
 |---|---|---|---|
-| Risk register (≥ 8, every MEC P0), level allocation, thresholds, testability gaps | `docs/solu-2/test/test-design.md` | read | ⬜ |
-| Fixtures: `fake_clock`, `seed_marketplace`, `sim_events`, `db`, `explain_assert` | `test-support/` (shared harness), indexed in `docs/solu-2/test/fixtures/README.md` | used by every suite | ⬜ |
-| ATDD red suite, one file per module | `docs/solu-2/test/atdd/<module>_contracts.test.ts` | `npm run gate:atdd-red:solu2` (every test must fail on `NotImplementedError`) | ⬜ |
-| CI quality gate | `docs/solu-2/test/ci/quality-gate.yml` (run by GitHub Actions) | runs on push to `solu-*` branches | ⬜ |
-| NFR evidence plan | `docs/solu-2/test/nfr-evidence.md` | read | ⬜ |
-| Traceability matrix (FR/NFR → scenario → AD → clause → test → story) | `docs/solu-2/test/traceability-matrix.md` | read | ⬜ |
-| TEA skill matrix (artifact + defect caught per skill) | `docs/solu-2/test/tea-skill-matrix.md` | read | ⬜ |
-| Test-quality review, triaged | `docs/solu-2/reviews/review-test-quality.md` | read | ⬜ |
+| Risk register (≥ 8, every MEC P0), level allocation, thresholds, testability gaps | `docs/solu-2/test/test-design.md` (20 risks: 15 P0 = 12 MECs + 3 cross-cutting, 5 P1) | read; `npm run gate:trace:solu2` fails if a P0 risk has no red test | ✅ |
+| Fixtures: `fake_clock`, `seed_marketplace`, `sim_events`, `db`, `explain_assert` | `test-support/` and `test-support/solu2/`, indexed in `docs/solu-2/test/fixtures/README.md`; the PRD §3 seed is `test-support/solu2/seed-marketplace.ts` | the seed profile is proven count by count: `npm run test:fitness:solu2` (`[SEED.profile]`) | ✅ |
+| ATDD red suite: per operation happy, P-violation, invariant under concurrency/repetition/boundary; every MEC; explainability | `docs/solu-2/test/atdd/<module>_contracts.test.ts` (core operations) and `<module>_supporting.test.ts` (§15 contracts, where the module needed the split), plus `sys_contracts.test.ts` for the walking skeleton: 351 tests in 19 files | `npm run gate:atdd-red:solu2` (every test must fail on `NotImplementedError`); `npm run gate:ids:solu2` (every id `contracts.md` cites exists once) | ✅ |
+| Static fitness functions (the green halves of AD-1, AD-8, AD-9, AD-SYS-6, AD-SYS-8, R-2) | `docs/solu-2/test/fitness/sys_fitness.test.ts` (scanners in `test-support/solu2/fitness.ts`) | `npm run test:fitness:solu2`; each scanner is first proven against a planted violation | ✅ |
+| CI quality gate | `docs/solu-2/test/ci/quality-gate.yml`, byte-identical to `.github/workflows/solu2-quality-gate.yml` | runs on push to `main` and `solu-*` and on PRs; locally `npm run gate:solu2` (needs `npm run db:up`) | ✅ |
+| NFR evidence plan (NFR, metric, measurement, artifact, status), with ≥ 1 performance, reliability and security NFR | `docs/solu-2/test/nfr-evidence.md` (all 56 NFRs); red benchmarks in `docs/solu-2/test/nfr/` (ORD-1 p95, outbox crash-sweep, canary scan) | read; `npm run gate:nfr-red:solu2` | ✅ |
+| Traceability matrix (FR/NFR → scenario → AD → clause → test → story → status) | `docs/solu-2/test/traceability-matrix.md` (generated; the story column fills in Phase 4) | `npm run gen:trace:solu2` regenerates it; `npm run gate:trace:solu2` fails on any FR, AD or P0 risk without a test, or a stale matrix | ✅ |
+| TEA skill matrix (artifact + defect caught per skill) | `docs/solu-2/test/tea-skill-matrix.md` | read | ✅ |
+| Test-quality review, triaged | `docs/solu-2/reviews/review-test-quality.md` (32/100 → 19 findings accepted by Martín, log #11 → re-review 100/100) | read | ✅ |
 
 ## Phase 4 — Backlog & readiness gate
 
@@ -82,4 +83,6 @@ Documents live under `docs/solu-2/`. Code-shaped artifacts — interface stubs, 
 | Readiness audit | `scripts/readiness-audit.mjs` | Deterministic IR-PASS / IR-FAIL; wired into `bmad-sprint-planning` by `_bmad/custom/bmad-sprint-planning.toml` |
 | Red check | `scripts/check-atdd-red.mjs` | Every ATDD test of a not-done story fails on `NotImplementedError`; done stories must pass |
 | Code citations | `scripts/check-code-citations.mjs` | Every `Code` (HTTP n, owner) matches the registry |
+| Test-id coverage | `scripts/check-test-ids.mjs` | Every test id `contracts.md` cites is defined exactly once; every core operation has a test (`npm run gate:ids:solu2`) |
+| Traceability generator | `scripts/gen-solu2-trace.mjs` | Builds the matrix and enforces the Phase 3 gate (`npm run gen:trace:solu2`, `gate:trace:solu2`) |
 | Harness | `test-support/` (see its `README.md`) | Per-file Postgres databases, virtual clock, deterministic ids, data factories, outbox double, race barrier |

@@ -172,3 +172,29 @@
 - **Reason:** with the full scope, every test id that `contracts.md` §14 and §15 cite exists, so the trace can prove "no AD without a red test" mechanically instead of by promise. Red benchmarks make the three NFR rows executable evidence rather than prose. A separate workflow keeps Solu-1's gate exactly as it was signed off.
 - **Artifact changed:** the Phase 3 plan (`test/test-design.md`, `test/atdd/`, `test/nfr-evidence.md`, `.github/workflows/solu2-quality-gate.yml`).
 - **Decided by:** Martín (Test-lead), relayed by Mateo.
+
+### 11. Test-review triage: all 19 findings accepted; oversize suites split into core and supporting (Phase 3 gate)
+
+- **Phase:** 3.
+- **Persona/Skill:** Murat (`bmad-testarch-test-review`, Create mode), over the 18 Solu-2 test files.
+- **Prompt (summary):** Mateo relays Martín's direction: *"review docs/solu-2/test/ plus the Solu-2 test support for determinism, isolation, assertion depth, tautologies, hidden assertions, red-for-the-right-reason quality, race flakiness and length; score it and list findings for triage at the Phase 3 gate."*
+- **AI output (summary):** 32/100 (F). The computed verdict was Request Changes. The findings:
+  - **12 HIGH:**
+    - 5 conditional assertions, each able to pass on broken behaviour once implemented: `[REP-1.MEC]` gated on `i === 0`, `[COM-3.Q4]`, `[DSC-1.I4]`, `[IDN-3.I3]`, `[MSG-2.MEC]`;
+    - 1 module-level map mutated by `[REP-3.MEC]`;
+    - 6 files over 300 lines.
+  - **6 MEDIUM:** request literals repeated inline.
+  - **1 LOW:** a magic constant.
+
+  No critical finding: the C4/C5 scan was clean over all 366 test bodies. Three options went to the gate, each with a recommendation:
+  - **(a) H3/H4:** fix now *(recommended)*, defer to the story DoD, or reject.
+  - **(b) H5:** split supporting contracts into `<module>_supporting.test.ts` *(recommended)*, accept oversize, or split per operation.
+  - **(c) M2/L6:** fix now *(recommended)*, defer, or reject.
+- **Human decision:** ACCEPT (a) fix now, (b) split the supporting contracts, and (c) fix now.
+- **Reason:** the H3 findings sit in P0 MEC tests (R-12, R-09, R-04), so a false pass there would hide exactly the edge case the module was chosen to prove. The split keeps the statement's `<module>_contracts.test.ts` path for the core operations and leaves every test id unchanged, so the trace and the red check need no edit. Builders cost minutes now, and save every Phase 4 story from editing six copies of a request.
+- **Outcome:**
+  - 351 tests in 19 files, all red for the right reason;
+  - re-review 100/100 (A, Approve);
+  - `gate:ids:solu2` and `gate:trace:solu2` unchanged at 370 ids, 96/96 FRs, 61/61 ADs, 15/15 P0 risks.
+- **Artifact changed:** `docs/solu-2/test/atdd/` (fixes; six new `*_supporting.test.ts`); `contracts.md` §0, §14 (both test paths); `test/test-design.md`; `test/traceability-matrix.md`; `reviews/review-test-quality.md` (triage and re-review).
+- **Decided by:** Martín (Test-lead), relayed by Mateo.
