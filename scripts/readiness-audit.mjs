@@ -12,6 +12,12 @@ const pkg = args[args.indexOf('--package') + 1];
 const runTests = !args.includes('--no-tests');
 const jsonOut = args.includes('--json') ? args[args.indexOf('--json') + 1] : null;
 
+// Solu-2 has its own story format and the statement's six checks (task statement §7).
+if (pkg === 'docs/solu-2') {
+  const { auditSolu2 } = await import('./readiness-audit-solu2.mjs');
+  process.exit(await auditSolu2({ runTests, jsonOut }));
+}
+
 const PACKAGES = {
   'docs/solu-1': {
     contracts: 'docs/solu-1/planning/contracts.md',
