@@ -139,7 +139,8 @@ export const tradeOffer = (db: Q, o: { id: string; listingId: string; sellerId: 
     roundCount: o.roundCount ?? 1, version: o.version ?? 0, reservationRef: o.reservationRef ? json(o.reservationRef) : null,
     unfulfillableReason: o.status === 'Unfulfillable' ? 'ListingNoLongerAvailable' : null,
     acceptedAt: o.acceptedAt ?? (o.status === 'Accepted' || o.status === 'Cancelled' ? T0 : null),
-    expiresAt: o.expiresAt ?? at(7 * DAY), createdAt: at(-HOUR),
+    // An offer lives 7 days (ADD-§9.3): createdAt is derived from expiresAt so CHECK expiresAt > createdAt holds.
+    expiresAt: o.expiresAt ?? at(7 * DAY), createdAt: new Date(Date.parse(o.expiresAt ?? at(7 * DAY)) - 7 * DAY).toISOString(),
   });
 export const offerRound = (db: Q, offerId: string, round: number, o: { actor?: 'proposer' | 'seller'; action?: string; terms?: unknown } = {}) =>
   ins(db, 'TradeOfferRound', { offerId, round, actor: o.actor ?? 'proposer', action: o.action ?? 'offer', terms: (o.action ?? 'offer') === 'offer' || o.action === 'counter' ? json(o.terms ?? TERMS) : null }, 'created');
