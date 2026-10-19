@@ -100,7 +100,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Events (R-1, review G-01).** "Enqueues `E{…}`" means `outbox.enqueue(tx, …)` in the same transaction. The row's envelope is `{ eventId = OutboxEvent.id, type, occurredAt = the transaction's Instant, schemaVersion = 1, payload }`, the payload is exactly ADD-§5, and one `pending` `EventDelivery` is written per registered subscriber (AD-SYS-2 rules 1 and 3).
 - **Time.** "Time: `Clock`, once" means one `now: Instant` read at the start of the transaction from the injected `Clock`. Every comparison uses that value. Interval boundaries are stated per contract, as half-open `[from, to)` unless written otherwise.
 - **Latency (review G-11).** The budget is the module NFR where one exists, otherwise NFR-SYS-9 (interactive read p95 ≤ 1,000 ms; command p95 ≤ 800 ms). It is measured at **N = 1** under the PRD §7 protocol: Docker Postgres, the §3 seed, 50 warm-up and 500 measured calls, server-side handler time. Concurrency correctness is a separate proof (NFR-SYS-10: 50 connections × 100 repetitions), stated in the concurrency clause. No contract invents a number that the PRD does not state.
-- **Test ids.** `[IDN-1.P1]`, `[IDN-1.Q2]`, `[IDN-1.I1]` and `[IDN-1.MEC]` name the Phase 3 ATDD tests in `docs/solu-2/test/atdd/<module>_contracts.test.ts` that prove a clause. Each test turns red if its clause is removed from the implementation. §14 indexes them by AD.
+- **Test ids.** `[IDN-1.Q1]`, `[REP-2.P3]`, `[IDN-1.I1]` and `[IDN-1.MEC]` name the Phase 3 ATDD tests in `docs/solu-2/test/atdd/<module>_contracts.test.ts` that prove a clause. Each test turns red if its clause is removed from the implementation. §14 indexes them by AD.
 
 ---
 

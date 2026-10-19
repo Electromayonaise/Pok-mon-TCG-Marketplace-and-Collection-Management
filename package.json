@@ -20,7 +20,8 @@
     "gate:api:solu2": "node scripts/gen-solu2-api.mjs --check",
     "gate:codes:solu2": "node scripts/check-code-citations.mjs docs/solu-2/planning/detailed-design/contracts.md",
     "gate:purity": "node scripts/check-domain-purity.mjs",
-    "gate:ui:solu2": "node scripts/check-ui-states.mjs --check"
+    "gate:ui:solu2": "node scripts/check-ui-states.mjs --check",
+    "gate:ids:solu2": "node scripts/check-test-ids.mjs"
   },
   "devDependencies": {
     "@paralleldrive/cuid2": "3.3.0",
