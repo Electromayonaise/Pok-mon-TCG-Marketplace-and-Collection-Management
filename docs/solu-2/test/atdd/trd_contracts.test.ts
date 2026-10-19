@@ -8,7 +8,7 @@ import type { Tx } from '../../../../src/shared-kernel/ports.js';
 import { useTestDatabase } from '../../../../test-support/db.js';
 import { caught, citedInputs, httpOf } from '../../../../test-support/errors.js';
 import { codeOf, race } from '../../../../test-support/concurrency.js';
-import { at, catalogEntry, DAY, explainAssert, fake, HOUR, id, listing, offerRound, rows, T0, tradeOffer, unit, user, wiring } from '../../../../test-support/solu2/fixtures.js';
+import { at, catalogEntry, explainAssert, fake, HOUR, id, listing, offerRound, rows, T0, tradeOffer, unit, user, wiring } from '../../../../test-support/solu2/fixtures.js';
 
 const db = useTestDatabase();
 
@@ -220,93 +220,5 @@ describe('TRD-3 — cancelTrade (contracts.md §8)', () => {
     const outcome = await race(2, (i) => setup({ calls }).trd.cancelTrade({ offerId: id('of1'), actorId: id(i === 0 ? 'julian' : 'valentina') }));
     expect(outcome.rejected.map(codeOf)).toEqual(['TradeNotCancellable']);
     expect(calls.released).toHaveLength(1);
-  });
-});
-
-describe('Supporting TRD contracts (contracts.md §15, §15.12)', () => {
-  it('[S-FR-TRD-1.h] an offer opens with the turn at the seller and round 1', async () => {
-    await scene();
-    const result = await setup().trd.makeOffer({ listingId: id('lv'), terms: terms(20_000), proposerId: id('julian') });
-    expect(result).toMatchObject({ status: 'Open', turn: 'seller', version: 0, expiresAt: new Date(Date.parse(T0) + 7 * DAY).toISOString() });
-    expect(await rows(db, 'TradeOfferRound')).toMatchObject([{ round: 1, action: 'offer', actor: 'proposer' }]);
-  });
-
-  it('[S-FR-TRD-1.f] a second live offer by the same proposer is DuplicateOpenOffer (409)', async () => {
-    await scene();
-    await offer(id('of1'), 'julian');
-    expect(codeOf(await caught(() => setup().trd.makeOffer({ listingId: id('lv'), terms: terms(25_000), proposerId: id('julian') })))).toBe('DuplicateOpenOffer');
-  });
-
-  it('[S-FR-TRD-2w.h] the proposer withdraws an open offer', async () => {
-    await scene();
-    await offer(id('of1'), 'julian');
-    expect((await setup().trd.resolveOffer({ offerId: id('of1'), expectedVersion: 0, actorId: id('julian'), action: 'withdraw' })).status).toBe('Withdrawn');
-  });
-
-  it('[S-FR-TRD-2w.f] withdrawing with a stale version is TradeOfferNotOpen', async () => {
-    await scene();
-    await offer(id('of1'), 'julian', { version: 1 });
-    expect(codeOf(await caught(() => setup().trd.resolveOffer({ offerId: id('of1'), expectedVersion: 0, actorId: id('julian'), action: 'withdraw' })))).toBe('TradeOfferNotOpen');
-  });
-
-  it('[S-FR-TRD-3.h] both parties see the same rounds', async () => {
-    await scene();
-    await offer(id('of1'), 'julian', { roundCount: 2, turn: 'proposer' });
-    await offerRound(db, id('of1'), 1);
-    await offerRound(db, id('of1'), 2, { actor: 'seller', action: 'counter' });
-    const { trd } = setup();
-    const a = await trd.getOffer({ offerId: id('of1'), actorId: id('julian') });
-    const b = await trd.getOffer({ offerId: id('of1'), actorId: id('valentina') });
-    expect(a.rounds.map((r) => r.action)).toEqual(['offer', 'counter']);
-    expect(b.rounds).toEqual(a.rounds);
-  });
-
-  it('[S-FR-TRD-3.f] a third party gets a body identical to an unknown id', async () => {
-    await scene();
-    await offer(id('of1'), 'julian');
-    const foreign = await caught(() => setup().trd.getOffer({ offerId: id('of1'), actorId: id('camila') }));
-    const unknown = await caught(() => setup().trd.getOffer({ offerId: id('ghost'), actorId: id('camila') }));
-    expect(codeOf(foreign)).toBe('TradeOfferNotVisibleToCaller');
-    expect(JSON.stringify(foreign)).toBe(JSON.stringify(unknown));
-  });
-
-  it('[S-FR-TRD-3.mine.h] an expired Open offer reads Expired in my trades without the job', async () => {
-    await scene();
-    await offer(id('of1'), 'julian', { expiresAt: at(-HOUR) });
-    expect((await setup().trd.listMyOffers({ actorId: id('julian'), side: 'any', cursor: null })).offers.map((o) => o.status)).toEqual(['Expired']);
-  });
-
-  it('[S-FR-TRD-7.h] both parties confirming completes the trade (computed, never stored)', async () => {
-    await scene(0);
-    await offer(id('of1'), 'julian', { status: 'Accepted', reservationRef: { listingId: id('lv'), units: [] } });
-    const { trd } = setup();
-    await trd.confirmCompletion({ offerId: id('of1'), actorId: id('julian') });
-    expect((await trd.confirmCompletion({ offerId: id('of1'), actorId: id('valentina') })).completed).toBe(true);
-  });
-
-  it('[S-FR-TRD-7.f] a repeated confirmation is TradeAlreadyConfirmedByRole citing the original instant', async () => {
-    await scene(0);
-    await offer(id('of1'), 'julian', { status: 'Accepted', reservationRef: { listingId: id('lv'), units: [] } });
-    await db.query(`UPDATE "TradeOffer" SET "proposerConfirmedAt" = $1`, [at(-HOUR)]);
-    const error = await caught(() => setup().trd.confirmCompletion({ offerId: id('of1'), actorId: id('julian') }));
-    expect(codeOf(error)).toBe('TradeAlreadyConfirmedByRole');
-    expect(citedInputs(error)).toMatchObject({ confirmedAt: at(-HOUR) });
-  });
-
-  it('[S-FR-TRD-9.h] the expiry job marks an expired Open offer once, with no reservation change', async () => {
-    await scene();
-    await offer(id('of1'), 'julian', { expiresAt: at(-HOUR) });
-    const { calls, trd } = setup();
-    expect(await trd.expireDueOffers({ trigger: 'tick' })).toEqual({ expired: 1 });
-    expect(await trd.expireDueOffers({ trigger: 'daily-night' })).toEqual({ expired: 0 });
-    expect(calls.released).toHaveLength(0);
-  });
-
-  it('[S-FR-TRD-9.f] without the job, an accept at now = expiresAt is TradeOfferNotOpen citing Expired', async () => {
-    await scene();
-    await offer(id('of1'), 'julian', { expiresAt: T0 });
-    const error = await caught(() => setup().trd.acceptOffer({ offerId: id('of1'), expectedVersion: 0, sellerId: id('valentina') }));
-    expect(codeOf(error)).toBe('TradeOfferNotOpen');
-    expect(citedInputs(error)).toMatchObject({ status: 'Expired' });
   });
 });

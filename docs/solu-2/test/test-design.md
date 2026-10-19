@@ -80,7 +80,7 @@ Every P0 and P1 risk has at least one red test. The test-id gate (`npm run gate:
 | Level | What it proves | Where | Runs | Red/green now |
 |---|---|---|---|---|
 | Pure (domain) | Formulas and value rules (`averageTenths`, `commissionFor`, `changePercentHundredths`, `bogotaDate`) | `domain/*.ts` exercised through the ATDD files | Every push | Red (through the stubs) |
-| Integration (contract ATDD) | Each operation's P, Q and I against real Postgres 16.6, with fakes for neighbours and simulated external adapters. Races use 50 real connections × 100 repetitions where the contract names them (NFR-SYS-10) | `docs/solu-2/test/atdd/*_contracts.test.ts` (13 files, 351 tests) | Every push | Red: `NotImplemented` |
+| Integration (contract ATDD) | Each operation's P, Q and I against real Postgres 16.6, with fakes for neighbours and simulated external adapters. Races use 50 real connections × 100 repetitions where the contract names them (NFR-SYS-10) | `docs/solu-2/test/atdd/*_contracts.test.ts` and `*_supporting.test.ts` (19 files, 351 tests) | Every push | Red: `NotImplemented` |
 | Static (fitness) | Architecture rules that hold on every commit: AD-1, AD-8, AD-9, AD-SYS-6, AD-SYS-8 rule 2, R-2 grants | `docs/solu-2/test/fitness/` | Every push, 5 × burn-in | Green (each proven first by a planted violation) |
 | Fixture proof | The §3 seed profile, count by count | `docs/solu-2/test/fixtures/` | Every push | Green |
 | NFR benchmark | Latency (PRD §7 protocol), reliability under a crash, and leak scanning | `docs/solu-2/test/nfr/` | Every push for the red check; the thresholds are asserted by the same files once the stories are done | Red: `NotImplemented` |
