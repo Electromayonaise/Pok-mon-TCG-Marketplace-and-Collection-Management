@@ -198,3 +198,49 @@
   - `gate:ids:solu2` and `gate:trace:solu2` unchanged at 370 ids, 96/96 FRs, 61/61 ADs, 15/15 P0 risks.
 - **Artifact changed:** `docs/solu-2/test/atdd/` (fixes; six new `*_supporting.test.ts`); `contracts.md` §0, §14 (both test paths); `test/test-design.md`; `test/traceability-matrix.md`; `reviews/review-test-quality.md` (triage and re-review).
 - **Decided by:** Martín (Test-lead), relayed by Mateo.
+
+### 12. Backlog design approved: walking skeleton plus 12 module epics, MSG ordered before TRD (Phase 4 design gate)
+
+- **Phase:** 4.
+- **Persona/Skill:** John (`bmad-agent-pm`) with `bmad-create-epics-and-stories`, steps 1–2.
+- **Prompt (summary):** Mateo directs: *"derive the Solu-2 backlog from contracts.md per decision #4: Epic 1 a cross-module walking skeleton, Epics 2–13 one vertical epic per module in AD-1 order, each with 3–6 stories, a MEC story and ≥ 2 failure-state stories, and no forward dependency. Every story carries the Annex B fields, all 96 FRs trace to a story, and every §14 AD appears in a story with a red test."*
+- **AI output (summary):** 13 epics and 69 stories, each binding exact registry operations and red test ids (each id to exactly one story). Two dependency problems the module order would hide surfaced before writing:
+  - `TRD-1`'s accept calls the contact handoff (`MSG-2`, hosted in `listings`), so TRD before MSG would point forward. AD-1 has no `trading`↔`messaging` edge, so MSG can precede TRD. Proposed order: IDN, VER, CAT, INV, DSC, ORD, COM, MSG, TRD, COL, VAL, REP.
+  - `[IDN-1.MEC]` raced VER's `submitApplication`, a cycle across Epics 2 and 3 hidden in a test. Fixed by racing at the claim level, as the IDN-1 clause states, and moving the end-to-end race to `[VER-2.I2]` (commit `66059fb`).
+
+  Three questions went to the gate:
+  - **(a) order:** MSG before TRD *(recommended)*, or keep the PRD order with a waived forward dependency;
+  - **(b) design:** approve *(recommended)*, merge failure stories into fewer, larger ones, or change it;
+  - **(c) inputs:** complete *(recommended)*, or add documents.
+- **Human decision:** ACCEPT (a) MSG before TRD, (b) approve the design as proposed, and (c) the input set is complete.
+- **Reason:** every Depends-on can point backward, so "no forward dependency" holds by construction rather than by waiver. One-story-per-test-set makes "done" a precise, gate-checked fact.
+- **Artifact changed:** `planning/epics.source.mjs`, `scripts/gen-solu2-epics.mjs`, `planning/epics.md` (generated), `test/atdd/{idn,ver}_contracts.test.ts`, `contracts.md` (VER-2 concurrency clause).
+- **Decided by:** Mateo.
+
+### 13. Backlog review triaged: 9 accepted, 2 `[REJECTED]`; readiness IR-PASS (Phase 4 gate)
+
+- **Phase:** 4.
+- **Persona/Skill:** John (`bmad-agent-pm`) and Amelia (`bmad-agent-dev`), backlog implementability review; `bmad-sprint-planning` with the readiness-audit prepend.
+- **Prompt (summary):** Mateo directs: *"have John and Amelia review the backlog for implementability, then extend the readiness audit to the docs/solu-2 package (the statement's six checks), run sprint planning and write the gate report with a drill."*
+- **AI output (summary):** 11 findings (`reviews/review-epics.md`), 9 applied as recommended:
+  - B-1: the red check now marks Solu-2 stories done by ATDD path id;
+  - B-2: the DoD points at `npm run gate:atdd-red:solu2`;
+  - B-3: five real port dependencies are declared;
+  - B-4: the IDN MEC is re-scoped;
+  - B-7 to B-11: documented, with B-11 correcting decision #9's count from 16 to 14 findings.
+
+  Two went to the gate (B-5, B-6, below). The new Solu-2 audit returned IR-PASS:
+  - C1 96/96 FRs;
+  - C2 43/43 pages;
+  - C3 61/61 AD rows;
+  - C4 94 backward dependencies;
+  - C5, C6 and C7 pass.
+
+  Sprint planning wrote `sprint-status.yaml` (13 epics, 69 stories). A 3-defect drill turned each planted defect into IR-FAIL.
+- **Human decision:**
+- `[REJECTED]` **B-5, create each table in the first story that needs it** (the epics skill's step 4 rule). One SQL-first `001_tezg_schema.sql` stays (R-8, Appendix B). It was approved in Phase 2, and its 271 CHECKs are proven by Phase 3's fitness and seed tests. Re-cutting it into per-story migrations would re-sequence the harness for no new guarantee. Stories name the tables they read and write.
+- `[REJECTED]` **B-6, split Story 7.2 (the ORD MEC).** The MEC is about the three order facts in any order. They share one visibility predicate and one conditional-update pattern, so a split would spread one invariant across two stories.
+- **Sign-off:** Mateo signed off the Solu-2 readiness gate (`planning/readiness-gate-report.md` §6). In the same gate he signed off Solu-1's readiness report, which had been pending since that package; its gate still passes (32 green, 131 red).
+- **Reason:** both rejections keep a single source of truth (one schema, one MEC story per invariant) over a generic rule of the skill. The accepted fixes close the gaps through which a finished story could still have read as unfinished.
+- **Artifact changed:** `reviews/review-epics.md`; `scripts/check-atdd-red.mjs`, `scripts/readiness-audit{,-solu2}.mjs`, `scripts/gen-solu2-trace.mjs`; `package.json`; `implementation-artifacts/sprint-status.yaml`; `planning/readiness-gate-report.md`; the triage status lines of the four reviews; decision #9 corrected.
+- **Decided by:** Mateo.
