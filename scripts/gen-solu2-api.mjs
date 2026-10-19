@@ -479,7 +479,8 @@ for (const [code, mod] of Object.entries(registry.modules)) {
   const portLines = [];
   const portTypes = [];
   const depsLines = STD_DEPS.map(([k, t]) => `  ${k}: ${t};`);
-  const external = Object.entries(mod.external ?? {});
+  // `Type` comes from shared-kernel/external.ts; `Type@file.ts` names another shared-kernel file.
+  const external = Object.entries(mod.external ?? {}).map(([k, t]) => { const [type, file = 'external.ts'] = t.split('@'); return [k, type, file]; });
   for (const [k, t] of external) depsLines.push(`  ${k}: ${t};`);
   const skFrom = (f) => path.posix.relative(path.posix.dirname(portsFile), `src/shared-kernel/${f}`).replace(/\.ts$/, '.js').replace(/^(?!\.)/, './');
   for (const [host, list] of [...byProvider].sort((a, b) => a[0].localeCompare(b[0]))) {
@@ -495,7 +496,7 @@ for (const [code, mod] of Object.entries(registry.modules)) {
     `import type { AuditLog } from '${path.posix.relative(path.posix.dirname(portsFile), 'src/shared-kernel/audit.ts').replace(/\.ts$/, '.js').replace(/^(?!\.)/, './')}';`,
     `import type { OutboxV2 } from '${skFrom('events.ts')}';`,
     `import type { Clock, IdGenerator, TransactionRunner${needsTx(consumed) ? ', Tx' : ''} } from '${skFrom('ports.ts')}';`,
-    external.length ? `import type { ${[...new Set(external.map(([, t]) => t))].sort().join(', ')} } from '${skFrom('external.ts')}';` : '',
+    ...[...new Set(external.map(([, , file]) => file))].sort().map((file) => `import type { ${[...new Set(external.filter((e) => e[2] === file).map(([, t]) => t))].sort().join(', ')} } from '${skFrom(file)}';`),
     importBlock(portTypes, portsFile),
   ].filter(Boolean);
   const repoName = `${mod.service}Repository`;

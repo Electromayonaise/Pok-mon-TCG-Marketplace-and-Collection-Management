@@ -3,6 +3,7 @@ import { NotImplementedError } from './errors.js';
 import type { AuditLog } from './audit.js';
 import type { OutboxV2 } from './events.js';
 import type { Clock, IdGenerator, TransactionRunner } from './ports.js';
+import type { DispatcherV2 } from './dispatcher.js';
 import type { GetDeliveryHealthRequest, GetDeliveryHealthResponse, GetTickHealthRequest, GetTickHealthResponse, ListDeliveriesRequest, ListDeliveriesResponse, ReplayEventDeliveryRequest, ReplayEventDeliveryResponse } from './admin-events.dto.js';
 
 /**
@@ -20,6 +21,7 @@ export interface AdminEventsV2Deps {
   ids: IdGenerator;
   outbox: OutboxV2;
   audit: AuditLog;
+  dispatcher: DispatcherV2;
 }
 
 /** Solu-2 use cases of SYS (contracts.md §13 (EventDeliveryNotReplayable)). Interface stubs only: the Solutioning stop-point. */

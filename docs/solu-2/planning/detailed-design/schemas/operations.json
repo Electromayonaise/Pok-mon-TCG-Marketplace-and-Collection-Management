@@ -14,7 +14,7 @@
     "COL": { "host": "collections", "file": "col", "service": "Col", "contracts": "§10" },
     "VAL": { "host": "collections", "file": "val", "service": "Val", "contracts": "§11" },
     "REP": { "host": "reviews", "file": "rep", "service": "Rep", "contracts": "§12" },
-    "SYS": { "host": "shared-kernel", "file": "admin-events", "service": "AdminEvents", "contracts": "§13 (EventDeliveryNotReplayable)" }
+    "SYS": { "host": "shared-kernel", "file": "admin-events", "service": "AdminEvents", "contracts": "§13 (EventDeliveryNotReplayable)", "external": { "dispatcher": "DispatcherV2@dispatcher.ts" } }
   },
   "operations": [
     { "id": "IDN-1", "module": "IDN", "method": "claimSellerTrack", "request": "ClaimSellerTrackRequest", "response": "ClaimSellerTrackResponse", "layer": "Outbound Port", "tx": true, "consumers": [] },
