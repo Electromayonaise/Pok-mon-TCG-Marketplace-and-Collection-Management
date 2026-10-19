@@ -411,6 +411,9 @@ for (const [code, mod] of Object.entries(registry.modules)) {
   const portLines = [];
   const portTypes = [];
   const depsLines = STD_DEPS.map(([k, t]) => `  ${k}: ${t};`);
+  const external = Object.entries(mod.external ?? {});
+  for (const [k, t] of external) depsLines.push(`  ${k}: ${t};`);
+  const skFrom = (f) => path.posix.relative(path.posix.dirname(portsFile), `src/shared-kernel/${f}`).replace(/\.ts$/, '.js').replace(/^(?!\.)/, './');
   for (const [host, list] of [...byProvider].sort((a, b) => a[0].localeCompare(b[0]))) {
     const iface = `${cap(camel(host))}For${mod.service}`;
     portLines.push(`/** Neighbour port: \`${host}\`, as consumed by ${code}. Declared by the consumer and bound to the provider's\n * application service in the composition root, or to a fake in tests (Plan-2 §3, AD-1). */`);
@@ -423,9 +426,10 @@ for (const [code, mod] of Object.entries(registry.modules)) {
   const portsHeader = [
     `import type { AuditLog } from '${path.posix.relative(path.posix.dirname(portsFile), 'src/shared-kernel/audit.ts').replace(/\.ts$/, '.js').replace(/^(?!\.)/, './')}';`,
     `import type { Clock, IdGenerator, Outbox, Sql, TransactionRunner${needsTx(consumed) ? ', Tx' : ''} } from '${path.posix.relative(path.posix.dirname(portsFile), 'src/shared-kernel/ports.ts').replace(/\.ts$/, '.js').replace(/^(?!\.)/, './')}';`,
+    external.length ? `import type { ${[...new Set(external.map(([, t]) => t))].sort().join(', ')} } from '${skFrom('external.ts')}';` : '',
     importBlock(portTypes, portsFile),
   ].filter(Boolean);
-  const portsBody = [...portLines, `/** Everything ${code} reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2) and its neighbours. */`, `export interface ${depsName} {`, ...depsLines, '}'];
+  const portsBody = [...portLines, `/** Everything ${code} reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2), external systems behind ports that tests bind to simulated adapters, and its neighbours. */`, `export interface ${depsName} {`, ...depsLines, '}'];
 
   const useCases = `${mod.service}V2UseCases`;
   const svc = `${mod.service}ServiceV2`;

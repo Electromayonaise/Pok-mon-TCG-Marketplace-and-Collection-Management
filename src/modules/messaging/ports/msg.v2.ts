@@ -14,7 +14,7 @@ export interface IdentityForMsg {
   requireMessagingEligibility(input: RequireMessagingEligibilityRequest): Promise<RequireMessagingEligibilityResponse>;
 }
 
-/** Everything MSG reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2) and its neighbours. */
+/** Everything MSG reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2), external systems behind ports that tests bind to simulated adapters, and its neighbours. */
 export interface MsgV2Deps {
   sql: Sql;
   transactions: TransactionRunner;

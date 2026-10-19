@@ -16,7 +16,7 @@ export interface CatalogForVal {
   getPriceHistory(input: GetPriceHistoryRequest): Promise<GetPriceHistoryResponse>;
 }
 
-/** Everything VAL reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2) and its neighbours. */
+/** Everything VAL reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2), external systems behind ports that tests bind to simulated adapters, and its neighbours. */
 export interface ValV2Deps {
   sql: Sql;
   transactions: TransactionRunner;

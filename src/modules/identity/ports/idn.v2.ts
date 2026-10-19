@@ -2,7 +2,7 @@
 import type { AuditLog } from '../../../shared-kernel/audit.js';
 import type { Clock, IdGenerator, Outbox, Sql, TransactionRunner } from '../../../shared-kernel/ports.js';
 
-/** Everything IDN reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2) and its neighbours. */
+/** Everything IDN reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2), external systems behind ports that tests bind to simulated adapters, and its neighbours. */
 export interface IdnV2Deps {
   sql: Sql;
   transactions: TransactionRunner;

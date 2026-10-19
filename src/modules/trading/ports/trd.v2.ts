@@ -19,7 +19,7 @@ export interface ListingsForTrd {
   generateContactMessage(input: GenerateContactMessageRequest): Promise<GenerateContactMessageResponse>;
 }
 
-/** Everything TRD reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2) and its neighbours. */
+/** Everything TRD reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2), external systems behind ports that tests bind to simulated adapters, and its neighbours. */
 export interface TrdV2Deps {
   sql: Sql;
   transactions: TransactionRunner;

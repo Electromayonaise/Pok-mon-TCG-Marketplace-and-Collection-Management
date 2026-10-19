@@ -4,7 +4,7 @@ import type { AuditLog } from './audit.js';
 import type { Clock, IdGenerator, Outbox, Sql, TransactionRunner } from './ports.js';
 import type { GetDeliveryHealthRequest, GetDeliveryHealthResponse, ReplayEventDeliveryRequest, ReplayEventDeliveryResponse } from './admin-events.dto.js';
 
-/** Everything SYS reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2) and its neighbours. */
+/** Everything SYS reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2), external systems behind ports that tests bind to simulated adapters, and its neighbours. */
 export interface AdminEventsV2Deps {
   sql: Sql;
   transactions: TransactionRunner;

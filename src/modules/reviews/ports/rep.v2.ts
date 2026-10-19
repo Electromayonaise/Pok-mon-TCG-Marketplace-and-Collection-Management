@@ -20,7 +20,7 @@ export interface OrdersForRep {
   hasClosedPurchase(input: HasClosedPurchaseRequest): Promise<HasClosedPurchaseResponse>;
 }
 
-/** Everything REP reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2) and its neighbours. */
+/** Everything REP reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2), external systems behind ports that tests bind to simulated adapters, and its neighbours. */
 export interface RepV2Deps {
   sql: Sql;
   transactions: TransactionRunner;

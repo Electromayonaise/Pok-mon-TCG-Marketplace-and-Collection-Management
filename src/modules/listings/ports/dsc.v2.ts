@@ -24,7 +24,7 @@ export interface IdentityForDsc {
   getSellerKinds(input: GetSellerKindsRequest): Promise<GetSellerKindsResponse>;
 }
 
-/** Everything DSC reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2) and its neighbours. */
+/** Everything DSC reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2), external systems behind ports that tests bind to simulated adapters, and its neighbours. */
 export interface DscV2Deps {
   sql: Sql;
   transactions: TransactionRunner;
