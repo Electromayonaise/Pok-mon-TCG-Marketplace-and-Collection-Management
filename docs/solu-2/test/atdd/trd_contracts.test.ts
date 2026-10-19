@@ -271,7 +271,7 @@ describe('Supporting TRD contracts (contracts.md §15, §15.12)', () => {
   it('[S-FR-TRD-3.mine.h] an expired Open offer reads Expired in my trades without the job', async () => {
     await scene();
     await offer(id('of1'), 'julian', { expiresAt: at(-HOUR) });
-    expect((await setup().trd.listMyOffers({ actorId: id('julian'), role: 'any', cursor: null })).offers.map((o) => o.status)).toEqual(['Expired']);
+    expect((await setup().trd.listMyOffers({ actorId: id('julian'), side: 'any', cursor: null })).offers.map((o) => o.status)).toEqual(['Expired']);
   });
 
   it('[S-FR-TRD-7.h] both parties confirming completes the trade (computed, never stored)', async () => {

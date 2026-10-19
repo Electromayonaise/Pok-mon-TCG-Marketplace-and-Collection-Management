@@ -72,5 +72,6 @@ export interface ExpireDueOffersRequest { trigger: 'tick' | 'daily-morning' | 'd
 export interface ExpireDueOffersResponse { expired: number }
 
 // Read model found by the UI-state check (contracts.md §15.12)
-export interface ListMyOffersRequest { actorId: CuidId; role: 'proposer' | 'seller' | 'any'; status?: OfferStatus; cursor: string | null }
+/** `side`, not `role`: no input key may be named like an authorization role (AD-SYS-8 rule 2, NFR-IDN-3). */
+export interface ListMyOffersRequest { actorId: CuidId; side: 'sent' | 'received' | 'any'; status?: OfferStatus; cursor: string | null }
 export interface ListMyOffersResponse { offers: OfferViewDTO[]; nextCursor: string | null }

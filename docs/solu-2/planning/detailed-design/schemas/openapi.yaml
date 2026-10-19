@@ -11757,11 +11757,11 @@ paths:
                 type: "object"
                 additionalProperties: false
                 properties:
-                  role:
+                  side:
                     type: "string"
                     enum:
-                      - "proposer"
-                      - "seller"
+                      - "sent"
+                      - "received"
                       - "any"
                   status:
                     "$ref": "#/components/schemas/OfferStatus"
@@ -11770,7 +11770,7 @@ paths:
                       - type: "string"
                       - type: "null"
                 required:
-                  - "role"
+                  - "side"
                   - "cursor"
   "/api/trpc/collections.prompts.list":
     get:
