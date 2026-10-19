@@ -21,3 +21,9 @@ export interface OrdersWiring {
 export function createOrdModule(w: OrdersWiring): OrdUseCases {
   return new OrdService({ orders: new PgOrderRepository(w.sql), listings: w.listings, transactions: w.transactions, outbox: w.outbox, clock: w.clock });
 }
+
+// <gen-solu2-api>
+export { OrdServiceV2 } from './application/ord.v2.js';
+export type { OrdV2UseCases } from './application/ord.v2.js';
+export type * from './ports/ord.v2.js';
+// </gen-solu2-api>

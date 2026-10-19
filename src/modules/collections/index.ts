@@ -37,3 +37,12 @@ export function createColModule(w: CollectionsWiring): ColUseCases {
 export function createValModule(w: CollectionsWiring): ValUseCases {
   return new ValService({ collections: new PgCollectionRepository(w.sql), catalog: w.catalog, transactions: w.transactions, clock: w.clock });
 }
+
+// <gen-solu2-api>
+export { ColServiceV2 } from './application/col.v2.js';
+export type { ColV2UseCases } from './application/col.v2.js';
+export type * from './ports/col.v2.js';
+export { ValServiceV2 } from './application/val.v2.js';
+export type { ValV2UseCases } from './application/val.v2.js';
+export type * from './ports/val.v2.js';
+// </gen-solu2-api>

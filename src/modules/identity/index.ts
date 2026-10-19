@@ -36,3 +36,12 @@ export function createVerModule(w: IdentityWiring): VerUseCases {
     ids: w.ids,
   });
 }
+
+// <gen-solu2-api>
+export { IdnServiceV2 } from './application/idn.v2.js';
+export type { IdnV2UseCases } from './application/idn.v2.js';
+export type * from './ports/idn.v2.js';
+export { VerServiceV2 } from './application/ver.v2.js';
+export type { VerV2UseCases } from './application/ver.v2.js';
+export type * from './ports/ver.v2.js';
+// </gen-solu2-api>

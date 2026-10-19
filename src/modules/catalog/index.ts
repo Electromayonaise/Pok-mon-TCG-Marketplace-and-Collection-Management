@@ -27,3 +27,9 @@ export function createCatModule(w: CatalogWiring): CatUseCases {
     freshnessThresholdHours: w.freshnessThresholdHours ?? 36,
   });
 }
+
+// <gen-solu2-api>
+export { CatServiceV2 } from './application/cat.v2.js';
+export type { CatV2UseCases } from './application/cat.v2.js';
+export type * from './ports/cat.v2.js';
+// </gen-solu2-api>

@@ -22,3 +22,9 @@ export interface ReviewsWiring {
 export function createRepModule(w: ReviewsWiring): RepUseCases {
   return new RepService({ reviews: new PgReviewRepository(w.sql), identity: w.identity, orders: w.orders, transactions: w.transactions, clock: w.clock, ids: w.ids });
 }
+
+// <gen-solu2-api>
+export { RepServiceV2 } from './application/rep.v2.js';
+export type { RepV2UseCases } from './application/rep.v2.js';
+export type * from './ports/rep.v2.js';
+// </gen-solu2-api>

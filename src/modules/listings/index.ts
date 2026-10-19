@@ -36,3 +36,15 @@ export function createInvModule(w: ListingsWiring): InvUseCases {
 export function createDscModule(w: ListingsWiring): DscUseCases {
   return new DscService({ discovery: new PgDiscoveryQuery(w.sql), catalog: w.catalog, identity: w.identity, clock: w.clock });
 }
+
+// <gen-solu2-api>
+export { DscServiceV2 } from './application/dsc.v2.js';
+export type { DscV2UseCases } from './application/dsc.v2.js';
+export type * from './ports/dsc.v2.js';
+export { InvServiceV2 } from './application/inv.v2.js';
+export type { InvV2UseCases } from './application/inv.v2.js';
+export type * from './ports/inv.v2.js';
+export { ContactServiceV2 } from './application/contact.v2.js';
+export type { ContactV2UseCases } from './application/contact.v2.js';
+export type * from './ports/contact.v2.js';
+// </gen-solu2-api>

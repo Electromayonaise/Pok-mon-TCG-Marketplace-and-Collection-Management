@@ -25,3 +25,9 @@ export function createComModule(w: CommissionWiring): ComUseCases {
     ids: w.ids,
   });
 }
+
+// <gen-solu2-api>
+export { ComServiceV2 } from './application/com.v2.js';
+export type { ComV2UseCases } from './application/com.v2.js';
+export type * from './ports/com.v2.js';
+// </gen-solu2-api>
