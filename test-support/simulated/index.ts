@@ -3,7 +3,7 @@
 // (NFR-SYS-3). Phase 2 deliverable, audited in docs/solu-2/reviews/review-detailed-design.md.
 import { createHash } from 'node:crypto';
 import type { AuditEntry, AuditLog } from '../../src/shared-kernel/audit.js';
-import { EVENT_SCHEMA_VERSIONS, EVENT_SUBSCRIBERS, type EventPayloads, type EventType } from '../../src/shared-kernel/events.js';
+import { EVENT_SCHEMA_VERSIONS, EVENT_SUBSCRIBERS, type EventEnvelope, type EventPayloads, type EventType, type OutboxV2 } from '../../src/shared-kernel/events.js';
 import type {
   Bucket, CatalogFeedSource, FxRateSource, MalwareScanner, ObjectStorage, FeedSourceRow, TopUpConfirmationPort,
 } from '../../src/shared-kernel/external.js';
@@ -12,10 +12,10 @@ import type { Clock, IdGenerator, Tx } from '../../src/shared-kernel/ports.js';
 // ------------------------------------------------------------------ events (R-1, AD-SYS-2)
 
 /** The Solu-2 outbox: the R-1 envelope plus one pending delivery per registered subscriber. */
-export class SqlOutboxV2 {
+export class SqlOutboxV2 implements OutboxV2 {
   constructor(private readonly ids: IdGenerator, private readonly clock: Clock) {}
 
-  async enqueue<T extends EventType>(tx: Tx, type: T, aggregateId: string, payload: EventPayloads[T]): Promise<{ eventId: string }> {
+  async enqueue<T extends EventType>(tx: Tx, type: T, aggregateId: string, payload: EventPayloads[T]): Promise<EventEnvelope<T>> {
     const eventId = this.ids.next();
     const at = this.clock.now().toISOString();
     await tx.query(
@@ -28,7 +28,7 @@ export class SqlOutboxV2 {
         [eventId, subscriber, at],
       );
     }
-    return { eventId };
+    return { eventId, type, occurredAt: at, schemaVersion: EVENT_SCHEMA_VERSIONS[type], payload };
   }
 }
 
@@ -68,11 +68,15 @@ export class InMemoryObjectStorage implements ObjectStorage {
   readonly objects = new Map<string, { bytes: Uint8Array; contentType: string }>();
   /** Every signed read URL issued, so a test can assert none was for quarantine. */
   readonly signedReads: { bucket: Bucket; key: string }[] = [];
+  /** Every upload ticket issued (review S-5), so a test can assert the owner composed
+   * `<purpose>/<actorId>/<cuid2>` from the session (AD-SYS-8 rules 5.1 and 8). */
+  readonly issuedTickets: { key: string; expiresAt: string }[] = [];
   constructor(private readonly clock: Clock) {}
   private k(bucket: Bucket, key: string): string { return `${bucket}/${key}`; }
 
   async createUploadTicket(key: string) {
     const expiresAt = new Date(this.clock.now().getTime() + 2 * 3_600_000).toISOString();
+    this.issuedTickets.push({ key, expiresAt });
     return { signedUrl: `sim://upload-quarantine/${key}`, token: createHash('sha256').update(key).digest('hex').slice(0, 32), expiresAt };
   }
   /** Test helper: the browser's direct upload into quarantine. */
@@ -102,7 +106,9 @@ const MAGIC = {
 /**
  * Simulates StructuralScanner [G-4]: rejects PDFs naming /JavaScript, /JS, /Launch,
  * /EmbeddedFile or /OpenAction, and "re-encodes" images by truncating at the format's end
- * marker (JPEG FF D9, PNG IEND), which drops trailing payloads. Fault switch: `failAll`.
+ * marker (JPEG FF D9, PNG IEND chunk), which drops trailing payloads. An image without its end
+ * marker is rejected (review S-3): it cannot be re-encoded, so it is never "clean".
+ * Fault switch: `failAll`.
  */
 export class SimulatedScanner implements MalwareScanner {
   failAll = false;
@@ -116,32 +122,55 @@ export class SimulatedScanner implements MalwareScanner {
       return { verdict: 'clean' as const, sanitized: null }; // no PDF rendition until G-5 closes (LG-3)
     }
     const buf = Buffer.from(bytes);
-    const end = declared === 'image/jpeg' ? buf.lastIndexOf(Buffer.from([0xff, 0xd9])) + 2 : buf.indexOf(Buffer.from('IEND')) + 8;
-    return { verdict: 'clean' as const, sanitized: new Uint8Array(end > 1 ? buf.subarray(0, end) : buf) };
+    // JPEG ends after FF D9; PNG ends after the IEND chunk type (4 bytes) and its CRC (4 bytes).
+    const marker = declared === 'image/jpeg' ? buf.lastIndexOf(Buffer.from([0xff, 0xd9])) : buf.indexOf(Buffer.from('IEND'));
+    const end = marker < 0 ? -1 : marker + (declared === 'image/jpeg' ? 2 : 8);
+    if (end < 0 || end > buf.length) return { verdict: 'rejected' as const, cause: 'scanner' as const };
+    return { verdict: 'clean' as const, sanitized: new Uint8Array(buf.subarray(0, end)) };
   }
 }
 
 // ------------------------------------------------------------------ catalog feed (ADD-§8.3)
 
-export type FeedFault = 'none' | 'down' | 'stale' | 'malformedRows';
+export type FeedFault = 'none' | 'down' | 'stale' | 'malformedRows' | 'renamedRows';
 
-/** The V1 fixture feed with the ADD-§8.3 fault switches. Rows come from the test, not the network. */
+/**
+ * The fixture files of ADD-§8 the feed can serve. `previous` is the last file ingested; `defects`
+ * is the §8.2 file (10 rows of each defect kind); `renamed` has 30 attribute changes and 5 reprints.
+ */
+export interface FeedFiles {
+  current: FeedSourceRow[];
+  previous: FeedSourceRow[];
+  defects: FeedSourceRow[];
+  renamed: FeedSourceRow[];
+}
+
+/**
+ * The V1 fixture feed with the ADD-§8.3 fault switches (review S-2): each switch selects a whole
+ * file, as the addendum defines it. `down` throws a connection error; `stale` returns the previous
+ * file unchanged; `malformedRows` serves the §8.2 file; `renamedRows` serves the renamed file.
+ */
 export class FixtureFeedSource implements CatalogFeedSource {
   fault: FeedFault = 'none';
-  constructor(private readonly rows: FeedSourceRow[], private readonly sourceName = 'fixture-feed') {}
+  constructor(private readonly files: FeedFiles, private readonly sourceName = 'fixture-feed') {}
+  private file(): FeedSourceRow[] {
+    switch (this.fault) {
+      case 'down': throw Object.assign(new Error('feed unavailable'), { code: 'FeedUnavailable' });
+      case 'stale': return this.files.previous;
+      case 'malformedRows': return this.files.defects;
+      case 'renamedRows': return this.files.renamed;
+      case 'none': return this.files.current;
+    }
+  }
   async openRun() {
-    if (this.fault === 'down') throw Object.assign(new Error('feed unavailable'), { code: 'FeedUnavailable' });
-    return { sourceName: this.sourceName, totalRows: this.rows.length };
+    return { sourceName: this.sourceName, totalRows: this.file().length };
   }
   async readRows(cursor: number, limit: number) {
-    if (this.fault === 'down') throw Object.assign(new Error('feed unavailable'), { code: 'FeedUnavailable' });
-    const slice = this.rows.slice(cursor, cursor + limit).map((row, i) => {
-      const rowNumber = cursor + i + 1;
-      if (this.fault === 'malformedRows' && rowNumber % 2 === 0) return { rowNumber, row: { ...row, number: null } };
-      if (this.fault === 'stale') return { rowNumber, row: { ...row, observedAt: '2020-01-01T00:00:00.000Z' } };
-      return { rowNumber, row };
-    });
-    return { rows: slice, done: cursor + limit >= this.rows.length };
+    const rows = this.file();
+    return {
+      rows: rows.slice(cursor, cursor + limit).map((row, i) => ({ rowNumber: cursor + i + 1, row })),
+      done: cursor + limit >= rows.length,
+    };
   }
 }
 
@@ -158,9 +187,23 @@ export class FixtureFxRateSource implements FxRateSource {
     if (this.fault === 'down') return null;
     const r = this.rates.find((x) => x.validFrom <= date && date <= x.validTo);
     if (!r) return null;
-    const valor = this.fault === 'mismatch' ? (Number(r.valor) + 1).toFixed(2) : r.valor;
+    const valor = this.fault === 'mismatch' ? plusOnePeso(r.valor) : r.valor;
     return { valor, validFrom: r.validFrom, validTo: r.validTo, source: 'datos.gov.co/32sa-8pi3 (fixture)' };
   }
+}
+
+/**
+ * `valor` + 1 peso, in decimal-string arithmetic (review S-4): the TRM is never parsed as a float
+ * (AD-CAT-3 rule 3). Accepts `"4123"`, `"4123.3"` or `"4123.37"`; keeps the input's scale.
+ */
+export function plusOnePeso(valor: string): string {
+  const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec(valor);
+  if (!m) throw new Error(`not a TRM decimal: ${valor}`);
+  const [, whole, frac = ''] = m;
+  const scale = frac.length;
+  const units = BigInt(whole + frac) + 10n ** BigInt(scale);
+  const s = units.toString().padStart(scale + 1, '0');
+  return scale ? `${s.slice(0, -scale)}.${s.slice(-scale)}` : s;
 }
 
 // ------------------------------------------------------------------ top-up confirmation (ADD-§7)

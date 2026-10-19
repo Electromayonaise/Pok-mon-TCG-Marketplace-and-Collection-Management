@@ -1,3 +1,4 @@
+import type { Tx } from './ports.js';
 import type { Cop, CuidId, IsoInstant } from './types.js';
 
 // Event payloads (ADD-§5, ARCHITECTURE §7.1) and the Solu-2 envelope (refinement R-1).
@@ -117,3 +118,12 @@ export const EVENT_SUBSCRIBERS: Readonly<Record<EventType, readonly ('commission
   CommissionBalanceReplenished: ['listings'],
   TradeAccepted: [],
 };
+
+/**
+ * The Solu-2 outbox port (review S-1): enqueue in the publisher's transaction (AD-SYS-2 rule 1),
+ * stamping the R-1 envelope (eventId from IdGenerator, occurredAt from Clock, schemaVersion
+ * from EVENT_SCHEMA_VERSIONS) and one pending EventDelivery per EVENT_SUBSCRIBERS entry.
+ */
+export interface OutboxV2 {
+  enqueue<T extends EventType>(tx: Tx, type: T, aggregateId: CuidId, payload: EventPayloads[T]): Promise<EventEnvelope<T>>;
+}
