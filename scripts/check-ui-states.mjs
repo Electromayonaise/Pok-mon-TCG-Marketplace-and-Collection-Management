@@ -21,6 +21,7 @@ const BUILDER = { public: [], authed: ['NotAuthenticated'], canBuy: ['NotAuthent
 for (const g of reg.ingress) errorsByOp.set(g.op, [...new Set([...(errorsByOp.get(g.op) ?? []), ...BUILDER[g.builder], ...(g.kind === 'job' ? [] : ['RequestValidationFailed']), ...g.errors])]);
 const CLIENT = new RegExp(map.classes.client, 'i');
 const REFUSAL = new RegExp(map.classes.refusal, 'i');
+const DATA = new RegExp(map.classes.data, 'i');
 
 const scenarioRoot = 'docs/plan-2/ux/C-UX-Scenarios';
 const pages = [];
@@ -61,9 +62,12 @@ for (const p of pages) {
   body.push(`## ${p.title}${entry.dev ? ' *(H console, §9.2)*' : ''}`, '', `Operations: ${entry.ops.map((id) => `\`${id}\``).join(', ')}`, '', '| State | Class | Backed by |', '|---|---|---|');
   for (const s of p.states) {
     const name = s.replace(/`/g, '');
-    let cls = 'data';
+    // Review E-2: a state must match a class explicitly; nothing defaults to `data`.
+    let cls;
     if (CLIENT.test(name)) cls = 'client';
     else if (REFUSAL.test(s)) cls = 'refusal';
+    else if (DATA.test(name)) cls = 'data';
+    else { problems.push(`page ${p.id} state "${s}" matches no class in ui-states.json`); continue; }
     counts[cls]++;
     let backing;
     if (cls === 'client') backing = 'transport or interaction; no server DTO';

@@ -47,6 +47,7 @@
   },
   "classes": {
     "client": "^(loading|error|error \\(transport\\)|race running|submitting|sending|deciding|reconciling|running|idle|copied|panel open|dialog open|detail open|selected|first visit|editing|filled|empty \\(no search yet\\)|error — (transport|network|network \\(load\\)|fixture|load|availability))$",
+    "data": "^(empty|success|default|zero results|pass(ed)?$|fail(ed)?$|changed while open|no (collections|history)|waiting|tick silent|trm mismatch|stale feed|shortened|scheduled|revisit|replay success|rejected$|reconciled|read-only|race result|pending|open —|nothing valued|new conversation|never funded|negative balance|low$|interrupted|hidden own review|exhausted|ended|eligible|deliveries empty|decided|confirmed|completed|admin — buyer-closed view|active|accepted)",
     "refusal": "(success — refusal|refused|lost race|not available|^gate —|field errors|invalid period|filter too broad|collection gone|entry gone|^error — |no-op|replay refused|`)"
   }
 }
