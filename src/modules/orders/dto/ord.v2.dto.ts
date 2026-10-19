@@ -4,7 +4,7 @@ import type { OrderStatus } from '../domain/ord.js';
 
 // Solu-2 DTOs — ORD (contracts.md §6, §15).
 
-export interface PaymentInstructionsDTO {
+export interface OrderPaymentInstructionsDTO {
   bankName: string;
   accountType: 'savings' | 'checking';
   accountNumber: string;
@@ -18,7 +18,7 @@ export interface CreateOrderResponse {
   orderId: CuidId;
   status: 'AwaitingPayment';
   totalCop: Cop;
-  paymentInstructions: PaymentInstructionsDTO;
+  paymentInstructions: OrderPaymentInstructionsDTO;
   expiresAt: IsoInstant;
   decision: ExplanationDTO;
 }
