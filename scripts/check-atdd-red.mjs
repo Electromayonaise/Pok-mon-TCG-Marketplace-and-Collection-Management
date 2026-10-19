@@ -16,12 +16,16 @@ const minimum = Number(argv[1] && !argv[1].startsWith('--') ? argv[1] : 1);
 const statusFile = flag('--status');
 const epicsFile = flag('--epics');
 
-/** Contracts whose story is `done`: story key (bmad-sprint-planning rule) → status → contract names. */
-function doneContracts() {
-  if (!statusFile || !epicsFile || !fs.existsSync(statusFile)) return new Set();
+/**
+ * What `done` stories cover: story key (bmad-sprint-planning rule) → status. Solu-1 stories name
+ * contracts (`Contract Reference`), matched to describe titles; Solu-2 stories name test ids
+ * (`ATDD path`), matched to the bracketed ids of a test title.
+ */
+function doneScope() {
+  const scope = { contracts: new Set(), ids: new Set() };
+  if (!statusFile || !epicsFile || !fs.existsSync(statusFile)) return scope;
   const status = new Map();
   for (const m of fs.readFileSync(statusFile, 'utf8').matchAll(/^\s+([\w-]+):\s*([\w-]+)\s*$/gm)) status.set(m[1], m[2]);
-  const done = new Set();
   let key = null;
   for (const line of fs.readFileSync(epicsFile, 'utf8').split(/\r?\n/)) {
     const s = line.match(/^### Story (\d+)\.(\d+): (.+)$/);
@@ -30,12 +34,15 @@ function doneContracts() {
       key = `${s[1]}-${s[2]}-${slug}`;
       continue;
     }
+    if (!key || status.get(key) !== 'done') continue;
     const ref = line.match(/^- \*\*Contract Reference:\*\*(.*)$/);
-    if (key && ref && status.get(key) === 'done') for (const c of ref[1].matchAll(/`(\w+)`/g)) done.add(c[1]);
+    if (ref) for (const c of ref[1].matchAll(/`(\w+)`/g)) scope.contracts.add(c[1]);
+    const atdd = line.match(/^- \*\*ATDD path:\*\*(.*)$/);
+    if (atdd) for (const i of atdd[1].matchAll(/`\[([^\]]+)\]`/g)) scope.ids.add(i[1]);
   }
-  return done;
+  return scope;
 }
-const done = doneContracts();
+const { contracts: done, ids: doneIds } = doneScope();
 if (!project) {
   console.error('usage: node scripts/check-atdd-red.mjs <vitest-project> [minimumTestCount]');
   process.exit(2);
@@ -59,16 +66,18 @@ for (const file of report.testResults) {
     total++;
     const contract = (t.ancestorTitles ?? []).join(' ').match(/— (\w+) \(/)?.[1];
     const message = (t.failureMessages ?? []).join('\n');
-    if (contract && done.has(contract)) {
+    const titleIds = [...(t.title.match(/^(?:\[[^\]]+\]\s*)+/)?.[0] ?? '').matchAll(/\[([^\]]+)\]/g)].map((m) => m[1]);
+    const doneBy = contract && done.has(contract) ? contract : titleIds.find((i) => doneIds.has(i));
+    if (doneBy) {
       if (t.status === 'passed') greenDone++;
-      else wrong.push(`${name} › ${t.title}: story of ${contract} is done, so this test must pass — ${message.split('\n')[0]}`);
+      else wrong.push(`${name} › ${t.title}: the story binding ${doneBy} is done, so this test must pass — ${message.split('\n')[0]}`);
     } else if (t.status !== 'failed') wrong.push(`${name} › ${t.title}: status ${t.status} (a red test must fail)`);
     else if (!/NotImplemented/.test(message)) wrong.push(`${name} › ${t.title}: failed for another reason — ${message.split('\n')[0]}`);
   }
 }
 console.log(
   `${project}: ${total} tests in ${report.testResults.length} files; ${total - wrong.length - greenDone} red for the right reason; ` +
-    `${greenDone} green for done stories (${done.size} contracts done); ${wrong.length} not as expected`,
+    `${greenDone} green for done stories (${done.size + doneIds.size} contracts or test ids done); ${wrong.length} not as expected`,
 );
 for (const w of wrong) console.log(`  ✗ ${w}`);
 if (total < minimum) console.log(`  ✗ expected at least ${minimum} tests`);
