@@ -479,6 +479,8 @@ This review applies the rubric consistently. Context can reveal additional findi
 
 ## Triage (Phase 3 gate)
 
+**Triage status:** 14 findings — 14 accepted, 0 rejected, 0 deferred, 0 open (decision log Solu-2 #11). The 14 recommendations R-1..R-14 group the 19 ledger violations.
+
 *Martín's decisions at the Phase 3 gate, relayed by Mateo (decision log Solu-2 #11).*
 
 | Finding | Decision | Outcome |

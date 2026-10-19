@@ -52,6 +52,8 @@ The review is a self-review under the skill's adversarial brief. Mateo decides t
 
 ## Triage
 
+**Triage status:** 17 findings — 17 accepted, 0 rejected, 0 deferred, 0 open (decision log Solu-2 #6).
+
 Mateo accepted all 17 resolutions as recommended at the Phase 0 gate on 2026-10-18 (decision log Solu-2 #6). For G-04 he chose the shared-kernel table with a port over a view and over replacing the module tables. For G-05 he chose `updatedAt` on mutable tables only over both columns everywhere. Each Accept is applied in the phase named in its row. The ones that change an architecture rule are listed in the ARCHITECTURE v2 delta (`docs/solu-2/planning/ARCHITECTURE.md`, "Refinements").
 
 | # | Gap | Where an agent would invent | Resolution (accepted) | Resolved in | Owner |

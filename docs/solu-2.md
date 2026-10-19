@@ -43,7 +43,7 @@ Documents live under `docs/solu-2/`. Code-shaped artifacts — interface stubs, 
 | Interface stubs (no production logic) | `src/modules/<host>/application/*.v2.ts`, `ports/*.v2.ts` (generated); `src/shared-kernel/external.ts`; simulated adapters in `test-support/simulated/` | `npm run typecheck`; `npm run gen:api:solu2` regenerates them | ✅ |
 | Operation registry: the single source for the OpenAPI, the DTO index, the stubs and the ports | `docs/solu-2/planning/detailed-design/schemas/operations.json` | `npm run gen:api:solu2` / `npm run gate:api:solu2` | ✅ |
 | UI state → contract and DTO map (readiness check 2; review G-17) | `docs/solu-2/planning/detailed-design/ui-states.md`, from `schemas/ui-states.json` | `npm run gate:ui:solu2` (43 pages, 327 states) | ✅ |
-| Detailed-design review (adversarial + edge-case hunter), triaged | `docs/solu-2/reviews/review-detailed-design.md` (16 findings, triaged; log #9) | read | ✅ |
+| Detailed-design review (adversarial + edge-case hunter), triaged | `docs/solu-2/reviews/review-detailed-design.md` (14 findings: 12 accepted, 2 rejected; log #9) | read | ✅ |
 
 ## Phase 3 — Test preparation (TEA)
 

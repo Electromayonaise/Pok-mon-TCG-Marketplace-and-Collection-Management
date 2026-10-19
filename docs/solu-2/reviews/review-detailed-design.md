@@ -76,6 +76,8 @@ What the deterministic checks already prove is not repeated as a finding:
 
 ## Triage
 
+**Triage status:** 14 findings — 12 accepted, 2 rejected, 0 deferred, 0 open (decision log Solu-2 #9).
+
 Mateo accepted the recommendation in full at the Phase 1–2 gate on 2026-10-18 (decision log Solu-2 #9). He chose JSDoc constraint tags for A-2, a repository port per module for A-4, and to keep `dev.*` out of the OpenAPI for E-3. Every Accept is applied:
 - `test-support/simulated/index.ts`: S-1..S-5;
 - `src/shared-kernel/events.ts`: `OutboxV2`;
