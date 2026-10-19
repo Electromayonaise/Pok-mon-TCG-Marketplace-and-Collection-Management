@@ -7,6 +7,8 @@ import type { CatalogForCollections } from './ports/collections.js';
 
 export type * from './dto/col.dto.js';
 export type * from './dto/val.dto.js';
+export type * from './dto/col.v2.dto.js';
+export type * from './dto/val.v2.dto.js';
 export type { ColUseCases } from './application/col.js';
 export type { ValUseCases } from './application/val.js';
 export type { CatalogForCollections } from './ports/collections.js';

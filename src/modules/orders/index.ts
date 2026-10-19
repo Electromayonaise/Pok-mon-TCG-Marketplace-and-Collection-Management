@@ -5,6 +5,7 @@ import { PgOrderRepository } from './infra/pg.js';
 import type { ListingsForOrders } from './ports/ord.js';
 
 export type * from './dto/ord.dto.js';
+export type * from './dto/ord.v2.dto.js';
 export type { OrdUseCases } from './application/ord.js';
 export type { ListingsForOrders } from './ports/ord.js';
 

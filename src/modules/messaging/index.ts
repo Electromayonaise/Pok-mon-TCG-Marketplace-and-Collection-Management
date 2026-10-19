@@ -5,6 +5,7 @@ import { PgConversationRepository } from './infra/pg.js';
 import type { IdentityForMessaging } from './ports/msg.js';
 
 export type * from './dto/msg.dto.js';
+export type * from './dto/msg.v2.dto.js';
 export type { MsgUseCases } from './application/msg.js';
 export type { IdentityForMessaging } from './ports/msg.js';
 

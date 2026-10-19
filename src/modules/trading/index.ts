@@ -5,6 +5,7 @@ import { PgTradeOfferRepository } from './infra/pg.js';
 import type { ListingsForTrading } from './ports/trd.js';
 
 export type * from './dto/trd.dto.js';
+export type * from './dto/trd.v2.dto.js';
 export type { TrdUseCases } from './application/trd.js';
 export type { ListingsForTrading } from './ports/trd.js';
 

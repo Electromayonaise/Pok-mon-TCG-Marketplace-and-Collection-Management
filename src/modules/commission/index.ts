@@ -4,6 +4,7 @@ import { ComService, type ComUseCases } from './application/com.js';
 import { PgCommissionAccountRepository, PgCommissionLedgerRepository, PgTopUpRepository } from './infra/pg.js';
 
 export type * from './dto/com.dto.js';
+export type * from './dto/com.v2.dto.js';
 export type { ComUseCases } from './application/com.js';
 
 export interface CommissionWiring {

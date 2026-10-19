@@ -4,6 +4,7 @@ import { CatService, type CatUseCases } from './application/cat.js';
 import { PgCatalogEntryRepository, PgFeedRunRepository, PgReferencePriceRepository } from './infra/pg.js';
 
 export type * from './dto/cat.dto.js';
+export type * from './dto/cat.v2.dto.js';
 export type { CatUseCases } from './application/cat.js';
 
 export interface CatalogWiring {

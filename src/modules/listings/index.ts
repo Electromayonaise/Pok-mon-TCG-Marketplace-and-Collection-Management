@@ -6,6 +6,9 @@ import { PgDiscoveryQuery, PgInventoryUnitRepository, PgListingRepository } from
 import type { CatalogForListings, IdentityForListings } from './ports/listings.js';
 
 export type * from './dto/inv.dto.js';
+export type * from './dto/inv.v2.dto.js';
+export type * from './dto/dsc.v2.dto.js';
+export type * from './dto/contact.v2.dto.js';
 export type * from './dto/dsc.dto.js';
 export type { InvUseCases } from './application/inv.js';
 export type { DscUseCases } from './application/dsc.js';

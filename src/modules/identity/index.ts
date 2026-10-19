@@ -6,6 +6,8 @@ import { PgBusinessApplicationRepository, PgBusinessProfileRepository, PgRejecti
 
 export type * from './dto/idn.dto.js';
 export type * from './dto/ver.dto.js';
+export type * from './dto/idn.v2.dto.js';
+export type * from './dto/ver.v2.dto.js';
 export type { IdnUseCases } from './application/idn.js';
 export type { VerUseCases } from './application/ver.js';
 
