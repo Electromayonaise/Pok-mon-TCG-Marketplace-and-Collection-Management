@@ -60,6 +60,10 @@ export type { GetBusinessPaymentInstructionsRequest, GetBusinessPaymentInstructi
 export type { GetBusinessNameRequest, GetBusinessNameResponse } from '../../../../../src/modules/identity/index.js';
 // MSG-3 requireMessagingEligibility
 export type { RequireMessagingEligibilityRequest, RequireMessagingEligibilityResponse } from '../../../../../src/modules/identity/index.js';
+// S-FR-VER-8.list listRejectionReasons
+export type { ListRejectionReasonsRequest, ListRejectionReasonsResponse } from '../../../../../src/modules/identity/index.js';
+// S-FR-VER-5.audit listLegalIdentityAccess
+export type { ListLegalIdentityAccessRequest, ListLegalIdentityAccessResponse } from '../../../../../src/modules/identity/index.js';
 
 // ===== CAT (catalog) — contracts.md §3
 // CAT-1 startFeedRun
@@ -90,6 +94,10 @@ export type { GetReferencePricesAsOfRequest, GetReferencePricesAsOfResponse } fr
 export type { GetPriceHistoryRequest, GetPriceHistoryResponse } from '../../../../../src/modules/catalog/index.js';
 // P-CAT.sets getSetSummaries
 export type { GetSetSummariesRequest, GetSetSummariesResponse } from '../../../../../src/modules/catalog/index.js';
+// CAT-1.runs listFeedRuns
+export type { ListFeedRunsRequest, ListFeedRunsResponse } from '../../../../../src/modules/catalog/index.js';
+// CAT-2.quarantine listQuarantinedRows
+export type { ListQuarantinedRowsRequest, ListQuarantinedRowsResponse } from '../../../../../src/modules/catalog/index.js';
 
 // ===== DSC (listings) — contracts.md §4
 // DSC-1 search
@@ -170,6 +178,8 @@ export type { AdminLookupOrdersRequest, AdminLookupOrdersResponse } from '../../
 export type { SupportContactDTO } from '../../../../../src/modules/orders/index.js';
 // S-FR-ORD-10.set setSupportContact
 export type { SetSupportContactRequest, SetSupportContactResponse } from '../../../../../src/modules/orders/index.js';
+// S-FR-ORD-2.url getComprobanteUrl
+export type { GetComprobanteUrlRequest, GetComprobanteUrlResponse } from '../../../../../src/modules/orders/index.js';
 
 // ===== COM (commission) — contracts.md §7
 // COM-1 applyOrderDeduction
@@ -190,6 +200,18 @@ export type { RequestTopUpRequest, RequestTopUpResponse } from '../../../../../s
 export type { SetCommissionRateRequest, SetCommissionRateResponse } from '../../../../../src/modules/commission/index.js';
 // S-FR-COM-9 getMyCommissionAccount
 export type { GetMyCommissionAccountRequest, GetMyCommissionAccountResponse } from '../../../../../src/modules/commission/index.js';
+// COM-2.queue listTopUpQueue
+export type { ListTopUpQueueRequest, ListTopUpQueueResponse } from '../../../../../src/modules/commission/index.js';
+// S-FR-COM-2.mine listMyTopUps
+export type { ListMyTopUpsRequest, ListMyTopUpsResponse } from '../../../../../src/modules/commission/index.js';
+// S-FR-COM-2.url getTopUpProofUrl
+export type { GetTopUpProofUrlRequest, GetTopUpProofUrlResponse } from '../../../../../src/modules/commission/index.js';
+// S-FR-COM-8.ledger getAccountLedger
+export type { GetAccountLedgerRequest, GetAccountLedgerResponse } from '../../../../../src/modules/commission/index.js';
+// S-FR-COM-7.list listCommissionRates
+export type { ListCommissionRatesRequest, ListCommissionRatesResponse } from '../../../../../src/modules/commission/index.js';
+// COM-3.last getLastReconciliation
+export type { GetLastReconciliationRequest, GetLastReconciliationResponse } from '../../../../../src/modules/commission/index.js';
 
 // ===== TRD (trading) — contracts.md §8
 // TRD-1 acceptOffer
@@ -210,6 +232,8 @@ export type { GetHandoffRequest, GetHandoffResponse } from '../../../../../src/m
 export type { ConfirmCompletionRequest, ConfirmCompletionResponse } from '../../../../../src/modules/trading/index.js';
 // S-FR-TRD-9 expireDueOffers
 export type { ExpireDueOffersRequest, ExpireDueOffersResponse } from '../../../../../src/modules/trading/index.js';
+// S-FR-TRD-3.mine listMyOffers
+export type { ListMyOffersRequest, ListMyOffersResponse } from '../../../../../src/modules/trading/index.js';
 
 // ===== MSG (messaging) — contracts.md §9
 // MSG-1 sendMessage
@@ -254,6 +278,10 @@ export type { AddWishlistRequest, ListWishlistResponse } from '../../../../../sr
 export type { RemoveWishlistRequest } from '../../../../../src/modules/collections/index.js';
 // S-FR-COL-6.list listWishlist
 export type { ListWishlistRequest } from '../../../../../src/modules/collections/index.js';
+// COL-1.list listPrompts
+export type { ListPromptsRequest, ListPromptsResponse } from '../../../../../src/modules/collections/index.js';
+// S-FR-COL-1.list listCollections
+export type { ListCollectionsRequest, ListCollectionsResponse } from '../../../../../src/modules/collections/index.js';
 
 // ===== VAL (collections) — contracts.md §11
 // VAL-1 valueCollection
@@ -278,8 +306,16 @@ export type { SearchReviewsRequest, SearchReviewsResponse } from '../../../../..
 export type { ListReviewModerationLogRequest, ListReviewModerationLogResponse } from '../../../../../src/modules/reviews/index.js';
 // S-FR-REP-7 getProfile
 export type { GetProfileRequest, GetProfileResponse } from '../../../../../src/modules/reviews/index.js';
+// REP-1.edit editReview
+export type { EditReviewRequest, EditReviewResponse } from '../../../../../src/modules/reviews/index.js';
+// REP-1.check getReviewEligibility
+export type { GetReviewEligibilityRequest, GetReviewEligibilityResponse } from '../../../../../src/modules/reviews/index.js';
 
 // ===== SYS (shared-kernel) — contracts.md §13 (EventDeliveryNotReplayable)
+// S-SYS.tick getTickHealth
+export type { GetTickHealthRequest, GetTickHealthResponse } from '../../../../../src/shared-kernel/admin-events.dto.js';
+// S-SYS.deliveries listDeliveries
+export type { ListDeliveriesRequest, ListDeliveriesResponse } from '../../../../../src/shared-kernel/admin-events.dto.js';
 // S-SYS.replay replayEventDelivery
 export type { ReplayEventDeliveryRequest, ReplayEventDeliveryResponse } from '../../../../../src/shared-kernel/admin-events.dto.js';
 // S-SYS.health getDeliveryHealth

@@ -2,7 +2,7 @@
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CatV2Deps } from '../ports/cat.v2.js';
-import type { BrowseCatalogRequest, BrowseCatalogResponse, ContinueFeedRunRequest, ContinueFeedRunResponse, FetchTrmRequest, FetchTrmResponse, GetEntriesRequest, GetEntriesResponse, GetEntryRequest, GetEntryResponse, GetFxRateRequest, GetFxRateResponse, GetPriceHistoryRequest, GetPriceHistoryResponse, GetPriceProvenanceRequest, GetPriceProvenanceResponse, GetReferencePricesAsOfRequest, GetReferencePricesAsOfResponse, GetSetSummariesRequest, GetSetSummariesResponse, MatchEntryIdsRequest, MatchEntryIdsResponse, ResolveItemRefsRequest, ResolveItemRefsResponse, StartFeedRunRequest, StartFeedRunResponse, UpsertCatalogEntryRequest, UpsertCatalogEntryResponse } from '../dto/cat.v2.dto.js';
+import type { BrowseCatalogRequest, BrowseCatalogResponse, ContinueFeedRunRequest, ContinueFeedRunResponse, FetchTrmRequest, FetchTrmResponse, GetEntriesRequest, GetEntriesResponse, GetEntryRequest, GetEntryResponse, GetFxRateRequest, GetFxRateResponse, GetPriceHistoryRequest, GetPriceHistoryResponse, GetPriceProvenanceRequest, GetPriceProvenanceResponse, GetReferencePricesAsOfRequest, GetReferencePricesAsOfResponse, GetSetSummariesRequest, GetSetSummariesResponse, ListFeedRunsRequest, ListFeedRunsResponse, ListQuarantinedRowsRequest, ListQuarantinedRowsResponse, MatchEntryIdsRequest, MatchEntryIdsResponse, ResolveItemRefsRequest, ResolveItemRefsResponse, StartFeedRunRequest, StartFeedRunResponse, UpsertCatalogEntryRequest, UpsertCatalogEntryResponse } from '../dto/cat.v2.dto.js';
 
 /** Solu-2 use cases of CAT (contracts.md §3). Interface stubs only: the Solutioning stop-point. */
 export interface CatV2UseCases {
@@ -34,6 +34,10 @@ export interface CatV2UseCases {
   getPriceHistory(input: GetPriceHistoryRequest): Promise<GetPriceHistoryResponse>;
   /** P-CAT.sets · Outbound Port */
   getSetSummaries(input: GetSetSummariesRequest): Promise<GetSetSummariesResponse>;
+  /** CAT-1.runs · Inbound Port */
+  listFeedRuns(input: ListFeedRunsRequest): Promise<ListFeedRunsResponse>;
+  /** CAT-2.quarantine · Inbound Port */
+  listQuarantinedRows(input: ListQuarantinedRowsRequest): Promise<ListQuarantinedRowsResponse>;
 }
 
 /** Every method throws NotImplementedError until its story is done (red for the right reason). */
@@ -94,5 +98,13 @@ export class CatServiceV2 implements CatV2UseCases {
 
   async getSetSummaries(_input: GetSetSummariesRequest): Promise<GetSetSummariesResponse> {
     throw new NotImplementedError('catalog.getSetSummaries');
+  }
+
+  async listFeedRuns(_input: ListFeedRunsRequest): Promise<ListFeedRunsResponse> {
+    throw new NotImplementedError('catalog.listFeedRuns');
+  }
+
+  async listQuarantinedRows(_input: ListQuarantinedRowsRequest): Promise<ListQuarantinedRowsResponse> {
+    throw new NotImplementedError('catalog.listQuarantinedRows');
   }
 }

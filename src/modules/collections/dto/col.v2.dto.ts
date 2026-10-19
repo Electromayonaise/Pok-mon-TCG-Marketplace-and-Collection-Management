@@ -73,3 +73,10 @@ export interface RemoveWishlistRequest { ownerId: CuidId; catalogEntryId: CuidId
 export interface ListWishlistRequest { ownerId: CuidId }
 export interface WishlistRowDTO { catalogEntryId: CuidId; maxPriceCop: Cop | null; lowestPriceCop: Cop | null; availableCount: number }
 export interface ListWishlistResponse { rows: WishlistRowDTO[] }
+
+// Read models found by the UI-state check (contracts.md §15.12)
+export interface ListPromptsRequest { buyerId: CuidId; status?: 'Pending' | 'Accepted' | 'Dismissed' }
+export interface PromptRowDTO { promptId: CuidId; orderId: CuidId; lineCount: number; status: 'Pending' | 'Accepted' | 'Dismissed'; acceptedIntoCollectionId: CuidId | null; createdAt: IsoInstant }
+export interface ListPromptsResponse { prompts: PromptRowDTO[] }
+export interface ListCollectionsRequest { ownerId: CuidId }
+export interface ListCollectionsResponse { collections: { collectionId: CuidId; name: string; entryCount: number }[] }

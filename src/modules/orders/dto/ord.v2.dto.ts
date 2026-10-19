@@ -92,3 +92,7 @@ export interface AdminLookupOrdersResponse { orders: OrderViewDTO[] }
 export interface SupportContactDTO { email: string; whatsappE164: string | null }
 export interface SetSupportContactRequest { adminId: CuidId; contact: SupportContactDTO }
 export interface SetSupportContactResponse { updatedAt: IsoInstant }
+
+// Read model found by the UI-state check (contracts.md §15.12)
+export interface GetComprobanteUrlRequest { orderId: CuidId; actorId: CuidId }
+export interface GetComprobanteUrlResponse { url: string | null; expiresAt: IsoInstant | null; decision: ExplanationDTO }

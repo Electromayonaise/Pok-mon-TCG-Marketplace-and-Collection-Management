@@ -114,3 +114,19 @@ export interface RejectApplicationInput { applicationId: CuidId; reasonCode: str
 // Offered port (contracts.md §15.11)
 export interface GetBusinessNameRequest { businessId: CuidId }
 export interface GetBusinessNameResponse { businessName: string | null }
+
+// Read models found by the UI-state check (contracts.md §15.12)
+export interface ListRejectionReasonsRequest { adminId: CuidId }
+export interface RejectionReasonDTO { code: string; textEsCo: string; barred: boolean; cooldownDays: number | null; active: boolean }
+export interface ListRejectionReasonsResponse { reasons: RejectionReasonDTO[] }
+export interface ListLegalIdentityAccessRequest { adminId: CuidId; cursor: string | null; applicationId?: CuidId }
+export interface LegalIdentityAccessRowDTO {
+  logId: CuidId;
+  actorId: CuidId | null;
+  applicationId: CuidId;
+  fieldsRead: string[];
+  outcome: 'granted' | 'denied';
+  procedure: string;
+  at: IsoInstant;
+}
+export interface ListLegalIdentityAccessResponse { rows: LegalIdentityAccessRowDTO[]; nextCursor: string | null }

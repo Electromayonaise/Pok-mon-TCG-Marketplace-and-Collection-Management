@@ -40,3 +40,13 @@ export interface ListReviewModerationLogResponse { rows: ReviewModerationLogRow[
 export interface ProfileReviewDTO { reviewId: CuidId; rating: number; text: string; purchaseVerified: boolean; createdAt: IsoInstant; editedAt: IsoInstant | null }
 export interface GetProfileRequest { userId: CuidId; page: number }
 export interface GetProfileResponse { aggregate: SellerAggregateDTO; reviews: ProfileReviewDTO[]; hasMore: boolean }
+
+// Edit (FR-REP-1) and the 11.1 eligibility read found by the UI-state check (contracts.md §15.12)
+export interface EditReviewRequest { reviewerId: CuidId; reviewId: CuidId; rating: 1 | 2 | 3 | 4 | 5; text: string }
+export interface EditReviewResponse { reviewId: CuidId; editedAt: IsoInstant; decision: ExplanationDTO }
+export interface GetReviewEligibilityRequest { reviewerId: CuidId; targetUserId: CuidId }
+export interface GetReviewEligibilityResponse {
+  eligible: boolean;
+  existingReview: { reviewId: CuidId; rating: number; text: string; hidden: boolean } | null;
+  decision: ExplanationDTO;
+}

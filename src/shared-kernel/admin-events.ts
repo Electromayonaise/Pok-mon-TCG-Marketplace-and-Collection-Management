@@ -2,7 +2,7 @@
 import { NotImplementedError } from './errors.js';
 import type { AuditLog } from './audit.js';
 import type { Clock, IdGenerator, Outbox, Sql, TransactionRunner } from './ports.js';
-import type { GetDeliveryHealthRequest, GetDeliveryHealthResponse, ReplayEventDeliveryRequest, ReplayEventDeliveryResponse } from './admin-events.dto.js';
+import type { GetDeliveryHealthRequest, GetDeliveryHealthResponse, GetTickHealthRequest, GetTickHealthResponse, ListDeliveriesRequest, ListDeliveriesResponse, ReplayEventDeliveryRequest, ReplayEventDeliveryResponse } from './admin-events.dto.js';
 
 /** Everything SYS reaches outside its domain core: time, ids, SQL, the outbox, the audit log (AD-SYS-6, R-2), external systems behind ports that tests bind to simulated adapters, and its neighbours. */
 export interface AdminEventsV2Deps {
@@ -16,6 +16,10 @@ export interface AdminEventsV2Deps {
 
 /** Solu-2 use cases of SYS (contracts.md §13 (EventDeliveryNotReplayable)). Interface stubs only: the Solutioning stop-point. */
 export interface AdminEventsV2UseCases {
+  /** S-SYS.tick · Inbound Port */
+  getTickHealth(input: GetTickHealthRequest): Promise<GetTickHealthResponse>;
+  /** S-SYS.deliveries · Inbound Port */
+  listDeliveries(input: ListDeliveriesRequest): Promise<ListDeliveriesResponse>;
   /** S-SYS.replay · Inbound Port */
   replayEventDelivery(input: ReplayEventDeliveryRequest): Promise<ReplayEventDeliveryResponse>;
   /** S-SYS.health · Inbound Port */
@@ -25,6 +29,14 @@ export interface AdminEventsV2UseCases {
 /** Every method throws NotImplementedError until its story is done (red for the right reason). */
 export class AdminEventsServiceV2 implements AdminEventsV2UseCases {
   constructor(protected readonly deps: AdminEventsV2Deps) {}
+
+  async getTickHealth(_input: GetTickHealthRequest): Promise<GetTickHealthResponse> {
+    throw new NotImplementedError('shared-kernel.getTickHealth');
+  }
+
+  async listDeliveries(_input: ListDeliveriesRequest): Promise<ListDeliveriesResponse> {
+    throw new NotImplementedError('shared-kernel.listDeliveries');
+  }
 
   async replayEventDelivery(_input: ReplayEventDeliveryRequest): Promise<ReplayEventDeliveryResponse> {
     throw new NotImplementedError('shared-kernel.replayEventDelivery');

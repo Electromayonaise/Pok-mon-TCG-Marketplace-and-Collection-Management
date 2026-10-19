@@ -63,3 +63,7 @@ export interface ConfirmCompletionResponse { offerId: CuidId; completed: boolean
 // S-FR-TRD-9 expiry materialization (job)
 export interface ExpireDueOffersRequest { trigger: 'tick' | 'daily-morning' | 'daily-night' }
 export interface ExpireDueOffersResponse { expired: number }
+
+// Read model found by the UI-state check (contracts.md §15.12)
+export interface ListMyOffersRequest { actorId: CuidId; role: 'proposer' | 'seller' | 'any'; status?: OfferStatus; cursor: string | null }
+export interface ListMyOffersResponse { offers: OfferViewDTO[]; nextCursor: string | null }

@@ -10421,6 +10421,1896 @@ paths:
                 type: "object"
                 additionalProperties: false
                 properties: {}
+  "/api/trpc/verification.reasons.list":
+    get:
+      operationId: "verification_reasons_list"
+      summary: "S-FR-VER-8.list listRejectionReasons (contracts.md §2)"
+      tags:
+        - "verification"
+      x-procedure-builder: "admin"
+      x-actor-fields-from-session:
+        - "adminId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/ListRejectionReasonsResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "403":
+          description: "Refusal: AdminOnly."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "AdminOnly"
+                          httpStatus:
+                            const: 403
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties: {}
+  "/api/trpc/verification.legalIdentityAudit":
+    get:
+      operationId: "verification_legalIdentityAudit"
+      summary: "S-FR-VER-5.audit listLegalIdentityAccess (contracts.md §2)"
+      tags:
+        - "verification"
+      x-procedure-builder: "admin"
+      x-actor-fields-from-session:
+        - "adminId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/ListLegalIdentityAccessResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "403":
+          description: "Refusal: AdminOnly."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "AdminOnly"
+                          httpStatus:
+                            const: 403
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties:
+                  cursor:
+                    anyOf:
+                      - type: "string"
+                      - type: "null"
+                  applicationId:
+                    type: "string"
+                    pattern: "^[a-z][0-9a-z]{23}$"
+                required:
+                  - "cursor"
+  "/api/trpc/catalog.feed.runs":
+    get:
+      operationId: "catalog_feed_runs"
+      summary: "CAT-1.runs listFeedRuns (contracts.md §3)"
+      tags:
+        - "catalog"
+      x-procedure-builder: "admin"
+      x-actor-fields-from-session:
+        - "actorId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/ListFeedRunsResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "403":
+          description: "Refusal: AdminOnly."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "AdminOnly"
+                          httpStatus:
+                            const: 403
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties:
+                  cursor:
+                    anyOf:
+                      - type: "string"
+                      - type: "null"
+                required:
+                  - "cursor"
+  "/api/trpc/catalog.feed.quarantine":
+    get:
+      operationId: "catalog_feed_quarantine"
+      summary: "CAT-2.quarantine listQuarantinedRows (contracts.md §3)"
+      tags:
+        - "catalog"
+      x-procedure-builder: "admin"
+      x-actor-fields-from-session:
+        - "actorId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/ListQuarantinedRowsResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "403":
+          description: "Refusal: AdminOnly."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "AdminOnly"
+                          httpStatus:
+                            const: 403
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties:
+                  runId:
+                    type: "string"
+                    pattern: "^[a-z][0-9a-z]{23}$"
+                  reasonCode:
+                    type: "string"
+                  cursor:
+                    anyOf:
+                      - type: "string"
+                      - type: "null"
+                required:
+                  - "runId"
+                  - "cursor"
+  "/api/trpc/orders.comprobanteUrl":
+    get:
+      operationId: "orders_comprobanteUrl"
+      summary: "S-FR-ORD-2.url getComprobanteUrl (contracts.md §6)"
+      tags:
+        - "orders"
+      x-procedure-builder: "authed"
+      x-actor-fields-from-session:
+        - "actorId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/GetComprobanteUrlResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "403":
+          description: "Refusal: OrderNotVisibleToCaller."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "OrderNotVisibleToCaller"
+                          httpStatus:
+                            const: 403
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties:
+                  orderId:
+                    type: "string"
+                    pattern: "^[a-z][0-9a-z]{23}$"
+                required:
+                  - "orderId"
+  "/api/trpc/commission.admin.topUpQueue":
+    get:
+      operationId: "commission_admin_topUpQueue"
+      summary: "COM-2.queue listTopUpQueue (contracts.md §7)"
+      tags:
+        - "commission"
+      x-procedure-builder: "admin"
+      x-actor-fields-from-session:
+        - "adminId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/ListTopUpQueueResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "403":
+          description: "Refusal: AdminOnly."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "AdminOnly"
+                          httpStatus:
+                            const: 403
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties:
+                  cursor:
+                    anyOf:
+                      - type: "string"
+                      - type: "null"
+                required:
+                  - "cursor"
+  "/api/trpc/commission.myTopUps":
+    get:
+      operationId: "commission_myTopUps"
+      summary: "S-FR-COM-2.mine listMyTopUps (contracts.md §7)"
+      tags:
+        - "commission"
+      x-procedure-builder: "authed"
+      x-actor-fields-from-session:
+        - "businessId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/ListMyTopUpsResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "409":
+          description: "Refusal: NotBusinessAccount."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotBusinessAccount"
+                          httpStatus:
+                            const: 409
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties:
+                  cursor:
+                    anyOf:
+                      - type: "string"
+                      - type: "null"
+                required:
+                  - "cursor"
+  "/api/trpc/commission.topUpProofUrl":
+    get:
+      operationId: "commission_topUpProofUrl"
+      summary: "S-FR-COM-2.url getTopUpProofUrl (contracts.md §7)"
+      tags:
+        - "commission"
+      x-procedure-builder: "authed"
+      x-actor-fields-from-session:
+        - "actorId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/GetTopUpProofUrlResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "403":
+          description: "Refusal: TopUpNotVisibleToCaller."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "TopUpNotVisibleToCaller"
+                          httpStatus:
+                            const: 403
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties:
+                  topUpRequestId:
+                    type: "string"
+                    pattern: "^[a-z][0-9a-z]{23}$"
+                required:
+                  - "topUpRequestId"
+  "/api/trpc/commission.admin.ledger":
+    get:
+      operationId: "commission_admin_ledger"
+      summary: "S-FR-COM-8.ledger getAccountLedger (contracts.md §7)"
+      tags:
+        - "commission"
+      x-procedure-builder: "admin"
+      x-actor-fields-from-session:
+        - "adminId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/GetAccountLedgerResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "403":
+          description: "Refusal: AdminOnly."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "AdminOnly"
+                          httpStatus:
+                            const: 403
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties:
+                  businessId:
+                    type: "string"
+                    pattern: "^[a-z][0-9a-z]{23}$"
+                  trigger:
+                    "$ref": "#/components/schemas/CommissionTrigger"
+                  cursor:
+                    anyOf:
+                      - type: "string"
+                      - type: "null"
+                required:
+                  - "businessId"
+                  - "cursor"
+  "/api/trpc/commission.admin.rates":
+    get:
+      operationId: "commission_admin_rates"
+      summary: "S-FR-COM-7.list listCommissionRates (contracts.md §7)"
+      tags:
+        - "commission"
+      x-procedure-builder: "admin"
+      x-actor-fields-from-session:
+        - "adminId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/ListCommissionRatesResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "403":
+          description: "Refusal: AdminOnly."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "AdminOnly"
+                          httpStatus:
+                            const: 403
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties: {}
+  "/api/trpc/commission.admin.lastReconciliation":
+    get:
+      operationId: "commission_admin_lastReconciliation"
+      summary: "COM-3.last getLastReconciliation (contracts.md §7)"
+      tags:
+        - "commission"
+      x-procedure-builder: "admin"
+      x-actor-fields-from-session:
+        - "adminId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/GetLastReconciliationResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "403":
+          description: "Refusal: AdminOnly."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "AdminOnly"
+                          httpStatus:
+                            const: 403
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties: {}
+  "/api/trpc/trading.mine":
+    get:
+      operationId: "trading_mine"
+      summary: "S-FR-TRD-3.mine listMyOffers (contracts.md §8)"
+      tags:
+        - "trading"
+      x-procedure-builder: "authed"
+      x-actor-fields-from-session:
+        - "actorId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/ListMyOffersResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties:
+                  role:
+                    type: "string"
+                    enum:
+                      - "proposer"
+                      - "seller"
+                      - "any"
+                  status:
+                    "$ref": "#/components/schemas/OfferStatus"
+                  cursor:
+                    anyOf:
+                      - type: "string"
+                      - type: "null"
+                required:
+                  - "role"
+                  - "cursor"
+  "/api/trpc/collections.prompts.list":
+    get:
+      operationId: "collections_prompts_list"
+      summary: "COL-1.list listPrompts (contracts.md §10)"
+      tags:
+        - "collections"
+      x-procedure-builder: "authed"
+      x-actor-fields-from-session:
+        - "buyerId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/ListPromptsResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties:
+                  status:
+                    type: "string"
+                    enum:
+                      - "Pending"
+                      - "Accepted"
+                      - "Dismissed"
+  "/api/trpc/collections.list":
+    get:
+      operationId: "collections_list"
+      summary: "S-FR-COL-1.list listCollections (contracts.md §10)"
+      tags:
+        - "collections"
+      x-procedure-builder: "authed"
+      x-actor-fields-from-session:
+        - "ownerId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/ListCollectionsResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties: {}
+  "/api/trpc/reputation.edit":
+    post:
+      operationId: "reputation_edit"
+      summary: "REP-1.edit editReview (contracts.md §12)"
+      tags:
+        - "reputation"
+      x-procedure-builder: "canBuy"
+      x-actor-fields-from-session:
+        - "reviewerId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/EditReviewResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "403":
+          description: "Refusal: EmailNotVerified."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "EmailNotVerified"
+                          httpStatus:
+                            const: 403
+        "404":
+          description: "Refusal: ReviewNotFound."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "ReviewNotFound"
+                          httpStatus:
+                            const: 404
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              additionalProperties: false
+              properties:
+                reviewId:
+                  type: "string"
+                  pattern: "^[a-z][0-9a-z]{23}$"
+                rating:
+                  anyOf:
+                    - const: 1
+                    - const: 2
+                    - const: 3
+                    - const: 4
+                    - const: 5
+                text:
+                  type: "string"
+              required:
+                - "reviewId"
+                - "rating"
+                - "text"
+  "/api/trpc/reputation.eligibility":
+    get:
+      operationId: "reputation_eligibility"
+      summary: "REP-1.check getReviewEligibility (contracts.md §12)"
+      tags:
+        - "reputation"
+      x-procedure-builder: "authed"
+      x-actor-fields-from-session:
+        - "reviewerId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/GetReviewEligibilityResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "404":
+          description: "Refusal: TargetNotFound."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "TargetNotFound"
+                          httpStatus:
+                            const: 404
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties:
+                  targetUserId:
+                    type: "string"
+                    pattern: "^[a-z][0-9a-z]{23}$"
+                required:
+                  - "targetUserId"
+  "/api/trpc/admin.jobs.tickHealth":
+    get:
+      operationId: "admin_jobs_tickHealth"
+      summary: "S-SYS.tick getTickHealth (contracts.md §13 (EventDeliveryNotReplayable))"
+      tags:
+        - "admin"
+      x-procedure-builder: "admin"
+      x-actor-fields-from-session:
+        - "adminId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/GetTickHealthResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "403":
+          description: "Refusal: AdminOnly."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "AdminOnly"
+                          httpStatus:
+                            const: 403
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties: {}
+  "/api/trpc/admin.events.deliveries":
+    get:
+      operationId: "admin_events_deliveries"
+      summary: "S-SYS.deliveries listDeliveries (contracts.md §13 (EventDeliveryNotReplayable))"
+      tags:
+        - "admin"
+      x-procedure-builder: "admin"
+      x-actor-fields-from-session:
+        - "adminId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/ListDeliveriesResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "403":
+          description: "Refusal: AdminOnly."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "AdminOnly"
+                          httpStatus:
+                            const: 403
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties:
+                  kind:
+                    type: "string"
+                    enum:
+                      - "failed"
+                      - "stuck"
+                  cursor:
+                    anyOf:
+                      - type: "string"
+                      - type: "null"
+                required:
+                  - "kind"
+                  - "cursor"
   "/api/jobs/trm-fetch":
     post:
       operationId: "job_trm_fetch"
@@ -11258,6 +13148,51 @@ components:
         - "entriesRemoved"
         - "platformPurchaseEntriesRemoved"
         - "decision"
+    DeliveryRowDTO:
+      type: "object"
+      additionalProperties: false
+      properties:
+        eventId:
+          type: "string"
+          pattern: "^[a-z][0-9a-z]{23}$"
+        eventType:
+          type: "string"
+        subscriber:
+          "$ref": "#/components/schemas/Subscriber"
+        attempts:
+          type: "number"
+        lastErrorCode:
+          anyOf:
+            - type: "string"
+            - type: "null"
+        lastAttemptAt:
+          anyOf:
+            - type: "string"
+              format: "date-time"
+            - type: "null"
+        firstFailedAt:
+          anyOf:
+            - type: "string"
+              format: "date-time"
+            - type: "null"
+        lastFailedAt:
+          anyOf:
+            - type: "string"
+              format: "date-time"
+            - type: "null"
+        createdAt:
+          type: "string"
+          format: "date-time"
+      required:
+        - "eventId"
+        - "eventType"
+        - "subscriber"
+        - "attempts"
+        - "lastErrorCode"
+        - "lastAttemptAt"
+        - "firstFailedAt"
+        - "lastFailedAt"
+        - "createdAt"
     DiscrepancyDTO:
       type: "object"
       additionalProperties: false
@@ -11294,6 +13229,22 @@ components:
       required:
         - "promptId"
         - "status"
+        - "decision"
+    EditReviewResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        reviewId:
+          type: "string"
+          pattern: "^[a-z][0-9a-z]{23}$"
+        editedAt:
+          type: "string"
+          format: "date-time"
+        decision:
+          "$ref": "#/components/schemas/ExplanationDTO"
+      required:
+        - "reviewId"
+        - "editedAt"
         - "decision"
     ErrorBody:
       type: "object"
@@ -11417,6 +13368,50 @@ components:
         - "issue"
     ExplanationDTO:
       "$ref": "#/components/schemas/Decision"
+    FeedRunDTO:
+      type: "object"
+      additionalProperties: false
+      properties:
+        runId:
+          type: "string"
+          pattern: "^[a-z][0-9a-z]{23}$"
+        status:
+          type: "string"
+          enum:
+            - "Running"
+            - "Completed"
+            - "Failed"
+        cursor:
+          type: "number"
+        created:
+          type: "number"
+        updated:
+          type: "number"
+        unchanged:
+          type: "number"
+        quarantined:
+          type: "number"
+        deferredNoFx:
+          type: "number"
+        startedAt:
+          type: "string"
+          format: "date-time"
+        endedAt:
+          anyOf:
+            - type: "string"
+              format: "date-time"
+            - type: "null"
+      required:
+        - "runId"
+        - "status"
+        - "cursor"
+        - "created"
+        - "updated"
+        - "unchanged"
+        - "quarantined"
+        - "deferredNoFx"
+        - "startedAt"
+        - "endedAt"
     FetchTrmResponse:
       type: "object"
       additionalProperties: false
@@ -11435,6 +13430,31 @@ components:
         - "decision"
     GenerateContactMessageResponse:
       "$ref": "#/components/schemas/ContactMessageDTO"
+    GetAccountLedgerResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        balanceCop:
+          anyOf:
+            - type: "number"
+            - type: "null"
+        state:
+          anyOf:
+            - "$ref": "#/components/schemas/AccountState"
+            - type: "null"
+        lines:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/LedgerLineDTO"
+        nextCursor:
+          anyOf:
+            - type: "string"
+            - type: "null"
+      required:
+        - "balanceCop"
+        - "state"
+        - "lines"
+        - "nextCursor"
     GetApplicationForReviewResponse:
       type: "object"
       additionalProperties: false
@@ -11550,6 +13570,25 @@ components:
         - "hasActiveListings"
         - "listings"
         - "excluded"
+    GetComprobanteUrlResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        url:
+          anyOf:
+            - type: "string"
+            - type: "null"
+        expiresAt:
+          anyOf:
+            - type: "string"
+              format: "date-time"
+            - type: "null"
+        decision:
+          "$ref": "#/components/schemas/ExplanationDTO"
+      required:
+        - "url"
+        - "expiresAt"
+        - "decision"
     GetDeliveryHealthResponse:
       type: "object"
       additionalProperties: false
@@ -11586,6 +13625,38 @@ components:
         - "latestDigest"
     GetHandoffResponse:
       "$ref": "#/components/schemas/ContactMessageDTO"
+    GetLastReconciliationResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        run:
+          anyOf:
+            - type: "object"
+              additionalProperties: false
+              properties:
+                runId:
+                  type: "string"
+                  pattern: "^[a-z][0-9a-z]{23}$"
+                scope:
+                  type: "string"
+                accountsChecked:
+                  type: "number"
+                discrepancies:
+                  type: "array"
+                  items:
+                    "$ref": "#/components/schemas/DiscrepancyDTO"
+                at:
+                  type: "string"
+                  format: "date-time"
+              required:
+                - "runId"
+                - "scope"
+                - "accountsChecked"
+                - "discrepancies"
+                - "at"
+            - type: "null"
+      required:
+        - "run"
     GetListingResponse:
       "$ref": "#/components/schemas/ListingDetailDTO"
     GetMyApplicationStatusResponse:
@@ -11687,6 +13758,38 @@ components:
         - "aggregate"
         - "reviews"
         - "hasMore"
+    GetReviewEligibilityResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        eligible:
+          type: "boolean"
+        existingReview:
+          anyOf:
+            - type: "object"
+              additionalProperties: false
+              properties:
+                reviewId:
+                  type: "string"
+                  pattern: "^[a-z][0-9a-z]{23}$"
+                rating:
+                  type: "number"
+                text:
+                  type: "string"
+                hidden:
+                  type: "boolean"
+              required:
+                - "reviewId"
+                - "rating"
+                - "text"
+                - "hidden"
+            - type: "null"
+        decision:
+          "$ref": "#/components/schemas/ExplanationDTO"
+      required:
+        - "eligible"
+        - "existingReview"
+        - "decision"
     GetThreadResponse:
       type: "object"
       additionalProperties: false
@@ -11703,6 +13806,35 @@ components:
         - "messages"
         - "lastSeq"
         - "decision"
+    GetTickHealthResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        lastTickStartedAt:
+          anyOf:
+            - type: "string"
+              format: "date-time"
+            - type: "null"
+        tickSilent:
+          type: "boolean"
+        decision:
+          "$ref": "#/components/schemas/ExplanationDTO"
+      required:
+        - "lastTickStartedAt"
+        - "tickSilent"
+        - "decision"
+    GetTopUpProofUrlResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        url:
+          type: "string"
+        expiresAt:
+          type: "string"
+          format: "date-time"
+      required:
+        - "url"
+        - "expiresAt"
     HideReviewResponse:
       type: "object"
       additionalProperties: false
@@ -11781,6 +13913,125 @@ components:
         - "orderId"
         - "trigger"
         - "at"
+    LegalIdentityAccessRowDTO:
+      type: "object"
+      additionalProperties: false
+      properties:
+        logId:
+          type: "string"
+          pattern: "^[a-z][0-9a-z]{23}$"
+        actorId:
+          anyOf:
+            - type: "string"
+              pattern: "^[a-z][0-9a-z]{23}$"
+            - type: "null"
+        applicationId:
+          type: "string"
+          pattern: "^[a-z][0-9a-z]{23}$"
+        fieldsRead:
+          type: "array"
+          items:
+            type: "string"
+        outcome:
+          type: "string"
+          enum:
+            - "granted"
+            - "denied"
+        procedure:
+          type: "string"
+        at:
+          type: "string"
+          format: "date-time"
+      required:
+        - "logId"
+        - "actorId"
+        - "applicationId"
+        - "fieldsRead"
+        - "outcome"
+        - "procedure"
+        - "at"
+    ListCollectionsResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        collections:
+          type: "array"
+          items:
+            type: "object"
+            additionalProperties: false
+            properties:
+              collectionId:
+                type: "string"
+                pattern: "^[a-z][0-9a-z]{23}$"
+              name:
+                type: "string"
+              entryCount:
+                type: "number"
+            required:
+              - "collectionId"
+              - "name"
+              - "entryCount"
+      required:
+        - "collections"
+    ListCommissionRatesResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        rates:
+          type: "array"
+          items:
+            type: "object"
+            additionalProperties: false
+            properties:
+              rateBps:
+                type: "number"
+              effectiveFrom:
+                type: "string"
+                format: "date-time"
+              setBy:
+                anyOf:
+                  - type: "string"
+                    pattern: "^[a-z][0-9a-z]{23}$"
+                  - type: "null"
+            required:
+              - "rateBps"
+              - "effectiveFrom"
+              - "setBy"
+        currentRateBps:
+          type: "number"
+      required:
+        - "rates"
+        - "currentRateBps"
+    ListDeliveriesResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        rows:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/DeliveryRowDTO"
+        nextCursor:
+          anyOf:
+            - type: "string"
+            - type: "null"
+      required:
+        - "rows"
+        - "nextCursor"
+    ListFeedRunsResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        runs:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/FeedRunDTO"
+        nextCursor:
+          anyOf:
+            - type: "string"
+            - type: "null"
+      required:
+        - "runs"
+        - "nextCursor"
     ListInboxResponse:
       type: "object"
       additionalProperties: false
@@ -11911,6 +14162,21 @@ components:
         - "Active"
         - "Unverified"
         - "Paused"
+    ListLegalIdentityAccessResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        rows:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/LegalIdentityAccessRowDTO"
+        nextCursor:
+          anyOf:
+            - type: "string"
+            - type: "null"
+      required:
+        - "rows"
+        - "nextCursor"
     ListListingModerationLogResponse:
       type: "object"
       additionalProperties: false
@@ -11941,6 +14207,36 @@ components:
       required:
         - "items"
         - "nextCursor"
+    ListMyOffersResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        offers:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/OfferViewDTO"
+        nextCursor:
+          anyOf:
+            - type: "string"
+            - type: "null"
+      required:
+        - "offers"
+        - "nextCursor"
+    ListMyTopUpsResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        rows:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/TopUpRowDTO"
+        nextCursor:
+          anyOf:
+            - type: "string"
+            - type: "null"
+      required:
+        - "rows"
+        - "nextCursor"
     ListOrdersResponse:
       type: "object"
       additionalProperties: false
@@ -11956,6 +14252,55 @@ components:
       required:
         - "items"
         - "nextCursor"
+    ListPromptsResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        prompts:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/PromptRowDTO"
+      required:
+        - "prompts"
+    ListQuarantinedRowsResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        rows:
+          type: "array"
+          items:
+            type: "object"
+            additionalProperties: false
+            properties:
+              rowNumber:
+                type: "number"
+              externalKey:
+                anyOf:
+                  - type: "string"
+                  - type: "null"
+              reasonCode:
+                type: "string"
+            required:
+              - "rowNumber"
+              - "externalKey"
+              - "reasonCode"
+        nextCursor:
+          anyOf:
+            - type: "string"
+            - type: "null"
+      required:
+        - "rows"
+        - "nextCursor"
+    ListRejectionReasonsResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        reasons:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/RejectionReasonDTO"
+      required:
+        - "reasons"
     ListReviewModerationLogResponse:
       type: "object"
       additionalProperties: false
@@ -12002,6 +14347,21 @@ components:
             - type: "null"
       required:
         - "items"
+        - "nextCursor"
+    ListTopUpQueueResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        rows:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/TopUpRowDTO"
+        nextCursor:
+          anyOf:
+            - type: "string"
+            - type: "null"
+      required:
+        - "rows"
         - "nextCursor"
     ListWishlistResponse:
       type: "object"
@@ -12362,6 +14722,39 @@ components:
         - "purchaseVerified"
         - "createdAt"
         - "editedAt"
+    PromptRowDTO:
+      type: "object"
+      additionalProperties: false
+      properties:
+        promptId:
+          type: "string"
+          pattern: "^[a-z][0-9a-z]{23}$"
+        orderId:
+          type: "string"
+          pattern: "^[a-z][0-9a-z]{23}$"
+        lineCount:
+          type: "number"
+        status:
+          type: "string"
+          enum:
+            - "Pending"
+            - "Accepted"
+            - "Dismissed"
+        acceptedIntoCollectionId:
+          anyOf:
+            - type: "string"
+              pattern: "^[a-z][0-9a-z]{23}$"
+            - type: "null"
+        createdAt:
+          type: "string"
+          format: "date-time"
+      required:
+        - "promptId"
+        - "orderId"
+        - "lineCount"
+        - "status"
+        - "acceptedIntoCollectionId"
+        - "createdAt"
     ReconcileResponse:
       anyOf:
         - type: "object"
@@ -12391,6 +14784,28 @@ components:
               const: "runInProgress"
           required:
             - "skipped"
+    RejectionReasonDTO:
+      type: "object"
+      additionalProperties: false
+      properties:
+        code:
+          type: "string"
+        textEsCo:
+          type: "string"
+        barred:
+          type: "boolean"
+        cooldownDays:
+          anyOf:
+            - type: "number"
+            - type: "null"
+        active:
+          type: "boolean"
+      required:
+        - "code"
+        - "textEsCo"
+        - "barred"
+        - "cooldownDays"
+        - "active"
     RejectTopUpResponse:
       type: "object"
       additionalProperties: false
@@ -12867,6 +15282,49 @@ components:
         - "mine"
         - "body"
         - "at"
+    TopUpRowDTO:
+      type: "object"
+      additionalProperties: false
+      properties:
+        topUpRequestId:
+          type: "string"
+          pattern: "^[a-z][0-9a-z]{23}$"
+        businessId:
+          type: "string"
+          pattern: "^[a-z][0-9a-z]{23}$"
+        amountCop:
+          type: "integer"
+          minimum: 0
+          maximum: 9007199254740991
+        transferReference:
+          type: "string"
+        status:
+          type: "string"
+          enum:
+            - "Pending"
+            - "Confirmed"
+            - "Rejected"
+        rejectionReason:
+          anyOf:
+            - type: "string"
+            - type: "null"
+        submittedAt:
+          type: "string"
+          format: "date-time"
+        decidedAt:
+          anyOf:
+            - type: "string"
+              format: "date-time"
+            - type: "null"
+      required:
+        - "topUpRequestId"
+        - "businessId"
+        - "amountCop"
+        - "transferReference"
+        - "status"
+        - "rejectionReason"
+        - "submittedAt"
+        - "decidedAt"
     TraceCapabilitiesResponse:
       type: "object"
       additionalProperties: false

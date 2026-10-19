@@ -114,3 +114,24 @@ export interface GetPriceHistoryRequest { catalogEntryIds: CuidId[]; from: IsoIn
 export interface GetPriceHistoryResponse { series: { catalogEntryId: CuidId; observations: ObservedPriceDTO[] }[] }
 export interface GetSetSummariesRequest { setIds: CuidId[] }
 export interface GetSetSummariesResponse { sets: { setId: CuidId; name: string; cardEntryCount: number }[] }
+
+// Read models found by the UI-state check (contracts.md §15.12)
+export interface ListFeedRunsRequest { actorId: CuidId; cursor: string | null }
+export interface FeedRunDTO {
+  runId: CuidId;
+  status: 'Running' | 'Completed' | 'Failed';
+  cursor: number;
+  created: number;
+  updated: number;
+  unchanged: number;
+  quarantined: number;
+  deferredNoFx: number;
+  startedAt: IsoInstant;
+  endedAt: IsoInstant | null;
+}
+export interface ListFeedRunsResponse { runs: FeedRunDTO[]; nextCursor: string | null }
+export interface ListQuarantinedRowsRequest { actorId: CuidId; runId: CuidId; reasonCode?: string; cursor: string | null }
+export interface ListQuarantinedRowsResponse {
+  rows: { rowNumber: number; externalKey: string | null; reasonCode: string }[];
+  nextCursor: string | null;
+}

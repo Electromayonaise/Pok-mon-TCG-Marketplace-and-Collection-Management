@@ -2,7 +2,7 @@
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { ComV2Deps } from '../ports/com.v2.js';
-import type { ApplyOrderDeductionRequest, ApplyOrderDeductionResponse, ConfirmTopUpRequest, ConfirmTopUpResponse, CreateTopUpProofUploadRequest, CreateTopUpProofUploadResponse, GetMyCommissionAccountRequest, GetMyCommissionAccountResponse, OpenCommissionAccountRequest, OpenCommissionAccountResponse, ReconcileRequest, ReconcileResponse, RejectTopUpRequest, RejectTopUpResponse, RequestTopUpRequest, RequestTopUpResponse, SetCommissionRateRequest, SetCommissionRateResponse } from '../dto/com.v2.dto.js';
+import type { ApplyOrderDeductionRequest, ApplyOrderDeductionResponse, ConfirmTopUpRequest, ConfirmTopUpResponse, CreateTopUpProofUploadRequest, CreateTopUpProofUploadResponse, GetAccountLedgerRequest, GetAccountLedgerResponse, GetLastReconciliationRequest, GetLastReconciliationResponse, GetMyCommissionAccountRequest, GetMyCommissionAccountResponse, GetTopUpProofUrlRequest, GetTopUpProofUrlResponse, ListCommissionRatesRequest, ListCommissionRatesResponse, ListMyTopUpsRequest, ListMyTopUpsResponse, ListTopUpQueueRequest, ListTopUpQueueResponse, OpenCommissionAccountRequest, OpenCommissionAccountResponse, ReconcileRequest, ReconcileResponse, RejectTopUpRequest, RejectTopUpResponse, RequestTopUpRequest, RequestTopUpResponse, SetCommissionRateRequest, SetCommissionRateResponse } from '../dto/com.v2.dto.js';
 
 /** Solu-2 use cases of COM (contracts.md §7). Interface stubs only: the Solutioning stop-point. */
 export interface ComV2UseCases {
@@ -24,6 +24,18 @@ export interface ComV2UseCases {
   setCommissionRate(input: SetCommissionRateRequest): Promise<SetCommissionRateResponse>;
   /** S-FR-COM-9 · Inbound Port */
   getMyCommissionAccount(input: GetMyCommissionAccountRequest): Promise<GetMyCommissionAccountResponse>;
+  /** COM-2.queue · Inbound Port */
+  listTopUpQueue(input: ListTopUpQueueRequest): Promise<ListTopUpQueueResponse>;
+  /** S-FR-COM-2.mine · Inbound Port */
+  listMyTopUps(input: ListMyTopUpsRequest): Promise<ListMyTopUpsResponse>;
+  /** S-FR-COM-2.url · Inbound Port */
+  getTopUpProofUrl(input: GetTopUpProofUrlRequest): Promise<GetTopUpProofUrlResponse>;
+  /** S-FR-COM-8.ledger · Inbound Port */
+  getAccountLedger(input: GetAccountLedgerRequest): Promise<GetAccountLedgerResponse>;
+  /** S-FR-COM-7.list · Inbound Port */
+  listCommissionRates(input: ListCommissionRatesRequest): Promise<ListCommissionRatesResponse>;
+  /** COM-3.last · Inbound Port */
+  getLastReconciliation(input: GetLastReconciliationRequest): Promise<GetLastReconciliationResponse>;
 }
 
 /** Every method throws NotImplementedError until its story is done (red for the right reason). */
@@ -64,5 +76,29 @@ export class ComServiceV2 implements ComV2UseCases {
 
   async getMyCommissionAccount(_input: GetMyCommissionAccountRequest): Promise<GetMyCommissionAccountResponse> {
     throw new NotImplementedError('commission.getMyCommissionAccount');
+  }
+
+  async listTopUpQueue(_input: ListTopUpQueueRequest): Promise<ListTopUpQueueResponse> {
+    throw new NotImplementedError('commission.listTopUpQueue');
+  }
+
+  async listMyTopUps(_input: ListMyTopUpsRequest): Promise<ListMyTopUpsResponse> {
+    throw new NotImplementedError('commission.listMyTopUps');
+  }
+
+  async getTopUpProofUrl(_input: GetTopUpProofUrlRequest): Promise<GetTopUpProofUrlResponse> {
+    throw new NotImplementedError('commission.getTopUpProofUrl');
+  }
+
+  async getAccountLedger(_input: GetAccountLedgerRequest): Promise<GetAccountLedgerResponse> {
+    throw new NotImplementedError('commission.getAccountLedger');
+  }
+
+  async listCommissionRates(_input: ListCommissionRatesRequest): Promise<ListCommissionRatesResponse> {
+    throw new NotImplementedError('commission.listCommissionRates');
+  }
+
+  async getLastReconciliation(_input: GetLastReconciliationRequest): Promise<GetLastReconciliationResponse> {
+    throw new NotImplementedError('commission.getLastReconciliation');
   }
 }

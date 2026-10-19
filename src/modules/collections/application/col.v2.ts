@@ -2,7 +2,7 @@
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { ColV2Deps } from '../ports/col.v2.js';
-import type { AcceptPromptRequest, AcceptPromptResponse, AddEntryRequest, AddEntryResponse, AddExternalEntryRequest, AddExternalEntryResponse, AddWishlistRequest, CollectionChangeResponse, CreateCollectionRequest, CreateCollectionResponse, DeleteCollectionRequest, DeleteCollectionResponse, DismissPromptRequest, DismissPromptResponse, GetBinderRequest, GetBinderResponse, ListWishlistRequest, ListWishlistResponse, MoveOrCopyEntryRequest, MoveOrCopyEntryResponse, OnOrderClosedRequest, OnOrderClosedResponse, RemoveWishlistRequest, RenameCollectionRequest, ReorderEntriesRequest, SetBinderLayoutRequest } from '../dto/col.v2.dto.js';
+import type { AcceptPromptRequest, AcceptPromptResponse, AddEntryRequest, AddEntryResponse, AddExternalEntryRequest, AddExternalEntryResponse, AddWishlistRequest, CollectionChangeResponse, CreateCollectionRequest, CreateCollectionResponse, DeleteCollectionRequest, DeleteCollectionResponse, DismissPromptRequest, DismissPromptResponse, GetBinderRequest, GetBinderResponse, ListCollectionsRequest, ListCollectionsResponse, ListPromptsRequest, ListPromptsResponse, ListWishlistRequest, ListWishlistResponse, MoveOrCopyEntryRequest, MoveOrCopyEntryResponse, OnOrderClosedRequest, OnOrderClosedResponse, RemoveWishlistRequest, RenameCollectionRequest, ReorderEntriesRequest, SetBinderLayoutRequest } from '../dto/col.v2.dto.js';
 
 /** Solu-2 use cases of COL (contracts.md §10). Interface stubs only: the Solutioning stop-point. */
 export interface ColV2UseCases {
@@ -36,6 +36,10 @@ export interface ColV2UseCases {
   removeWishlist(input: RemoveWishlistRequest): Promise<ListWishlistResponse>;
   /** S-FR-COL-6.list · Inbound Port */
   listWishlist(input: ListWishlistRequest): Promise<ListWishlistResponse>;
+  /** COL-1.list · Inbound Port */
+  listPrompts(input: ListPromptsRequest): Promise<ListPromptsResponse>;
+  /** S-FR-COL-1.list · Inbound Port */
+  listCollections(input: ListCollectionsRequest): Promise<ListCollectionsResponse>;
 }
 
 /** Every method throws NotImplementedError until its story is done (red for the right reason). */
@@ -100,5 +104,13 @@ export class ColServiceV2 implements ColV2UseCases {
 
   async listWishlist(_input: ListWishlistRequest): Promise<ListWishlistResponse> {
     throw new NotImplementedError('collections.listWishlist');
+  }
+
+  async listPrompts(_input: ListPromptsRequest): Promise<ListPromptsResponse> {
+    throw new NotImplementedError('collections.listPrompts');
+  }
+
+  async listCollections(_input: ListCollectionsRequest): Promise<ListCollectionsResponse> {
+    throw new NotImplementedError('collections.listCollections');
   }
 }

@@ -15,3 +15,20 @@ export interface GetDeliveryHealthResponse {
   stuckPendingCount: number;
   latestDigest: { date: string; count: number; stuckPendingCount: number } | null;
 }
+
+// Read models found by the UI-state check (contracts.md §15.12)
+export interface GetTickHealthRequest { adminId: CuidId }
+export interface GetTickHealthResponse { lastTickStartedAt: IsoInstant | null; tickSilent: boolean; decision: ExplanationDTO }
+export interface ListDeliveriesRequest { adminId: CuidId; kind: 'failed' | 'stuck'; cursor: string | null }
+export interface DeliveryRowDTO {
+  eventId: CuidId;
+  eventType: string;
+  subscriber: Subscriber;
+  attempts: number;
+  lastErrorCode: string | null;
+  lastAttemptAt: IsoInstant | null;
+  firstFailedAt: IsoInstant | null;
+  lastFailedAt: IsoInstant | null;
+  createdAt: IsoInstant;
+}
+export interface ListDeliveriesResponse { rows: DeliveryRowDTO[]; nextCursor: string | null }

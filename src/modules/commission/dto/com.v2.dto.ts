@@ -68,3 +68,27 @@ export interface GetMyCommissionAccountResponse {
   ledger: LedgerLineDTO[];
   decision: ExplanationDTO;
 }
+
+// Read models found by the UI-state check (contracts.md §15.12)
+export interface TopUpRowDTO {
+  topUpRequestId: CuidId;
+  businessId: CuidId;
+  amountCop: Cop;
+  transferReference: string;
+  status: 'Pending' | 'Confirmed' | 'Rejected';
+  rejectionReason: string | null;
+  submittedAt: IsoInstant;
+  decidedAt: IsoInstant | null;
+}
+export interface ListTopUpQueueRequest { adminId: CuidId; cursor: string | null }
+export interface ListTopUpQueueResponse { rows: TopUpRowDTO[]; nextCursor: string | null }
+export interface ListMyTopUpsRequest { businessId: CuidId; cursor: string | null }
+export interface ListMyTopUpsResponse { rows: TopUpRowDTO[]; nextCursor: string | null }
+export interface GetTopUpProofUrlRequest { topUpRequestId: CuidId; actorId: CuidId }
+export interface GetTopUpProofUrlResponse { url: string; expiresAt: IsoInstant }
+export interface GetAccountLedgerRequest { adminId: CuidId; businessId: CuidId; trigger?: CommissionTrigger; cursor: string | null }
+export interface GetAccountLedgerResponse { balanceCop: number | null; state: AccountState | null; lines: LedgerLineDTO[]; nextCursor: string | null }
+export interface ListCommissionRatesRequest { adminId: CuidId }
+export interface ListCommissionRatesResponse { rates: { rateBps: number; effectiveFrom: IsoInstant; setBy: CuidId | null }[]; currentRateBps: number }
+export interface GetLastReconciliationRequest { adminId: CuidId }
+export interface GetLastReconciliationResponse { run: { runId: CuidId; scope: string; accountsChecked: number; discrepancies: DiscrepancyDTO[]; at: IsoInstant } | null }
