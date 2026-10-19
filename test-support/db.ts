@@ -5,9 +5,10 @@ import { afterAll, beforeAll, beforeEach, inject } from 'vitest';
 import type { QueryResult, Sql, TransactionRunner, Tx } from '../src/shared-kernel/ports.js';
 import { PG } from './env.js';
 
-/** The migration seed row that must survive every truncate (006_create_commission.sql). */
-const SEED_RATE = `INSERT INTO "CommissionRateSetting" (id, "rateBps", "effectiveFrom", "setBy", "setAt")
-  VALUES ('seedrate0000000000000001', 800, '1970-01-01T00:00:00Z', NULL, '1970-01-01T00:00:00Z')`;
+// Migration seed rows (for example the A-24 commission rate) must survive every truncate. They
+// are read from the freshly cloned template, whatever its schema, so one harness serves the
+// Solu-1 migrations and the Solu-2 schema alike.
+interface SeedRows { table: string; columns: string[]; rows: unknown[][] }
 
 let fileCounter = 0;
 
@@ -78,11 +79,21 @@ export function useTestDatabase(): TestDb {
       return out;
     };
     tables = (await pool.query(`SELECT tablename FROM pg_tables WHERE schemaname = 'public'`)).rows.map((r) => r.tablename as string);
+    for (const table of tables) {
+      const r = await pool.query({ text: `SELECT * FROM "${table}"`, rowMode: 'array' });
+      if (r.rows.length) seeds.push({ table, columns: r.fields.map((f) => f.name), rows: r.rows });
+    }
   });
+  const seeds: SeedRows[] = [];
 
   beforeEach(async () => {
     await handle.pool.query(`TRUNCATE ${tables.map((t) => `"${t}"`).join(', ')} RESTART IDENTITY CASCADE`);
-    await handle.pool.query(SEED_RATE);
+    for (const s of seeds) {
+      const cols = s.columns.map((c) => `"${c}"`).join(', ');
+      for (const row of s.rows) {
+        await handle.pool.query(`INSERT INTO "${s.table}" (${cols}) VALUES (${row.map((_, i) => `$${i + 1}`).join(', ')})`, row);
+      }
+    }
   });
 
   afterAll(async () => {
