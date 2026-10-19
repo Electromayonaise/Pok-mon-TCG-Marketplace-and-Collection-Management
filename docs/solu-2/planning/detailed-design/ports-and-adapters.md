@@ -25,7 +25,7 @@ Every component of the detailed design appears **exactly once** below, in exactl
 | # | Rule (statement §5) | Enforced by |
 |---|---|---|
 | 1 | `domain/` imports no web framework, DB driver, wall clock, random or network | `scripts/check-domain-purity.mjs` (`npm run gate:purity`): allowed imports are `shared-kernel/{types,errors,decision,codes}` and sibling domain files; `Date.now()`, a bare `new Date()`, `performance.now()`, `Math.random()`, crypto randomness, `fetch()` and SQL `now()` fail. It was verified to fail on a probe file |
-| 2 | Time and ids enter only through `Clock` and `IdGenerator` | Every `<Svc>V2Deps` carries `clock` and `ids`; each contract states "`Clock`, once" (contracts §0.3); the SQL has no `DEFAULT now()` and no id default (`001_tezg_schema.sql` header) |
+| 2 | Time and ids enter only through `Clock` and `IdGenerator` | Every `<Svc>V2Deps` carries `clock` and `ids`, and no raw `Sql` (R-14); each contract states "`Clock`, once" (contracts §0.3); the SQL has no `DEFAULT now()` and no id default (`001_tezg_schema.sql` header) |
 | 3 | Every external interaction is behind an outbound port with a simulated adapter | `src/shared-kernel/external.ts` declares the ports, `test-support/simulated/index.ts` implements them (§1), and the NFR-SYS-3 network guard (Phase 3 `db` fixture) fails any non-Postgres socket |
 | 4 | DTOs are primitive-typed | `*.v2.dto.ts` use only `string`, `number`, `boolean`, `null`, literal unions, arrays and inline objects over the `shared-kernel/types.ts` aliases. The generator's type parser rejects anything else (a class, `Date`, a generic other than `Record`), so `openapi.yaml` cannot be built from a non-primitive DTO |
 
@@ -36,11 +36,11 @@ Every component of the detailed design appears **exactly once** below, in exactl
 | `Clock` (`ports.ts`) | **Outbound Port** (time) | `shared-kernel/clock/system.ts`, the only file allowed to read the system clock | `VirtualClock` (`test-support/clock.ts`), seeded at `2026-10-01T15:00:00Z` |
 | `IdGenerator` (`ports.ts`) | **Outbound Port** (ids) | cuid2 | `SequentialIds` plus `id(name)` (`test-support/ids.ts`) |
 | `Sql`, `Tx`, `TransactionRunner` (`ports.ts`) | **Outbound Port** (persistence transport) | pg `Pool` (max 1) behind the Supabase pooler, with `db()` ambient-transaction resolution (AD-SYS-4 rule 9) | per-file Docker Postgres database (`test-support/db.ts`) |
-| `Outbox` (`ports.ts`) + `EventEnvelope` (`events.ts`) | **Outbound Port** (events) | `outbox.enqueue(tx, …)` into `OutboxEvent`/`EventDelivery` | `SqlOutboxV2` (envelope with `schemaVersion`) plus the `SubscriberFaults` fault injector |
+| `OutboxV2` + `EventEnvelope` (`events.ts`) | **Outbound Port** (events) | `outbox.enqueue(tx, type, aggregateId, payload)` into `OutboxEvent`/`EventDelivery`, returning the R-1 envelope (R-14, review S-1) | `SqlOutboxV2 implements OutboxV2`, plus the `SubscriberFaults` fault injector |
 | `AuditLog` (`audit.ts`) | **Outbound Port** (audit, R-2) | an insert into `audit_events` in the writer's transaction | `SqlAuditLog` (the same SQL on the test database) |
 | `ObjectStorage` (`external.ts`) | **Outbound Port** (external: Supabase Storage) | Supabase signed upload URLs; private buckets | `InMemoryObjectStorage`: refuses to sign `upload-quarantine` and records every signed read |
-| `MalwareScanner` (`external.ts`) | **Outbound Port** (external) | `StructuralScanner` [G-4] | `SimulatedScanner`: magic bytes, PDF names, image re-encode by end marker; `failAll` switch |
-| `CatalogFeedSource` (`external.ts`) | **Outbound Port** (external: the feed, OQ-9) | the fixture feed until OQ-9 names a source | `FixtureFeedSource` with the ADD-§8.3 switches `down`, `stale`, `malformedRows` |
+| `MalwareScanner` (`external.ts`) | **Outbound Port** (external) | `StructuralScanner` [G-4] | `SimulatedScanner`: magic bytes, PDF names, image re-encode by end marker, and a missing end marker rejected (review S-3); `failAll` switch |
+| `CatalogFeedSource` (`external.ts`) | **Outbound Port** (external: the feed, OQ-9) | the fixture feed until OQ-9 names a source | `FixtureFeedSource` over the ADD-§8 files `{ current, previous, defects, renamed }`, with the ADD-§8.3 switches `down`, `stale`, `malformedRows`, `renamedRows` (review S-2) |
 | `FxRateSource` (`external.ts`) | **Outbound Port** (external: datos.gov.co TRM) | HTTP adapter in `catalog/infra/` (the only `fetch`, lint `tezg/no-direct-io`) | `FixtureFxRateSource` with switches `down`, `mismatch` |
 | `TopUpConfirmationPort` (`external.ts`) | **Inbound Port** (a v2 webhook or the V1 admin action drives it) | the V1 admin action | `AdminTopUpConfirmation` (forwards to COM-2 and its reject mirror) |
 | `Decision`, `ExplanationDTO`, `ErrorBody` (`decision.ts`, `explanation.ts`) | **Core Domain** (shared value types) | — | — |
@@ -50,7 +50,7 @@ Every component of the detailed design appears **exactly once** below, in exactl
 
 ## 2. Per host module
 
-In every row, *file* is relative to `src/modules/<host>/`. Each **Driving Adapter** row names the tRPC procedures, subscribers or jobs, listed with their wire inputs in `openapi.yaml`. Each one calls exactly one inbound-port method, and the actor fields come from the session (`x-actor-fields-from-session`). The **Driven Adapter (Database)** of every module is its repository in `infra/pg.ts`, which touches only that module's section of `001_tezg_schema.sql` (AD-8).
+In every row, *file* is relative to `src/modules/<host>/`. Each **Driving Adapter** row names the tRPC procedures, subscribers or jobs, listed with their wire inputs in `openapi.yaml`. Each one calls exactly one inbound-port method, and the actor fields come from the session (`x-actor-fields-from-session`). Every module's application service reaches its own tables only through its **repository port** `<Svc>Repository` (`ports/<file>.v2.ts`, an Outbound Port; R-14, review A-4). The port is empty until each story adds the methods its contract's SQL needs. Its **Driven Adapter (Database)** is `infra/pg.ts`, which touches only that module's section of `001_tezg_schema.sql` (AD-8). No `application/*.v2.ts` imports `Sql`.
 
 ### 2.1 `identity` — IDN, VER (MSG-3 is offered here)
 

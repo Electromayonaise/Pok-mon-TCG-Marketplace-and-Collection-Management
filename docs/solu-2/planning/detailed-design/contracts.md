@@ -108,6 +108,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### Operation: `claimSellerTrack(tx: Tx, userId: CuidId, track: 'individual' | 'business'): Promise<{ claimed: 'individual' | 'business' }>`
 
+*DTOs:* `ClaimSellerTrackRequest` → `ClaimSellerTrackResponse` (`schemas/dto.ts`; review A-1).
+
 *IDN-1 · R, MEC · FR-IDN-2, FR-IDN-4, FR-VER-1 rule 1 · NFR-IDN-2. The first write of `access.completeIndividualProfile` (`'individual'`) and of `verification.submit` (`'business'`).*
 
 - **Layer:** Outbound Port (identity-internal; joins the caller's `tx`).
@@ -137,6 +139,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### Operation: `requireListingEligibility(userId: CuidId): Promise<{ listingKind: 'business' | 'individual'; verified: boolean; decision: Decision }>`
 
+*DTOs:* `RequireListingEligibilityRequest` → `RequireListingEligibilityResponse` (`schemas/dto.ts`; review A-1).
+
 *IDN-2 · E · FR-IDN-3, FR-IDN-1. Called by `listings` before `inventory.create`, `createBundle` and `reactivate`.*
 
 - **Layer:** Outbound Port.
@@ -161,6 +165,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Latency budget (NFR):** p95 ≤ 50 ms at N = 1 (NFR-IDN-1).
 
 ### Operation: `traceCapabilities(targetUserId: CuidId, adminId: CuidId, now: Instant): Promise<CapabilityTraceDTO>`
+
+*DTOs:* `TraceCapabilitiesRequest` → `TraceCapabilitiesResponse` (`schemas/dto.ts`; review A-1).
 
 *IDN-3 · E (audited) · FR-IDN-5, FR-IDN-1 · NFR-SYS-8. `access.traceCapabilities`, page 1.3.*
 
@@ -190,6 +196,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### Operation: `decideApplication(applicationId: CuidId, decision: { kind: 'approve' } | { kind: 'reject'; reasonCode: string; note: string | null }, adminId: CuidId, now: Instant): Promise<{ applicationId; status: 'Approved' | 'Rejected'; decidedAt: Instant; decidedBy: CuidId; decision: Decision }>`
 
+*DTOs:* `DecideApplicationRequest` → `DecideApplicationResponse` (`schemas/dto.ts`; review A-1).
+
 *VER-1 · R, MEC · FR-VER-3, FR-VER-4 · NFR-VER-1. `verification.approve` / `verification.reject`.*
 
 - **Layer:** Inbound Port.
@@ -216,6 +224,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Latency budget (NFR):** command p95 ≤ 800 ms at N = 1 (NFR-SYS-9).
 
 ### Operation: `submitApplication(input: SubmitApplicationInput, businessId: CuidId, now: Instant): Promise<{ applicationId: CuidId; status: 'Pending'; submittedAt: Instant; decision: Decision }>`
+
+*DTOs:* `SubmitApplicationRequest` → `SubmitApplicationResponse` (`schemas/dto.ts`; review A-1).
 
 *VER-2 · R, E · FR-VER-1, FR-VER-6, FR-IDN-4. `verification.submit`.*
 
@@ -258,6 +268,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### Operation: `getApplicationForReview(applicationId: CuidId, actorId: CuidId, now: Instant): Promise<ApplicationReviewDTO>`
 
+*DTOs:* `GetApplicationForReviewRequest` → `GetApplicationForReviewResponse` (`schemas/dto.ts`; review A-1).
+
 *VER-3 · E (audited) · FR-VER-5, FR-VER-2 · NFR-VER-2, NFR-VER-3. `verification.getApplicationForReview`, built from `authedProcedure` plus an in-body admin check, so that a non-admin denial is audited.*
 
 `ApplicationReviewDTO = { applicationId; businessId; businessName; city; externalPresenceUrl; submittedAt; status; legalIdentity: { type: 'NIT' | 'CC'; number: string }; documents: { url: string; expiresAt: Instant }[] }`. `legalIdentity` and `documents` are regulated, and this DTO is their only carrier.
@@ -286,6 +298,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### Operation: `startFeedRun(actorId: CuidId, now: Instant): Promise<{ runId: CuidId; startedAt: Instant }>`
 
+*DTOs:* `StartFeedRunRequest` → `StartFeedRunResponse` (`schemas/dto.ts`; review A-1).
+
 *CAT-1 · R · FR-CAT-3. `catalog.feed.start`. Contenders: two admins pressing "Iniciar" at once, or the scheduled run overlapping an admin start.*
 
 - **Layer:** Inbound Port.
@@ -306,6 +320,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Latency budget (NFR):** command p95 ≤ 800 ms at N = 1 (NFR-SYS-9). The whole run is bound by NFR-CAT-2 (10,000 rows ≤ 120 s).
 
 ### Operation: `upsertCatalogEntry(tx: Tx, row: ValidFeedRow, runId: CuidId, now: Instant): Promise<{ catalogEntryId: CuidId; outcome: 'created' | 'updated' | 'unchanged' | 'quarantinedKindChanged'; changedFields: string[] }>`
+
+*DTOs:* `UpsertCatalogEntryRequest` → `UpsertCatalogEntryResponse` (`schemas/dto.ts`; review A-1).
 
 *CAT-2 · R, MEC · FR-CAT-2, FR-CAT-4 · NFR-CAT-2. One row of a `catalog.feed.continue` batch transaction (AD-CAT-1 rule 3). MEC: a renamed or reprinted card keeps its id, and listings and binder entries stay untouched.*
 
@@ -333,11 +349,13 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Time:** `Clock`, once per batch transaction. The lease is `[now, now + 90 s)`.
 - **Latency budget (NFR):** 10,000 rows in ≤ 120 s in total (NFR-CAT-2), in batches of 500 per transaction.
 
-### Operation: `getPriceProvenance(catalogEntryIds: CuidId[], period: 7 | 30 | 90, now: Instant): Promise<PriceProvenanceDTO[]>`
+### Operation: `getPriceProvenance(catalogEntryIds: CuidId[], period: 7 | 30 | 90, now: Instant): Promise<GetPriceProvenanceResponse>`
+
+*DTOs:* `GetPriceProvenanceRequest` → `GetPriceProvenanceResponse` (`schemas/dto.ts`; review A-1).
 
 *CAT-3 · E · FR-CAT-5, FR-CAT-6, FR-CAT-7 · NFR-CAT-1, NFR-CAT-3. `catalog.provenance` (public) and the `catalog.getPriceProvenance` port (`listings` card detail, `collections` VAL).*
 
-`PriceProvenanceDTO = { catalogEntryId; lastTransactionReference: ReferencePriceDTO | null; trend: { period; referencePriceAtStart: ReferencePriceDTO | null; changePercentHundredths: number | null; decision: Decision }; freshness: 'fresh' | 'stale' | null; decision: Decision }`, where `ReferencePriceDTO = { usdCents: number | null; cop: Cop; observedAt: Instant; source: string; copDerivation: 'sourceNative' | 'fxDerived'; fxRateDate: string | null }`.
+`GetPriceProvenanceResponse = { items: PriceProvenanceDTO[] }`, with `PriceProvenanceDTO = { catalogEntryId; lastTransactionReference: ReferencePriceDTO | null; trend: { period; referencePriceAtStart: ReferencePriceDTO | null; changePercentHundredths: number | null; decision: Decision }; freshness: 'fresh' | 'stale' | null; decision: Decision }`, where `ReferencePriceDTO = { usdCents: number | null; cop: Cop; observedAt: Instant; source: string; copDerivation: 'sourceNative' | 'fxDerived'; fxRateDate: string | null }`.
 
 - **Layer:** Inbound Port and Outbound Port (one implementation).
 - **Precondition (P):**
@@ -369,6 +387,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### Operation: `assertSearchArea(area: { lat: number; lng: number; radiusKm: number }): void`
 
+*DTOs:* `AssertSearchAreaRequest` → `void` (`schemas/dto.ts`; review A-1).
+
 *DSC-3 · E · FR-DSC-1. Pure; it does no I/O.*
 
 - **Layer:** Core Domain.
@@ -391,6 +411,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Latency budget (NFR):** part of DSC-1's budget; no separate target.
 
 ### Operation: `search(input: SearchInput, now: Instant): Promise<{ results: SearchRow[]; excluded: { unusableLocation: number }; decision: Decision }>`
+
+*DTOs:* `SearchRequest` → `SearchResponse` (`schemas/dto.ts`; review A-1).
 
 *DSC-1 · E, repeat-safe read · FR-DSC-1..6 · NFR-DSC-1..3. `discovery.search`, `view=listings`. Concurrent writers: `reserveForPurchase` (availability to 0), listing hide (`hiddenAt`), the commission projection (`pausedAt`).*
 
@@ -426,7 +448,9 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Time:** `Clock`, once. `now` is used only for derived listing states.
 - **Latency budget (NFR):** p95 ≤ 1,000 ms at N = 1 with a 15 km area on the §3 seed, and p95 ≤ 1,500 ms on the 50,000-listing scale seed (NFR-DSC-1).
 
-### Operation: `getCardDetail(catalogEntryId: CuidId, area: { lat; lng; radiusKm } | null, now: Instant): Promise<CardDetailDTO>`
+### Operation: `getCardDetail(catalogEntryId: CuidId, area: { lat; lng; radiusKm } | null, now: Instant): Promise<GetCardDetailResponse>`
+
+*DTOs:* `GetCardDetailRequest` → `GetCardDetailResponse` (`schemas/dto.ts`; review A-1).
 
 *DSC-2 · MEC · FR-DSC-7, FR-CAT-6. `discovery.cardDetail`. MEC (Annex A):*
 - *with `radiusKm = 15`, a listing at 15.0002 km is excluded and one at exactly 15.0000 km is included;*
@@ -434,7 +458,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - *missing coordinates are counted;*
 - *an entry whose listings are all filtered out is still returned.*
 
-`CardDetailDTO = { entry: CatalogEntryDTO; provenance: PriceProvenanceDTO; listingPriceCop: Cop | null; hasActiveListings: boolean; listings: SearchRow[]; excluded: { unusableLocation: number } }`.
+`GetCardDetailResponse = { entry: CatalogEntryDTO; provenance: PriceProvenanceDTO; listingPriceCop: Cop | null; hasActiveListings: boolean; listings: SearchRow[]; excluded: { unusableLocation: number } }`.
 
 - **Layer:** Inbound Port.
 - **Precondition (P):**
@@ -465,6 +489,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### Operation: `reserveForPurchase(tx: Tx, listingId: CuidId, qty: number, buyerId: CuidId): Promise<{ reservationRef: ReservationRef; exhaustedListingIds: CuidId[]; snapshot: ListingSnapshot }>`
 
+*DTOs:* `ReserveForPurchaseRequest` → `ReserveForPurchaseResponse` (`schemas/dto.ts`; review A-1).
+
 *INV-1 · R, MEC · FR-INV-3, FR-INV-6 · NFR-INV-1..4. Called only by ORD-1 inside its transaction. MEC (NFR-INV-3): the caller aborts after a successful reserve, and the quantity is fully restored.*
 
 `ReservationRef = { listingId; units: { inventoryUnitId; qty }[] }`. `ListingSnapshot = { title; itemRef: CuidId | null; condition: Condition | null; unitPriceCop: Cop; components: { catalogEntryId; perBundleQty }[] | null }`.
@@ -492,6 +518,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Latency budget (NFR):** p95 ≤ 150 ms for a single listing, and ≤ 300 ms for a 20-component bundle, at N = 1 (NFR-INV-4).
 
 ### Operation: `createListing(input: CreateListingInput, sellerId: CuidId, now: Instant): Promise<{ listingId: CuidId; inventoryUnitId: CuidId; state: 'Active' | 'Unverified' | 'Paused'; availability: number; decision: Decision }>`
+
+*DTOs:* `CreateListingRequest` → `CreateListingResponse` (`schemas/dto.ts`; review A-1).
 
 *INV-2 · E · FR-INV-1, FR-INV-4, FR-INV-7 (fail-closed insert) · NFR-INV-4. `inventory.create`.*
 
@@ -529,6 +557,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### Operation: `applyCommissionProjection(tx: Tx, event: { type: 'CommissionBalanceExhausted' | 'CommissionBalanceReplenished'; businessId: CuidId; ledgerSeq: number; balanceAfter: number }, now: Instant): Promise<{ applied: boolean; listingsChanged: number }>`
 
+*DTOs:* `ApplyCommissionProjectionRequest` → `ApplyCommissionProjectionResponse` (`schemas/dto.ts`; review A-1).
+
 *INV-3 · R · FR-INV-7 · subscribers `listings.onCommissionBalanceExhausted` / `onCommissionBalanceReplenished` under the AD-SYS-2 rule 4 attempt procedure. Contenders: redelivery, the sweeper, a replay, and two events delivered out of order.*
 
 - **Layer:** Inbound Port (subscriber).
@@ -556,6 +586,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 ## 6. ORD — Order & Comprobante Confirmation (`orders`)
 
 ### Operation: `createOrder(listingId: CuidId, qty: number, buyerId: CuidId, now: Instant): Promise<{ orderId: CuidId; status: 'AwaitingPayment'; totalCop: Cop; paymentInstructions: PaymentInstructionsDTO; expiresAt: Instant; decision: Decision }>`
+
+*DTOs:* `CreateOrderRequest` → `CreateOrderResponse` (`schemas/dto.ts`; review A-1).
 
 *ORD-1 · R · FR-ORD-1 · NFR-ORD-2. `orders.create`. Contenders: the same buyer's concurrent purchases near the open-order limit; the last-unit race (INV-1); a crash after the reserve (INV-1 MEC).*
 
@@ -588,6 +620,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### Operation: `confirmPaid(orderId: CuidId, buyerId: CuidId, now: Instant): Promise<{ orderId; buyerPaidConfirmedAt: Instant; status: 'Paid'; decision: Decision }>`
 
+*DTOs:* `ConfirmPaidRequest` → `ConfirmPaidResponse` (`schemas/dto.ts`; review A-1).
+
 *ORD-2 · R, E · FR-ORD-3 · NFR-ORD-1 (the paid-versus-expiry race at `now = expiresAt`). `orders.confirmPaid`.*
 
 - **Layer:** Inbound Port.
@@ -612,6 +646,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Latency budget (NFR):** command p95 ≤ 800 ms at N = 1 (NFR-SYS-9).
 
 ### Operation: `confirmPaymentReceived(orderId: CuidId, businessId: CuidId, now: Instant): Promise<{ orderId; sellerReceivedConfirmedAt: Instant; status: 'PaymentConfirmed' | 'Closed'; decision: Decision }>`
+
+*DTOs:* `ConfirmPaymentReceivedRequest` → `ConfirmPaymentReceivedResponse` (`schemas/dto.ts`; review A-1).
 
 *ORD-3 · MEC · FR-ORD-4 · NFR-ORD-1. `orders.confirmPaymentReceived`. MEC: the business confirms before the buyer's "paid", or before any comprobante, and the confirmation is refused; a double confirmation is idempotent and publishes once.*
 
@@ -639,6 +675,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Latency budget (NFR):** command p95 ≤ 800 ms at N = 1 (NFR-SYS-9).
 
 ### Operation: `confirmItemReceived(orderId: CuidId, buyerId: CuidId, now: Instant): Promise<{ orderId; buyerItemReceivedConfirmedAt: Instant; status: 'Closed'; decision: Decision }>`
+
+*DTOs:* `ConfirmItemReceivedRequest` → `ConfirmItemReceivedResponse` (`schemas/dto.ts`; review A-1).
 
 *ORD-4 · MEC · FR-ORD-5 · NFR-ORD-1. `orders.confirmItemReceived`. MEC: the item confirmed before "paid" is refused as out of order; repeated is idempotent.*
 
@@ -670,6 +708,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 ## 7. COM — Commission Ledger & Purchasability (`commission`)
 
 ### Operation: `applyOrderDeduction(tx: Tx, event: { type: 'OrderPaymentConfirmedByBusiness' | 'OrderClosed'; orderId; businessId; totalCop: Cop; sellerReceivedConfirmedAt: Instant | null; buyerItemReceivedConfirmedAt: Instant | null }, now: Instant): Promise<{ outcome: 'charged'; amountCop: Cop; balanceAfter: SignedCop; ledgerSeq: number; crossing: 'exhausted' | null } | { outcome: 'duplicate' }>`
+
+*DTOs:* `ApplyOrderDeductionRequest` → `ApplyOrderDeductionResponse` (`schemas/dto.ts`; review A-1).
 
 *COM-1 · R, MEC · FR-COM-4, FR-COM-5, FR-COM-6 · NFR-COM-1..4. Subscribers `onOrderPaymentConfirmedByBusiness` and `onOrderClosed`, in the delivery's handler transaction. MEC (NFR-COM-1): two orders owing 3,600 each, confirmed at one instant against a balance of 5,000, plus a duplicate delivery → each order charged once, final balance −2,200, `Exhausted` published once.*
 
@@ -703,6 +743,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### Operation: `confirmTopUp(topUpRequestId: CuidId, adminId: CuidId, now: Instant): Promise<{ topUpRequestId; status: 'Confirmed'; balanceAfter: SignedCop; ledgerSeq: number; resumed: boolean; neededToResumeCop: Cop | null; decision: Decision }>`
 
+*DTOs:* `ConfirmTopUpRequest` → `ConfirmTopUpResponse` (`schemas/dto.ts`; review A-1).
+
 *COM-2 · R · FR-COM-3, FR-COM-6 · NFR-COM-3. `commission.admin.confirmTopUp`, the V1 adapter of `TopUpConfirmationPort` (AD-COM-3 rule 1). Contenders: two admins, a double click, a later v2 webhook calling the same command.*
 
 - **Layer:** Inbound Port.
@@ -729,6 +771,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Latency budget (NFR):** p95 ≤ 800 ms at N = 1 (NFR-COM-3).
 
 ### Operation: `reconcile(businessId: CuidId | null, actor: { kind: 'admin'; adminId: CuidId } | { kind: 'job' }, now: Instant): Promise<{ runId: CuidId; accountsChecked: number; discrepancies: Discrepancy[]; decision: Decision } | { skipped: 'runInProgress' }>`
+
+*DTOs:* `ReconcileRequest` → `ReconcileResponse` (`schemas/dto.ts`; review A-1).
 
 *COM-3 · E · FR-COM-8 · NFR-COM-2. `commission.reconcile` (page 7.4, admin) and the `commission-reconcile` job (`daily-night`).*
 
@@ -759,6 +803,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 ## 8. TRD — Trade Offer Negotiation (`trading`)
 
 ### Operation: `acceptOffer(offerId: CuidId, expectedVersion: number, sellerId: CuidId, now: Instant): Promise<{ offerId; status: 'Accepted'; reservationRef: ReservationRef; unfulfillableOfferIds: CuidId[]; handoff: ContactMessageDTO | null; decision: Decision }>`
+
+*DTOs:* `AcceptOfferRequest` → `AcceptOfferResponse` (`schemas/dto.ts`; review A-1).
 
 *TRD-1 · R, MEC · FR-TRD-4, FR-TRD-5, FR-TRD-6 · NFR-TRD-1..3. `trading.accept`. MEC (NFR-TRD-1): two `Open` offers for the last unit, accepted from two sessions at once → one `Accepted` and one `Unfulfillable`.*
 
@@ -795,6 +841,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### Operation: `counterOffer(offerId: CuidId, terms: TradeTerms, expectedVersion: number, actorId: CuidId, now: Instant): Promise<{ offerId; version: number; turn: 'proposer' | 'seller'; roundCount: number; decision: Decision }>`
 
+*DTOs:* `CounterOfferRequest` → `CounterOfferResponse` (`schemas/dto.ts`; review A-1).
+
 *TRD-2 · R, E · FR-TRD-2, FR-TRD-1 (term validation) · EC-11, G-1. `trading.counter`.*
 
 `TradeTerms = { offeredItems: { itemRef: CuidId; condition: Condition; qty: 1..4 }[] (0–10); cashCop: Cop (0–100,000,000); requestedQty: 1 }`.
@@ -825,6 +873,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### Operation: `cancelTrade(offerId: CuidId, actorId: CuidId, now: Instant): Promise<{ offerId; status: 'Cancelled'; cancelledBy: CuidId; decision: Decision }>`
 
+*DTOs:* `CancelTradeRequest` → `CancelTradeResponse` (`schemas/dto.ts`; review A-1).
+
 *TRD-3 · R · FR-TRD-8. `trading.cancel`: an `Accepted` trade cancelled before either party confirms completion. The R slot is "release exactly once" under a double submit.*
 
 - **Layer:** Inbound Port.
@@ -849,6 +899,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 ## 9. MSG — Contact Handoff & In-App Business Messaging (`listings` contact, `messaging` in-app)
 
 ### Operation: `sendMessage(target: { recipientId: CuidId } | { conversationId: CuidId }, body: string, clientMessageId: string, senderId: CuidId, now: Instant): Promise<{ conversationId; messageId; seq: number; decision: Decision }>`
+
+*DTOs:* `SendMessageRequest` → `SendMessageResponse` (`schemas/dto.ts`; review A-1).
 
 *MSG-1 · R · FR-MSG-5, FR-MSG-6 · NFR-MSG-2. `messaging.send`. Contenders: a network retry with the same `clientMessageId`; two first messages that both start a conversation; concurrent sends in one conversation.*
 
@@ -879,6 +931,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Latency budget (NFR):** send p95 ≤ 500 ms at N = 1 (NFR-MSG-2).
 
 ### Operation: `generateContactMessage(input: { kind: 'purchase' | 'trade'; listingId: CuidId; requesterId: CuidId; tradeSummary: TradeSummary | null }, ipHmac: string | null, now: Instant): Promise<ContactMessageDTO>`
+
+*DTOs:* `GenerateContactMessageRequest` → `GenerateContactMessageResponse` (`schemas/dto.ts`; review A-1).
 
 *MSG-2 · E, MEC · FR-MSG-1, FR-MSG-2, FR-MSG-3, FR-TRD-6 · NFR-MSG-1, NFR-MSG-3, NFR-MSG-4. `inventory.contact` (`kind='purchase'`), and the `listings.generateContactMessage` port called by TRD-1 (`kind='trade'`). MEC: long, accented and emoji names; URL-like text; prices from 1,000 to 100,000,000.*
 
@@ -917,6 +971,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### Operation: `requireMessagingEligibility(businessId: CuidId): Promise<{ status: 'Approved' | 'Pending'; verified: boolean; decision: Decision }>`
 
+*DTOs:* `RequireMessagingEligibilityRequest` → `RequireMessagingEligibilityResponse` (`schemas/dto.ts`; review A-1).
+
 *MSG-3 · E, MEC · FR-MSG-4, FR-MSG-6, FR-IDN-6 · NFR-MSG-4 (compose → send race). The throwing projection of `identity.getMessagingEligibility`, so that only `identity` constructs `NotBusinessAccount` (Solu-1 review F-02). MEC: the verified state changes between compose and send.*
 
 - **Layer:** Outbound Port (offered by `identity`, consumed by `messaging`).
@@ -942,6 +998,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 ## 10. COL — Collection, Binder & Wishlist Manager (`collections`)
 
 ### Operation: `acceptPrompt(promptId: CuidId, collectionId: CuidId, actorId: CuidId, now: Instant): Promise<{ promptId; status: 'Accepted'; entryIds: CuidId[]; decision: Decision }>`
+
+*DTOs:* `AcceptPromptRequest` → `AcceptPromptResponse` (`schemas/dto.ts`; review A-1).
 
 *COL-1 · R, MEC · FR-COL-7 · NFR-COL-1. `collections.prompts.accept`. MEC: `OrderClosed` is delivered twice, then the prompt is accepted twice at once → one prompt and one entry set.*
 
@@ -971,6 +1029,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### Operation: `onOrderClosed(tx: Tx, event: OrderClosedPayload, now: Instant): Promise<{ created: boolean; promptId: CuidId }>`
 
+*DTOs:* `OnOrderClosedRequest` → `OnOrderClosedResponse` (`schemas/dto.ts`; review A-1).
+
 *COL-2 · R · FR-COL-7 · NFR-COL-1 (first half). The subscriber `collections.onOrderClosed` under the AD-SYS-2 attempt procedure. Contenders: redelivery, the sweeper, a replay.*
 
 - **Layer:** Inbound Port (subscriber).
@@ -991,6 +1051,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Latency budget (NFR):** command p95 ≤ 800 ms at N = 1 (NFR-SYS-9).
 
 ### Operation: `addEntry(input: { collectionId: CuidId | null; catalogEntryId: CuidId; qty: number; acquiredAt: string /* YYYY-MM-DD */; acquiredPriceCop: Cop | null }, ownerId: CuidId, now: Instant): Promise<{ entryId; collectionId; createdGeneral: boolean; decision: Decision }>`
+
+*DTOs:* `AddEntryRequest` → `AddEntryResponse` (`schemas/dto.ts`; review A-1).
 
 *COL-3 · E · FR-COL-2, FR-COL-1 (first use creates "General") · EC-07, EC-08. `collections.addEntry`.*
 
@@ -1018,11 +1080,13 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ## 11. VAL — Collection Valuation & Trends (`collections`, no tables)
 
-### Operation: `valueCollection(collectionId: CuidId, actorId: CuidId, now: Instant): Promise<ValuationDTO>`
+### Operation: `valueCollection(collectionId: CuidId, actorId: CuidId, now: Instant): Promise<ValueCollectionResponse>`
+
+*DTOs:* `ValueCollectionRequest` → `ValueCollectionResponse` (`schemas/dto.ts`; review A-1).
 
 *VAL-1 · MEC · FR-VAL-1, FR-VAL-3, FR-VAL-5 · NFR-VAL-1..3. `valuation.current`. MEC: a zero baseline, and rounding drift over 500 entries.*
 
-`ValuationDTO = { totalCop: Cop; valuedCount: number; notValued: { entryId; reasonCode: 'ExternalEntryNotInCatalog' | 'NoReferencePrice' }[]; staleCount: number; asOf: Instant; conversionDriftBoundCop: Cop; decision: Decision }`.
+`ValueCollectionResponse = { totalCop: Cop; valuedCount: number; notValued: { entryId; reasonCode: 'ExternalEntryNotInCatalog' | 'NoReferencePrice' }[]; staleCount: number; asOf: Instant; conversionDriftBoundCop: Cop; decision: Decision }`.
 
 - **Layer:** Inbound Port.
 - **Precondition (P):**
@@ -1044,6 +1108,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Latency budget (NFR):** current value plus the 30-day trend for 500 entries, p95 ≤ 1,500 ms at N = 1 (NFR-VAL-2).
 
 ### Operation: `valuationTrend(collectionId: CuidId, period: 7 | 30 | 90 | 365, actorId: CuidId, now: Instant): Promise<ValuationTrendDTO>`
+
+*DTOs:* `ValuationTrendRequest` → `ValuationTrendResponse` (`schemas/dto.ts`; review A-1).
 
 *VAL-2 · E · FR-VAL-2 · NFR-VAL-1 (zero baseline), NFR-VAL-3. `valuation.trend`.*
 
@@ -1070,6 +1136,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Latency budget (NFR):** part of NFR-VAL-2: current plus the 30-day trend over 500 entries, p95 ≤ 1,500 ms at N = 1.
 
 ### Operation: `valuationHistory(collectionId: CuidId, days: number, actorId: CuidId, now: Instant): Promise<ValuationHistoryDTO>`
+
+*DTOs:* `ValuationHistoryRequest` → `ValuationHistoryResponse` (`schemas/dto.ts`; review A-1).
 
 *VAL-3 · E · FR-VAL-4 · NFR-VAL-2. `valuation.history`.*
 
@@ -1101,6 +1169,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### Operation: `writeReview(input: { targetUserId: CuidId; rating: 1 | 2 | 3 | 4 | 5; text: string (0–1000) }, reviewerId: CuidId, now: Instant): Promise<{ reviewId; targetKind: 'business' | 'individual'; purchaseVerified: boolean; decision: Decision }>`
 
+*DTOs:* `WriteReviewRequest` → `WriteReviewResponse` (`schemas/dto.ts`; review A-1).
+
 *REP-1 · R, E · FR-REP-1, FR-REP-2 · NFR-REP-1 (paid but not closed). `reputation.write`.*
 
 - **Layer:** Inbound Port.
@@ -1124,7 +1194,9 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Time:** `Clock`, once.
 - **Latency budget (NFR):** command p95 ≤ 800 ms at N = 1 (NFR-SYS-9).
 
-### Operation: `hideReview(reviewId: CuidId, reasonCode: 'Harassment' | 'PersonalData' | 'Spam' | 'OffTopic' | 'Other', note: string | null, adminId: CuidId, now: Instant): Promise<Decision>`
+### Operation: `hideReview(reviewId: CuidId, reasonCode: 'Harassment' | 'PersonalData' | 'Spam' | 'OffTopic' | 'Other', note: string | null, adminId: CuidId, now: Instant): Promise<HideReviewResponse>`
+
+*DTOs:* `HideReviewRequest` → `HideReviewResponse` (`schemas/dto.ts`; review A-1).
 
 *REP-2 · R · FR-REP-4 · NFR-REP-1 (hide racing a post), NFR-REP-2. `reputation.admin.hide`.*
 
@@ -1135,7 +1207,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - P3 The review exists. Violation: `ReviewNotFound` (HTTP 404, reviews).
 - **Postcondition (Q):**
   - Q1 `UPDATE "Review" SET "hiddenAt"=:now, "hiddenReason"=:reasonCode, "hiddenBy"=:adminId, "updatedAt"=:now, version=version+1 WHERE id AND "hiddenAt" IS NULL RETURNING rating, text`.
-  - Q2 On 1 row: one `"ReviewModerationLog" { reviewId, action: 'hide', reasonCode, note, adminId, ratingSnapshot, textSnapshot, createdAt: now }`. Returns `Decision { outcome: 'hidden', … }`.
+  - Q2 On 1 row: one `"ReviewModerationLog" { reviewId, action: 'hide', reasonCode, note, adminId, ratingSnapshot, textSnapshot, createdAt: now }`. Returns `HideReviewResponse = { decision: { outcome: 'hidden', … } }`.
   - Q3 Audit: `audit('reviews.review.hidden', Review:id)`, `actorKind='admin'`. No event.
   - Q4 The decision cites `{ rule: 'FR-REP-4', inputs: { reviewId, reasonCode } }`.
   - Q-fail On 0 rows, already hidden → an explained no-op: `Decision { outcome: 'allowedWithNotice', citations: [{ rule: 'FR-REP-4', inputs: { hiddenAt, hiddenBy } }] }`, with zero writes. An unknown id → `ReviewNotFound`.
@@ -1147,7 +1219,9 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Time:** `Clock`, once. The hide takes effect on the very next read (0 s cache, NFR-REP-2).
 - **Latency budget (NFR):** command p95 ≤ 800 ms at N = 1 (NFR-SYS-9).
 
-### Operation: `getAggregates(sellerIds: CuidId[]): Promise<{ sellerId; averageTenths: number | null; count: number; decision: Decision }[]>`
+### Operation: `getAggregates(sellerIds: CuidId[]): Promise<GetAggregatesResponse>`
+
+*DTOs:* `GetAggregatesRequest` → `GetAggregatesResponse` (`schemas/dto.ts`; review A-1).
 
 *REP-3 · MEC · FR-REP-3 · NFR-REP-1 (aggregate consistency), NFR-REP-2. The `reviews.getAggregates` port, composed by the RSC on pages 2.2 and 3.1. MEC: a hide and a new post on one target run concurrently, and every later read counts exactly the visible committed reviews.*
 
@@ -1364,7 +1438,7 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *Tests:* `[S-FR-IDN-6.h]` approving a business changes `getSellerKinds` on the next call; `[S-FR-IDN-6.f]` an individual seller as recipient → `NotBusinessAccount`.
 - **S-FR-IDN-7 — Authentication and admin gating** (procedure builders, Better Auth hooks). Inbound Port.
   - *P:* a session; for admin procedures, `isAdmin`; for sign-in, below the throttle.
-  - *Q:* `actor = { userId }` from the session. A failed sign-in inserts one `"AuthThrottleEvent"` (scope, `ipHmac` or account key).
+  - *Q:* `actor = { userId }` from the session. A failed sign-in inserts one `"AuthThrottleEvent"` (scope, `ipHmac` or account key). Better Auth runs with `advanced.ipAddress.disableIpTracking = true`, so `"Session"` has no IP column (S-7; refinement R-12, review A-5).
   - *Errors:* `NotAuthenticated` (HTTP 401, identity), `AdminOnly` (HTTP 403, identity), `AuthRateLimited` (HTTP 429, identity), `EmailNotVerified` (HTTP 403, identity).
   - *I:* AD-16, AD-IDN-3, AD-SYS-8 rules 1–2.
   - *Tests:* `[S-FR-IDN-7.h]` an admin passes `adminProcedure`; `[S-FR-IDN-7.f]` the 11th failed sign-in in 15 min → `AuthRateLimited` citing `retryAt`.

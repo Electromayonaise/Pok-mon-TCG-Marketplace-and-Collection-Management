@@ -38,6 +38,9 @@ Each row cites the review finding and the decision-log entry. The detailed desig
 | R-9 | The ingress wire is tRPC 11's non-batched HTTP: `GET /api/trpc/{path}?input=` for queries, `POST /api/trpc/{path}` for mutations. Errors return `{ error: ErrorBody }`, with `ErrorBody = { code, httpStatus, decision, issues? }` | AD-SYS-1 (error formatter) | G-02, G-03; Solu-2 #6 |
 | R-10 | Three new DomainErrors: `AccountNotFound` (identity, `NOT_FOUND`) for an unknown capability-trace target; `InvalidAcquiredDate` (collections, `BAD_REQUEST`) for a future `acquiredAt`, which the parser cannot judge without the `Clock`; `CommissionAccountNotOpen` (R-7) | AD-SYS-1 (registry), ARCHITECTURE §8.1 | C-GAP-1..3; Solu-2 #8 |
 | R-11 | A business calling `messaging.setMuted` gets an explained no-op (`allowedWithNotice`, zero writes), so user input never reaches the buyer-only mute CHECK | AD-MSG-3 rule 2 | C-GAP-4; Solu-2 #8 |
+| R-12 | Better Auth runs with `advanced.ipAddress.disableIpTracking = true`; `Session` has no IP column, and IPs exist only as `ipHmac` (S-7) | AD-SYS-8; ARCH §10 S-7 | review A-5; Solu-2 #9 |
+| R-13 | An audited read is a state change: `access.traceCapabilities` and `verification.getApplicationForReview` are mutations (POST), so no prefetch can write an access row | AD-IDN-1 rule 5, AD-VER-2 rule 2 | review A-3; Solu-2 #9 |
+| R-14 | Application services reach their tables only through the module's repository port (`<Svc>Repository`, implemented by `infra/pg.ts`), never a raw `Sql`. Events go through `OutboxV2`, which stamps the R-1 envelope | Plan-2 §3 (module shape), AD-8, AD-SYS-2 | reviews A-4, S-1; Solu-2 #9 |
 
 ## Detailed-design links
 
