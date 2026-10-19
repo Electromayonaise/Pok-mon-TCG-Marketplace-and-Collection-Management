@@ -1,6 +1,6 @@
 ---
 title: "TEZG Architecture v2 — Solu-2 delta over Plan-2"
-status: draft
+status: approved — Solu-2 complete (tag solu2-ready)
 base: docs/plan-2/planning/ARCHITECTURE.md
 created: 2026-10-18
 phase: "Solu-2 Phase 0 (stack); links completed in Phase 5"
@@ -41,7 +41,27 @@ Each row cites the review finding and the decision-log entry. The detailed desig
 | R-12 | Better Auth runs with `advanced.ipAddress.disableIpTracking = true`; `Session` has no IP column, and IPs exist only as `ipHmac` (S-7) | AD-SYS-8; ARCH §10 S-7 | review A-5; Solu-2 #9 |
 | R-13 | An audited read is a state change: `access.traceCapabilities` and `verification.getApplicationForReview` are mutations (POST), so no prefetch can write an access row | AD-IDN-1 rule 5, AD-VER-2 rule 2 | review A-3; Solu-2 #9 |
 | R-14 | Application services reach their tables only through the module's repository port (`<Svc>Repository`, implemented by `infra/pg.ts`), never a raw `Sql`. Events go through `OutboxV2`, which stamps the R-1 envelope | Plan-2 §3 (module shape), AD-8, AD-SYS-2 | reviews A-4, S-1; Solu-2 #9 |
+| R-15 | `listings` re-offers catalog's item-ref answer under its own DTO names (`ItemRefsRequest` / `ItemRefsResponse`, P-INV.refs). The generated `trading` port imports only from `listings`, never `catalog` | AD-1, OQ-6, AD-TRD-3 rule 5 | fitness `[SYS-AD1]` caught the generated `trading → catalog` import; commit `660268c` |
+| R-16 | No procedure input has a key named `role`, `roles`, `sellerKind`, `isAdmin` or `capabilities`, even as a filter. `trading.mine` filters with `side: sent | received | any` | AD-SYS-8 rule 2, NFR-IDN-3 | fitness `[SYS-8.R2.static]`; commit `de8535d` |
+| R-17 | The walking skeleton's platform contracts:<ul><li>`raiserFor(module)` is a runtime owner guard beside the lint rule `tezg/error-owner`; a non-owner raise fails as `'Unexpected'`.</li><li>`toErrorBody(error, now)` is the one formatter.</li><li>The dispatcher takes `{ transactions, clock }`, its handlers receive `(tx, envelope)`, and `replay` runs one `failed` delivery in its claim transaction.</li><li>`REGULATED_FIELDS` in `shared-kernel/regulated.ts` keys the redactor.</li></ul> | AD-SYS-1 rule 2, AD-SYS-2 rules 4–7, AD-SYS-8 rules 3–4 | Phase 3 SYS suite (`sys_contracts.test.ts`); Epic 1 |
 
 ## Detailed-design links
 
-*Phase 5.*
+Everything below implements the ADs of the base document and the refinements above. `docs/solu-2.md` maps every deliverable and says how to run it.
+
+| Concern | Artifact |
+|---|---|
+| Contracts: 37 core operations, 39 supporting contracts, offered ports, read models, the typed error catalog (§13) and the AD → enforcement → red test binding (§14) | [`detailed-design/contracts.md`](detailed-design/contracts.md) |
+| Hexagonal map: every component once, layer-tagged | [`detailed-design/ports-and-adapters.md`](detailed-design/ports-and-adapters.md) |
+| Schema: 55 tables, 271 CHECKs, grants (R-2, R-3, R-8) | [`detailed-design/schemas/001_tezg_schema.sql`](detailed-design/schemas/001_tezg_schema.sql) |
+| Operation registry, the single source for the OpenAPI, the DTO index, the stubs and the ports | [`detailed-design/schemas/operations.json`](detailed-design/schemas/operations.json) → [`openapi.yaml`](detailed-design/schemas/openapi.yaml), [`dto.ts`](detailed-design/schemas/dto.ts) |
+| Events and the R-1 envelope | [`detailed-design/schemas/events.md`](detailed-design/schemas/events.md); `src/shared-kernel/events.ts` |
+| UI states → contracts and DTOs | [`detailed-design/ui-states.md`](detailed-design/ui-states.md) |
+| Interface stubs (no production logic) | `src/modules/*/application/*.v2.ts`, `ports/*.v2.ts`, `dto/*.v2.dto.ts`; `src/shared-kernel/`; `src/server/trpc/` |
+| Risk-based test design, NFR evidence, fixtures | [`../test/test-design.md`](../test/test-design.md), [`../test/nfr-evidence.md`](../test/nfr-evidence.md), [`../test/fixtures/README.md`](../test/fixtures/README.md) |
+| Red ATDD suites, green fitness functions, red NFR benchmarks | `../test/atdd/`, `../test/fitness/`, `../test/nfr/` |
+| Traceability (FR/NFR → AD → clause → test → story) | [`../test/traceability-matrix.md`](../test/traceability-matrix.md) |
+| Backlog: walking skeleton plus 12 module epics; readiness gate; sprint status | [`epics.md`](epics.md), [`readiness-gate-report.md`](readiness-gate-report.md), [`../implementation-artifacts/sprint-status.yaml`](../implementation-artifacts/sprint-status.yaml) |
+| Reviews (all triaged) | [`../reviews/`](../reviews/): implementability, detailed design, test quality, backlog |
+| Decisions | [`../ai-log/decision-log-solu2.md`](../ai-log/decision-log-solu2.md) |
+| Quality gate | `.github/workflows/solu2-quality-gate.yml` (mirror: [`../test/ci/quality-gate.yml`](../test/ci/quality-gate.yml)); locally `npm run gate:solu2` |

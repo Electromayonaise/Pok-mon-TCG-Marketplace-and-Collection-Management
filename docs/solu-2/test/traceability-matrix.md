@@ -19,6 +19,9 @@
 | FRs traced to a contract clause and a test | 96 / 96 |
 | ADs of §14 with a test that turns red on violation | 61 / 61 |
 | P0 risks with a red test | 15 / 15 |
+| P0 risks linked to a story and a red test (final trace) | 15 / 15 |
+| §14 ADs linked to a story and a red test | 61 / 61 |
+| FRs linked to a story | 96 / 96 |
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |

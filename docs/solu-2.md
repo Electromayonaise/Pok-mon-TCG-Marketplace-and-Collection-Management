@@ -71,10 +71,10 @@ Documents live under `docs/solu-2/`. Code-shaped artifacts — interface stubs, 
 
 | Deliverable | Path | How to reach / run | Status |
 |---|---|---|---|
-| ARCHITECTURE v2 (a delta over Plan-2: refinements R-n, then links to the detailed design) | `docs/solu-2/planning/ARCHITECTURE.md` | read | 🟡 |
-| AI decision log (≥ 6 entries, ≥ 2 rejections, pair attribution) | `docs/solu-2/ai-log/decision-log-solu2.md` | read | 🟡 |
-| Final traceability run | `docs/solu-2/test/traceability-matrix.md` | read | ⬜ |
-| Repository tag | `solu2-ready` | `git show solu2-ready` | ⬜ |
+| ARCHITECTURE v2 (a delta over Plan-2: refinements R-n, then links to the detailed design) | `docs/solu-2/planning/ARCHITECTURE.md`: stack, refinements R-1..R-17, a links table to every Solu-2 artifact | read | ✅ |
+| AI decision log (≥ 6 entries, ≥ 2 rejections, pair attribution) | `docs/solu-2/ai-log/decision-log-solu2.md`: 13 entries; `[REJECTED]` in #1, #9 and #13; Martín's decisions in #10 and #11 | read | ✅ |
+| Final traceability run (100 % of P0 linked to a story and a red test) | `docs/solu-2/test/traceability-matrix.md` §1: P0 15/15, ADs 61/61, FRs 96/96 linked to a story and a red test | `npm run gate:trace:solu2` | ✅ |
+| Repository tag | `solu2-ready` (annotated, on the commit that closes Phase 5) | `git show solu2-ready`; pushed with `git push origin solu2-ready` | ✅ |
 
 ## Tooling shared with Solu-1
 

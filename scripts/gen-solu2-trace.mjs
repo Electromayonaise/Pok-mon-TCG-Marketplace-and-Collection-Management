@@ -186,6 +186,11 @@ P('|---|---|');
 P(`| FRs traced to a contract clause and a test | ${frRows.filter((r) => r.us.length && r.ts.length).length} / ${frs.length} |`);
 P(`| ADs of §14 with a test that turns red on violation | ${adRows.filter((r) => r.tests.length && r.tests.every((t) => tests.has(t))).length} / ${adRows.length} |`);
 P(`| P0 risks with a red test | ${risks.filter((r) => r.priority === 'P0' && r.tests.length).length} / ${risks.filter((r) => r.priority === 'P0').length} |`);
+if (fs.existsSync(EPICS)) {
+  P(`| P0 risks linked to a story and a red test (final trace) | ${risks.filter((r) => r.priority === 'P0' && r.tests.length && stories(...r.tests).length).length} / ${risks.filter((r) => r.priority === 'P0').length} |`);
+  P(`| §14 ADs linked to a story and a red test | ${adRows.filter((r) => r.tests.length && stories(...r.tests).length).length} / ${adRows.length} |`);
+  P(`| FRs linked to a story | ${frRows.filter(({ fr }) => stories(fr.id).length).length} / ${frs.length} |`);
+}
 P(`| MEC modules with a P0 risk and a MEC test | ${mecModules.length - problems.filter((p) => p.endsWith('no P0 risk with a MEC test')).length} / ${mecModules.length} |`);
 P(`| NFRs with an evidence row (nfr-evidence.md) | ${nfrRows.filter((r) => r.ev).length} / ${nfrs.length} |`);
 P(`| NFRs with a test today | ${nfrRows.filter((r) => r.ts.length).length} / ${nfrs.length} |`);
