@@ -1,0 +1,647 @@
+// Source of docs/solu-2/planning/epics.md (bmad-create-epics-and-stories, Phase 4; decision log
+// Solu-2 #4, #12). Per story: title, kind, description, the registry operations (`ops`) and
+// red test ids (`tests`) it binds, extra contract clauses it implements without owning a
+// registry id (`contracts`), dependencies on earlier stories, and its Gherkin. Every other field
+// (Traceability, Binding invariants, Files, Schema/DTO, ATDD path, DoD) is derived by
+// scripts/gen-solu2-epics.mjs from the contracts, the registry, the schema and the tests.
+// Each registry operation and each test id belongs to exactly one story; the generator refuses
+// a gap, a double binding or a forward dependency.
+
+const sk = (path, symbols = []) => ({ path, symbols });
+
+export default {
+  inputs: [
+    'docs/plan-2/planning/prd.md',
+    'docs/plan-2/planning/addendum.md',
+    'docs/plan-2/planning/ARCHITECTURE.md',
+    'docs/solu-2/planning/ARCHITECTURE.md',
+    'docs/solu-2/planning/detailed-design/contracts.md',
+    'docs/solu-2/planning/detailed-design/schemas/operations.json',
+    'docs/solu-2/planning/detailed-design/schemas/ui-states.json',
+    'docs/solu-2/test/test-design.md',
+    'docs/solu-2/test/nfr-evidence.md',
+    '_bmad-output/project-context.md',
+  ],
+  overview: [
+    'This backlog turns the Solu-2 detailed design into stories a developer agent can implement without inventing a decision. Epic 1 is a cross-module walking skeleton: the error body, the audit trail and redactor, the outbox, the determinism boundary and the admin event panel. Every later story stands on it. Epics 2–13 are one vertical epic per module, ordered so that every dependency points backward (decision log Solu-2 #12): IDN, VER, CAT, INV, DSC, ORD, COM, MSG, TRD, COL, VAL, REP. MSG precedes TRD because TRD-1\'s accept calls the contact handoff (MSG-2, hosted in `listings`); AD-1 has no edge between `trading` and `messaging`, so this follows the dependency graph.',
+    'Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which owns the Annex A edge case and its P0 risk. At least two are **failure-state** stories, which own refusals, out-of-order or concurrent failures, and their explanations. A **core** story owns a module\'s main success path; a **supporting** story owns the §15 contracts, offered ports and read models. Every registry operation (`operations.json`) and every red test id belongs to exactly one story, so "story done" means a precise set of tests turns green.',
+    'Event subscribers never depend on their publisher\'s story. Payloads are shared-kernel types (AD-9), and each subscriber\'s tests deliver the event directly. The one subscriber whose publisher comes later, `listings`\' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).',
+  ],
+  format: [
+    '**Kind:** Skeleton, Core, MEC, Failure-state or Supporting.',
+    '**Description:** the user-value statement.',
+    '**Contracts:** the registry operations the story implements, with their methods, plus any §15 clause it implements without a registry id.',
+    '**Depends on:** earlier stories only (no forward dependency).',
+    '**Traceability:** FRs and NFRs of the bound clauses; the risks of `test-design.md` whose red tests the story owns; the UX pages whose states the operations back (`ui-states.json`).',
+    '**Binding invariants:** each `contracts.md` §14 row whose red test the story owns, with its enforcement point; then the other ADs its clauses cite.',
+    '**Files:** the generated stubs to implement (application service method, repository port, domain core, Postgres adapter).',
+    '**Schema/DTO:** the tables its clauses name and the request → response DTOs of its operations.',
+    '**ATDD path:** the exact red test ids, by file.',
+    '**Gherkin:** one happy and one failure scenario, in the Given/When/Then of the bound tests.',
+    '**DoD:** the shared Definition of Done plus the story\'s own items.',
+  ],
+  dod: [
+    'Every bound test id passes, and `npm run gate:atdd-red:solu2` passes: it reads `sprint-status.yaml`, so done stories must be green and all others still red for the right reason.',
+    '`npm run gate:solu2` passes, so the generated surface, UI states, code citations, test ids, trace, domain purity and fitness functions are all intact. No contract, DTO, schema or registry change lands without regenerating (`gen:api:solu2`, `gen:trace:solu2`, `gen:epics:solu2`).',
+    'Application services reach their tables only through the module\'s repository port (R-14). Domain cores import nothing but shared-kernel types (`gate:purity`). Every timestamp comes from `Clock` (AD-SYS-6).',
+    'Every decision and refusal passes `explainAssert`: ≥ 1 citation with an `AD`/`FR`/`NFR` rule and observed inputs, plus an es-CO message (NFR-SYS-1). No regulated value appears in a log, an error body, a citation or a payload (`[SYS-8.R4]`).',
+    'The story file records the commands run and their output, and `sprint-status.yaml` moves through `ready-for-dev → in-progress → review → done`. Review is `bmad-code-review` in a fresh context.',
+  ],
+  additional: [
+    'Stack (Solu-2 ARCHITECTURE "Stack Decisions"): TypeScript on Node 22, tRPC 11, PostgreSQL 16 through `pg`, with the SQL DDL as the schema source of truth (R-8); Vitest 5; a `Clock` port bound to a virtual clock in tests. There is no starter template: the walking skeleton (Epic 1) builds the shared kernel on the generated stubs.',
+    'R-1: the event envelope `{ eventId, type, occurredAt, schemaVersion, payload }`. R-2: `audit_events` owned by shared-kernel, append-only. R-3: `createdAt`/`updatedAt` from the Clock, with no SQL default. R-9: tRPC non-batched wire with `{ error: ErrorBody }`. R-12: Better Auth IP tracking disabled. R-13: audited reads are POST mutations. R-14: one repository port per module, so no raw `Sql` in application services.',
+    'AD-SYS-2 outbox: at most 3 automatic attempts, sweeper, replay only on `failed` (Story 1.3). AD-SYS-8 regulated data: the redactor at every egress (Story 1.2). AD-SYS-6: determinism and the network guard (Story 1.4).',
+    'External systems run behind ports with simulated adapters (feed, TRM, storage, scanner, top-up provider). The production adapters are built by the stories that bind their operations; their failure modes are the fault switches the contracts name (TG-1).',
+  ],
+  ux: [
+    'The UX contract is the 43 page specs of `docs/plan-2/ux/C-UX-Scenarios/`, whose 327 states are mapped state by state to backing operations, DTOs, refusal codes or client rules in `docs/solu-2/planning/detailed-design/ui-states.md` (`npm run gate:ui:solu2`). Each story lists the pages its operations back under Traceability (UI n.m), so a page is fully backed once all of its stories are done.',
+    'Page-level E2E and the WCAG 2.2 AA audit (NFR-SYS-11) are scoped to implementation and the launch checklist (TG-4, `nfr-evidence.md`).',
+  ],
+  epics: [
+    // =============================================================== 1 walking skeleton
+    {
+      n: 1, module: 'shared-kernel, server/trpc', title: 'Walking skeleton: errors, audit, outbox and determinism',
+      goal: 'Build the cross-module platform every story stands on: one typed error body, an audit trail with a regulated-data redactor, exactly-once event delivery, deterministic time and boundaries, and the admin event panel. After this epic, a module story only implements its own operations.',
+      stories: [
+        {
+          title: 'Refuse every request with one typed, explained error body', kind: 'Skeleton',
+          as: 'As any client of the 108 tRPC procedures, I want every refusal to arrive as one `ErrorBody` with its registry status, an es-CO message and a cited decision, so that no screen has to guess what went wrong.',
+          ops: [], tests: ['SYS-1.R2', 'SYS-1.R6', 'SYS-1.R6.unexpected', 'SYS-1.R6.s2', 'SYS-8.R2', 'SYS-8.R2.static'], depends: [],
+          files: [sk('src/shared-kernel/raise.ts', ['raiserFor']), sk('src/shared-kernel/codes.ts', ['DOMAIN_ERRORS']), sk('src/server/trpc/errors.ts', ['toErrorBody']), sk('src/server/trpc/router.v2.ts', ['describeProceduresV2']), sk('src/server/trpc/admin-guard.ts', ['AdminGuard'])],
+          schemaNote: 'DTOs `ErrorBody`, `ExplanationDTO` (`src/shared-kernel/explanation.ts`); the 111 ingress procedures of `openapi.yaml`',
+          happy: ['`identity` raises `AdminOnly` through `raiserFor(\'identity\')` at `2026-10-01T15:00Z`.', 'the tRPC error formatter maps it.', 'the body is `{ code: \'AdminOnly\', httpStatus: 403, decision }`, the decision cites `AD-SYS-1` with its inputs and an es-CO message, and each of the 88 registry codes formats the same way; the router exposes exactly the registry\'s procedures with no role-like or actor input key.'],
+          failure: ['`reviews` raises identity\'s `AdminOnly`, or a driver throws `relation "Order" does not exist at 10.0.0.7`.', 'the error reaches the formatter.', 'the raise fails as `\'Unexpected\'` (HTTP 500) and the body never contains the driver message; two `OrderNotVisibleToCaller` bodies differ only in `occurredAt`.'],
+        },
+        {
+          title: 'Record an audit trail and keep regulated data out of every egress', kind: 'Skeleton',
+          as: 'As the data protection officer, I want every change audited in its own transaction and every regulated value redacted before it leaves a module, so that NFR-SYS-2 and NFR-SYS-8 hold by construction.',
+          ops: [], tests: ['SYS-R2', 'SYS-R2.grants', 'SYS-8.R4', 'SYS-8.R4.redact', 'SYS-8.R4.error', 'NFR-SYS-8.canary'], depends: ['1.1'],
+          files: [sk('src/shared-kernel/infra/pg-audit.ts', ['PgAuditLog']), sk('src/shared-kernel/audit.ts', ['AuditLog']), sk('src/shared-kernel/regulated.ts', ['REGULATED_FIELDS', 'redact', 'createLogger'])],
+          schemaNote: 'table `"audit_events"` (append-only; `UPDATE`/`DELETE` revoked from `tezg_app`)',
+          happy: ['a command records `audit(\'orders.fact.buyerPaid\', Order:id)` in its transaction.', 'the transaction commits.', 'exactly one `audit_events` row exists, with `createdAt` from the Clock, and the app role can neither update nor delete it.'],
+          failure: ['canaries sit in every regulated column of the §3 seed (phones, NITs, document and comprobante keys, message bodies), and a transaction aborts after writing an audit row.', 'every row flows through the logger, the formatter\'s citations and the redactor, and the transaction rolls back.', 'the captured text holds 0 canaries while non-regulated ids such as `orderId` survive, and the aborted audit row does not exist.'],
+        },
+        {
+          title: 'Deliver every committed event exactly once in effect', kind: 'Skeleton',
+          as: 'As a subscribing module, I want every committed event delivered to me exactly once in effect, even across crashes, so that commission, listings and collections never miss or double an effect (NFR-SYS-6).',
+          ops: ['S-SYS.replay'], tests: ['SYS-2.R4', 'SYS-2.R4.code', 'SYS-2.R6', 'SYS-2.R6.young', 'SYS-AD9', 'NFR-SYS-6.sweep', 'S-SYS.replay.h', 'S-SYS.replay.f'], depends: ['1.2'],
+          files: [sk('src/shared-kernel/dispatcher.ts', ['OutboxDispatcherV2.dispatch', 'OutboxDispatcherV2.sweep', 'OutboxDispatcherV2.replay']), sk('src/shared-kernel/events.ts', ['OutboxV2', 'EVENT_SUBSCRIBERS']), sk('src/shared-kernel/infra/pg-outbox.ts', ['PgOutboxV2 (new: the production twin of test-support SqlOutboxV2)'])],
+          schemaNote: 'tables `"OutboxEvent"`, `"EventDelivery"`, `"EventReplayLog"`',
+          happy: ['`CommissionBalanceExhausted` committed with one `pending` delivery to `listings`, and the process died before dispatch.', 'the sweeper runs 61 s later.', 'the `listings` handler runs once with the R-1 envelope `{ eventId, type, occurredAt, schemaVersion: 1, payload }`, the delivery is `delivered`, and a second sweep attempts nothing.'],
+          failure: ['a `pending` delivery already counted 3 unrecorded attempts, and another delivery is still `pending`.', 'the sweeper reaches the first, and an admin replays the second.', 'the first becomes `failed` with `DeliveryAttemptsExhausted` and its handler never runs again; the replay is `EventDeliveryNotReplayable` (409) with zero writes.'],
+        },
+        {
+          title: 'Keep time, sockets and module boundaries deterministic', kind: 'Skeleton',
+          as: 'As a developer agent, I want time, randomness, the network and module boundaries fixed by the harness and checked on every push, so that every later red test fails only for its own reason.',
+          ops: [], tests: ['SYS-6.R1', 'SYS-6.R1.probe', 'SYS-6.R4', 'SYS-AD1', 'SYS-AD1.probe', 'SYS-AD8', 'SYS-AD8.probe', 'SEED.profile', 'SEED.business-history'], depends: ['1.1'],
+          files: [sk('src/shared-kernel/ports.ts', ['Clock', 'IdGenerator', 'TransactionRunner']), sk('test-support/solu2/fitness.ts'), sk('test-support/solu2/network-guard.ts'), sk('test-support/solu2/seed-marketplace.ts', ['seedMarketplace']), sk('eslint.config.mjs', ['tezg/error-owner', 'tezg/table-owner', 'tezg/regulated-select (new lint rules, TG-8)'])],
+          schemaNote: 'the whole `001_tezg_schema.sql` (table ownership by section; grants)',
+          happy: ['the §3 reference seed is loaded at the virtual instant `2026-10-01T15:00Z`.', 'the fitness project runs.', 'every module imports neighbours only along AD-1 edges through `index.ts`, writes only its own tables and reads time only through `Clock`, and the seed matches the PRD profile count by count.'],
+          failure: ['a module imports `../../catalog/dto/cat.v2.dto.js`, code calls `Date.now()`, or a test opens a socket to `203.0.113.7:443`.', 'the fitness project or the network guard sees it.', 'the run fails naming the file and the rule, and the socket throws before connecting.'],
+          dod: ['the three lint rules exist and fail on the planted violations the fitness probes use'],
+        },
+        {
+          title: 'Show admins the delivery and tick health', kind: 'Skeleton',
+          as: 'As an admin, I want the Entregas tab to show failed and stuck deliveries and a silent tick, so that nothing fails unseen (AD-SYS-2 rule 9).',
+          ops: ['S-SYS.tick', 'S-SYS.deliveries', 'S-SYS.health'], tests: ['S-SYS.tick.h', 'S-SYS.deliveries.h', 'S-SYS.health.h'], depends: ['1.3'],
+          happy: ['27 failed deliveries, one `pending` for 25 h and one `pending` for 23 h.', 'an admin opens page 2.3\'s Entregas tab.', 'failed rows list by `firstFailedAt`, 25 per page with a next cursor; the 25-hour delivery is the only stuck row; the badge counts the failed rows and the stuck one.'],
+          failure: ['the last tick started at 10:00 Bogotá.', 'an admin reads tick health at 13:01.', '`tickSilent=true` citing `lastTickStartedAt`; read at 11:00 it is `false`.'],
+        },
+      ],
+    },
+    // =============================================================== 2 IDN
+    {
+      n: 2, module: 'IDN (`identity`)', title: 'User, role and seller-type access (IDN)',
+      goal: 'Give every account exactly one seller track and derive its capabilities from facts, never from a client claim. Buyers, individual sellers and businesses get the right forms and refusals from day one.',
+      stories: [
+        {
+          title: 'Complete the individual-seller profile and claim the track', kind: 'Core',
+          as: 'As Valentina, a new user, I want to complete my individual-seller profile once, so that my account becomes an individual seller and my phone is kept only in the profile.',
+          ops: ['IDN-1', 'IDN-1.ingress'], tests: ['IDN-1.Q1', 'IDN-1.ingress.h', 'IDN-1.ingress.f'], depends: ['1.1', '1.2'],
+          happy: ['Valentina has no seller track.', 'she completes the profile with phone `+573001234567`, the sharing consent and a Bogotá meeting point.', '`"User".sellerTrack = \'individual\'`, one profile row holds the phone, and one audit row is written without it.'],
+          failure: ['Valentina already completed her profile.', 'she submits it again.', '`IndividualSellerProfileAlreadyComplete` (409), and one profile row remains.'],
+        },
+        {
+          title: 'Let exactly one seller track win a race', kind: 'MEC',
+          as: 'As the platform, I want a profile completion and a business claim racing on one account to leave exactly one track, so that no account is ever both seller kinds (Annex A MEC, R-01).',
+          contracts: ['IDN-1'], tests: ['IDN-1.MEC', 'IDN-1.I1', 'IDN-1.QF1', 'IDN-1.QF2'], depends: ['2.1'],
+          happy: ['a fresh account, 100 times.', 'a profile completion and a business `claimSellerTrack` start together behind a barrier.', 'exactly one succeeds each time: the account is individual with one profile, or business with none, never both and never neither.'],
+          failure: ['Andrés has a Pending business application, and Valentina is a complete individual seller.', 'an individual claim is made for him, and a business claim for her.', '`BusinessApplicationOnFile` (409) and `IndividualSellerProfileAlreadyComplete` (409), with nothing changed; after a refused business claim no application can exist for an individual.'],
+        },
+        {
+          title: 'Explain why an account may not list', kind: 'Failure-state',
+          as: 'As Andrés, whose application was rejected, I want the listing form to tell me why I cannot list and when I may reapply, so that I never fill in a form I cannot submit.',
+          ops: ['IDN-2', 'P-IDN.capabilities', 'P-IDN.verification'], tests: ['IDN-2.Q1', 'IDN-2.QF1', 'IDN-2.QF2', 'IDN-2.I1', 'P-IDN.capabilities.h', 'P-IDN.verification.h', 'SYS-4.R9'], depends: ['2.1'],
+          happy: ['Andrés\'s application is Pending.', '`listings` asks `requireListingEligibility`.', 'he may list, unverified, with the `ListingUnverified` notice citing FR-IDN-3; the verification port answers inside the caller\'s transaction even with a pool of one connection.'],
+          failure: ['Andrés\'s latest application is Rejected with a reapply date, and another account has no track.', 'the eligibility check runs for each.', '`SellerNotVerified` (409) citing the application and `reapplyNotBefore`, and `IndividualSellerProfileIncomplete` citing `sellerKind: \'none\'`; an admin flag never turns an individual into a business.'],
+        },
+        {
+          title: 'Refuse unverified buyers and throttle failed sign-ins', kind: 'Failure-state',
+          as: 'As the platform, I want buying to require a verified email and repeated failed sign-ins to be throttled, so that accounts cannot be brute-forced.',
+          ops: ['S-FR-IDN-7.canBuy', 'S-FR-IDN-7.throttle'], tests: ['S-FR-IDN-7.h', 'S-FR-IDN-7.f'], depends: ['1.1'],
+          happy: ['Camila\'s email is verified.', 'a `canBuy` procedure runs.', 'she passes, with the decision explained.'],
+          failure: ['10 failed sign-ins for one account within 15 minutes.', 'the 11th arrives.', '`AuthRateLimited` (429) citing `retryAt`; no IP is stored, only `ipHmac` (R-12).'],
+        },
+        {
+          title: 'Trace capabilities for admins and answer neighbours\' identity queries', kind: 'Supporting',
+          as: 'As an admin, I want to trace why an account holds each capability, audited, so that support can explain access without reading legal data.',
+          ops: ['IDN-3', 'S-FR-IDN-6.kinds', 'S-FR-IDN-6.target', 'P-IDN.contact', 'P-IDN.names'], tests: ['IDN-3.Q1', 'IDN-3.Q2', 'IDN-3.P2', 'IDN-3.I1', 'IDN-3.I3', 'S-FR-IDN-6.h', 'S-FR-IDN-6.f', 'P-IDN.contact.h', 'P-IDN.names.h'], depends: ['2.3'],
+          happy: ['Andrés is an Approved business.', 'an admin traces his capabilities.', 'six capabilities in fixed order, each citing its source facts and equal to `getCapabilities`; one `CapabilityAuditRead` and one admin audit row.'],
+          failure: ['the target id is unknown.', 'an admin traces it.', '`AccountNotFound` (404) with zero writes; no trace ever carries a legal-identity value.'],
+        },
+      ],
+    },
+    // =============================================================== 3 VER
+    {
+      n: 3, module: 'VER (`identity`)', title: 'Business verification workflow (VER)',
+      goal: 'Let a business apply once with its legal identity, and let admins decide each application exactly once. Every legal-identity read is audited and the rejection policy is snapshotted.',
+      stories: [
+        {
+          title: 'Submit a business application with its legal identity', kind: 'Core',
+          as: 'As Andrés, I want to apply as a business with my NIT and documents once, so that an admin can verify me.',
+          ops: ['VER-2'], tests: ['VER-2.Q1', 'VER-2.I1', 'VER-2.P5', 'VER-2.I2'], depends: ['2.2', '1.2'],
+          happy: ['a fresh account and a PDF in quarantine.', 'Andrés submits his business name, NIT, documents, payment instructions and consent.', 'one Pending application with its legal identity and profile; the audit row omits the NIT; no event.'],
+          failure: ['Andrés already has a Pending application, and on another account a profile completion races a submit, 100 times.', 'he submits again, and the race runs.', '`ApplicationAlreadyPending` (409) with one Pending row; in the race exactly one of the profile or the application wins, never both.'],
+        },
+        {
+          title: 'Decide an application exactly once', kind: 'MEC',
+          as: 'As an admin, I want approve and reject to decide an application exactly once, so that a business is never both approved and rejected (Annex A MEC, R-02).',
+          ops: ['VER-1'], tests: ['VER-1.Q1', 'VER-1.Q2', 'VER-1.I1', 'VER-1.MEC'], depends: ['3.1', '1.3'],
+          happy: ['Andrés\'s application is Pending.', 'an admin approves it.', 'it is decided, logged and audited, and one `BusinessApplicationApproved` goes to commission and listings; a rejection instead snapshots the reason\'s policy and sends one `BusinessApplicationRejected` to listings.'],
+          failure: ['two admins approve and reject the same Pending application at once, 100 times.', 'both commit.', 'one transition and one event of the winner, never a half state; a repeated approve is `ApplicationNotPending` and publishes nothing.'],
+        },
+        {
+          title: 'Refuse incomplete, unsafe and premature applications', kind: 'Failure-state',
+          as: 'As Andrés, I want a refused application to say exactly what is missing or when I may reapply, so that I can fix it without contacting support.',
+          contracts: ['VER-2', 'VER-1'], tests: ['VER-2.P1', 'VER-2.P3', 'VER-2.P7', 'VER-1.P2', 'VER-1.P3', 'VER-1.P4'], depends: ['3.2'],
+          happy: ['Andrés was rejected with `reapplyNotBefore = T`.', 'he submits at exactly `T`.', 'the submission is accepted: the cooldown is half-open (FR-VER-6).'],
+          failure: ['Andrés submits 1 s before `T`, with no document, or with an upload key that is not in quarantine; an admin decides an unknown, an already decided, or an inactive-reason case.', 'the command runs.', '`ReapplicationCooldownActive`, `MissingRequiredField` naming the field, or `InvalidDocumentFile` with cause `missing`; `ApplicationNotFound`, `ApplicationNotPending` naming who decided, or `RejectionReasonUnknown`; nothing is written.'],
+        },
+        {
+          title: 'Guard and audit every legal-identity read', kind: 'Failure-state',
+          as: 'As the data protection officer, I want every read of a legal identity audited, denials included, so that NFR-VER-2 holds.',
+          ops: ['VER-3', 'S-FR-VER-5.audit'], tests: ['VER-3.Q1', 'VER-3.P1', 'VER-3.P2', 'VER-3.I1', 'VER-3.I2', 'VER-3.I3', 'S-FR-VER-5.audit.h'], depends: ['3.1'],
+          happy: ['Andrés\'s application has a legal identity and documents.', 'an admin opens it for review.', 'the NIT and document URLs that expire 600 s later are shown, and one granted access row is written; no other VER read returns the legal identity.'],
+          failure: ['a non-admin requests the same application, and an admin requests an unknown one.', 'the reads run.', '`LegalIdentityAccessDenied` (403) whose denial row survives the error, and `ApplicationNotFound` (404) with zero writes; the access-log count equals reads plus denials.'],
+        },
+        {
+          title: 'Run the review queue, the rejection policy and payment instructions', kind: 'Supporting',
+          as: 'As an admin and as Andrés, I want the queue, the rejection policy and my payment instructions managed in one place, so that decisions and orders use current, snapshotted data.',
+          ops: ['S-FR-VER-2', 'S-FR-VER-7', 'S-FR-VER-8.upsert', 'S-FR-VER-8.active', 'S-FR-VER-8.list', 'S-FR-VER-9.update', 'S-FR-VER-9.get', 'P-VER.name'], tests: ['S-FR-VER-2.h', 'S-FR-VER-2.f', 'S-FR-VER-7.h', 'S-FR-VER-7.f', 'S-FR-VER-8.h', 'S-FR-VER-8.f', 'S-FR-VER-8.list.h', 'S-FR-VER-9.h', 'S-FR-VER-9.f', 'P-VER.name.h'], depends: ['3.2'],
+          happy: ['three Pending applications and two active rejection reasons.', 'an admin opens the queue and deactivates one reason.', 'the queue lists oldest first, one change row is written, and a rejected applicant still sees the reapply date snapshotted at rejection.'],
+          failure: ['two admins deactivate the last two active reasons at once, and an individual seller edits payment instructions.', 'the commands run.', 'one reason stays active (`LastActiveReasonRequired`), and `NotBusinessAccount` (409); a non-admin opening the queue gets `AdminOnly`.'],
+        },
+      ],
+    },
+    // =============================================================== 4 CAT
+    {
+      n: 4, module: 'CAT (`catalog`)', title: 'Catalog and price reference (CAT)',
+      goal: 'Ingest the card catalog with stable ids and serve reference prices that are always a stored observation. Every other module reads the catalog through bounded ports.',
+      stories: [
+        {
+          title: 'Start and continue a catalog feed run', kind: 'Core',
+          as: 'As an admin, I want to run the catalog feed with one live run at a time, so that ingestion never runs twice in parallel.',
+          ops: ['CAT-1', 'CAT-2.ingress', 'CAT-1.runs'], tests: ['CAT-1.Q1', 'CAT-1.Q2', 'CAT-1.I1', 'CAT-2.ingress.h', 'CAT-1.runs.h'], depends: ['1.2'],
+          happy: ['no run is live.', 'an admin starts a run and continues it over the fixture file.', 'one Running row at now, then Completed with its counters, listed newest first, with one audit row.'],
+          failure: ['50 starts arrive at once, and another run was abandoned more than 24 h ago.', 'the starts run.', 'exactly one Running run remains, and the abandoned run is failed so the new one can start.'],
+        },
+        {
+          title: 'Keep a card\'s id through renames and reprints', kind: 'MEC',
+          as: 'As Valentina, I want a card to keep its id when the feed renames or reprints it, so that my listings and binder entries never break (Annex A MEC, R-03).',
+          ops: ['CAT-2', 'CAT-2.quarantine'], tests: ['CAT-2.Q1', 'CAT-2.Q2', 'CAT-2.I1', 'CAT-2.I3', 'CAT-2.MEC', 'CAT-2.quarantine.h'], depends: ['4.1'],
+          happy: ['a new `externalKey` arrives in the feed.', 'the batch upserts it, and later a renamed row for it.', 'one entry with a generated id, updated in place with one revision.'],
+          failure: ['a reprinted card already has 3 listings and 2 binder entries.', 'the feed reprocesses it, twice.', 'its id is unchanged, the listings and binder entries are byte-identical, and the rerun converges with no revision (AD-7).'],
+        },
+        {
+          title: 'Refuse a second live run and quarantine changed kinds', kind: 'Failure-state',
+          as: 'As an admin, I want conflicting runs and suspicious rows refused with the reason, so that the catalog never changes a card\'s kind silently.',
+          contracts: ['CAT-1', 'CAT-2'], tests: ['CAT-1.QF1', 'CAT-2.ingress.f', 'CAT-2.QF1'], depends: ['4.2'],
+          happy: ['no run is live.', 'an admin starts one.', 'it starts: the refusal applies only while a run is live.'],
+          failure: ['a run is live with its lease held, and a row turns a card into a sealed product.', 'a second start, a second continue and the batch run.', '`FeedRunInProgress` (409) citing the live run for both, and the row is quarantined as `KindChanged` with the entry untouched.'],
+        },
+        {
+          title: 'Never fabricate a price', kind: 'Failure-state',
+          as: 'As Camila, I want every reference price to be a stored observation with its age, so that I never see an invented price (NFR-CAT-3).',
+          ops: ['CAT-3', 'S-FR-CAT-8.fetch', 'S-FR-CAT-8.rate'], tests: ['CAT-3.Q1', 'CAT-3.Q4', 'CAT-3.Q5', 'CAT-3.P2', 'CAT-3.I1', 'S-FR-CAT-8.h', 'S-FR-CAT-8.f'], depends: ['4.2'],
+          happy: ['a card has a 30-day baseline of 40,000 and a latest observation of 45,000.', 'Camila reads its provenance.', '+12.50 % with the source and observation time; two sources at one instant give one stored row chosen by source order, never an average.'],
+          failure: ['the latest observation is older than 36 h, there is no baseline, the id is unknown, or the TRM source is down.', 'the read or the daily TRM fetch runs.', 'the price is labelled stale (`ReferencePriceStale`), the trend is null (`TrendNoBaseline`), `CatalogEntryNotFound` (404), or no FX row is written and today\'s rate is yesterday\'s, stale (`FxRateCarriedForward`).'],
+        },
+        {
+          title: 'Browse the catalog and answer neighbours\' catalog queries', kind: 'Supporting',
+          as: 'As Camila browsing, and as the modules that read the catalog, I want stable, bounded catalog queries, so that discovery, listings and collections agree on one catalog.',
+          ops: ['S-FR-CAT-1', 'P-CAT.entry', 'P-CAT.entries', 'P-CAT.match', 'P-CAT.refs', 'P-CAT.asOf', 'P-CAT.history', 'P-CAT.sets'], tests: ['S-FR-CAT-1.h', 'S-FR-CAT-1.f', 'P-CAT.entry.h', 'P-CAT.entries.h', 'P-CAT.match.h', 'P-CAT.refs.h', 'P-CAT.asOf.h', 'P-CAT.history.h', 'P-CAT.sets.h'], depends: ['4.2'],
+          happy: ['the catalog holds Pikachu cards in two sets.', 'Camila filters by pokemon.', 'only matches, in `(setId, numberSort, id)` order; neighbours read entries, refs, prices as of an instant, history and set summaries through the ports.'],
+          failure: ['a filter names an unknown set, a match covers 20,001 entries, or an id is unknown.', 'browse or a neighbour port runs.', 'an empty page with total 0, `tooBroad`, and the unknown id listed in `missing`, never thrown.'],
+        },
+      ],
+    },
+    // =============================================================== 5 INV
+    {
+      n: 5, module: 'INV (`listings`)', title: 'Listings and shared inventory (INV)',
+      goal: 'Let sellers list from one stock pool per (seller, item, condition). Reserve that stock atomically inside the buyer\'s transaction, and keep business listings purchasable only while commission and verification allow.',
+      stories: [
+        {
+          title: 'List a card and share one stock pool', kind: 'Core',
+          as: 'As Valentina, I want to list 3 copies of a card and have a second listing of the same copy share the stock, so that I never oversell.',
+          ops: ['INV-2'], tests: ['INV-2.Q1', 'INV-2.I1', 'INV-2.Q2', 'INV-2.I2', 'INV-2.R1'], depends: ['2.3', '4.5'],
+          happy: ['Valentina is an individual seller with no unit for the card.', 'she lists 3 copies, then lists the same copy again.', 'a unit of 3 and an Active listing; the second listing links the unit unchanged and explains the ignored quantity.'],
+          failure: ['an Approved business has no commission projection yet, a Pending business lists, and two listings of one copy are created at once.', 'the listings are created.', 'the first is Paused (fail-closed), the second Unverified with the `ListingUnverified` notice, and the concurrent pair shares one unit.'],
+        },
+        {
+          title: 'Reserve stock in the caller\'s transaction and restore it on abort', kind: 'MEC',
+          as: 'As a buyer\'s order, I want stock reserved inside my transaction and restored if I abort, so that the last unit is never sold twice (Annex A MEC, R-05).',
+          ops: ['INV-1', 'S-FR-INV-5', 'P-INV.purchase', 'P-INV.units'], tests: ['INV-1.Q1', 'INV-1.Q3', 'INV-1.I1', 'INV-1.I3', 'INV-1.MEC', 'S-FR-INV-5.h', 'S-FR-INV-5.f', 'P-INV.purchase.h', 'P-INV.units.h'], depends: ['5.1'],
+          happy: ['a unit of 5.', '`orders` reserves 2 inside its transaction.', 'the unit drops to 3, the reservation and price snapshot are returned, and nothing but `InventoryUnit` is written.'],
+          failure: ['the caller aborts after a successful reserve, 100 times; 50 buyers race for the last unit; a bundle and a single listing race on a shared unit.', 'the transactions end.', 'the stock is fully restored with no compensating write; exactly 1 reservation and 49 `InsufficientQuantity`; one winner, no deadlock, never negative stock.'],
+        },
+        {
+          title: 'Refuse invalid listings', kind: 'Failure-state',
+          as: 'As Andrés, I want an invalid listing refused with the field and the reason, so that nothing half-valid is ever published.',
+          contracts: ['INV-2'], tests: ['INV-2.P1', 'INV-2.P2', 'INV-2.I4', 'INV-2.P3', 'INV-2.P4', 'INV-2.P5'], depends: ['5.1'],
+          happy: ['a valid card listing at 45,000 COP inside Colombia.', 'Andrés creates it.', 'it is created: the contrast case of the refusals below.'],
+          failure: ['a Rejected business lists; a business listing is open to trade; a sealed product has a card condition; the price is 999 COP; the meeting point is (0, 0).', 'the listing is created.', '`SellerNotVerified` propagated unchanged, `OpenToTradeNotAllowed` (409), `InvalidItemRef` (400), `InvalidPrice` (400) and `InvalidLocation` (400), each with zero writes; no business listing is ever open to trade.'],
+        },
+        {
+          title: 'Refuse unpurchasable and over-quantity reservations', kind: 'Failure-state',
+          as: 'As Camila, I want a purchase refused before any stock moves when the listing cannot be bought, so that I see why at once.',
+          contracts: ['INV-1'], tests: ['INV-1.P2', 'INV-1.P3', 'INV-1.P4', 'INV-1.P5'], depends: ['5.2'],
+          happy: ['a visible, funded business listing with 5 units.', 'Camila\'s order reserves 2.', 'the reservation succeeds: the contrast case.'],
+          failure: ['the listing is hidden, belongs to an individual seller, is paused for balance, or holds fewer units than asked.', 'the reservation runs.', '`ListingNotFound` (404), `NotBusinessListing` (409), `ListingNotPurchasable` citing `ListingPausedBalanceExhausted`, or `InsufficientQuantity` citing requested and available; nothing is decremented.'],
+        },
+        {
+          title: 'Pause, withdraw and restore listings from commission and verification events', kind: 'Supporting',
+          as: 'As Andrés, I want my listings paused when my commission balance runs out and restored when I top up or am re-approved, so that what buyers see matches what I can sell.',
+          ops: ['INV-3', 'S-FR-INV-8'], tests: ['INV-3.Q1', 'INV-3.I1', 'INV-3.R1', 'INV-3.I2', 'S-FR-INV-8.h', 'S-FR-INV-8.f'], depends: ['5.1', '3.2'],
+          happy: ['Andrés\'s commission account opens at 0 (the seq-0 `CommissionBalanceExhausted`).', 'listings applies the event.', 'the projection is created and every listing of his is paused; a rejection withdraws them and a newer approval restores them.'],
+          failure: ['`Replenished(5)` arrives before a late `Exhausted(4)`, an older Rejected arrives after a newer Approved, and one event is delivered 3 times.', 'listings applies them.', 'the listings stay resumed and visible, and each event has one effect; with no projection row a business listing is not purchasable.'],
+          dod: ['the payload types come from `src/shared-kernel/events.ts`, so this story needs neither the Epic 8 publisher nor Epic 3 code beyond its event (AD-9); until Epic 8 publishes, listings stay fail-closed (AD-INV-3 rule 3)'],
+        },
+        {
+          title: 'Manage my listings, bundles and stock', kind: 'Supporting',
+          as: 'As Valentina, I want to bundle cards, restock, edit and see my listings\' availability, so that every listing on a shared unit shows the true count.',
+          ops: ['S-FR-INV-2', 'S-FR-INV-10.get', 'S-FR-INV-10.mine', 'S-FR-INV-9.update', 'S-FR-INV-9.restock', 'S-FR-INV-9.active', 'P-INV.trade', 'P-INV.tradeability', 'P-INV.availability', 'P-INV.refs'], contracts: ['S-FR-INV-4'],
+          tests: ['S-FR-INV-2.h', 'S-FR-INV-2.f', 'S-FR-INV-4.h', 'S-FR-INV-4.f', 'S-FR-INV-9.h', 'S-FR-INV-9.f', 'S-FR-INV-10.h', 'S-FR-INV-10.f', 'P-INV.trade.h', 'P-INV.tradeability.h', 'P-INV.availability.h', 'P-INV.refs.h'], depends: ['5.2'],
+          happy: ['two listings share one unit of 3, and a 2-card bundle uses it.', 'Valentina restocks +2.', 'availability rises by 2 on every listing of the unit; the bundle shows its scarcest component; a sale through one listing lowers both.'],
+          failure: ['a bundle includes a sealed product, another seller restocks her listing, and a non-owner reads her hidden listing.', 'the commands run.', '`SealedProductInBundle` (409) and `ListingNotOwnedByCaller` (403) with zero writes, and a body identical to an unknown id.'],
+        },
+      ],
+    },
+    // =============================================================== 6 DSC
+    {
+      n: 6, module: 'DSC (`listings`, no tables)', title: 'Marketplace browse and location discovery (DSC)',
+      goal: 'Let buyers find listings by area through one query path. Ranking is deterministic and explained, the boundaries are exact, and every exclusion is counted.',
+      stories: [
+        {
+          title: 'Refuse invalid search areas', kind: 'Failure-state',
+          as: 'As Camila, I want an invalid search area refused with its inputs, so that I know to change the radius or the centre.',
+          ops: ['DSC-3'], tests: ['DSC-3.Q1', 'DSC-3.QF1', 'DSC-3.QF2', 'DSC-3.I1'], depends: ['1.1'],
+          happy: ['a 15 km area around Bogotá, and radii of exactly 1 and 300 km.', 'each area is checked.', 'all are accepted: the bounds are inclusive.'],
+          failure: ['a 301 km radius, the (0, 0) sentinel, or a centre outside Colombia.', 'the area is checked.', '`InvalidSearchArea` (400) citing the inputs, with no I/O.'],
+        },
+        {
+          title: 'Search listings by area with an explained ranking', kind: 'Core',
+          as: 'As Camila, I want listings within my area ranked by distance, price and id, each explained, so that I can trust the order.',
+          ops: ['DSC-1'], tests: ['DSC-1.Q1', 'DSC-1.I1', 'DSC-1.I2', 'DSC-1.I4', 'DSC-1.R1'], depends: ['6.1', '5.1', '4.5', '2.5'],
+          happy: ['business and individual listings around Bogotá.', 'Camila searches 15 km.', 'both seller kinds come back together, ranked by distance, then price, then id, each citing FR-DSC-5 with its distance; the SQL distance matches haversine within 1 m.'],
+          failure: ['one listing is hidden, and 10 identical searches run concurrently.', 'the searches run.', 'the hidden listing never appears, and the 10 results are byte-identical.'],
+        },
+        {
+          title: 'Show a card\'s detail at the area boundaries', kind: 'MEC',
+          as: 'As Camila, I want a card\'s detail to include exactly the listings inside my radius, and still show the card when none are, so that boundary listings are never lost (Annex A MEC, R-04).',
+          ops: ['DSC-2'], tests: ['DSC-2.Q1', 'DSC-2.MEC', 'DSC-2.MEC2'], depends: ['6.2', '4.4'],
+          happy: ['a card with listings near Bogotá.', 'Camila opens its detail.', 'exactly three neighbour calls are made, and the listing price, the reference price and the last transaction stay separate.'],
+          failure: ['listings at 15.0000 km and 15.0002 km with radius 15, one at 4.99 km with radius 5, one with no coordinates, and an entry whose every listing is outside the area.', 'the detail is read.', '15.0002 km is excluded, 15.0000 km and 4.99 km are included, the missing coordinates are counted, and the out-of-area entry is still returned with no listing price.'],
+        },
+        {
+          title: 'Explain excluded listings, too-broad filters and unknown cards', kind: 'Failure-state',
+          as: 'As Camila, I want exclusions and refusals explained, so that an empty or short result never looks like a bug.',
+          contracts: ['DSC-1', 'DSC-2'], tests: ['DSC-1.Q4', 'DSC-1.P2', 'DSC-2.P1'], depends: ['6.3'],
+          happy: ['most listings have usable coordinates.', 'Camila searches.', 'the results come back with the excluded count reported.'],
+          failure: ['listings with no usable coordinates, catalog filters that match more than 20,000 entries, and an unknown card id.', 'search or card detail runs.', 'the listings are counted and explained with `ListingLocationUnusable`; `SearchFilterTooBroad` (400); `CatalogEntryNotFound` (404) with no further call.'],
+        },
+      ],
+    },
+    // =============================================================== 7 ORD
+    {
+      n: 7, module: 'ORD (`orders`)', title: 'Orders and comprobante confirmation (ORD)',
+      goal: 'Let buyers order from businesses and pay by bank transfer outside the platform. Three facts (paid, payment received, item received) are set once, in any order, with no custody of funds.',
+      stories: [
+        {
+          title: 'Buy a listing and attach the comprobante', kind: 'Core',
+          as: 'As Camila, I want to buy a listing and upload my bank-transfer comprobante, so that the business can confirm my payment.',
+          ops: ['ORD-1', 'S-FR-ORD-2.ticket', 'S-FR-ORD-2.upload', 'S-FR-ORD-2.url'], tests: ['ORD-1.Q1', 'ORD-1.I2', 'ORD-1.I4', 'S-FR-ORD-2.h', 'S-FR-ORD-2.f', 'S-FR-ORD-2.url.h', 'NFR-ORD-2.p95'], depends: ['5.2', '3.5'],
+          happy: ['a funded business listing at 45,000 COP.', 'Camila buys 2, then uploads her comprobante.', 'one `AwaitingPayment` order with total 90,000, a 48 h expiry, the listing and payment-instruction snapshots, an audit row and no event; the comprobante URL expires 600 s after the read; creation meets p95 ≤ 800 ms on the §3 seed.'],
+          failure: ['two purchases by Camila from one business arrive at once, and after "paid" she uploads a new comprobante.', 'the commands run.', 'one order and one `TooManyOpenOrders`, and `ComprobanteLocked` with the promoted object deleted; the order has no balance, escrow or payment-status column.'],
+        },
+        {
+          title: 'Confirm paid and close orders safely in any order', kind: 'MEC',
+          as: 'As Camila and Andrés, I want the three order facts (paid, payment received, item received) set exactly once and safely in any order, so that commission and collections fire once (Annex A MEC, R-06).',
+          ops: ['ORD-2', 'ORD-3', 'ORD-4'], tests: ['ORD-2.Q1', 'ORD-2.I2', 'ORD-2.MEC', 'ORD-3.Q1', 'ORD-3.MEC', 'ORD-3.I3', 'ORD-3.R1', 'ORD-3.Q2', 'ORD-4.Q1', 'ORD-4.Q2', 'ORD-4.MEC'], depends: ['7.1', '1.3'],
+          happy: ['Camila\'s order is paid.', 'Andrés confirms the payment, and Camila the item.', 'one `OrderPaymentConfirmedByBusiness` to commission, then the order closes and one `OrderClosed` goes to commission and collections; a bundle closes with its component lines.'],
+          failure: ['Andrés confirms before Camila pays or before any comprobante; paid races expiry at `now = expiresAt` (100 times); the item is confirmed before "paid"; Andrés confirms twice.', 'the commands run.', '`OrderNotVisibleToCaller` with a body identical to an unknown id; paid with the reservation held, or expired with it released exactly once; `OrderConfirmationOutOfOrder` with zero writes; one event and `OrderAlreadyConfirmedByRole`.'],
+        },
+        {
+          title: 'Refuse self-purchase, open-order overflow and listing refusals', kind: 'Failure-state',
+          as: 'As Camila, I want a refused purchase to say why before anything is reserved, so that I can act on it.',
+          contracts: ['ORD-1'], tests: ['ORD-1.P3', 'ORD-1.P4', 'ORD-1.P5'], depends: ['7.1'],
+          happy: ['Camila holds 2 open orders.', 'she buys a third listing.', 'the order is created: the contrast case.'],
+          failure: ['Andrés buys his own listing; Camila holds 3 open orders; the listing refuses the reservation.', 'the purchase runs.', '`SelfPurchaseNotAllowed` (409), `TooManyOpenOrders` naming the 3 orders, and the listing\'s code propagated unchanged; nothing is reserved and no order exists.'],
+        },
+        {
+          title: 'Refuse out-of-role, repeated and expired confirmations', kind: 'Failure-state',
+          as: 'As Camila and Andrés, I want each confirmation accepted only from its role, once, while the order is active, so that no fact is forged or repeated.',
+          contracts: ['ORD-2', 'ORD-3', 'ORD-4'], tests: ['ORD-2.P1', 'ORD-2.P3', 'ORD-2.P4', 'ORD-2.P5', 'ORD-3.P2', 'ORD-4.P2', 'ORD-4.P3'], depends: ['7.2'],
+          happy: ['Camila\'s order with an uploaded comprobante.', 'she confirms paid.', 'the fact is set at now: the contrast case.'],
+          failure: ['a foreign order, a repeat, a confirmation past `expiresAt`, no comprobante, or the other role confirming.', 'the confirmation runs.', '`OrderNotVisibleToCaller`, `OrderAlreadyConfirmedByRole` citing the first instant, `OrderNoLongerActive` with the expiry materialized and the reservation released once, `ComprobanteNotYetUploaded`, or `OrderNotOwnedByCaller`.'],
+        },
+        {
+          title: 'Cancel, expire, read and support orders', kind: 'Supporting',
+          as: 'As Camila, Andrés and an admin, I want orders cancelled, expired, read and supported with exact visibility, so that each party sees only what it may and nothing is released twice.',
+          ops: ['S-FR-ORD-6.get', 'S-FR-ORD-6.list', 'S-FR-ORD-7', 'S-FR-ORD-8', 'S-FR-ORD-9', 'S-FR-ORD-10.lookup', 'S-FR-ORD-10.get', 'S-FR-ORD-10.set'], tests: ['S-FR-ORD-6.h', 'S-FR-ORD-6.f', 'S-FR-ORD-7.h', 'S-FR-ORD-7.f', 'S-FR-ORD-8.h', 'S-FR-ORD-8.f', 'S-FR-ORD-9.h', 'S-FR-ORD-9.f', 'S-FR-ORD-10.h', 'S-FR-ORD-10.f'], depends: ['7.2'],
+          happy: ['Camila\'s unpaid order and an overdue one.', 'she cancels hers, and the expiry job runs.', '`BuyerCancelled` with the reservation released exactly once; the overdue order is materialized Expired once; the business sees an order only once it is paid.'],
+          failure: ['a double cancel, an expiry job that never ran, and a non-admin order lookup.', 'the commands run.', '`OrderNotCancellable` with nothing released again; the overdue order still reads Expired; `AdminOnly` (403).'],
+        },
+      ],
+    },
+    // =============================================================== 8 COM
+    {
+      n: 8, module: 'COM (`commission`)', title: 'Commission ledger and purchasability (COM)',
+      goal: 'Keep each business\'s prepaid commission balance exact. Each order is charged exactly once, top-ups are confirmed once, and every crossing publishes the event that pauses or resumes listings.',
+      stories: [
+        {
+          title: 'Open the commission account and request top-ups', kind: 'Core',
+          as: 'As Andrés, newly approved, I want my commission account opened automatically and to request top-ups with a proof, so that my listings can be bought.',
+          ops: ['S-FR-COM-1', 'S-FR-COM-2.ticket', 'S-FR-COM-2.request', 'S-FR-COM-2.mine', 'S-FR-COM-2.url', 'S-FR-COM-9'], tests: ['S-FR-COM-1.h', 'S-FR-COM-1.f', 'S-FR-COM-2.h', 'S-FR-COM-2.mine.h', 'S-FR-COM-2.url.h', 'S-FR-COM-9.h'], depends: ['3.2', '1.3', '2.3', '3.5'],
+          happy: ['Andrés\'s application is approved.', 'the approval event is delivered, and he requests a top-up.', 'one Exhausted account at 0 and the seq-0 Exhausted published once; the request is Pending with the balance unchanged; at 15,000 he sees the low-balance notice.'],
+          failure: ['the approval event is redelivered, and another business opens Andrés\'s proof.', 'the subscriber or the read runs.', 'nothing opens or publishes again, and `TopUpNotVisibleToCaller` with a body identical to an unknown id.'],
+        },
+        {
+          title: 'Charge each order exactly once', kind: 'MEC',
+          as: 'As the platform, I want each order charged exactly once at the rate in force, whichever confirmation arrives first, so that balances are exact (Annex A MEC, R-07).',
+          ops: ['COM-1'], tests: ['COM-1.Q1', 'COM-1.Q3', 'COM-1.I1', 'COM-1.I3', 'COM-1.I4', 'COM-1.MEC', 'COM-1.MEC2'], depends: ['8.1', '7.2'],
+          happy: ['Andrés\'s account is funded, and a business confirmation for 45,000 arrives.', 'the deduction applies.', '8 % = 3,600, with one ledger line carrying its pricing and an audit row; crossing to ≤ 0 publishes one Exhausted.'],
+          failure: ['two orders owing 3,600 each, confirmed at one instant against 5,000, plus a duplicate; both order events for one order delivered concurrently; 100 repetitions each.', 'commission applies them.', '−2,200 with two lines and one Exhausted; one line and one decrement per order; 12,345 × 800 bps is exactly 988, and storage refuses any other amount.'],
+        },
+        {
+          title: 'Confirm or reject a top-up', kind: 'Core',
+          as: 'As an admin, I want to confirm or reject top-ups from a queue exactly once, so that a business resumes as soon as its balance is positive.',
+          ops: ['COM-2', 'COM-2.reject', 'COM-2.queue'], tests: ['COM-2.Q1', 'COM-2.Q2', 'COM-2.I1', 'COM-2.reject.h', 'COM-2.queue.h'], depends: ['8.1'],
+          happy: ['a 100,000 top-up for an Exhausted account at 0.', 'an admin confirms it from the queue (Pending, oldest first).', 'the balance is 100,000, the listings resume, and one Replenished event is published; a rejected top-up records its reason and credits nothing.'],
+          failure: ['20,000 confirmed on −25,000, and two admins confirming one top-up at once.', 'the confirmations run.', '−5,000 naming 5,001 as needed to resume, with nothing published; one credit, one decision row and one `TopUpNotPending`.'],
+        },
+        {
+          title: 'Refuse invalid top-ups and decided requests', kind: 'Failure-state',
+          as: 'As Andrés and as an admin, I want invalid or late top-up actions refused with the reason, so that no balance moves by mistake.',
+          contracts: ['S-FR-COM-2', 'COM-2', 'S-FR-COM-9', 'COM-1'], tests: ['S-FR-COM-2.f', 'S-FR-COM-2.f2', 'COM-2.P2', 'COM-2.P3', 'COM-2.reject.f', 'S-FR-COM-9.f', 'COM-1.P3'], depends: ['8.3'],
+          happy: ['a Pending top-up of 50,000.', 'an admin confirms it.', 'it is credited: the contrast case.'],
+          failure: ['a 19,999 COP request; a request before the account opens; an unknown or already decided top-up; an individual seller reading a commission account; a deduction for a business with no account.', 'the command runs.', '`TopUpAmountInvalid` (400); `CommissionAccountNotOpen` (409), never `NotBusinessAccount`; `TopUpNotFound` or `TopUpNotPending` naming who decided; `NotBusinessAccount` propagated; `\'Unexpected\'`, leaving the delivery failed and replayable.'],
+        },
+        {
+          title: 'Reconcile ledgers and report, never repair, discrepancies', kind: 'Failure-state',
+          as: 'As an admin, I want reconciliation to report every balance mismatch and sequence gap without changing anything, so that I can investigate (NFR-COM-2).',
+          ops: ['COM-3', 'COM-3.last'], tests: ['COM-3.Q1', 'COM-3.Q2', 'COM-3.I1', 'COM-3.Q4', 'COM-3.P2', 'COM-3.last.h'], depends: ['8.2'],
+          happy: ['a consistent account.', 'reconciliation runs.', '0 discrepancies and one run row, shown as the last run on page 7.4.'],
+          failure: ['a tampered balance, a sequence gap, an unknown business, or another run holding the job lock.', 'reconciliation runs.', '`balanceMismatch` with decimal-string expected and actual values, never repaired; the gap reported; 0 accounts with an explained notice; the job path skipped.'],
+        },
+        {
+          title: 'Set commission rates and read the ledger', kind: 'Supporting',
+          as: 'As an admin, I want future-dated commission rates and a filterable ledger, so that pricing changes never apply retroactively.',
+          ops: ['S-FR-COM-7', 'S-FR-COM-7.list', 'S-FR-COM-8.ledger'], tests: ['S-FR-COM-7.h', 'S-FR-COM-7.f', 'S-FR-COM-7.list.h', 'S-FR-COM-8.ledger.h'], depends: ['8.2'],
+          happy: ['only the seed rate of 800 bps exists.', 'an admin schedules a new rate from tomorrow.', 'it applies only to triggers at or after its `effectiveFrom`; the ledger filtered by `buyerClosed` shows only those deductions.'],
+          failure: ['an `effectiveFrom` 61 s in the past.', 'the rate is set.', '`CommissionRateNotFutureDated` (400), with zero writes.'],
+        },
+      ],
+    },
+    // =============================================================== 9 MSG
+    {
+      n: 9, module: 'MSG (`messaging`; contact handoff in `listings`; eligibility in `identity`)', title: 'Contact handoff and in-app business messaging (MSG)',
+      goal: 'Let buyers contact individual sellers through a generated WhatsApp handoff, and message businesses in-app. Conversations are buyer-initiated, gapless and private, and stay correct while a business\'s verification changes.',
+      stories: [
+        {
+          title: 'Answer messaging eligibility from current verification', kind: 'Core',
+          as: 'As Camila, I want to know before writing whether a business can receive messages, so that I don\'t write to the wrong account.',
+          ops: ['MSG-3'], tests: ['MSG-3.Q1', 'MSG-3.QF1'], depends: ['3.2'],
+          happy: ['Andrés is Approved and another business is Pending.', 'eligibility is read for each.', 'Approved is allowed and verified; Pending is allowed with the `RecipientNotYetVerified` notice.'],
+          failure: ['the recipient is an individual seller or an unknown id.', 'eligibility is read.', '`NotBusinessAccount` with byte-identical bodies for both.'],
+        },
+        {
+          title: 'Send messages while verification changes', kind: 'MEC',
+          as: 'As Camila, I want my first message to open one conversation with gapless order, and to fail cleanly if the business is rejected while I type (Annex A MEC, R-09).',
+          ops: ['MSG-1'], tests: ['MSG-1.Q1', 'MSG-1.Q2', 'MSG-1.I3', 'MSG-1.R1', 'MSG-3.MEC'], depends: ['9.1', '2.5', '3.5'],
+          happy: ['Camila writes to Approved Andrés for the first time.', 'she sends.', 'one conversation, two participants and message seq 1; a retry with the same `clientMessageId` returns the original and writes nothing.'],
+          failure: ['Andrés is rejected between compose and send, 100 times; two first messages and 20 concurrent sends.', 'the sends run.', 'either the message was sent before the rejection, or `NotBusinessAccount` with zero writes; one conversation with seqs 1..20 and no gap.'],
+        },
+        {
+          title: 'Generate the contact handoff for every product name', kind: 'MEC',
+          as: 'As Camila, I want the WhatsApp contact message to name the product and price exactly for any name, so that the seller knows what I mean (Annex A MEC, R-09).',
+          ops: ['MSG-2'], tests: ['MSG-2.Q1', 'MSG-2.I1', 'MSG-2.MEC', 'MSG-2.R1'], depends: ['5.1', '2.5'],
+          happy: ['Valentina\'s visible individual listing at 45,000 COP.', 'Camila requests contact.', 'a message naming the product and the price, a `wa.me` link and one counted request; equal inputs give byte-identical output across 1,000 runs.'],
+          failure: ['product names with ñ, accents, emoji, 500 characters and URL-like text, at 1,000 and 100,000,000 COP; 50 concurrent requests from one requester.', 'the handoff is generated.', 'every message fits in 2,000 characters, round-trips exactly and keeps the full price; exactly 30 requests are allowed in the hour.'],
+        },
+        {
+          title: 'Refuse outsiders and businesses that initiate', kind: 'Failure-state',
+          as: 'As Andrés, I want conversations to be buyer-initiated and private to their participants, so that the inbox cannot be spammed.',
+          contracts: ['MSG-1'], tests: ['MSG-1.P3', 'MSG-1.P4', 'MSG-1.P5'], depends: ['9.2'],
+          happy: ['Camila participates in a conversation.', 'she writes to it.', 'the message is sent: the contrast case.'],
+          failure: ['a business opens a conversation; a non-participant writes; the recipient business is Rejected.', 'the send runs.', '`BusinessCannotInitiate` (409); `ConversationNotVisibleToCaller` (403); `NotBusinessAccount` propagated from identity, with nothing written.'],
+        },
+        {
+          title: 'Refuse hidden or business listings and rate-limit contact', kind: 'Failure-state',
+          as: 'As Valentina, I want contact requests throttled, and refused for listings that cannot be contacted, so that my phone is never exposed needlessly.',
+          contracts: ['MSG-2'], tests: ['MSG-2.P2', 'MSG-2.P3', 'MSG-2.P4'], depends: ['9.3'],
+          happy: ['Camila made 29 counted contact requests this hour.', 'she makes the 30th.', 'it is allowed: the contrast case.'],
+          failure: ['the listing is hidden, the listing is a business listing, or it is the 31st request in the hour.', 'contact is requested.', '`ListingNotFound` (404) without reading the phone; `NotIndividualSellerListing` (409); `ContactRateLimited` (429) citing `retryAt`; a repeat for the same listing within 60 min is logged but not counted.'],
+        },
+        {
+          title: 'Read the inbox, mark threads read and mute', kind: 'Supporting',
+          as: 'As Camila, I want my inbox with unread counts, read marks and mute, so that I see what is new without exposing my reading to the business.',
+          ops: ['S-FR-MSG-7.inbox', 'S-FR-MSG-7.thread', 'S-FR-MSG-7.read', 'S-FR-MSG-8'], tests: ['S-FR-MSG-7.h', 'S-FR-MSG-7.f', 'S-FR-MSG-8.h', 'S-FR-MSG-8.f'], depends: ['9.2'],
+          happy: ['Camila has unread messages from Andrés.', 'she reads the thread and mutes another conversation.', 'unread drops to 0 without exposing Andrés\'s read state, and the muted conversation leaves her total unread count.'],
+          failure: ['a stale tab marks an older seq as read, and a business mutes.', 'the commands run.', '`lastReadSeq` stays unchanged, and the business gets an explained no-op with zero writes (R-11).'],
+        },
+      ],
+    },
+    // =============================================================== 10 TRD
+    {
+      n: 10, module: 'TRD (`trading`)', title: 'Trade offer negotiation (TRD)',
+      goal: 'Let collectors negotiate card-and-cash trades turn by turn on individual listings. An accept reserves the last unit at most once and hands off the contact, and cancel, complete and expiry each act exactly once.',
+      stories: [
+        {
+          title: 'Make, read and withdraw a trade offer', kind: 'Core',
+          as: 'As Julián, I want to offer cards or cash for Valentina\'s listing and withdraw it while it is open, so that we can negotiate.',
+          ops: ['S-FR-TRD-1', 'S-FR-TRD-2w', 'S-FR-TRD-3.get', 'S-FR-TRD-3.mine'], tests: ['S-FR-TRD-1.h', 'S-FR-TRD-2w.h', 'S-FR-TRD-3.h', 'S-FR-TRD-3.mine.h'], depends: ['5.6'],
+          happy: ['Valentina\'s listing is open to trade.', 'Julián makes an offer.', 'it opens with the turn at the seller and round 1; both parties see the same rounds; he can withdraw it.'],
+          failure: ['Julián\'s Open offer passed `expiresAt`, and the expiry job never ran.', 'he lists his trades.', 'it reads Expired, derived at read.'],
+        },
+        {
+          title: 'Counter an offer turn by turn', kind: 'Core',
+          as: 'As Valentina, I want to counter Julián\'s offer on my turn, so that we can converge on terms.',
+          ops: ['TRD-2'], tests: ['TRD-2.Q1', 'TRD-2.I3'], depends: ['10.1'],
+          happy: ['Julián\'s Open offer, with the turn at the seller.', 'Valentina counters with 30,000 COP.', 'the turn flips, round 2 is recorded and the version advances.'],
+          failure: ['two tabs of Valentina counter with the same version.', 'both submit.', 'one round, and one `TradeOfferNotOpen`.'],
+        },
+        {
+          title: 'Accept the last unit from two sessions', kind: 'MEC',
+          as: 'As Valentina, I want only one of two offers for my last copy to be accepted, so that I never promise a card twice (Annex A MEC, R-08).',
+          ops: ['TRD-1', 'S-FR-TRD-3.handoff'], tests: ['TRD-1.Q1', 'TRD-1.Q3', 'TRD-1.F1', 'TRD-1.I1', 'TRD-1.MEC'], depends: ['10.2', '9.3'],
+          happy: ['Julián\'s offer on Valentina\'s listing.', 'she accepts.', 'Accepted with a reservation, one accept round, one `TradeAccepted` with no delivery row, and one contact handoff for Julián.'],
+          failure: ['two offers for the last unit accepted from two sessions, 100 times; the handoff fails after commit.', 'both accepts run.', 'one Accepted and one Unfulfillable, stock 0, one event and one handoff; siblings on the exhausted listing become Unfulfillable; the accept stands with `handoff: null`.'],
+        },
+        {
+          title: 'Refuse stale, out-of-turn and duplicate offer actions', kind: 'Failure-state',
+          as: 'As Julián and Valentina, I want every stale or out-of-turn action refused with the current state, so that negotiation never forks.',
+          contracts: ['TRD-1', 'TRD-2', 'S-FR-TRD-1', 'S-FR-TRD-2w', 'S-FR-TRD-3'], tests: ['TRD-1.P2', 'TRD-1.P3', 'TRD-1.P4', 'TRD-1.P6', 'TRD-2.P2', 'TRD-2.P5', 'TRD-2.P6', 'TRD-2.P7', 'TRD-2.P8', 'S-FR-TRD-1.f', 'S-FR-TRD-2w.f', 'S-FR-TRD-3.f'], depends: ['10.3'],
+          happy: ['an Open offer at Valentina\'s turn and the current version.', 'she accepts.', 'it is accepted: the contrast case.'],
+          failure: ['the offer expired; it is not her turn; the version is stale; no unit is left; a counter is empty, unchanged or would be round 11; the same proposer opens a second live offer; a third party reads the offer.', 'the action runs.', '`TradeOfferNotOpen` citing the derived status or the latest round; `NotYourTurn`; `InsufficientQuantity` with the own offer Unfulfillable; `EmptyTradeOffer`, `TradeCounterUnchanged`, `TradeRoundLimitReached`; `DuplicateOpenOffer`; a body identical to an unknown id.'],
+        },
+        {
+          title: 'Cancel, complete and expire trades exactly once', kind: 'Failure-state',
+          as: 'As Julián and Valentina, I want cancel, completion and expiry to act exactly once, so that a reservation is released at most once.',
+          ops: ['TRD-3', 'S-FR-TRD-7', 'S-FR-TRD-9'], tests: ['TRD-3.Q1', 'TRD-3.P1', 'TRD-3.P2', 'TRD-3.I1', 'S-FR-TRD-7.h', 'S-FR-TRD-7.f', 'S-FR-TRD-9.h', 'S-FR-TRD-9.f'], depends: ['10.3'],
+          happy: ['an accepted trade.', 'both parties confirm completion.', 'the trade completes, computed and never stored; before that, either party could cancel it, releasing the reservation.'],
+          failure: ['both parties cancel at once; a third party cancels; a party cancels after confirming completion; a confirmation is repeated; an accept arrives at `now = expiresAt` without the job.', 'the commands run.', 'the reservation is released exactly once; `TradeOfferNotVisibleToCaller`; `TradeNotCancellable` with the reservation kept; `TradeAlreadyConfirmedByRole`; `TradeOfferNotOpen` citing Expired.'],
+        },
+      ],
+    },
+    // =============================================================== 11 COL
+    {
+      n: 11, module: 'COL (`collections`)', title: 'Collections, binder and wishlist (COL)',
+      goal: 'Let collectors keep collections of catalog cards and external promos, organize them in a binder, and wishlist cards. Each closed purchase becomes exactly one prompt and one set of entries.',
+      stories: [
+        {
+          title: 'Organize my collections', kind: 'Core',
+          as: 'As Julián, I want to create, rename, list and delete collections, so that I can organize my cards.',
+          ops: ['S-FR-COL-1.create', 'S-FR-COL-1.rename', 'S-FR-COL-1.delete', 'S-FR-COL-1.list'], tests: ['S-FR-COL-1.h', 'S-FR-COL-1.f', 'S-FR-COL-1.list.h', 'S-FR-COL-1.delete.h'], depends: ['1.2'],
+          happy: ['Julián has no collection.', 'he creates "Keep" and "For trade".', 'both are listed with their entry counts; deleting one cites how many purchase entries it removes.'],
+          failure: ['"Keep" exists, and two creates race at 49 collections.', 'he creates "keep", and both creates run.', '`CollectionNameTaken`, and exactly 50 collections with one `CollectionLimitReached`.'],
+        },
+        {
+          title: 'Add catalog cards to a collection', kind: 'Core',
+          as: 'As Julián, I want to add a catalog card with its quantity and acquisition date, so that my binder reflects what I own.',
+          ops: ['COL-3'], tests: ['COL-3.Q1', 'COL-3.Q2', 'COL-3.R1', 'COL-3.I2'], depends: ['11.1', '4.5'],
+          happy: ['Julián owns collection "coll1".', 'he adds a Charizard.', 'a Manual entry at the end of the binder; with no collection yet, the first add creates "General".'],
+          failure: ['two first-use adds race, and a row would name both a catalog id and an external link.', 'the adds run.', 'one "General" with distinct positions; storage refuses the mixed row (AD-7, AD-COL-1).'],
+        },
+        {
+          title: 'Turn a closed order into one prompt and one entry set', kind: 'MEC',
+          as: 'As Camila, I want each closed purchase to offer exactly one "add to collection" prompt that adds its lines once, so that my collection never duplicates a purchase (Annex A MEC, R-10).',
+          ops: ['COL-2', 'COL-1', 'COL-1.dismiss', 'COL-1.list'], tests: ['COL-2.Q1', 'COL-2.I1', 'COL-2.I2', 'COL-1.Q1', 'COL-1.MEC', 'COL-1.dismiss.h', 'COL-1.list.h'], depends: ['11.2', '7.2'],
+          happy: ['Camila\'s order closes.', 'the `OrderClosed` is delivered, and she accepts the prompt.', 'one Pending prompt with the payload lines and the close fact; accepting creates one PlatformPurchase entry per line, dated in Bogotá; she may dismiss one instead.'],
+          failure: ['the `OrderClosed` is delivered twice, then the prompt is accepted twice at once, 100 times; there is no Order row anywhere.', 'collections handles them.', 'one prompt and one entry per line; the subscriber still creates the prompt from its payload alone (AD-9).'],
+        },
+        {
+          title: 'Refuse foreign, resolved and invalid collection actions', kind: 'Failure-state',
+          as: 'As Camila, I want a refused collection action to say why and change nothing, so that my binder stays consistent.',
+          contracts: ['COL-1', 'COL-3'], tests: ['COL-1.P1', 'COL-1.P2', 'COL-1.P3', 'COL-1.dismiss.f', 'COL-3.P2', 'COL-3.P3', 'COL-3.P4'], depends: ['11.3'],
+          happy: ['Camila\'s own Pending prompt and collection.', 'she accepts it.', 'it is accepted: the contrast case.'],
+          failure: ['another buyer\'s prompt; a resolved prompt; a missing target collection; an `acquiredAt` after today in Bogotá; another owner\'s collection; an id the catalog reports missing.', 'the action runs.', '`PromptNotFound` with a body identical to an unknown id; `PromptAlreadyResolved` citing status and `resolvedAt`; `CollectionNotFound` with the prompt still Pending; `InvalidAcquiredDate` (today allowed); `CollectionNotFound` with no "General" created; `InvalidCatalogEntry`.'],
+        },
+        {
+          title: 'Use the binder, add external cards, move entries and wishlist cards', kind: 'Supporting',
+          as: 'As Julián, I want a stable binder view, promo cards by link, moves and a wishlist with the lowest available price, so that I can manage cards outside the catalog too.',
+          ops: ['S-FR-COL-3', 'S-FR-COL-4', 'S-FR-COL-5.binder', 'S-FR-COL-5.layout', 'S-FR-COL-5.reorder', 'S-FR-COL-6.add', 'S-FR-COL-6.remove', 'S-FR-COL-6.list'], tests: ['S-FR-COL-3.h', 'S-FR-COL-4.h', 'S-FR-COL-5.h', 'S-FR-COL-6.h'], depends: ['11.2', '5.6'],
+          happy: ['Julián\'s collection and a wishlist.', 'he adds two promos by link, copies a purchase entry, sorts the binder twice and wishlists a card.', 'the catalog is untouched; the copy keeps its source and order id; both sorts give the same order with `entryId` as the last tie-break; the wishlisted card shows its lowest purchasable price.'],
+          failure: ['the binder is read twice with equal ties.', 'the sort runs.', 'the order is identical both times: no unstable ordering.'],
+        },
+        {
+          title: 'Refuse unsafe links, foreign entries and unknown wishlist cards', kind: 'Failure-state',
+          as: 'As Julián, I want unsafe or foreign actions on entries refused with the field, so that nothing unsafe enters my collection.',
+          contracts: ['S-FR-COL-3', 'S-FR-COL-4', 'S-FR-COL-5', 'S-FR-COL-6'], tests: ['S-FR-COL-3.f', 'S-FR-COL-4.f', 'S-FR-COL-5.f', 'S-FR-COL-6.f'], depends: ['11.5'],
+          happy: ['an `https://` promo link.', 'Julián adds it.', 'it is added: the contrast case.'],
+          failure: ['an `http://` URL; another owner\'s entry; a set with 0 card entries; an unknown catalog id on the wishlist.', 'the action runs.', '`InvalidExternalLink` citing the url field; `CollectionEntryNotFound`; completion null, never a division; `InvalidCatalogEntry`.'],
+        },
+      ],
+    },
+    // =============================================================== 12 VAL
+    {
+      n: 12, module: 'VAL (`collections`, no tables)', title: 'Collection valuation and trends (VAL)',
+      goal: 'Value collections exactly in COP from reference prices read as of one instant. Show trends and daily history that never divide by zero or drift.',
+      stories: [
+        {
+          title: 'Value a collection exactly', kind: 'Core',
+          as: 'As Valentina, I want my collection\'s value summed exactly from the latest reference prices, with unvalued entries explained, so that I can trust the total.',
+          ops: ['VAL-1'], tests: ['VAL-1.Q1', 'VAL-1.I1', 'VAL-1.I2'], depends: ['11.2', '4.5', '4.4'],
+          happy: ['entries priced at 45,000 × 2 and 9,999 × 1, one unpriced and one external.', 'Valentina values the collection.', 'total 99,999, valued count 2, stale count 1, and the unpriced and external entries listed with their codes; 90 entries of 999 × 99,999,999 sum exactly in BigInt.'],
+          failure: ['600 distinct cards, read in two price chunks of at most 500.', 'the valuation runs.', 'both chunks are read as of the same instant.'],
+        },
+        {
+          title: 'Show the valuation trend and daily history', kind: 'Core',
+          as: 'As Valentina, I want the 30-day trend and a daily value series, so that I see how my collection moved.',
+          ops: ['VAL-2', 'VAL-3'], tests: ['VAL-2.Q1', 'VAL-3.Q1', 'VAL-3.I2'], depends: ['12.1'],
+          happy: ['a card worth 40,000 thirty days ago and 45,000 now.', 'Valentina reads the trend and the history.', '+12.50 % with the market change and the "current cards" label; one point per Bogotá day, stepping up by a new card\'s value on its acquisition date.'],
+          failure: ['a day with no new observation.', 'the history is computed.', 'the last price is carried forward and marked stale after 36 h, never interpolated.'],
+        },
+        {
+          title: 'Value 500 mixed entries with zero drift and a zero baseline', kind: 'MEC',
+          as: 'As Valentina, I want large mixed collections valued without drift and new collections shown without a fake percentage, so that the numbers are never wrong (Annex A MEC, R-11).',
+          contracts: ['VAL-1', 'VAL-2'], tests: ['VAL-1.MEC', 'VAL-2.I1'], depends: ['12.2'],
+          happy: ['500 entries mixing native and FX-derived prices.', 'five valuations run concurrently.', 'each total equals the BigInt reference sum exactly, and the drift bound is ⌊Σ qty(fx) / 2⌋.'],
+          failure: ['an empty collection, an all-unpriced one, and one whose cards were all acquired inside the period.', 'the trend is read.', 'the change percentage is null with `ValuationNoBaseline`, never NaN or Infinity.'],
+        },
+        {
+          title: 'Refuse foreign collections and invalid periods', kind: 'Failure-state',
+          as: 'As Valentina, I want valuation reads refused for collections that are not mine and for unsupported periods, so that values never leak or mislead.',
+          contracts: ['VAL-1', 'VAL-2', 'VAL-3'], tests: ['VAL-1.P1', 'VAL-2.P2', 'VAL-3.P1'], depends: ['12.2'],
+          happy: ['Valentina\'s own collection and a 30-day period.', 'she reads its value and trend.', 'both are returned: the contrast case.'],
+          failure: ['Julián reads Valentina\'s collection, or Valentina asks for a 14-day period.', 'the read runs.', '`CollectionNotFound` (404) for value and history, and `InvalidValuationPeriod` (400).'],
+        },
+        {
+          title: 'Explain empty series and rounding edges', kind: 'Failure-state',
+          as: 'As Valentina, I want empty histories and edge percentages explained and rounded consistently, so that a small change never shows as −0 or a wrong figure.',
+          contracts: ['VAL-2', 'VAL-3'], tests: ['VAL-3.Q4', 'VAL-2.I3'], depends: ['12.2'],
+          happy: ['3 → 4 over the period.', 'the trend is read.', '+33.33 %, rounded half away from zero.'],
+          failure: ['30,000 → 29,999, and a collection with no priced entry.', 'the trend and the history are read.', 'exactly 0, never −0, and an empty series explained under FR-VAL-4.'],
+        },
+      ],
+    },
+    // =============================================================== 13 REP
+    {
+      n: 13, module: 'REP (`reviews`; listing moderation in `listings`)', title: 'Seller reputation and moderation (REP)',
+      goal: 'Let buyers review sellers. Business reviews require a closed purchase, and aggregates count only visible reviews, consistently. Admins hide reviews and listings with logged snapshots, never deletes.',
+      stories: [
+        {
+          title: 'Write, edit and check eligibility for a review', kind: 'Core',
+          as: 'As Camila, I want to review a business after my purchase closed, and an individual seller after meeting, so that other buyers can trust them.',
+          ops: ['REP-1', 'REP-1.edit', 'REP-1.check'], tests: ['REP-1.Q1', 'REP-1.Q1i', 'REP-1.I1', 'REP-1.edit.h', 'REP-1.check.h'], depends: ['7.5', '2.5'],
+          happy: ['Camila\'s purchase from Andrés is Closed.', 'she reviews him 5 stars, and later edits it.', 'one verified review row, an audit row and no event; the edit sets `editedAt`; an individual seller is reviewed without a purchase and is not marked verified.'],
+          failure: ['her order is PaymentConfirmed but not closed.', 'she checks eligibility.', '`eligible=false` citing `latestState`, with no insert; storage refuses un-verifying a business review.'],
+        },
+        {
+          title: 'Hide and unhide reviews with logged snapshots', kind: 'Core',
+          as: 'As an admin, I want to hide abusive reviews and unhide mistakes, logging what I hid, so that moderation is reversible and accountable.',
+          ops: ['REP-2', 'REP-2.unhide'], tests: ['REP-2.Q1', 'REP-2.I1', 'REP-2.I2', 'REP-2.unhide.h', 'REP-2.unhide.f'], depends: ['13.1'],
+          happy: ['a 1-star review containing personal data.', 'an admin hides it for Harassment.', '`hiddenAt`, reason and admin are set, one log row snapshots the rating and text, and an admin audit row is written; the row is never deleted, and unhiding clears the columns with an `unhide` log row.'],
+          failure: ['two admins hide the same review at once, and an admin unhides a visible review.', 'the commands run.', 'one hide, one log row and one explained no-op citing `hiddenAt` and `hiddenBy`; the unhide is an explained no-op with zero log rows.'],
+        },
+        {
+          title: 'Keep reputation honest: paid is not enough, and a racing hide never skews the aggregate', kind: 'MEC',
+          as: 'As a buyer reading ratings, I want only closed purchases to review businesses, and aggregates that count exactly the visible reviews even while one is being hidden (Annex A MEC, R-12).',
+          ops: ['REP-3'], tests: ['REP-1.MEC', 'REP-3.Q1', 'REP-3.I1', 'REP-3.MEC'], depends: ['13.2'],
+          happy: ['ratings 5, 4 and 4 for one seller, and one hidden 1-star.', 'aggregates are read.', '4.3 (43 tenths, BigInt half-up), in input order, with the hidden review neither counted nor summed; a seller with no review reads `null`, never 0.0.'],
+          failure: ['an order Paid but not closed, 100 review attempts; a hide racing a new post on one seller, 100 times.', 'the reviews and the race run.', '`NotVerifiedPurchaser` citing `latestState: \'Paid\'` every time, with zero rows; after each race the aggregate counts exactly the visible committed set.'],
+        },
+        {
+          title: 'Refuse self, unknown and duplicate reviews', kind: 'Failure-state',
+          as: 'As a seller, I want self-reviews, reviews of non-sellers and duplicates refused, so that my rating cannot be gamed.',
+          contracts: ['REP-1'], tests: ['REP-1.P2', 'REP-1.P3', 'REP-1.I2', 'REP-1.edit.f', 'REP-1.check.f'], depends: ['13.1'],
+          happy: ['Camila has not reviewed Julián.', 'she reviews him.', 'the review is written: the contrast case.'],
+          failure: ['a seller reviews themself; the target is no seller; a double submit; an edit of a hidden review; an eligibility check for an unknown target.', 'the command runs.', '`TargetNotFound` (404) before any neighbour read; `TargetNotFound`; one row and one `DuplicateReview` (409); `ReviewNotFound` with the text unchanged; `TargetNotFound`.'],
+        },
+        {
+          title: 'Read profiles, search moderation logs and hide listings', kind: 'Supporting',
+          as: 'As a buyer and as an admin, I want seller profiles with consistent aggregates, a searchable moderation log, and listing hides that leave discovery at once, so that reputation and moderation stay visible and auditable.',
+          ops: ['S-FR-REP-5', 'S-FR-REP-6.listing', 'S-FR-REP-6.search', 'S-FR-REP-6.log', 'S-FR-REP-7'], tests: ['S-FR-REP-5.h', 'S-FR-REP-6.h', 'S-FR-REP-7.h'], depends: ['13.2', '5.1'],
+          happy: ['a seller with a visible and a hidden review, and a listing to moderate.', 'a buyer opens the profile, and an admin hides the listing and reads the log.', 'the profile lists and counts only the visible review; the listing leaves discovery with a title snapshot logged; the log reads newest first by `(at desc, id)`.'],
+          failure: ['the profile read and a hide happen around the same instant.', 'the profile is read.', 'the aggregate and the first page come from one snapshot, so they never disagree.'],
+        },
+        {
+          title: 'Refuse invalid moderation and bad aggregate requests', kind: 'Failure-state',
+          as: 'As an admin, I want invalid moderation actions and malformed reads refused with the reason, so that the moderation log stays exact.',
+          contracts: ['REP-2', 'REP-3', 'S-FR-REP-5', 'S-FR-REP-6', 'S-FR-REP-7'], tests: ['REP-2.P2', 'REP-2.P3', 'REP-3.P1', 'S-FR-REP-5.f', 'S-FR-REP-6.f', 'S-FR-REP-7.f'], depends: ['13.5'],
+          happy: ['a hide with reason Other and a 30-character note.', 'an admin hides the review.', 'it is hidden: the contrast case.'],
+          failure: ['reason Other with a 5-character note; an unknown review; duplicate seller ids; a listing hidden twice; a search for "100%"; a profile for an unknown user.', 'the command or read runs.', '`RequestValidationFailed` (400) with zero writes; `ReviewNotFound` (404); `RequestValidationFailed`; one log row and an explained no-op; only the literal "100%" text matches; `TargetNotFound` (404).'],
+        },
+      ],
+    },
+  ],
+};

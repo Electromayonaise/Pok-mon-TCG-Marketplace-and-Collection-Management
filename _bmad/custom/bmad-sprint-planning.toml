@@ -1,0 +1,16 @@
+# Team override for bmad-sprint-planning (committed; never touched by the installer).
+#
+# The installed skill only parses epics and writes sprint-status.yaml; it has no readiness
+# audit. The Solu packages require it to certify readiness first (decision log, Solu-1 #18):
+# this prepend runs the deterministic audit and HALTs on IR-FAIL, so a sprint status file can
+# only be generated for a backlog that passes.
+
+[workflow]
+
+activation_steps_prepend = [
+  "Identify the Solu package from the user's request: docs/solu-1 or docs/solu-2. Run `node {project-root}/scripts/readiness-audit.mjs --package <package> --json {project-root}/.vitest-results/readiness-<package-basename>.json` from the project root and show its full output verbatim. If it exits non-zero (IR-FAIL), HALT: do not create or update sprint-status.yaml; list each finding and name the skill that fixes it (bmad-architecture for contracts and schemas, bmad-create-epics-and-stories for stories, bmad-correct-course for scope). Only on exit 0 (IR-PASS) continue with the workflow.",
+]
+
+persistent_facts = [
+  "For a Solu package, epics are read from <package>/planning/epics.md and the status file is written to <package>/implementation-artifacts/sprint-status.yaml, instead of the default planning_artifacts and implementation_artifacts folders.",
+]

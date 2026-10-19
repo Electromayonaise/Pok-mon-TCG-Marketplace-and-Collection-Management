@@ -1,0 +1,113 @@
+# generated: 2026-10-18
+# last_updated: 2026-10-18
+# project: Pok-mon-TCG-Marketplace-and-Collection-Management
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: docs/solu-1/implementation-artifacts
+# readiness_gate: IR-PASS (scripts/readiness-audit.mjs --package docs/solu-1, run as this workflow's prepend step)
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed (see the Definition of Done in docs/solu-1/planning/epics.md)
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; sprint-status surfaces open ones
+# - A story marked 'done' makes scripts/check-atdd-red.mjs require its ATDD block to PASS
+
+generated: 2026-10-18
+last_updated: 2026-10-18
+project: Pok-mon-TCG-Marketplace-and-Collection-Management
+project_key: NOKEY
+tracking_system: file-system
+story_location: docs/solu-1/implementation-artifacts
+
+development_status:
+  epic-1: backlog
+  1-1-answer-listing-eligibility-from-derived-capabilities: backlog
+  1-2-claim-exactly-one-seller-track-per-account: backlog
+  1-3-resolve-a-seller-s-verification-status: backlog
+  epic-1-retrospective: optional
+  epic-2: backlog
+  2-1-gate-business-re-applications-by-the-snapshot-policy: backlog
+  2-2-decide-an-application-exactly-once: backlog
+  2-3-snapshot-payment-instructions-for-orders: backlog
+  epic-2-retrospective: optional
+  epic-3: backlog
+  3-1-gate-catalog-administration-in-the-procedure-builder: backlog
+  3-2-start-one-feed-run-at-a-time: backlog
+  3-3-upsert-a-feed-row-without-ever-reassigning-its-identity: backlog
+  3-4-serve-a-reference-price-as-of-an-instant-with-freshness: backlog
+  epic-3-retrospective: optional
+  epic-4: backlog
+  4-1-guard-listing-changes-by-ownership: backlog
+  4-2-reserve-stock-atomically-inside-the-caller-s-transaction: backlog
+  4-3-summarize-availability-per-catalog-entry-for-the-wishlist: backlog
+  epic-4-retrospective: optional
+  epic-5: backlog
+  5-1-validate-the-search-area: backlog
+  5-2-search-nearby-listings-in-one-deterministic-query: backlog
+  5-3-compose-the-card-detail-even-when-nothing-is-nearby: backlog
+  epic-5-retrospective: optional
+  epic-6: backlog
+  6-1-show-an-order-only-to-whoever-may-see-it: backlog
+  6-2-confirm-i-paid-exactly-once-before-expiry: backlog
+  6-3-answer-whether-a-buyer-completed-a-purchase: backlog
+  epic-6-retrospective: optional
+  epic-7: backlog
+  7-1-keep-top-up-requests-private-to-their-business: backlog
+  7-2-deduct-commission-exactly-once-per-order: backlog
+  7-3-resolve-a-business-s-commission-account: backlog
+  epic-7-retrospective: optional
+  epic-8: backlog
+  8-1-enforce-whose-turn-it-is: backlog
+  8-2-accept-one-offer-per-last-unit: backlog
+  8-3-find-a-proposer-s-live-offer: backlog
+  epic-8-retrospective: optional
+  epic-9: backlog
+  9-1-show-a-conversation-only-to-its-two-participants: backlog
+  9-2-send-a-message-once-with-explained-eligibility: backlog
+  9-3-find-an-existing-conversation: backlog
+  epic-9-retrospective: optional
+  epic-10: backlog
+  10-1-keep-collections-private-to-their-owner: backlog
+  10-2-accept-a-post-purchase-prompt-exactly-once: backlog
+  10-3-compute-set-completion-honestly: backlog
+  epic-10-retrospective: optional
+  epic-11: backlog
+  11-1-validate-the-valuation-period: backlog
+  11-2-value-a-collection-from-one-snapshot: backlog
+  11-3-compute-the-period-change-without-division-by-zero: backlog
+  epic-11-retrospective: optional
+  epic-12: backlog
+  12-1-gate-business-reviews-by-a-closed-purchase: backlog
+  12-2-hide-a-review-exactly-once-never-deleting-it: backlog
+  12-3-aggregate-reputation-from-visible-reviews: backlog
+  epic-12-retrospective: optional

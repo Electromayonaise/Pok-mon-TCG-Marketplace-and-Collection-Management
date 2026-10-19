@@ -1,0 +1,20 @@
+# Test database for the Solu red-phase harness (ARCH §4: "Docker Compose Postgres 16,
+# direct connection"). Never used by a deployed environment.
+services:
+  postgres:
+    image: postgres:16.6
+    environment:
+      POSTGRES_USER: tezg
+      POSTGRES_PASSWORD: tezg
+      POSTGRES_DB: tezg
+    ports:
+      - "55432:5432"
+    # max_connections covers the 50-connection concurrency proofs (NFR-SYS-10, AD-SYS-5 rule 4).
+    command: ["postgres", "-c", "max_connections=200", "-c", "fsync=off", "-c", "full_page_writes=off"]
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tezg -d tezg"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
