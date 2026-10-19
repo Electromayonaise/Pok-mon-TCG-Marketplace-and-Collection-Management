@@ -33,9 +33,11 @@ Each row cites the review finding and the decision-log entry. The detailed desig
 | R-4 | A business confirming an order not yet paid gets `OrderNotVisibleToCaller` (403), with a body identical to an unknown id. `OrderConfirmationOutOfOrder` is the buyer's item-before-paid only | AD-ORD-2 rule 3, with AD-ORD-3 rule 1 | G-07; Solu-2 #6 |
 | R-5 | `Order.cancelReason ∈ {'Unpaid', 'BuyerCancelled'}`. Expiry writes `'Unpaid'`; buyer cancel writes `'BuyerCancelled'` | AD-ORD-2 rule 6 | G-08; Solu-2 #6 |
 | R-6 | Trade actions take `expectedVersion` from the rendered offer; the predicate's `version = :v` binds it | AD-TRD-1 rule 1 | G-09; Solu-2 #6 |
-| R-7 | `commission.requestTopUp` refuses with `NotBusinessAccount` (citing `accountOpened: false`) until the `CommissionAccount` row exists | AD-COM-1 rule 5; AD-COM-3 | G-10; Solu-2 #6 |
+| R-7 | `commission.requestTopUp` refuses with `CommissionAccountNotOpen` (commission, `CONFLICT`, retryable) until the `CommissionAccount` row exists, so `confirmTopUp` never meets a missing account. *Amended at the Phase 1 gate:* the first wording used `NotBusinessAccount`, which `identity` owns and `commission` may not raise (AD-SYS-1 rule 2) | AD-COM-1 rule 5; AD-COM-3 | G-10, C-GAP-3; Solu-2 #6, #8 |
 | R-8 | The SQL DDL is the schema source of truth; the Prisma model is generated from it | Plan-2 §3 (`prisma/schema.prisma` as "one schema") | G-13; Solu-2 #6 |
 | R-9 | The ingress wire is tRPC 11's non-batched HTTP: `GET /api/trpc/{path}?input=` for queries, `POST /api/trpc/{path}` for mutations. Errors return `{ error: ErrorBody }`, with `ErrorBody = { code, httpStatus, decision, issues? }` | AD-SYS-1 (error formatter) | G-02, G-03; Solu-2 #6 |
+| R-10 | Three new DomainErrors: `AccountNotFound` (identity, `NOT_FOUND`) for an unknown capability-trace target; `InvalidAcquiredDate` (collections, `BAD_REQUEST`) for a future `acquiredAt`, which the parser cannot judge without the `Clock`; `CommissionAccountNotOpen` (R-7) | AD-SYS-1 (registry), ARCHITECTURE §8.1 | C-GAP-1..3; Solu-2 #8 |
+| R-11 | A business calling `messaging.setMuted` gets an explained no-op (`allowedWithNotice`, zero writes), so user input never reaches the buyer-only mute CHECK | AD-MSG-3 rule 2 | C-GAP-4; Solu-2 #8 |
 
 ## Detailed-design links
 
