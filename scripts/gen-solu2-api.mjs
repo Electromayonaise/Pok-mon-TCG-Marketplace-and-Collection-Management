@@ -89,6 +89,7 @@ for (const file of typeFiles) {
 
 function tokenize(s) {
   const toks = [];
+  // eslint-disable-next-line no-control-regex -- NUL brackets the doc-comment placeholders this tokenizer inserts.
   const re = /\s*(\u0000DOC\d+\u0000|\.\.\.|'(?:[^'\\]|\\.)*'|-?\d+(?:\.\d+)?|[A-Za-z_$][\w$]*|[{}[\]()<>|&:;,?=])/gy;
   let m;
   while ((m = re.exec(s)) && m[0].length) toks.push(m[1]);
@@ -358,13 +359,43 @@ for (const g of registry.ingress) {
     paths[p] = { post: { ...base, ...(inputSchema ? { requestBody: { required: true, content: { 'application/json': { schema: inputSchema } } } } : {}) } };
   }
 }
+// Platform endpoints (health probes): plain route handlers, outside tRPC and every module.
+const READINESS = {
+  type: 'object',
+  required: ['ready', 'checks', 'pending'],
+  properties: {
+    ready: { type: 'boolean' },
+    checks: {
+      type: 'object',
+      required: ['database', 'migrations'],
+      properties: {
+        database: { type: 'string', enum: ['ok', 'unreachable'] },
+        migrations: { type: 'string', enum: ['current', 'pending', 'edited', 'unknown', 'not-checked'] },
+      },
+    },
+    pending: { type: 'array', items: { type: 'string' }, description: 'Migration files not yet applied.' },
+  },
+};
+for (const h of registry.platform ?? []) {
+  const json = (schema) => ({ 'application/json': { schema } });
+  paths[h.path] = {
+    get: {
+      operationId: `health_${h.probe}`,
+      summary: h.summary,
+      tags: ['health'],
+      responses: h.probe === 'readiness'
+        ? { 200: { description: 'Ready.', content: json(READINESS) }, 503: { description: 'Not ready: the database is unreachable or a migration is pending, edited or unknown.', content: json(READINESS) } }
+        : { 200: { description: 'Alive.', content: json({ type: 'object', required: ['status'], properties: { status: { const: 'ok' } } }) } },
+    },
+  };
+}
 ref('ErrorBody');
 const openapi = {
   openapi: '3.1.0',
   info: {
     title: 'TEZG ingress procedures (Solu-2 detailed design)',
     version: '2.0.0',
-    description: `${GEN}\nEvery ingress procedure of the 12 modules, on tRPC 11's non-batched HTTP wire (refinement R-9): queries are GET /api/trpc/{path}?input=<json>, mutations POST /api/trpc/{path}. Actor fields (x-actor-fields-from-session) come from the Better Auth session, never from input (AD-SYS-8 rule 1). Every refusal is { error: ErrorBody }.`,
+    description: `${GEN}\nEvery ingress procedure of the 12 modules, on tRPC 11's non-batched HTTP wire (refinement R-9): queries are GET /api/trpc/{path}?input=<json>, mutations POST /api/trpc/{path}. Actor fields (x-actor-fields-from-session) come from the Better Auth session, never from input (AD-SYS-8 rule 1). Every refusal is { error: ErrorBody }. The health probes under /api/health are plain GET route handlers outside tRPC.`,
   },
   servers: [{ url: 'https://tezg.example', description: 'Placeholder; the deployment origin is not fixed by the design.' }],
   paths,

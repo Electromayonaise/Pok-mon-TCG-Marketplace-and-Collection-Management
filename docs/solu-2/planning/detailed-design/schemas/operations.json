@@ -1,5 +1,5 @@
 {
-  "$comment": "Solu-2 operation registry. Single source for openapi.yaml, dto.ts, the v2 interface stubs and the consumer-side port interfaces (scripts/gen-solu2-api.mjs). 'contract' is the clause id in contracts.md; 'consumers' are the modules that reach the operation through a ports/ interface; 'tx' marks operations that join the caller's transaction (AD-SYS-4 rule 1).",
+  "$comment": "Solu-2 operation registry. Single source for openapi.yaml, dto.ts, the v2 interface stubs and the consumer-side port interfaces (scripts/gen-solu2-api.mjs). 'contract' is the clause id in contracts.md; 'consumers' are the modules that reach the operation through a ports/ interface; 'tx' marks operations that join the caller's transaction (AD-SYS-4 rule 1). 'platform' lists the endpoints outside any module: the health probes (Impl-1 scaffold).",
   "modules": {
     "IDN": { "host": "identity", "file": "idn", "service": "Idn", "contracts": "§1" },
     "VER": { "host": "identity", "file": "ver", "service": "Ver", "contracts": "§2", "external": { "storage": "ObjectStorage", "scanner": "MalwareScanner" } },
@@ -285,5 +285,9 @@
     { "procedure": "jobs/trm-fetch", "kind": "job", "builder": "job", "op": "S-FR-CAT-8.fetch", "input": null, "omit": [], "errors": [] },
     { "procedure": "jobs/expiry-materialize", "kind": "job", "builder": "job", "op": "S-FR-ORD-8", "input": null, "omit": [], "errors": [] },
     { "procedure": "jobs/commission-reconcile", "kind": "job", "builder": "job", "op": "COM-3", "input": null, "omit": [], "errors": [] }
+  ],
+  "platform": [
+    { "path": "/api/health/live", "probe": "liveness", "summary": "Liveness: the process serves requests." },
+    { "path": "/api/health/ready", "probe": "readiness", "summary": "Readiness: the database answers and every migration is applied unedited." }
   ]
 }

@@ -1,0 +1,12 @@
+{
+  "name": "tezg-lint",
+  "private": true,
+  "description": "ESLint toolchain for the repository (decision log #7, Impl-1). TypeScript 7 has no JavaScript API, so typescript-eslint parses with its own TypeScript 5.9 here; it never type-checks or builds the product.",
+  "type": "module",
+  "dependencies": {
+    "@eslint/js": "9.39.5",
+    "eslint": "9.39.5",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.1"
+  }
+}

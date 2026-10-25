@@ -5,3 +5,10 @@
 node_modules/
 coverage/
 .vitest-results/
+# Local environment (copy .env.example), Next.js build output and the generated Prisma client.
+.env
+.next/
+next-env.d.ts
+generated/
+tools/lint/node_modules/
+*.tsbuildinfo

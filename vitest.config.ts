@@ -63,6 +63,18 @@ export default defineConfig({
           hookTimeout: 300_000,
         },
       },
+      // Impl-1: the unit and integration tests colocated with the code they prove (statement §4.1).
+      {
+        test: {
+          name: 'impl1-unit',
+          include: ['src/**/*.test.ts', 'app/**/*.test.ts', 'scripts/**/*.test.ts'],
+          globalSetup: ['test-support/global-setup.ts'],
+          setupFiles: ['test-support/solu2/network-guard.ts'],
+          provide: { migrationsDir: 'docs/solu-2/planning/detailed-design/schemas', templateDb: 'tezg_tpl_solu2' },
+          testTimeout: 30_000,
+          hookTimeout: 60_000,
+        },
+      },
     ],
   },
 });

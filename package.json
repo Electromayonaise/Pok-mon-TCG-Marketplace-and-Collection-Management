@@ -2,15 +2,27 @@
   "name": "tezg",
   "private": true,
   "version": "0.0.0",
-  "description": "TEZG — Solu red-phase harness: interface stubs, DTOs and ATDD suites. No production logic (Solutioning stop-point).",
+  "description": "TEZG — Pokémon TCG marketplace and collection tracker: a Next.js 16 + tRPC API over PostgreSQL 16 (Impl-1).",
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "db:up": "docker compose up -d --wait",
+    "postinstall": "prisma generate && npm --prefix tools/lint ci --no-audit --no-fund",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "db:up": "docker compose up -d --wait postgres",
     "db:down": "docker compose down",
+    "db:migrate": "node --env-file-if-exists=.env scripts/db-migrate.mjs",
+    "db:reset": "node --env-file-if-exists=.env scripts/db-migrate.mjs --reset",
+    "db:pull": "node scripts/gen-prisma-schema.mjs && prisma generate",
     "typecheck": "tsc --noEmit",
+    "lint": "node tools/lint/node_modules/eslint/bin/eslint.js .",
+    "test:unit": "vitest run --project impl1-unit",
+    "gate:deps": "node scripts/check-deps.mjs",
+    "gate:prisma": "node scripts/gen-prisma-schema.mjs --check",
+    "test": "npm run db:up && npm run lint && npm run gate:deps && npm run gate:prisma && npm run test:unit && npm run gate:solu2 && npm run gate:atdd-red:impl1",
     "test:schema:solu1": "vitest run --project solu1-schema",
     "test:atdd:solu1": "vitest run --project solu1-atdd",
     "gate:atdd-red:solu1": "node scripts/check-atdd-red.mjs solu1-atdd 131 --status docs/solu-1/implementation-artifacts/sprint-status.yaml --epics docs/solu-1/planning/epics.md",
@@ -33,12 +45,24 @@
     "gate:atdd-red:impl1": "node scripts/check-atdd-red.mjs solu2-atdd 352 --status docs/impl-1/implementation-artifacts/sprint-status.yaml --epics docs/solu-2/planning/epics.md"
   },
   "devDependencies": {
-    "@paralleldrive/cuid2": "3.3.0",
     "@types/node": "22.20.5",
     "@types/pg": "8.23.1",
+    "@types/react": "19.3.0",
     "fast-check": "4.10.2",
-    "pg": "8.23.1",
+    "prisma": "7.10.1",
     "typescript": "7.0.2",
     "vitest": "5.0.5"
+  },
+  "dependencies": {
+    "@paralleldrive/cuid2": "3.3.0",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "@trpc/server": "11.19.0",
+    "better-auth": "1.7.7",
+    "next": "16.4.1",
+    "pg": "8.23.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "4.6.7"
   }
 }

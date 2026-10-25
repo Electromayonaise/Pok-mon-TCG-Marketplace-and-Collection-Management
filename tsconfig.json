@@ -12,7 +12,14 @@
     "noFallthroughCasesInSwitch": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "allowJs": true,
+    "incremental": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "plugins": [{ "name": "next" }]
   },
-  "include": ["src/**/*.ts", "test-support/**/*.ts", "docs/solu-*/**/*.ts", "vitest*.config.ts"]
+  "include": ["src/**/*.ts", "app/**/*.ts", "test-support/**/*.ts", "scripts/**/*.ts", "docs/solu-*/**/*.ts", "vitest*.config.ts", "next.config.ts", "prisma.config.ts", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
+  "exclude": ["node_modules"]
 }

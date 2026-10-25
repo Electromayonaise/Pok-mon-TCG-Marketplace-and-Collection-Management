@@ -1,0 +1,14 @@
+.git
+.github
+.next
+.env
+node_modules
+generated
+tools/lint/node_modules
+coverage
+.vitest-results
+*.tsbuildinfo
+_bmad
+_bmad-output
+.claude
+.playwright-mcp

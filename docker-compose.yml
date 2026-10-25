@@ -1,5 +1,9 @@
-# Test database for the Solu red-phase harness (ARCH §4: "Docker Compose Postgres 16,
-# direct connection"). Never used by a deployed environment.
+# Local stack (Impl-1 statement §4.2): `docker compose up` builds the service, migrates its
+# database and serves http://localhost:3000, with both health probes green. The tests start only
+# Postgres (`npm run db:up`) and give every test file its own database. Postgres runs on tmpfs:
+# its data is throwaway, and a restart begins from an empty server. Never a deployed environment.
+name: tezg
+
 services:
   postgres:
     image: postgres:16.6
@@ -18,3 +22,22 @@ services:
       interval: 2s
       timeout: 2s
       retries: 30
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # The variables src/shared-kernel/config.ts validates (.env.example documents each one).
+    environment:
+      DATABASE_URL: postgresql://tezg:tezg@postgres:5432/tezg_dev
+      BETTER_AUTH_SECRET: local-compose-secret-not-for-any-deployed-environment
+      BETTER_AUTH_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s

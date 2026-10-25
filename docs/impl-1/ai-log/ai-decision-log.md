@@ -81,3 +81,50 @@
 - **Reason:** With 43 stories, a per-story gate slows the build without adding control, because the code review runs on every story anyway. A per-epic gate still gives 13 decision points.
 - **Artifact changed:** `docs/impl-1/task-statement.md` §3 (epic gate).
 - **Decided by:** Martín.
+
+### 6. Prisma is the model generated from the DDL and Better Auth's adapter; repositories stay on SQL (Scaffold)
+
+- **Phase:** 1 (scaffold).
+- **Persona/Skill:** `bmad-agent-dev` (repository inspection before the scaffold).
+- **Prompt (summary):** What does Prisma do in Impl-1? Stack Decision 2 and R-8 say "the Prisma 7.6 model is generated from the DDL at implementation time", but R-14 left every repository on the `Sql`/`Tx` port (`infra/pg.ts`), and the 352 ATDD tests are wired to raw `pg`.
+- **AI output (summary):** The agent found that no code uses Prisma and offered three roles:
+  - **(recommended)** generate `prisma/schema.prisma` from the DDL with `prisma db pull`, annotate each model with `/// @owner <module>`, gate it against drift, and use it as Better Auth's adapter. Repositories stay on SQL. This is what the architecture already says.
+  - Drop Prisma and run Better Auth on the `pg` pool. This is leaner, but amends Stack Decision 2 and R-8.
+  - Rewrite the repositories on Prisma. This contradicts R-14 and rewires the suite; not recommended.
+- **Human decision:** ACCEPT the generated model + Better Auth adapter.
+- **Reason:** It keeps the accepted architecture without an amendment. Invariants keep living in SQL (conditional `UPDATE`s in the caller's transaction), where the ports and tests already put them.
+- **Artifact changed:** `prisma/schema.prisma`, `prisma.config.ts`, `package.json` (`db:pull`, `gate:prisma`).
+- **Decided by:** Martín.
+
+### 7. Lint runs in an isolated toolchain on TypeScript 5.9; the code stays on TypeScript 7 (Scaffold)
+
+- **Phase:** 1 (scaffold).
+- **Persona/Skill:** `bmad-agent-dev`.
+- **Prompt (summary):** The statement asks for ESLint. `typescript-eslint` 8 declares `typescript >=4.8.4 <6.1.0`, and TypeScript 7.0.2 (Stack Decision 1) ships no JavaScript compiler API (`ts.createSourceFile` is undefined), so ESLint cannot parse the code.
+- **AI output (summary):** The agent first checked that Next.js 16.3 builds with TypeScript 7 (a scratch build passed), so the conflict is ESLint's alone. It offered three ways out:
+  - **(recommended)** a lint toolchain in `tools/lint/` with its own manifest: ESLint 9, `typescript-eslint` 8 and TypeScript 5.9.3, used only to parse. The root `npm run lint` invokes it.
+  - Downgrade the repository to TypeScript 5.9.3. This changes Stack Decision 1.
+  - Oxlint instead of ESLint. This departs from the statement and from Story 1.4's `eslint.config.mjs`.
+- **Human decision:** ACCEPT the isolated lint toolchain.
+- **Reason:** It keeps Stack Decision 1, the statement's linter and Story 1.4's rule file. The second TypeScript never type-checks or builds the product.
+- **Artifact changed:** `tools/lint/package.json`, `eslint.config.mjs`, `package.json` (`lint`); `gate:deps` covers both manifests.
+- **Decided by:** Martín.
+
+### 8. Prisma 7.10.1, Next.js 16.4.1 and zod 4.6.7: the vendor fixes, so the audit is clean (Scaffold)
+
+- **Phase:** 1 (scaffold).
+- **Persona/Skill:** `bmad-agent-dev` (`gate:deps`, statement §4.2–4.3).
+- **Prompt (summary):** The first install's `npm audit --omit=dev` failed the dependency gate:
+  - Next.js 16.3.8: a critical RCE in image optimization (16.0.0–16.4.0);
+  - zod 4.6.5: a high advisory (fixed in 4.6.6);
+  - the Prisma 7.6 tree: `deepmerge-ts` and `mysql2` (high), `@hono/node-server` and `valibot` (moderate). It counts as production because `@prisma/client` peers on `prisma`.
+
+  Stack Decision 2 and the statement name Prisma 7.6.
+- **AI output (summary):** With Next.js 16.4.1, zod 4.6.7 and Prisma 7.10.1 the audit reports nothing, and the whole gate stays green. The agent offered three ways:
+  - **(recommended)** take those versions: the vendors' own fixes within the same majors. The statement's "Prisma 7.6" becomes "Prisma 7.10".
+  - Keep Prisma 7.6 and force patched `deepmerge-ts` and `mysql2` through npm `overrides`. This keeps the literal version, but pairs Prisma with transitive versions it was never tested with.
+  - Keep 7.6 and give `gate:deps` a list of accepted advisories. This breaks the statement's zero high-or-critical rule; not recommended.
+- **Human decision:** ACCEPT Prisma 7.10.1, Next.js 16.4.1 and zod 4.6.7.
+- **Reason:** It is the only option that clears the audit without hand-forced transitive versions, and it stays within the majors the Stack Decisions fix.
+- **Artifact changed:** `package.json`, `package-lock.json`, `scripts/check-deps.mjs` (approval references), `docs/impl-1/task-statement.md` (§1 Stack, §4.2).
+- **Decided by:** Martín.

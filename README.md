@@ -15,7 +15,7 @@
 
 <br/>
 
-![Status](https://img.shields.io/badge/status-pre--implementation%20%2F%20planning-yellow?style=for-the-badge)
+![Status](https://img.shields.io/badge/status-Impl--1%20in%20progress-orange?style=for-the-badge)
 ![Region](https://img.shields.io/badge/region-Colombia-8A2BE2?style=for-the-badge)
 ![Made with BMAD](https://img.shields.io/badge/planned%20with-BMAD%2FWDS-2596BE?style=for-the-badge)
 
@@ -51,19 +51,80 @@ Colombian Pokémon TCG collectors, buyers, individual sellers, and small busines
 <img src="https://capsule-render.vercel.app/api?type=rect&color=0:3B4CCA,100:FFCB05&height=3&width=1000" width="100%" alt="divider" />
 </div>
 
+## Quick start
+
+You need Docker and nothing else:
+
+```bash
+git clone https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management.git tezg
+cd tezg
+docker compose up -d --wait
+curl http://localhost:3000/api/health/ready
+# {"ready":true,"checks":{"database":"ok","migrations":"current"},"pending":[]}
+```
+
+Compose builds the service, starts PostgreSQL 16, applies the migrations and serves the API on `http://localhost:3000`. Both health probes are green once `--wait` returns. The database runs on tmpfs, so `docker compose down` discards it.
+
+## Development setup
+
+You need Node.js 22 (`.nvmrc`) and Docker.
+
+```bash
+npm ci                    # also generates the Prisma client and installs the lint toolchain
+cp .env.example .env      # every variable is documented there and validated at start-up
+npm run db:up             # PostgreSQL 16 on 127.0.0.1:55432
+npm run db:migrate        # creates tezg_dev and applies the migrations
+npm run dev               # http://localhost:3000
+```
+
+| Command | What it does |
+|---|---|
+| `npm test` | The full suite: lint, the dependency and Prisma gates, the unit tests, the Solu-2 gate (typecheck, contract, fitness, red ATDD) and the Impl-1 red check |
+| `npm run test:unit` | The unit and integration tests colocated with the code (`*.test.ts`) |
+| `npm run lint` | ESLint, run from its own toolchain in `tools/lint/` |
+| `npm run typecheck` | TypeScript 7, no emit |
+| `npm run db:migrate` / `db:reset` | Applies the pending migrations / drops the database and migrates from scratch |
+| `npm run db:pull` | Regenerates `prisma/schema.prisma` from the migrations, then the client |
+| `npm run gate:deps` | Every dependency pinned exactly, on the approved list, and free of high or critical advisories |
+| `npm run gate:prisma` | Fails when `prisma/schema.prisma` drifts from the migrations |
+| `npm run gen:api:solu2` | Regenerates `openapi.yaml` from `operations.json` |
+| `npm run build` / `start` | Production build and server |
+
+The tests need only `npm run db:up`: each test file gets its own database, cloned from a template migrated once per run.
+
+## Architecture
+
+TEZG is a modular monolith in hexagonal style (Plan-2 ARCHITECTURE, Solu-2 detailed design):
+
+- **Inbound adapters.** A Next.js 16 App Router app with no pages. `app/api/trpc/[trpc]/route.ts` serves tRPC 11 on the non-batched wire. `app/api/health/` holds the liveness and readiness probes.
+- **Modules.** `src/modules/<module>/` holds `identity`, `catalog`, `listings`, `orders`, `commission`, `trading`, `messaging`, `collections` and `reviews`. Each has a `domain/` (pure: no framework, driver, network or wall clock; `gate:purity` enforces it), `application/`, `ports/`, `dto/` and `infra/`. Other modules may import it only through its `index.ts`, and only along the AD-1 edges.
+- **Persistence.** PostgreSQL 16. The SQL DDL in `docs/solu-2/planning/detailed-design/schemas/` is the schema source of truth: `npm run db:migrate` applies it, and every table belongs to exactly one module. Repositories run SQL through the `Sql`/`Tx` ports. The Prisma model is generated from the migrated database and backs Better Auth only.
+- **Shared kernel.** `src/shared-kernel/` holds the ports (`Clock`, `IdGenerator`, `TransactionRunner`, the outbox), the error registry, the event registry and the validated configuration (`config.ts`).
+- **Determinism.** Time and ids come only through ports. Every external system is a simulated adapter, and the tests run behind a network guard on a virtual clock.
+
+| Path | Contents |
+|---|---|
+| `app/` | Route handlers (tRPC, health) |
+| `src/` | Modules, shared kernel, server wiring (`src/server/`) |
+| `prisma/schema.prisma` | Generated model (`npm run db:pull`) |
+| `test-support/` | Test harness: per-file databases, virtual clock, ids, simulated adapters, the Reference Seed Profile (`fixtures/`) |
+| `docs/solu-2/` | Detailed design (`contracts.md`, `openapi.yaml`, events, DDL) and the ATDD and fitness suites |
+| `docs/impl-1/` | The Impl-1 statement, sprint status and AI decision log |
+| `scripts/`, `tools/lint/` | Gates, generators, the migration runner, the lint toolchain |
+
 <div align="center">
-<img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png" width="24" valign="middle"/>&nbsp;<img src="assets/logo/title-tech-stack.svg" height="34" valign="middle" alt="Planned Tech Stack"/>
+<img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png" width="24" valign="middle"/>&nbsp;<img src="assets/logo/title-tech-stack.svg" height="34" valign="middle" alt="Tech Stack"/>
 </div>
 
 <div align="center">
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js&logoColor=white)
 ![tRPC](https://img.shields.io/badge/tRPC-11-2596BE?style=for-the-badge&logo=trpc&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-7-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
 ![Prisma](https://img.shields.io/badge/Prisma-7-2D3748?style=for-the-badge&logo=prisma&logoColor=white)
-![Supabase](https://img.shields.io/badge/Supabase%20Postgres-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
 ![Better Auth](https://img.shields.io/badge/Better%20Auth-1.x-000000?style=for-the-badge)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-4-38B2AC?style=for-the-badge&logo=tailwindcss&logoColor=white)
-![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
+![Vitest](https://img.shields.io/badge/Vitest-5-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)
 
 </div>
 
