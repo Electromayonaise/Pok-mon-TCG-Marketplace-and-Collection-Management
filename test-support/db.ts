@@ -2,8 +2,8 @@
 // template, truncated before every test (isolation, test-quality.md example 2).
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, inject } from 'vitest';
-import { withAmbientTx } from '../src/shared-kernel/db.js';
-import type { QueryResult, Sql, TransactionRunner, Tx } from '../src/shared-kernel/ports.js';
+import { pgSql as asSql, PgTransactionRunner } from '../src/shared-kernel/infra/pg-transactions.js';
+import type { Sql, TransactionRunner } from '../src/shared-kernel/ports.js';
 import { PG } from './env.js';
 
 // Migration seed rows (for example the A-24 commission rate) must survive every truncate. They
@@ -25,35 +25,8 @@ export interface TestDb {
   counts(tables: readonly string[]): Promise<Record<string, number>>;
 }
 
-function asSql(client: pg.Pool | pg.PoolClient): Sql {
-  return {
-    async query<Row>(text: string, params?: readonly unknown[]): Promise<QueryResult<Row>> {
-      const r = await client.query(text, params as unknown[] | undefined);
-      return { rows: r.rows as Row[], rowCount: r.rowCount ?? 0 };
-    },
-  };
-}
-
-/** Test binding of the TransactionRunner port: BEGIN … COMMIT on one pooled connection. */
-export class PgTransactionRunner implements TransactionRunner {
-  constructor(private readonly pool: pg.Pool) {}
-  async run<T>(work: (tx: Tx) => Promise<T>, options?: { isolation?: 'READ COMMITTED' | 'REPEATABLE READ'; readOnly?: boolean }): Promise<T> {
-    const client = await this.pool.connect();
-    try {
-      const mode = `ISOLATION LEVEL ${options?.isolation ?? 'READ COMMITTED'}${options?.readOnly ? ' READ ONLY' : ''}`;
-      await client.query(`BEGIN ${mode}`);
-      const tx: Tx = { ...asSql(client), isTransaction: true };
-      const result = await withAmbientTx(tx, () => work(tx));
-      await client.query('COMMIT');
-      return result;
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-}
+/** Test binding of the TransactionRunner port: the production runner, on the test pool. */
+export { PgTransactionRunner };
 
 /** Registers the per-file database lifecycle and returns its handle (populated in beforeAll). */
 export function useTestDatabase(): TestDb {
