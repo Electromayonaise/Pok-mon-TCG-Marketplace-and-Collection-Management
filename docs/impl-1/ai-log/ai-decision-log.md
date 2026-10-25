@@ -313,3 +313,17 @@
 - **Reason:** Each piece is wired by the first story that can test it, and the gate catches it if that story forgets.
 - **Artifact changed:** `docs/impl-1/implementation-artifacts/1-3-deliver-every-committed-event-exactly-once-in-effect.md` (cross-story notes).
 - **Decided by:** Martín.
+
+### 22. The delivery cut: foundation plus three Identity stories, then an epic-batched flow (Scope)
+
+- **Phase:** 2 (after Story 1.3, the day before the Impl-1 delivery).
+- **Persona/Skill:** none; a scope review against the verbatim course statement.
+- **Prompt (summary):** Martín compared the plan with the original statement: one group delivers the foundation scaffold plus 3 core stories of a module in 4–6 hours. The full ceremony took most of a day for Story 1.3 alone, so the 43-story cut (#1, #2) cannot be delivered tomorrow. Stories 1.1–1.3 are cross-cutting infrastructure, not the direct functionality the statement's core stories describe. And the project must still end up complete.
+- **AI output (summary):** The agent offered three ways:
+  - **(recommended)** Deliver the foundation (scaffold and Stories 1.1–1.3) plus the Identity chain 2.1 (Core), 2.2 (MEC) and 2.3 (Failure-state). Their dependencies are all done, and they are one module's user-facing stories, as the statement asks. The three run the same ceremony steps in compact form: a short story file, `bmad-dev-story` test-first, `bmad-code-review` in a subagent in the same session, triage of High and Medium findings only, and log entries only for real decisions. The walkthrough and README come last, with an hour kept for them: 2 stories with the walkthrough beat 3 without it. After the delivery, the rest of the 43 continue epic by epic: `bmad-quick-dev` takes the ATDD tests as the spec, there is one code review per epic, story files are minimal and each story still gets its own commit. The red gate keeps the quality net: a story marked `done` must turn its ATDD tests green.
+  - Deliver 1.1–1.3 as the 3 stories and spend the time on documents only. It is the cheapest, but the stories are infrastructure, and a grader may read them as the scaffold.
+  - Keep the 43-story cut with the full ceremony. It is the plan as written, but it cannot be delivered on time, and it leaves the walkthrough unwritten.
+- **Human decision:** ACCEPT the delivery cut and the epic-batched flow afterwards.
+- **Reason:** It meets the statement as written, with one module's Core, MEC and Failure-state stories built on a foundation that is already reviewed. The epic-batched flow is the only pace at which the whole product gets finished, and the ATDD tests and gates still hold every story to its contract.
+- **Artifact changed:** `docs/impl-1/task-statement.md` (scope note, §1, §3, §5, §6, Appendices A and B), `docs/impl-1/implementation-artifacts/sprint-status.yaml` (`impl1_delivery`).
+- **Decided by:** Martín.

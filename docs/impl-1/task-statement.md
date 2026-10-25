@@ -13,6 +13,8 @@
 > This is the Impl-1 course statement, adapted from its default case study (the *Academic AI Compute Fabric*) to **TEZG**, the Pokémon TCG marketplace and collection tracker this repository builds. The ceremony, the deliverables, the engineering rules and the rubric keep their intent. The domain, the fixtures, the stack and the scope (Appendix B) are TEZG's, and Appendix A maps every substitution. The verbatim course statement is kept outside version control, as in Plan-2 and Solu-2.
 >
 > **Scope (decided by Martín Gómez, 2026-10-24, decision log Impl-1 #1–#5).** The default statement gives each triad one module and 3 core stories, and leaves failure recovery and advanced testing to Impl-2. TEZG is the pair's own 12-module product and must end up complete. So Impl-1 builds the walking skeleton plus the Core and MEC stories of **all 12 modules**, with the prerequisite stories they need: **43 of the 69 stories**. The other 26 (the remaining Failure-state and Supporting stories) are Impl-2's. The front end is deferred to a phase after Impl-2.
+>
+> **Delivery cut (decided by Martín Gómez, 2026-10-25, decision log Impl-1 #22).** The Impl-1 delivery is the foundation (the scaffold and Stories 1.1–1.3) plus the Identity module's Stories 2.1 (Core), 2.2 (MEC) and 2.3 (Failure-state), as the default statement's "scaffold + 3 core stories". The other 37 stories of the 43 continue after the delivery, epic by epic (§3, Appendix B.0). Until then they stay `backlog`, and their ATDD tests stay red for the right reason, reported apart like the Impl-2 ones.
 
 > **The Solutioning stop-point is lifted.** Solu-2 forbade production logic. Impl-1 writes it, but only through the Full Ceremony: no unconstrained "build my app" prompts.
 
@@ -24,7 +26,7 @@
 |---|---|---|
 | **Team** | Triad, one module | Pair, all 12 modules |
 | **Starting point** | Plan-2 PRD, OpenAPI, AD-n, epics | Plan-2 + Solu-2 package, including a red ATDD suite and a certified backlog |
-| **Scope** | Scaffold + 3 core stories | Scaffold + 43 stories: Epic 1 (walking skeleton) and every module's Core and MEC stories, plus 8 prerequisite stories (Appendix B) |
+| **Scope** | Scaffold + 3 core stories | Delivered: scaffold + Stories 1.1–1.3 (foundation) + Identity 2.1–2.3 (#22). Planned: 43 stories, Epic 1 (walking skeleton) and every module's Core and MEC stories, plus 8 prerequisite stories (Appendix B) |
 | **Stack** | Python/FastAPI or Node/TS, Postgres or SQLite | Fixed by the Solu-2 Stack Decisions: TypeScript 7 strict, Node 22, Next.js 16 App Router + tRPC 11, Prisma 7.10 (decision log #8), Better Auth, PostgreSQL 16.6, Vitest 5 + fast-check |
 | **Fixtures** | 32 GPU nodes (31 × 24 GB, 1 × 2 × 48 GB) | The Plan-2 Reference Seed Profile (`seed_marketplace`) |
 | **Runs** | `docker-compose up` or `pytest` | Local only: `docker compose up` + one `npm` command (decision log #4) |
@@ -75,6 +77,8 @@ The installed BMad status values are `backlog → ready-for-dev → in-progress 
 **Epic gate (decision log #5).** The agents take each story through the whole ceremony, including the code review. When an epic's Impl-1 stories are all `done`, Martín triages the review findings, accepts or rejects corrections, and signs the epic off. A short `bmad-retrospective` may follow. These sign-offs are where his decision-log entries come from.
 
 **Two-Sentence Rule.** No Impl-1 story is a compact change. Each one creates or extends shared domain models, tables and public procedures, so all 43 follow the Full Ceremony. The walkthrough states the business goal, blast radius and verification of each story, citing its epic entry.
+
+**Compact ceremony and epic batches (decision log #22).** Stories 2.1–2.3 keep every step above in compact form: a short story file, `bmad-dev-story` test-first, `bmad-code-review` in a fresh-context subagent within the same session, and triage of its High and Medium findings. After the delivery, the remaining stories run one epic at a time: `bmad-quick-dev` takes the bound ATDD tests as the spec, one `bmad-code-review` covers the epic, and each story keeps its own commit and `sprint-status.yaml` entry. The red gate stays the net: a story marked `done` must turn its ATDD tests green.
 
 ---
 
@@ -128,7 +132,8 @@ The default tree is a single-module layout. TEZG keeps the modular hexagonal lay
 | 0 Sprint planning | Impl-1 `sprint-status.yaml`: the 43 stories in scope, the 26 Impl-2 stories kept as `backlog`. Point the red gate at it. | `bmad-sprint-planning`, `bmad-sprint-status` |
 | 1 Scaffold | §4.2, committed as `feat(scaffold)`; the whole existing gate stays green | `bmad-agent-dev` |
 | 2 Epic 1 | Walking skeleton 1.1–1.5: error body, audit + redaction, outbox delivery, determinism, admin health | Full Ceremony |
-| 3 Epics 2–13 | In epic order, which respects every dependency: IDN, VER, CAT, INV, DSC, ORD, COM, MSG, TRD, COL, VAL, REP. One epic gate each | Full Ceremony; Martín's sign-off |
+| 2b Delivery cut (#22) | Identity 2.1–2.3 in the compact ceremony, then Phase 4's walkthrough and README check | Compact ceremony |
+| 3 Epics 2–13 | After the delivery, in epic batches (§3). In epic order, which respects every dependency: IDN, VER, CAT, INV, DSC, ORD, COM, MSG, TRD, COL, VAL, REP. One epic gate each | Full Ceremony; Martín's sign-off |
 | 4 Wrap-up | Final trace, `walkthrough-impl1.md`, README check from a clean clone, decision log, `docs/impl-1.md` deliverable map, tag `impl1-done` | `bmad-testarch-trace`, `bmad-testarch-test-review` |
 
 ---
@@ -140,6 +145,7 @@ The default tree is a single-module layout. TEZG keeps the modular hexagonal lay
 1. **Functional source code:** the scaffold and the 43 Impl-1 stories, running locally.
 2. **Automated test suite.** It covers every acceptance criterion of the 43 stories, with ≥ 90 % passing (target: 100 %) and zero skipped tests (no `.skip`, `.only` or `.todo`).
    - The ATDD tests of the 26 Impl-2 stories stay red for the right reason (`NotImplementedError`). The red gate checks them, and they are reported apart: they are pending scope, not failures or skips.
+   - For the delivery cut (#22), items 1 and 2 read "the 6 delivered stories" (Appendix B.0). The ATDD tests of the 37 stories that continue after it are reported apart in the same way.
 3. **`sprint-status.yaml`:** each Impl-1 story's real progression `ready-for-dev → in-progress → review → done`.
 4. **`docs/impl-1/walkthrough-impl1.md`:**
    - the module architecture and directory layout;
@@ -180,7 +186,7 @@ The four levels are the default statement's. "3 stories" reads as "the 43 Impl-1
 | Element | Default statement | This statement |
 |---|---|---|
 | System | Academic AI Compute Fabric, one module per triad | TEZG, all 12 modules |
-| Scope | Scaffold + 3 recommended core stories (Annex) | Scaffold + 43 stories from the certified `epics.md` (Appendix B) |
+| Scope | Scaffold + 3 recommended core stories (Annex) | Delivered: scaffold + foundation 1.1–1.3 + Identity 2.1–2.3 (#22). Planned: 43 stories from the certified `epics.md` (Appendix B) |
 | Annex stories | Per-module user stories with REST endpoints | The Solu-2 story entries: Gherkin, contract bindings, DoD, ATDD path |
 | Hardware agnosticism | Simulated GPUs, telemetry, drivers | Simulated catalog feed, TRM, object storage, malware scanner, top-up provider, event bus, clock |
 | Fleet fixtures | 32 compute nodes | `seed_marketplace`: 10,000 catalog entries, 300 users, 1,500 listings, 4 cities, ~200 orders, ~50 trades, a USD/COP fixture rate |
@@ -196,6 +202,19 @@ The four levels are the default statement's. "3 stories" reads as "the 43 Impl-1
 | Deployment | `docker-compose up` | Local only; no Vercel or Supabase deployment in Impl-1 (decision log #4) |
 
 ## Appendix B — Scope
+
+### B.0 The delivery cut (decision log #22)
+
+| Story | Module | Kind | Role in the delivery |
+|---|---|---|---|
+| 1.1 | SYS | Skeleton | Foundation: one typed, explained error body |
+| 1.2 | SYS | Skeleton | Foundation: audit trail and redaction at every egress |
+| 1.3 | SYS | Skeleton | Foundation: outbox delivery, exactly once in effect |
+| 2.1 | IDN | Core | Core story 1: complete the individual-seller profile |
+| 2.2 | IDN | MEC | Core story 2: exactly one seller track wins a race |
+| 2.3 | IDN | Failure-state | Core story 3: explain why an account may not list |
+
+The other 37 stories of B.1 continue after the delivery, in epic batches (§3).
 
 ### B.1 Impl-1: 43 stories
 
