@@ -1268,6 +1268,8 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `IndividualSellerProfileIncomplete` | 409 | identity | IDN-2 Q-fail | "Completa tu perfil de vendedor para publicar." | no |
 | `IndividualSellerProfileAlreadyComplete` | 409 | identity | IDN-1 Q-fail; VER-2 P4 | "Tu cuenta ya vende como persona; no puede registrar una tienda." | no |
 | `IndividualSellerProfileCompleted` | — (stored only) | identity | `access.completeIndividualProfile` succeeded (IDN-1.ingress; the rule of decision log Impl-1 #16) | "Tu perfil de vendedor quedó completo; ya puedes publicar como persona." | no |
+| `ListingEligible` | — (stored only) | identity | IDN-2 Q4 `allowed`: an individual seller, or an Approved business (the rule of decision log Impl-1 #16) | "Tu cuenta puede publicar." | no |
+| `ListingUnverified` | — (stored only) | listings | IDN-2 Q4 `allowedWithNotice`: a Pending business. A DecisionCode (list below) that had no template (the rule of decision log Impl-1 #16) | "Puedes publicar mientras revisamos tu tienda; tus publicaciones se verán como no verificadas." | no |
 | `AlreadyVerifiedBusiness` | 409 | identity | IDN-1 Q-fail; VER-2 P6 | "Tu tienda ya está verificada." | no |
 | `BusinessApplicationOnFile` | 409 | identity | IDN-1 Q-fail | "Tienes una solicitud de tienda en estado {latestApplicationStatus}; no puedes vender también como persona." | no |
 | `NotBusinessAccount` | 409 | identity | MSG-3 Q-fail; S-FR-VER-9; S-FR-COM-2 | "Esta cuenta no es una tienda activa ({status}); copia tu mensaje y contáctala por otro medio." | no |

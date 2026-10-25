@@ -33,12 +33,13 @@ export interface IdnV2UseCases {
 }
 // </gen-solu2-api>
 
+import { ambientTx } from '../../../shared-kernel/db.js';
 import type { Decision } from '../../../shared-kernel/decision.js';
 import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
-import type { IsoInstant } from '../../../shared-kernel/types.js';
-import { claimRefusal } from '../domain/idn.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import { claimRefusal, deriveCapabilities, type CapabilityFacts } from '../domain/idn.js';
 
 const raise = raiserFor('identity');
 
@@ -100,8 +101,44 @@ export class IdnServiceV2 implements IdnV2UseCases {
     return raise(code, [{ rule: 'AD-IDN-2 rule 3', inputs: { sellerTrack: facts.sellerTrack, latestApplicationStatus: facts.latestApplicationStatus } }]);
   }
 
-  async requireListingEligibility(_input: RequireListingEligibilityRequest): Promise<RequireListingEligibilityResponse> {
-    throw new NotImplementedError('identity.requireListingEligibility');
+  /**
+   * IDN-2: FR-IDN-3 as a projection of `deriveCapabilities` (AD-IDN-1 rule 2). Zero writes, no
+   * audit. Eligibility does not depend on time; the clock dates the decision only.
+   */
+  async requireListingEligibility({ userId }: RequireListingEligibilityRequest): Promise<RequireListingEligibilityResponse> {
+    const facts = await this.factsOf(userId);
+    if (facts === null) throw new UnexpectedError(`identity.requireListingEligibility: no "User" row for ${userId} (IDN-2 P1)`);
+    const { listing, sellerKind } = deriveCapabilities(facts);
+    const app = facts.latestApplication;
+    if (!listing.allowed) {
+      if (listing.refusal === 'SellerNotVerified') {
+        return raise('SellerNotVerified', [{ rule: 'FR-IDN-3', inputs: { applicationId: app!.id, reapplyNotBefore: app!.reapplyNotBefore, barred: app!.barred } }]);
+      }
+      if (listing.refusal === 'IndividualSellerProfileIncomplete') {
+        return raise('IndividualSellerProfileIncomplete', [{ rule: 'FR-IDN-3', inputs: { sellerKind } }]);
+      }
+      throw new UnexpectedError(`identity.requireListingEligibility: business ${userId} has no application (IDN-1 I1)`);
+    }
+    const inputs = { sellerKind, latestApplicationStatus: app?.status ?? null };
+    const reasonCode = listing.notice ?? 'ListingEligible';
+    const decision: Decision = {
+      outcome: listing.notice ? 'allowedWithNotice' : 'allowed',
+      reasonCode,
+      humanMessage: renderMessage(reasonCode, inputs),
+      citations: [{ rule: 'FR-IDN-3', inputs }],
+      occurredAt: this.deps.clock.now().toISOString(),
+    };
+    return { listingKind: listing.listingKind, verified: listing.verified, decision };
+  }
+
+  /**
+   * AD-SYS-4 rule 9: reads on the caller's open transaction when there is one, so a neighbour
+   * query never takes a second connection; otherwise in one read-only transaction of its own.
+   */
+  private async factsOf(userId: CuidId): Promise<CapabilityFacts | null> {
+    const { repo, transactions } = this.deps;
+    const tx = ambientTx();
+    return tx ? repo.readCapabilityFacts(tx, userId) : transactions.run((own) => repo.readCapabilityFacts(own, userId), { readOnly: true });
   }
 
   async traceCapabilities(_input: TraceCapabilitiesRequest): Promise<TraceCapabilitiesResponse> {
@@ -124,12 +161,22 @@ export class IdnServiceV2 implements IdnV2UseCases {
     throw new NotImplementedError('identity.checkAuthThrottle');
   }
 
-  async getCapabilities(_input: GetCapabilitiesRequest): Promise<GetCapabilitiesResponse> {
-    throw new NotImplementedError('identity.getCapabilities');
+  /** P-IDN.capabilities: one fact read, one `deriveCapabilities`, zero writes, no cache (AD-IDN-1 rules 2, 4). */
+  async getCapabilities({ userId }: GetCapabilitiesRequest): Promise<GetCapabilitiesResponse> {
+    const facts = await this.factsOf(userId);
+    if (facts === null) throw new UnexpectedError(`identity.getCapabilities: no "User" row for ${userId} (P-IDN.capabilities P)`);
+    const { capabilities, sellerKind, derivedFrom } = deriveCapabilities(facts);
+    return {
+      capabilities: Object.fromEntries(capabilities.map((c) => [c.name, c.value])) as GetCapabilitiesResponse['capabilities'],
+      sellerKind,
+      derivedFrom,
+    };
   }
 
-  async getSellerVerification(_input: GetSellerVerificationRequest): Promise<GetSellerVerificationResponse> {
-    throw new NotImplementedError('identity.getSellerVerification');
+  /** P-IDN.verification: the latest application's status, or `'none'`, read on the ambient transaction. */
+  async getSellerVerification({ sellerId }: GetSellerVerificationRequest): Promise<GetSellerVerificationResponse> {
+    const facts = await this.factsOf(sellerId);
+    return { status: facts === null ? 'none' : deriveCapabilities(facts).verification };
   }
 
   async getContactCard(_input: GetContactCardRequest): Promise<GetContactCardResponse> {

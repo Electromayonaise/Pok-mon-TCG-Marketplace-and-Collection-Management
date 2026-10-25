@@ -31,7 +31,10 @@ export interface Tx extends Sql {
   readonly isTransaction: true;
 }
 
-/** Opens one transaction, runs `work` in it, commits on resolve and rolls back on throw. */
+/**
+ * Opens one transaction, runs `work` in it, commits on resolve and rolls back on throw. Every
+ * implementation runs `work` inside `withAmbientTx(tx, ...)` from `db.ts` (AD-SYS-4 rule 9).
+ */
 export interface TransactionRunner {
   run<T>(work: (tx: Tx) => Promise<T>, options?: { isolation?: 'READ COMMITTED' | 'REPEATABLE READ'; readOnly?: boolean }): Promise<T>;
 }

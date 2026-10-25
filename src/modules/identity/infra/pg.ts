@@ -90,4 +90,35 @@ export class PgIdnRepository implements IdnRepository {
         row.meetingLat, row.meetingLng, row.meetingCity, row.completedAt, now],
     );
   }
+
+  async readCapabilityFacts(tx: Tx, userId: CuidId): Promise<CapabilityFacts | null> {
+    // AD-IDN-1 rule 1 for one user: the latest application by ("submittedAt" DESC, id DESC).
+    const { rows } = await tx.query<{
+      emailVerified: boolean; signupConsentAt: Date | null; isAdmin: boolean; sellerTrack: SellerTrack | null; hasIndividualProfile: boolean;
+      appId: CuidId | null; status: ApplicationStatus | null; decidedAt: Date | null; reapplyNotBefore: Date | null; barred: boolean | null;
+    }>(
+      `SELECT u."emailVerified", u."signupConsentAt", u."isAdmin", u."sellerTrack",
+              EXISTS (SELECT 1 FROM "IndividualSellerProfile" p WHERE p."userId" = u.id) AS "hasIndividualProfile",
+              a.id AS "appId", a.status, a."decidedAt", a."reapplyNotBefore", a."reapplyBarred" AS barred
+         FROM "User" u
+         LEFT JOIN LATERAL (SELECT * FROM "BusinessApplication" b WHERE b."businessId" = u.id
+                             ORDER BY b."submittedAt" DESC, b.id DESC LIMIT 1) a ON true
+        WHERE u.id = $1`,
+      [userId],
+    );
+    const r = rows[0];
+    if (!r) return null;
+    return {
+      emailVerified: r.emailVerified,
+      signupConsentAt: iso(r.signupConsentAt),
+      isAdmin: r.isAdmin,
+      sellerTrack: r.sellerTrack,
+      hasIndividualProfile: r.hasIndividualProfile,
+      latestApplication: r.appId === null || r.status === null ? null : {
+        id: r.appId, status: r.status, decidedAt: iso(r.decidedAt), reapplyNotBefore: iso(r.reapplyNotBefore), barred: r.barred ?? false,
+      },
+    };
+  }
 }
+
+const iso = (d: Date | null): IsoInstant | null => (d === null ? null : d.toISOString());

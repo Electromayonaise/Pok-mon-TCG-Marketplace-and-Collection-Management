@@ -2,6 +2,7 @@
 // template, truncated before every test (isolation, test-quality.md example 2).
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, inject } from 'vitest';
+import { withAmbientTx } from '../src/shared-kernel/db.js';
 import type { QueryResult, Sql, TransactionRunner, Tx } from '../src/shared-kernel/ports.js';
 import { PG } from './env.js';
 
@@ -42,7 +43,7 @@ export class PgTransactionRunner implements TransactionRunner {
       const mode = `ISOLATION LEVEL ${options?.isolation ?? 'READ COMMITTED'}${options?.readOnly ? ' READ ONLY' : ''}`;
       await client.query(`BEGIN ${mode}`);
       const tx: Tx = { ...asSql(client), isTransaction: true };
-      const result = await work(tx);
+      const result = await withAmbientTx(tx, () => work(tx));
       await client.query('COMMIT');
       return result;
     } catch (error) {

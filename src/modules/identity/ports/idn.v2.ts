@@ -17,7 +17,7 @@ export interface IdnV2Deps {
 
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import type { ApplicationStatus, SellerTrack } from '../domain/idn.js';
+import type { ApplicationStatus, CapabilityFacts, SellerTrack } from '../domain/idn.js';
 
 /** One `"IndividualSellerProfile"` row as IDN-1.ingress inserts it; `contactPhoneE164` is regulated. */
 export interface IndividualProfileRow {
@@ -44,4 +44,6 @@ export interface IdnRepository {
   readTrackAndLatestStatus(tx: Tx, userId: CuidId): Promise<{ sellerTrack: SellerTrack | null; latestApplicationStatus: ApplicationStatus | null }>;
   /** IDN-1.ingress: the profile row, in the transaction that claimed the track. */
   insertIndividualProfile(tx: Tx, row: IndividualProfileRow, now: IsoInstant): Promise<void>;
+  /** AD-IDN-1 rule 1: one statement for the user's flags, latest application and profile presence; `null` when no `"User"` row. */
+  readCapabilityFacts(tx: Tx, userId: CuidId): Promise<CapabilityFacts | null>;
 }
