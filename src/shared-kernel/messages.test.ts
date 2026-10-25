@@ -23,7 +23,7 @@ describe('es-CO message catalog (contracts.md §13, AD-SYS-1 rule 6)', () => {
       ...['acquiredAt', 'at', 'confirmedAt', 'decidedAt', 'effectiveFrom', 'reapplyNotBefore', 'resolvedAt', 'retryAt', 'startedAt', 'submittedAt', 'today'], // instants
       ...['available', 'requested', 'round', 'threshold'], // numbers
       ...['field', 'fields', 'issue'], // input keys, and the parser's own es-CO copy
-      ...['cause', 'status', 'latestState', 'reasonCode', 'turn'], // enum values
+      ...['cause', 'status', 'latestApplicationStatus', 'latestState', 'reasonCode', 'turn'], // enum values
     ]);
     const freeText = Object.entries(MESSAGES).flatMap(([code, t]) => [...t.matchAll(/\{(\w+)\}/g)].filter(([, p]) => !allowed.has(p!)).map(([m]) => `${code} ${m}`));
     expect(freeText).toEqual([]);

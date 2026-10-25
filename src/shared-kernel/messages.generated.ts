@@ -15,8 +15,9 @@ export const MESSAGES = {
   AccountNotFound: 'No encontramos esa cuenta.',
   IndividualSellerProfileIncomplete: 'Completa tu perfil de vendedor para publicar.',
   IndividualSellerProfileAlreadyComplete: 'Tu cuenta ya vende como persona; no puede registrar una tienda.',
+  IndividualSellerProfileCompleted: 'Tu perfil de vendedor quedó completo; ya puedes publicar como persona.',
   AlreadyVerifiedBusiness: 'Tu tienda ya está verificada.',
-  BusinessApplicationOnFile: 'Tienes una solicitud de tienda {status}; no puedes vender también como persona.',
+  BusinessApplicationOnFile: 'Tienes una solicitud de tienda en estado {latestApplicationStatus}; no puedes vender también como persona.',
   NotBusinessAccount: 'Esta cuenta no es una tienda activa ({status}); copia tu mensaje y contáctala por otro medio.',
   SellerNotVerified: 'Tu solicitud de tienda fue rechazada; podrás publicar si vuelves a aplicar desde el {reapplyNotBefore}.',
   ApplicationAlreadyPending: 'Ya tienes una solicitud en revisión desde el {submittedAt}.',
@@ -94,6 +95,6 @@ export const MESSAGES = {
   DuplicateReview: 'Ya reseñaste a este vendedor; puedes editar tu reseña.',
   ReviewNotFound: 'No encontramos esa reseña.',
   Unexpected: 'Algo falló de nuestro lado; no se aplicó ningún cambio.',
-} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress', string>;
+} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'IndividualSellerProfileCompleted', string>;
 
 export type MessageCode = keyof typeof MESSAGES;

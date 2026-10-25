@@ -15,9 +15,33 @@ export interface IdnV2Deps {
 }
 // </gen-solu2-api>
 
+import type { Tx } from '../../../shared-kernel/ports.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import type { ApplicationStatus, SellerTrack } from '../domain/idn.js';
+
+/** One `"IndividualSellerProfile"` row as IDN-1.ingress inserts it; `contactPhoneE164` is regulated. */
+export interface IndividualProfileRow {
+  userId: CuidId;
+  displayName: string;
+  contactPhoneE164: string;
+  phoneSharingConsentAt: IsoInstant;
+  phoneSharingConsentVersion: string;
+  meetingLat: number;
+  meetingLng: number;
+  meetingCity: string;
+  completedAt: IsoInstant;
+}
+
 /**
  * Repository port of IDN (review A-4): the only way its application service reads or writes
  * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them.
  */
-export interface IdnRepository {}
+export interface IdnRepository {
+  /** IDN-1 Q1: the conditional update of `"User"."sellerTrack"`; 1 when this call set the track. */
+  claimSellerTrack(tx: Tx, userId: CuidId, track: SellerTrack, now: IsoInstant): Promise<0 | 1>;
+  /** IDN-1 Q-fail: the track and the latest application's status, re-read in `tx`. */
+  readTrackAndLatestStatus(tx: Tx, userId: CuidId): Promise<{ sellerTrack: SellerTrack | null; latestApplicationStatus: ApplicationStatus | null }>;
+  /** IDN-1.ingress: the profile row, in the transaction that claimed the track. */
+  insertIndividualProfile(tx: Tx, row: IndividualProfileRow, now: IsoInstant): Promise<void>;
+}

@@ -1267,8 +1267,9 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `AccountNotFound` † | 404 | identity | IDN-3 P2 (C-GAP-1) | "No encontramos esa cuenta." | no |
 | `IndividualSellerProfileIncomplete` | 409 | identity | IDN-2 Q-fail | "Completa tu perfil de vendedor para publicar." | no |
 | `IndividualSellerProfileAlreadyComplete` | 409 | identity | IDN-1 Q-fail; VER-2 P4 | "Tu cuenta ya vende como persona; no puede registrar una tienda." | no |
+| `IndividualSellerProfileCompleted` | — (stored only) | identity | `access.completeIndividualProfile` succeeded (IDN-1.ingress; the rule of decision log Impl-1 #16) | "Tu perfil de vendedor quedó completo; ya puedes publicar como persona." | no |
 | `AlreadyVerifiedBusiness` | 409 | identity | IDN-1 Q-fail; VER-2 P6 | "Tu tienda ya está verificada." | no |
-| `BusinessApplicationOnFile` | 409 | identity | IDN-1 Q-fail | "Tienes una solicitud de tienda {status}; no puedes vender también como persona." | no |
+| `BusinessApplicationOnFile` | 409 | identity | IDN-1 Q-fail | "Tienes una solicitud de tienda en estado {latestApplicationStatus}; no puedes vender también como persona." | no |
 | `NotBusinessAccount` | 409 | identity | MSG-3 Q-fail; S-FR-VER-9; S-FR-COM-2 | "Esta cuenta no es una tienda activa ({status}); copia tu mensaje y contáctala por otro medio." | no |
 | `SellerNotVerified` | 409 | identity | IDN-2 Q-fail | "Tu solicitud de tienda fue rechazada; podrás publicar si vuelves a aplicar desde el {reapplyNotBefore}." | no |
 | `ApplicationAlreadyPending` | 409 | identity | VER-2 P5, I1 | "Ya tienes una solicitud en revisión desde el {submittedAt}." | no |

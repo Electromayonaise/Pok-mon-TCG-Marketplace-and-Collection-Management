@@ -24,6 +24,22 @@ export interface DerivedCapabilities {
   derivedFrom: string[];
 }
 
+export type ClaimRefusalCode = 'AlreadyVerifiedBusiness' | 'BusinessApplicationOnFile' | 'IndividualSellerProfileAlreadyComplete';
+
+/**
+ * IDN-1 Q-fail: the code a claim of `track` raises when its conditional update changed 0 rows,
+ * from the facts re-read in the same `tx`. `null` when no track is set: the claim could only
+ * have failed on a missing `"User"` row, a P2 breach the caller reports as 'Unexpected'.
+ */
+export function claimRefusal(
+  track: SellerTrack,
+  current: { sellerTrack: SellerTrack | null; latestApplicationStatus: ApplicationStatus | null },
+): ClaimRefusalCode | null {
+  if (current.sellerTrack === null) return null;
+  if (track === 'business' || current.sellerTrack === 'individual') return 'IndividualSellerProfileAlreadyComplete';
+  return current.latestApplicationStatus === 'Approved' ? 'AlreadyVerifiedBusiness' : 'BusinessApplicationOnFile';
+}
+
 /** AD-IDN-1 rule 2: the one pure function every IDN query projects. */
 export function deriveCapabilities(_facts: CapabilityFacts): DerivedCapabilities {
   throw new NotImplementedError('identity.domain.deriveCapabilities');

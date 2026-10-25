@@ -37,6 +37,9 @@ export function createVerModule(w: IdentityWiring): VerUseCases {
   });
 }
 
+/** The Solu-2 Postgres adapter of `IdnRepository`, for the composition that builds the one `repo` (R-14). */
+export { PgIdnRepository } from './infra/pg.js';
+
 // <gen-solu2-api>
 export { IdnServiceV2 } from './application/idn.v2.js';
 export type { IdnV2UseCases } from './application/idn.v2.js';

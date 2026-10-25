@@ -33,18 +33,71 @@ export interface IdnV2UseCases {
 }
 // </gen-solu2-api>
 
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import type { Decision } from '../../../shared-kernel/decision.js';
+import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import type { IsoInstant } from '../../../shared-kernel/types.js';
+import { claimRefusal } from '../domain/idn.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('identity');
+
+/** Every method not yet done throws NotImplementedError (red for the right reason). */
 export class IdnServiceV2 implements IdnV2UseCases {
   constructor(protected readonly deps: IdnV2Deps) {}
 
-  async claimSellerTrack(_tx: Tx, _input: ClaimSellerTrackRequest): Promise<ClaimSellerTrackResponse> {
-    throw new NotImplementedError('identity.claimSellerTrack');
+  /** IDN-1: the first row-locking statement of the caller's `tx` (AD-SYS-4; `"User"` is lock position 2). */
+  async claimSellerTrack(tx: Tx, input: ClaimSellerTrackRequest): Promise<ClaimSellerTrackResponse> {
+    return this.claim(tx, input, this.deps.clock.now().toISOString());
   }
 
-  async completeIndividualProfile(_input: CompleteIndividualProfileRequest): Promise<CompleteIndividualProfileResponse> {
-    throw new NotImplementedError('identity.completeIndividualProfile');
+  /**
+   * IDN-1.ingress: IDN-1 then the profile insert, in one transaction that reads the `Clock` once.
+   * The regulated phone goes only into the profile row (AD-SYS-8); the audit row carries the track.
+   */
+  async completeIndividualProfile(input: CompleteIndividualProfileRequest): Promise<CompleteIndividualProfileResponse> {
+    const { repo, transactions, clock } = this.deps;
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      await this.claim(tx, { userId: input.userId, track: 'individual' }, now);
+      const { lat, lng, city } = input.defaultMeetingPoint;
+      await repo.insertIndividualProfile(tx, {
+        userId: input.userId,
+        displayName: input.displayName,
+        contactPhoneE164: input.contactPhone,
+        phoneSharingConsentAt: now,
+        phoneSharingConsentVersion: input.phoneSharingConsentVersion,
+        meetingLat: lat,
+        meetingLng: lng,
+        meetingCity: city,
+        completedAt: now,
+      }, now);
+      const inputs = { sellerKind: 'individual' };
+      const decision: Decision = {
+        outcome: 'allowed',
+        reasonCode: 'IndividualSellerProfileCompleted',
+        humanMessage: renderMessage('IndividualSellerProfileCompleted', inputs),
+        citations: [{ rule: 'FR-IDN-2', inputs }],
+        occurredAt: now,
+      };
+      return { sellerKind: 'individual' as const, completedAt: now, decision };
+    });
+  }
+
+  /** IDN-1 Q1–Q4 and Q-fail at the transaction's one instant `now`. */
+  private async claim(tx: Tx, { userId, track }: ClaimSellerTrackRequest, now: IsoInstant): Promise<ClaimSellerTrackResponse> {
+    const { repo, audit } = this.deps;
+    if (await repo.claimSellerTrack(tx, userId, track, now) === 1) {
+      await audit.record(tx, {
+        actorId: userId, actorKind: 'user', module: 'identity', action: 'identity.sellerTrack.claimed',
+        aggregateType: 'User', aggregateId: userId, decisionCode: null, data: { track },
+      });
+      return { claimed: track };
+    }
+    const facts = await repo.readTrackAndLatestStatus(tx, userId);
+    const code = claimRefusal(track, facts);
+    if (code === null) throw new UnexpectedError(`identity.claimSellerTrack: no "User" row for ${userId} (IDN-1 P2)`);
+    return raise(code, [{ rule: 'AD-IDN-2 rule 3', inputs: { sellerTrack: facts.sellerTrack, latestApplicationStatus: facts.latestApplicationStatus } }]);
   }
 
   async requireListingEligibility(_input: RequireListingEligibilityRequest): Promise<RequireListingEligibilityResponse> {
