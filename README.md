@@ -114,6 +114,8 @@ Windows (WinNAT/Hyper-V) can reserve a port range that includes 55432. `npm run 
 
 The delivery of 2026-10-26 (decision log #22) is the foundation and the first three Identity stories. The other Impl-1 stories follow one epic at a time, and their ATDD tests stay red for the right reason (`NotImplementedError`) until then.
 
+> **The graded delivery is the tag [`impl1-entrega`](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/tree/impl1-entrega).** Stories after it are built in the epic-batched flow of decision #22 (`bmad-quick-dev` with the ATDD tests as the spec, one code review per epic) and are not part of that delivery.
+
 | Story | What it guarantees |
 |---|---|
 | 1.1 | Every refusal is one `{ error: ErrorBody }`: a registry code, its HTTP status, an es-CO message and a cited decision. A stack trace never reaches the client |
