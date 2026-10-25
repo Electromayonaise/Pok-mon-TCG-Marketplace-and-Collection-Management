@@ -9,7 +9,9 @@ import { expect } from 'vitest';
 import { SEED_INSTANT, VirtualClock } from '../clock.js';
 import type { TestDb } from '../db.js';
 import { id, SequentialIds } from '../ids.js';
-import { InMemoryObjectStorage, SimulatedScanner, SqlAuditLog, SqlOutboxV2, SubscriberFaults } from '../simulated/index.js';
+import { PgAdminEventsRepository } from '../../src/shared-kernel/infra/pg-admin-events.js';
+import { PgOutboxV2 } from '../../src/shared-kernel/infra/pg-outbox.js';
+import { InMemoryObjectStorage, SimulatedScanner, SqlAuditLog, SubscriberFaults } from '../simulated/index.js';
 
 export { id };
 export const T0 = new Date(SEED_INSTANT).toISOString();
@@ -178,13 +180,17 @@ export function wiring(db: TestDb, idPrefix = 'n') {
   return {
     clock, ids,
     transactions: db.transactions,
-    outbox: new SqlOutboxV2(ids, clock),
+    // The production outbox, so payloads pass the AD-SYS-8 redactor in every suite (decision log Impl-1 #20).
+    outbox: new PgOutboxV2(ids, clock),
     audit: new SqlAuditLog(ids, clock),
     storage: new InMemoryObjectStorage(clock),
     scanner: new SimulatedScanner(),
     faults: new SubscriberFaults(),
-    /** The repository port is empty until each story declares its methods (R-14). */
-    repo: {},
+    /**
+     * The one repository object every service receives (R-14): each story binds the Postgres
+     * adapter of the methods it declares; ports still empty accept it unchanged.
+     */
+    repo: new PgAdminEventsRepository(),
   };
 }
 

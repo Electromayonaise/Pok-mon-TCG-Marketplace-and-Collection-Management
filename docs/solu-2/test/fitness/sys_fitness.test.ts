@@ -7,7 +7,7 @@ import net from 'node:net';
 import { describe, expect, it } from 'vitest';
 import { EVENT_SCHEMA_VERSIONS, EVENT_SUBSCRIBERS } from '../../../../src/shared-kernel/events.js';
 import { useTestDatabase } from '../../../../test-support/db.js';
-import { importViolations, ownershipViolations, parseGeneratedYaml, tableOwners, tsFiles, wallClockReads } from '../../../../test-support/solu2/fitness.js';
+import { importViolations, ownershipViolations, parseGeneratedYaml, sqlWrites, tableOwners, tsFiles, wallClockReads } from '../../../../test-support/solu2/fitness.js';
 
 const SCHEMAS = 'docs/solu-2/planning/detailed-design/schemas';
 const schemaSql = fs.readFileSync(`${SCHEMAS}/001_tezg_schema.sql`, 'utf8');
@@ -19,6 +19,12 @@ describe('SYS-AD1 — import graph (AD-1)', () => {
       { file: 'src/modules/trading/ports/x.ts', text: `import type { A } from '../../catalog/index.js';` },
       { file: 'src/modules/orders/ports/x.ts', text: `import type { B } from '../../listings/dto/inv.v2.dto.js';` },
       { file: 'src/modules/reviews/ports/x.ts', text: `import type { C } from '../../orders/index.js';` },
+    ])).toHaveLength(2);
+    // The kernel and the modules never import the driving adapter in src/server (decision log Impl-1 #19).
+    expect(importViolations([
+      { file: 'src/shared-kernel/x.ts', text: `import { renderMessage } from '../server/trpc/messages.js';` },
+      { file: 'src/modules/orders/application/x.ts', text: `import type { D } from '../../../server/trpc/init.js';` },
+      { file: 'src/server/trpc/x.ts', text: `import { E } from './errors.js';` },
     ])).toHaveLength(2);
   });
 
@@ -35,6 +41,9 @@ describe('SYS-AD8 — table ownership (AD-8, R-2)', () => {
     expect(tables.filter((t) => !owners.has(t))).toEqual([]);
     expect(owners.get('audit_events')).toBe('shared-kernel');
     expect(ownershipViolations([{ file: 'src/modules/listings/infra/pg.ts', text: 'await tx.query(`UPDATE "CommissionAccount" SET balance = 0`);' }], owners)).toHaveLength(1);
+    // A row lock is a read: `SELECT … FOR UPDATE [SKIP LOCKED]` writes no table (AD-SYS-2 rule 4
+    // step 2; decision log Impl-1 #18).
+    expect(sqlWrites('`SELECT 1 FROM "EventDelivery" WHERE status = \'failed\' FOR UPDATE SKIP LOCKED`')).toEqual([]);
   });
 
   it('[SYS-AD8] no foreign-table writes: each module writes only its own tables; audit and outbox rows only through their ports', () => {

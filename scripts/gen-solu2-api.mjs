@@ -12,7 +12,7 @@
 //           src/modules/<host>/ports/<file>.v2.ts         (consumer-side neighbour ports + deps)
 //           src/shared-kernel/admin-events.ts             (the shared-kernel stub)
 //           a generated block in each src/modules/<host>/index.ts
-//           src/server/trpc/messages.generated.ts         (the es-CO templates of contracts.md §13)
+//           src/shared-kernel/messages.generated.ts       (the es-CO templates of contracts.md §13)
 //           src/server/trpc/inputs.generated.ts           (the zod input of every ingress procedure)
 //
 // Usage: node scripts/gen-solu2-api.mjs          write the outputs
@@ -489,6 +489,25 @@ function importBlock(names, fromFile) {
 // ---------------------------------------------------------------- stubs, ports, index blocks
 // Review A-4: no raw `Sql` reaches an application service; persistence goes through the module's
 // repository port (implemented by infra/pg.ts). Review S-1: the outbox is the R-1 `OutboxV2`.
+// Decision log Impl-1 #14: an application or ports file is generated only inside its
+// `// <gen-solu2-api>` block (imports, neighbour ports, deps, use-case interface), so `--check`
+// still catches contract drift; the service class and the repository port after the block are
+// hand-owned. Only a missing file is seeded whole; an existing file must hold exactly one block,
+// so a lost or doubled marker stops the run instead of overwriting hand-owned code.
+const BLOCK_START = '// <gen-solu2-api>';
+const BLOCK_END = '// </gen-solu2-api>';
+const HAND = GEN.replace('Do not edit by hand.', 'Do not edit this block by hand; the code after it is hand-owned.');
+function handOwned(file, gen, seed) {
+  const block = `${BLOCK_START}\n// ${HAND}\n${gen.join('\n').replace(/\n+$/, '')}\n${BLOCK_END}`;
+  if (!fs.existsSync(rel(file))) return void outputs.set(file, `${block}\n\n${seed.join('\n')}\n`);
+  const cur = read(rel(file));
+  const count = (marker) => cur.split(marker).length - 1;
+  const start = cur.indexOf(BLOCK_START);
+  if (count(BLOCK_START) !== 1 || count(BLOCK_END) !== 1 || cur.indexOf(BLOCK_END) < start) {
+    throw new Error(`${file}: expected exactly one ${BLOCK_START} … ${BLOCK_END} block; restore the markers (or delete the file to reseed it)`);
+  }
+  outputs.set(file, cur.replace(new RegExp(`${BLOCK_START}[\\s\\S]*?${BLOCK_END}`), () => block));
+}
 const STD_DEPS = [['transactions', 'TransactionRunner'], ['clock', 'Clock'], ['ids', 'IdGenerator'], ['outbox', 'OutboxV2'], ['audit', 'AuditLog']];
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const camel = (host) => host.replace(/-(\w)/g, (_, c) => c.toUpperCase());
@@ -536,15 +555,17 @@ for (const [code, mod] of Object.entries(registry.modules)) {
   ].filter(Boolean);
   const repoName = `${mod.service}Repository`;
   depsLines.unshift(`  repo: ${repoName};`);
-  const portsBody = [
-    ...portLines,
+  // Hand-owned (seeded once): the repository port grows with each story's SQL.
+  const repoLines = [
     `/**`,
     ` * Repository port of ${code} (review A-4): the only way its application service reads or writes`,
     ` * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with`,
     ` * \`Tx\` where the contract joins a transaction; \`infra/pg.ts\` implements them. Empty until then.`,
     ` */`,
     `export interface ${repoName} {}`,
-    '',
+  ];
+  const portsBody = [
+    ...portLines,
     `/** Everything ${code} reaches outside its domain core: its repository, time, ids, the outbox, the audit log (AD-SYS-6, R-2), external systems behind ports that tests bind to simulated adapters, and its neighbours. */`,
     `export interface ${depsName} {`,
     ...depsLines,
@@ -554,7 +575,6 @@ for (const [code, mod] of Object.entries(registry.modules)) {
   const useCases = `${mod.service}V2UseCases`;
   const svc = `${mod.service}ServiceV2`;
   const appLines = [];
-  appLines.push(`import { NotImplementedError } from '${sk('errors.ts')}';`);
   if (needsTx(ops)) appLines.push(`import type { Tx } from '${sk('ports.ts')}';`);
   if (isSys) appLines.push(...portsHeader);
   else appLines.push(`import type { ${depsName} } from '../ports/${mod.file}.v2.js';`);
@@ -562,23 +582,26 @@ for (const [code, mod] of Object.entries(registry.modules)) {
   if (ib) appLines.push(ib);
   appLines.push('');
   if (isSys) appLines.push(...portsBody, '');
-  appLines.push(`/** Solu-2 use cases of ${code} (contracts.md ${mod.contracts}). Interface stubs only: the Solutioning stop-point. */`);
+  appLines.push(`/** Solu-2 use cases of ${code} (contracts.md ${mod.contracts}). */`);
   appLines.push(`export interface ${useCases} {`);
   for (const o of ops) { appLines.push(`  /** ${o.id} · ${o.layer} */`); appLines.push(`  ${sig(o, true)};`); }
-  appLines.push('}', '');
-  appLines.push(`/** Every method throws NotImplementedError until its story is done (red for the right reason). */`);
-  appLines.push(`export class ${svc} implements ${useCases} {`);
-  appLines.push(`  constructor(protected readonly deps: ${depsName}) {}`);
-  for (const o of ops) {
-    appLines.push('');
-    appLines.push(`  ${o.sync ? '' : 'async '}${sig(o, false)} {`);
-    appLines.push(`    throw new NotImplementedError('${mod.host}.${o.method}');`);
-    appLines.push('  }');
-  }
   appLines.push('}');
-  outputs.set(appFile, `// ${GEN}\n${appLines.join('\n')}\n`);
+  // Hand-owned (seeded once): the service class, which each story fills in.
+  const seed = [`import { NotImplementedError } from '${sk('errors.ts')}';`, ''];
+  if (isSys) seed.push(...repoLines, '');
+  seed.push(`/** Every method throws NotImplementedError until its story is done (red for the right reason). */`);
+  seed.push(`export class ${svc} implements ${useCases} {`);
+  seed.push(`  constructor(protected readonly deps: ${depsName}) {}`);
+  for (const o of ops) {
+    seed.push('');
+    seed.push(`  ${o.sync ? '' : 'async '}${sig(o, false)} {`);
+    seed.push(`    throw new NotImplementedError('${mod.host}.${o.method}');`);
+    seed.push('  }');
+  }
+  seed.push('}');
+  handOwned(appFile, appLines, seed);
   if (!isSys) {
-    outputs.set(portsFile, `// ${GEN}\n${portsHeader.join('\n')}\n\n${portsBody.join('\n')}\n`);
+    handOwned(portsFile, [...portsHeader, '', ...portsBody], repoLines);
     const block = indexBlocks.get(mod.host) ?? [];
     block.push(`export { ${svc} } from './application/${mod.file}.v2.js';`, `export type { ${useCases} } from './application/${mod.file}.v2.js';`, `export type * from './ports/${mod.file}.v2.js';`);
     indexBlocks.set(mod.host, block);
@@ -597,7 +620,8 @@ for (const [host, block] of indexBlocks) {
 // ---------------------------------------------------------------- es-CO message catalog
 // contracts.md §13 is the one source of the explanation templates (AD-SYS-1 rule 6). Every
 // registry code needs a row with its registry status; the only other rows are 'Unexpected' and
-// the stored-only DeliveryAttemptsExhausted.
+// the stored-only codes (DeliveryAttemptsExhausted; EventDeliveryReplayed and
+// EventDeliveryReplayInProgress, decision log Impl-1 #16).
 {
   const section = /^## 13\. Typed Error Catalog\n([\s\S]*?)^## 14\./m.exec(contractsMd)?.[1] ?? '';
   const messages = new Map();
@@ -614,7 +638,7 @@ for (const [host, block] of indexBlocks) {
   const storedOnly = [...messages.keys()].filter((c) => !codeStatus.has(c) && c !== 'Unexpected');
   const lines = [
     '// GENERATED by scripts/gen-solu2-api.mjs from docs/solu-2/planning/detailed-design/contracts.md §13. Do not edit by hand.',
-    "import type { DomainErrorCode } from '../../shared-kernel/codes.js';",
+    "import type { DomainErrorCode } from './codes.js';",
     '',
     '/** The es-CO explanation template of every code; `{name}` is filled from `citations[0].inputs` (AD-SYS-1 rule 6). */',
     'export const MESSAGES = {',
@@ -624,7 +648,7 @@ for (const [host, block] of indexBlocks) {
     'export type MessageCode = keyof typeof MESSAGES;',
     '',
   ];
-  outputs.set('src/server/trpc/messages.generated.ts', lines.join('\n'));
+  outputs.set('src/shared-kernel/messages.generated.ts', lines.join('\n'));
 }
 
 // ---------------------------------------------------------------- zod procedure inputs

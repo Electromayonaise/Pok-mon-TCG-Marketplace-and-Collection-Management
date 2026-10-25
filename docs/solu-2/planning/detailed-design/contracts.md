@@ -1258,6 +1258,8 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `RequestValidationFailed` | 400 | shared-kernel | Every procedure's parser (§0.3) | "Revisa {field}: {issue}." (one line per issue) | no |
 | `EventDeliveryNotReplayable` | 409 | shared-kernel | `admin.events.replay` on a non-`failed` delivery (S-SYS) | "Esta entrega está en estado {status}; solo se reintentan las fallidas." | no |
 | `DeliveryAttemptsExhausted` | — (stored only) | shared-kernel | AD-SYS-2 rule 4, the fourth automatic attempt | "La entrega agotó sus 3 intentos automáticos; reintenta desde el panel." | no |
+| `EventDeliveryReplayed` | — (stored only) | shared-kernel | `admin.events.replay` settled `delivered` (S-SYS; decision log Impl-1 #16) | "La entrega se reintentó y quedó entregada." | no |
+| `EventDeliveryReplayInProgress` | — (stored only) | shared-kernel | `admin.events.replay` on a row another replay holds (S-SYS; decision log Impl-1 #16) | "Otro reintento de esta entrega está en curso; su estado sigue en {status}." | yes |
 | `NotAuthenticated` | 401 | identity | Any non-public procedure without a session (S-FR-IDN-7) | "Inicia sesión para continuar." | no |
 | `AdminOnly` | 403 | identity | Every admin procedure (VER-1, CAT-1, COM-2, COM-3, REP-2, IDN-3, …) | "Esta acción es solo para administradores." | no |
 | `EmailNotVerified` | 403 | identity | `requireCanBuy` (ORD-1, MSG-1, MSG-2, REP-1, S-FR-TRD-1) | "Verifica tu correo para comprar, ofertar o escribir; abre el enlace que te enviamos." | no |

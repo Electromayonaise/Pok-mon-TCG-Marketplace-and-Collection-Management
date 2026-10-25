@@ -16,6 +16,12 @@
 | #10 | `[CORRECTED]` | Story 1.1 Task 3.3: a request tRPC itself refuses (unknown path, wrong method, batching) is 500 `Unexpected` | It is the client's mistake: 400 `RequestValidationFailed` on `la solicitud` | Martín |
 | #11 | `[CORRECTED]` | Solu-2 contracts.md §13: six es-CO templates interpolate free text (a collection name, a product title, an admin's reason text, an email hint, an upload key) | No template carries free text; a test pins every placeholder to an id, instant, number, field or enum | Martín |
 | #12 | `[CORRECTED]` | Solu-2 `canary_scan.test.ts`: "a non-regulated orderId survives" names `ord0`, an unpaid seed order with no comprobante, so it is never scanned | The check names `ord40`, the seed's first paid order and the first one with a comprobante | Martín |
+| #14 | `[CORRECTED]` | Solu-2 `gen-solu2-api.mjs` writes each service file whole and `gate:api:solu2` compares it byte for byte | Only a marked block is generated; the service class and repository port after it are hand-owned | Martín |
+| #16 | `[IMPROVED]` | Solu-2 §13 holds only refusal templates, so a successful response's `decision` has no source text | Two stored-only §13 rows, `EventDeliveryReplayed` and `EventDeliveryReplayInProgress` | Martín |
+| #17 | `[CORRECTED]` | Plan-2 ARCHITECTURE §7.3: a successful replay sets `attempts + 1` | A replay leaves `attempts` unchanged; `EventReplayLog` counts replays | Martín |
+| #18 | `[CORRECTED]` | Solu-2 `test-support/solu2/fitness.ts` `sqlWrites` counts `FOR UPDATE` as an `UPDATE` of the next word | A row lock is a read; the `[SYS-AD8.probe]` proves it | Martín |
+| #19 | `[CORRECTED]` | Solu-2 `importViolations` checks module edges only, and the es-CO catalog lives in the tRPC adapter (`src/server/trpc`) | The catalog moves to the shared kernel; the scanner flags any kernel or module import of `src/server` | Martín |
+| #20 | `[CORRECTED]` | Solu-2 `wiring()` binds the simulated `SqlOutboxV2`, which stores payloads without the AD-SYS-8 redactor | `wiring()` binds the production `PgOutboxV2` | Martín |
 
 ---
 
@@ -185,4 +191,125 @@
 - **Human decision:** ACCEPT the one-line change.
 - **Reason:** It is the smallest fix that keeps the test's intent, and the seed stays what other tests rely on.
 - **Artifact changed:** `docs/solu-2/test/nfr/canary_scan.test.ts` (line 47 and a comment citing this entry); the Story 1.2 Debug Log and Change Log.
+- **Decided by:** Martín.
+
+### 13. Pace: the full ceremony per story, with one full test run at its end (Process)
+
+- **Phase:** 2 (Epic 1, between Stories 1.2 and 1.3).
+- **Persona/Skill:** none (session planning).
+- **Prompt (summary):** After Story 1.2, how should the remaining 41 stories be paced?
+- **AI output (summary):** The agent put pace options to Martín in the session that closed Story 1.2. This entry records the option as Martín restated it in the continuation prompt of 2026-10-25; the menu itself is not reconstructed.
+- **Human decision:** Option A. In Martín's words: *"se mantiene la ceremonia completa por historia. Dev Notes breves (solo lo que cambia), pruebas puntuales durante el desarrollo y un único npm test completo al final, tras el triage. Nada de revisión agrupada por epic ni de historias en paralelo."*
+- **Reason:** Each story keeps its own create, dev, review and triage evidence. Targeted runs keep development fast, and the one full `npm test` after triage is the evidence that counts.
+- **Artifact changed:** none (process); applied from Story 1.3 on.
+- **Decided by:** Martín.
+
+### 14. `[CORRECTED]` Generated service files: a marked block, the rest hand-owned (Tooling)
+
+- **Phase:** 2 (Epic 1, Story 1.3 create-story).
+- **Persona/Skill:** `bmad-create-story`.
+- **Prompt (summary):** The service files (`admin-events.ts` and the 12 modules' `application/*.v2.ts`) are generated stubs that `gate:api:solu2` compares byte for byte, so no story can implement a service without breaking the gate.
+- **AI output (summary):** The agent offered three ways:
+  - **(recommended)** the generator keeps only the imports and the `UseCases` and `Deps` interfaces between `// <gen-solu2-api>` markers; the service class and the `Repository` interface become hand-owned. It is the mechanism `index.ts` already uses, and the gate still catches contract drift against `operations.json` for all 43 stories.
+  - Drop the GENERATED header from a file when its story starts, and have the generator skip it. Simpler, but that file is no longer checked against `operations.json`.
+  - Put the implementation in another file and re-export it from the stub. It changes the generator and leaves two files per service.
+- **Human decision:** ACCEPT the marked block.
+- **Reason:** The contract surface stays generated and checked, and the hand-written code has a place the generator never overwrites.
+- **Artifact changed:** `scripts/gen-solu2-api.mjs`; the 13 application files, the 12 `ports/*.v2.ts` files and `src/shared-kernel/admin-events.ts` (converted to the marked layout).
+- **Decided by:** Martín.
+
+### 15. The replay log is written by the repository, through a callback in the settling transaction (Architecture)
+
+- **Phase:** 2 (Epic 1, Story 1.3 create-story).
+- **Persona/Skill:** `bmad-create-story`.
+- **Prompt (summary):** Who writes `EventReplayLog`, which needs a cuid? The dispatcher receives only `{ transactions, clock }` (R-17), and the service may touch tables only through `repo` (R-14), which `wiring()` binds to `{}`.
+- **AI output (summary):** The agent offered three ways:
+  - **(recommended)** `PgAdminEventsRepository.insertReplayLog`, bound in `wiring().repo`; `dispatcher.replay` takes a `record(tx, outcome)` callback instead of `adminId` and calls it in the transaction that settles the outcome. The log is atomic with the outcome, R-14 and R-17 hold, and every module can follow the pattern.
+  - The service writes the log in its own transaction after `replay`. Simpler, but a crash between the two leaves a replay without its audit row.
+  - A direct INSERT from the service, which breaks R-14.
+- **Human decision:** ACCEPT the repository and callback.
+- **Reason:** An audit row that can be lost is not an audit row; the callback keeps it in the same commit as the outcome without widening the dispatcher's dependencies.
+- **Artifact changed:** `src/shared-kernel/dispatcher.ts`, `src/shared-kernel/admin-events.ts`, `src/shared-kernel/infra/pg-admin-events.ts` (new), `test-support/solu2/fixtures.ts`.
+- **Decided by:** Martín.
+
+### 16. `[IMPROVED]` A successful replay's explanation comes from two stored-only §13 rows (API copy)
+
+- **Phase:** 2 (Epic 1, Story 1.3 create-story).
+- **Persona/Skill:** `bmad-create-story`.
+- **Prompt (summary):** There is no convention for the `decision` of a successful response: the es-CO catalog holds only error codes. What does a delivered or no-op replay carry?
+- **AI output (summary):** The agent offered two ways:
+  - **(recommended)** add two stored-only rows to `contracts.md` §13, as `DeliveryAttemptsExhausted` already is: `EventDeliveryReplayed` and `EventDeliveryReplayInProgress` (`{status}`); the generator emits them. A failed replay uses the handler's code with outcome `rejected`. One source of templates (AD-SYS-1 rule 6), and the code registry is untouched.
+  - es-CO constants inside `admin-events.ts`. Faster, but it breaks the single source of templates.
+- **Human decision:** ACCEPT the stored-only rows.
+- **Reason:** Every humanMessage keeps coming from §13, so the template checks of decision #11 cover these two as well.
+- **Artifact changed:** `docs/solu-2/planning/detailed-design/contracts.md` §13 (two rows), `src/server/trpc/messages.generated.ts` (regenerated), `scripts/gen-solu2-api.mjs` (comment).
+- **Decided by:** Martín.
+
+### 17. `[CORRECTED]` A replay does not count as an attempt (Architecture)
+
+- **Phase:** 2 (Epic 1, Story 1.3 create-story).
+- **Persona/Skill:** `bmad-create-story`.
+- **Prompt (summary):** A contract conflict. Plan-2 ARCHITECTURE §7.3 says a successful replay sets `attempts + 1`, but the CHECK `event_delivery_attempts_cap` (`status = 'failed' OR attempts <= 3`) rejects a `delivered` row with `attempts = 4`, and exhausted deliveries (`attempts = 3`) are the ones an admin replays most.
+- **AI output (summary):** The agent offered two ways:
+  - **(recommended)** `attempts` counts automatic attempts only, as the CHECK's own comment says; replays are counted in `EventReplayLog`, and §7.3 is corrected. No schema change, no migration, nothing counted twice.
+  - Relax the CHECK to `status <> 'pending' OR attempts <= 3` and keep `attempts + 1`. It means editing `001_tezg_schema.sql` and regenerating.
+- **Human decision:** ACCEPT: a replay leaves `attempts` unchanged.
+- **Reason:** The schema already states the intent, and the replay count has its own append-only table.
+- **Artifact changed:** `docs/plan-2/planning/ARCHITECTURE.md` §7.3 (Effect row, citing this entry), `src/shared-kernel/dispatcher.ts`, `src/shared-kernel/dispatcher.test.ts` (a replay at `attempts = 3`).
+- **Decided by:** Martín.
+
+### 18. `[CORRECTED]` The table-ownership scanner reads a row lock as a write (Testing)
+
+- **Phase:** 2 (Epic 1, Story 1.3 dev-story).
+- **Persona/Skill:** `bmad-dev-story`.
+- **Prompt (summary):** With the dispatcher implemented, `[SYS-AD8]` fails with `src/shared-kernel/dispatcher.ts: writes unknown table SKIP` (twice). The Solu-2 helper `sqlWrites` matches `UPDATE <word>`, so the row lock `SELECT … FOR UPDATE SKIP LOCKED` that AD-SYS-2 rule 4 and ARCH §7.3 prescribe reads as an UPDATE of a table named `SKIP`. No source file locked a row before. Editing a fixed Solu-2 test helper needs Martín's decision (as in #12).
+- **AI output (summary):** The agent offered three ways:
+  - **(recommended)** one line in `sqlWrites` (`test-support/solu2/fitness.ts`): an `UPDATE` preceded by `FOR` is not a write; plus one assertion in `[SYS-AD8.probe]` (`sys_fitness.test.ts`) that proves it, seen red and then green. The smallest change; the gate keeps its intent and the fix is proven.
+  - Fix the helper only, leaving `sys_fitness.test.ts` untouched; the fix would have no test of its own.
+  - Assemble the dispatcher's SQL so its text never reads `FOR UPDATE`. Nothing in Solu-2 changes, but the scanner defect stays hidden and the SQL is harder to read.
+- **Human decision:** ACCEPT the scanner fix with the probe assertion.
+- **Reason:** A row lock writes nothing; the gate should flag foreign writes, not the locking the architecture requires.
+- **Artifact changed:** `test-support/solu2/fitness.ts` (`sqlWrites`), `docs/solu-2/test/fitness/sys_fitness.test.ts` (`[SYS-AD8.probe]`, one assertion with a comment citing this entry).
+- **Decided by:** Martín.
+
+### 19. `[CORRECTED]` The shared kernel never imports the tRPC adapter, and the import scanner proves it (Architecture)
+
+- **Phase:** 2 (Epic 1, Story 1.3 code review triage).
+- **Persona/Skill:** `bmad-code-review` (fresh context), triage.
+- **Prompt (summary):** Review finding M3: `src/shared-kernel/admin-events.ts` imports `renderMessage` and `MESSAGES` from `src/server/trpc/`, so the kernel depends on its driving adapter. `[SYS-AD1]` stays green because the Solu-2 helper `importViolations` (`test-support/solu2/fitness.ts`) only checks edges between modules. Editing a fixed Solu-2 test helper needs Martín's decision (as in #12 and #18).
+- **AI output (summary):** The agent offered three ways:
+  - **(recommended)** move the catalog (`messages.ts`, `messages.generated.ts` and its test) into `src/shared-kernel/`, leave `src/server/trpc/messages.ts` as a re-export, point the generator at the new path, and extend `importViolations` so any kernel or module file importing `src/server/` is flagged, proven by a planted case in `[SYS-AD1.probe]`. The dependency points inward again and the gate keeps it so.
+  - Move the catalog without the scanner rule. The same fix, but nothing stops the edge from coming back.
+  - Keep the import and record it as accepted debt. No change now, but every later service that explains a decision would copy it.
+- **Human decision:** ACCEPT the move with the scanner rule.
+- **Reason:** The es-CO catalog is domain copy that every module's decisions use; it belongs in the kernel, and the fitness gate should catch the inverted edge.
+- **Artifact changed:** `src/shared-kernel/messages.ts`, `messages.generated.ts`, `messages.test.ts` (moved from `src/server/trpc/`), `src/server/trpc/messages.ts` (re-export), `src/shared-kernel/admin-events.ts` (imports), `scripts/gen-solu2-api.mjs` (output path), `test-support/solu2/fitness.ts` (`importViolations`), `docs/solu-2/test/fitness/sys_fitness.test.ts` (`[SYS-AD1.probe]`, one assertion with a comment citing this entry).
+- **Decided by:** Martín.
+
+### 20. `[CORRECTED]` The test wiring binds the production outbox (Testing)
+
+- **Phase:** 2 (Epic 1, Story 1.3 code review triage).
+- **Persona/Skill:** `bmad-code-review` (fresh context), triage.
+- **Prompt (summary):** Review finding L5: the Solu-2 fixture `wiring()` (`test-support/solu2/fixtures.ts`) binds the simulated `SqlOutboxV2`, which writes the payload as given. The production `PgOutboxV2` runs it through the AD-SYS-8 redactor, so no ATDD or NFR suite ever exercises the outbox egress. Editing a fixed Solu-2 fixture needs Martín's decision.
+- **AI output (summary):** The agent offered three ways:
+  - **(recommended)** bind `PgOutboxV2` in `wiring()`. Both write the same rows, so the suites keep passing, and every publishing story is then tested through the real egress.
+  - Add redaction to `SqlOutboxV2`. Nothing in the wiring changes, but two outboxes must then be kept in step.
+  - Keep `SqlOutboxV2` and rely on the `PgOutboxV2` unit tests. No change, but an event published by a later story would never be seen redacted end to end.
+- **Human decision:** ACCEPT the production outbox in `wiring()`.
+- **Reason:** The suites should test what runs; the simulated outbox had no behaviour the real one lacks.
+- **Artifact changed:** `test-support/solu2/fixtures.ts` (`wiring()`, with a comment citing this entry), `docs/solu-2/test/fixtures/README.md` (`sim_events` row).
+- **Decided by:** Martín.
+
+### 21. Who wires the post-commit dispatch and the sweeper (Planning)
+
+- **Phase:** 2 (Epic 1, Story 1.3 code review triage).
+- **Persona/Skill:** `bmad-code-review` (fresh context), triage.
+- **Prompt (summary):** Review finding M4: Story 1.3 builds `dispatch()` and `sweep()` but nothing calls them yet. No story publishes an event, and no `/api/jobs/*` endpoint exists. Without an owner, the first published event would sit `pending` with nothing to deliver it.
+- **AI output (summary):** The agent offered three ways:
+  - **(recommended)** first use owns the wiring. The first story that publishes an event wires the post-commit `dispatch()` with `PgOutboxV2` into the composition root. The first story that creates a `/api/jobs/*` endpoint (Story 4.4, `trm-fetch`) wires `sweep()` into it and into the hourly tick. Both are written in the Story 1.3 cross-story notes and as an Epic 1 gate pending item. Each piece is built when something needs it, and the gate checks it was not forgotten.
+  - Wire both now in Story 1.3, with a job endpoint built ahead of its story. Done once, but it adds a route no story asked for yet.
+  - Leave it to Story 1.5 (the delivery health views). That story reads deliveries but publishes nothing, so the wiring would sit there untested.
+- **Human decision:** ACCEPT first use owns the wiring.
+- **Reason:** Each piece is wired by the first story that can test it, and the gate catches it if that story forgets.
+- **Artifact changed:** `docs/impl-1/implementation-artifacts/1-3-deliver-every-committed-event-exactly-once-in-effect.md` (cross-story notes).
 - **Decided by:** Martín.

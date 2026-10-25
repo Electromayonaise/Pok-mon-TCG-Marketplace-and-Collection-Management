@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { DOMAIN_ERRORS, type DomainErrorCode } from '../../shared-kernel/codes.js';
+import { DOMAIN_ERRORS, type DomainErrorCode } from './codes.js';
 import { MESSAGES } from './messages.generated.js';
 import { MISSING_INPUT, renderMessage } from './messages.js';
 

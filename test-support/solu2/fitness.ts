@@ -48,10 +48,21 @@ export function crossModuleImports(file: string, text: string): { from: string; 
   return out;
 }
 
-/** AD-1 violations among `files`: an edge outside AD1_EDGES, or an import that bypasses `index.ts`. */
+/**
+ * AD-1 violations among `files`: an edge outside AD1_EDGES, an import that bypasses `index.ts`,
+ * or a kernel or module file importing the driving adapter in `src/server` (decision log Impl-1 #19).
+ */
 export function importViolations(files: { file: string; text: string }[]): string[] {
   const problems: string[] = [];
   for (const { file, text } of files) {
+    if (/^src\/(?:shared-kernel|modules)\//.test(file)) {
+      for (const m of text.matchAll(SPEC)) {
+        const spec = m[1]!;
+        if (spec.startsWith('.') && path.posix.normalize(path.posix.join(path.posix.dirname(file), spec)).startsWith('src/server/')) {
+          problems.push(`${file}: imports the driving adapter ('${spec}')`);
+        }
+      }
+    }
     for (const e of crossModuleImports(file, text)) {
       const allowed = e.from === 'server' || (MODULES.includes(e.from as ModuleName) && AD1_EDGES[e.from as ModuleName].includes(e.to as ModuleName));
       if (!allowed) problems.push(`${file}: ${e.from} → ${e.to} is not an AD-1 edge ('${e.spec}')`);
@@ -74,11 +85,14 @@ export function tableOwners(schemaSql: string): Map<string, string> {
   return owners;
 }
 
-/** Tables a source text writes with INSERT, UPDATE, DELETE or TRUNCATE inside a string literal. */
+/**
+ * Tables a source text writes with INSERT, UPDATE, DELETE or TRUNCATE inside a string literal.
+ * A row lock (`FOR UPDATE`) is a read and is not counted.
+ */
 export function sqlWrites(text: string): string[] {
   const out: string[] = [];
   for (const lit of text.matchAll(/`[^`]*`|'(?:[^'\\\n]|\\.)*'/g)) {
-    for (const m of lit[0].matchAll(/\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+"?(\w+)"?/gi)) out.push(m[1]!);
+    for (const m of lit[0].matchAll(/\b(?:INSERT\s+INTO|(?<!\bFOR\s+)UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+"?(\w+)"?/gi)) out.push(m[1]!);
   }
   return out;
 }
