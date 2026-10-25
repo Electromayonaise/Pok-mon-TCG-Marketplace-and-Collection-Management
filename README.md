@@ -123,6 +123,8 @@ The delivery of 2026-10-26 (decision log #22) is the foundation and the first th
 | 2.2 | When a profile completion and a business claim race on one account, exactly one track wins (proven over 100 concurrent repetitions) |
 | 2.3 | An account that may not list learns why and when it may reapply. Capabilities, verification and eligibility come from one pure projection |
 
+**Over HTTP** (decision log #24): `access.completeIndividualProfile` (2.1) and `admin.events.replay` (1.3) are wired to their services behind a Better Auth session. A request without a session gets `NotAuthenticated` (401), and a non-admin replay gets `AdminOnly` (403). Story 2.3 has no procedure; later stories call its projection. Every other procedure belongs to a story after the cut and answers `Unexpected` (500). Sign-up and sign-in are not configured yet, because no Impl-1 story owns them.
+
 [`docs/impl-1/walkthrough-impl1.md`](docs/impl-1/walkthrough-impl1.md) covers each story's goal, procedures, database changes and test evidence, together with the gate output. Each story's full record is in `docs/impl-1/implementation-artifacts/`.
 
 **Where each deliverable is** (Impl-1 task statement §6.1; `docs/impl-1/task-statement.md` §4.1 maps the generic paths):
@@ -143,7 +145,7 @@ The delivery of 2026-10-26 (decision log #22) is the foundation and the first th
 
 TEZG is a modular monolith in hexagonal style (Plan-2 ARCHITECTURE, Solu-2 detailed design):
 
-- **Inbound adapters.** A Next.js 16 App Router app with no pages. `app/api/trpc/[trpc]/route.ts` serves tRPC 11 on the non-batched wire. `app/api/health/` holds the liveness and readiness probes.
+- **Inbound adapters.** A Next.js 16 App Router app with no pages. `app/api/trpc/[trpc]/route.ts` serves tRPC 11 on the non-batched wire, from the composition root `src/server/composition.ts`. `app/api/auth/[...all]/route.ts` mounts Better Auth for sessions. `app/api/health/` holds the liveness and readiness probes.
 - **Modules.** The 12 logical modules live in nine folders under `src/modules/<module>/`: `identity` (IDN, VER), `catalog`, `listings` (INV, DSC), `orders`, `commission`, `trading`, `messaging`, `collections` (COL, VAL) and `reviews`. Each folder has a `domain/` (pure: no framework, driver, network or wall clock; `gate:purity` enforces it), `application/`, `ports/`, `dto/` and `infra/`. Other modules may import it only through its `index.ts`, and only along the AD-1 edges.
 - **Persistence.** PostgreSQL 16. The SQL DDL in `docs/solu-2/planning/detailed-design/schemas/` is the schema source of truth: `npm run db:migrate` applies it, and every table belongs to exactly one module. Repositories run SQL through the `Sql`/`Tx` ports. The Prisma model is generated from the migrated database and backs Better Auth only.
 - **Shared kernel.** `src/shared-kernel/` holds the ports (`Clock`, `IdGenerator`, `TransactionRunner`, the outbox), the error registry, the event registry and the validated configuration (`config.ts`).

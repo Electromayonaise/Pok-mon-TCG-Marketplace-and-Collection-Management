@@ -70,7 +70,7 @@ so that my account becomes an individual seller and my phone is kept only in the
 - **Time.** IDN-1 reads the `Clock` once per transaction. A private `claim(tx, input, now)` serves both entry points, so the ingress reads `now` once.
 - **Isolation.** READ COMMITTED (the default). A losing concurrent claim waits on the row lock, then re-evaluates its `WHERE` and updates 0 rows. That is 2.2's MEC proof; this story only has to keep it possible.
 - **Not in scope.**
-  - No tRPC router: no `access.*` procedure exists yet, and the epic lists only service, port, domain and infra.
+  - No tRPC resolver: the epic lists only service, port, domain and infra. *(Corrected 2026-10-25: this note first said no `access.*` procedure exists. Story 1.1 registered `access.completeIndividualProfile`, answering NotImplemented; decision log Impl-1 #24 wires it to this story's service.)*
   - QF1, QF2, I1 and MEC belong to 2.2.
 
 ### Cross-story notes (for 2.2)

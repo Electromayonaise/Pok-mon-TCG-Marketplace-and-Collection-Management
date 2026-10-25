@@ -341,3 +341,18 @@
 - **Reason:** It keeps both rules, the strict gate and one commit per story. The red gate appears only on a local intermediate commit that is never pushed on its own, and the commit after it restores green.
 - **Artifact changed:** none (practice). Applied in `7f903f2` (2.1) followed by `2189038` (2.2).
 - **Decided by:** Martín.
+
+### 24. The two done procedures are wired behind a real session before the delivery (Scope)
+
+- **Phase:** 3 (after Story 2.3, the day before the Impl-1 delivery).
+- **Persona/Skill:** none; a compliance check against the verbatim course statement.
+- **Prompt (summary):** Martín asked whether the delivery fully meets the statement. The agent found that the six stories are proven only through their services. Over HTTP, every `authed` and `admin` procedure still fails as `Unexpected` (500), because the router gates through `UNWIRED_IDENTITY`, no production composition root builds the services, no production `TransactionRunner` exists, and Better Auth's handler is not mounted. Two procedures belong to done stories: `access.completeIndividualProfile` (IDN-1.ingress, Story 2.1) and `admin.events.replay` (S-SYS.replay, Story 1.3). Story 2.3 has no procedure; its projection is an outbound port that later stories call. Story 2.1's notes also said, wrongly, that no `access.*` procedure exists; Story 1.1 registered it.
+- **AI output (summary):** The agent offered three ways:
+  - **(recommended)** Wire the two procedures now and pull forward only what they need: a production composition root (`src/server/composition.ts`), a production `PgTransactionRunner` shared with the test harness, Better Auth mounted at `/api/auth/*` with a `SessionReader` port in identity, and a real `IdentityGateV2` in identity (session → `NotAuthenticated` 401; `isAdmin` → `AdminOnly` 403; `requireCanBuy` stays Story 2.4's). HTTP tests go through `serveTrpc` with a signed Better Auth session cookie. Sign-up and sign-in stay unconfigured, because no Impl-1 story owns them. The subscribers' handlers stay unwired until their stories, so a production replay records `failed`.
+  - Leave the wiring to Epic 2 and record it as a known limit. Nothing changes the day before the delivery, but a grader calling the API sees only 500s for the delivered stories.
+  - Wire every registered procedure. Impossible: most belong to stories after the cut.
+- **Human decision:** ACCEPT the recommendation.
+- **Reason:** The delivered stories become callable end to end, with their gates proven over HTTP, and the work pulled forward is exactly what those two procedures need. Story 2.4 and the later stories still own canBuy, sign-in and the subscribers.
+- **Correction found while wiring:** Better Auth checks the Prisma schema at runtime and refused every session read, because the SQL migrations (decision #6) leave out `"Session".ipAddress` (R-12) and the OAuth-only `"Account"` columns. `createAuth` sets `advanced.database.validateSchema: false`, with the reason in a comment. Nothing had called Better Auth before, so the defect was latent.
+- **Artifact changed:** `src/server/composition.ts`, `src/server/composition.test.ts`, `src/server/auth.ts`, `src/server/sessions.ts`, `src/server/trpc/router.v2.ts` (`buildAppRouter`), `src/shared-kernel/infra/pg-transactions.ts`, `src/modules/identity/application/gate.ts`, `src/modules/identity/ports/session.ts`, `app/api/trpc/[trpc]/route.ts`, `app/api/auth/[...all]/route.ts`, `test-support/db.ts`; Story 2.1's notes.
+- **Decided by:** Martín.

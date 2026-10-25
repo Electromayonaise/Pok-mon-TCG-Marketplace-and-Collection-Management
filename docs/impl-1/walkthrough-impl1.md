@@ -66,7 +66,8 @@ Each story file under `docs/impl-1/implementation-artifacts/` holds the full rec
 TEZG is a modular monolith in hexagonal style (Plan-2 ARCHITECTURE, Solu-2 detailed design).
 
 - **Inbound adapters.**
-  - `app/api/trpc/[trpc]/route.ts` serves tRPC 11 on the non-batched wire (`allowBatching: false`).
+  - `app/api/trpc/[trpc]/route.ts` serves tRPC 11 on the non-batched wire (`allowBatching: false`). It builds the app from the composition root `src/server/composition.ts` on the first request (decision #24).
+  - `app/api/auth/[...all]/route.ts` mounts Better Auth, which reads the session cookie behind every `authed` and `admin` procedure.
   - `app/api/health/` holds the liveness and readiness probes.
   - The Next.js 16 App Router app has no pages; the front end is a later phase (decision #3).
 - **Modules.** Each module folder under `src/modules/<module>/` has the same five layers:
@@ -113,7 +114,7 @@ TEZG is a modular monolith in hexagonal style (Plan-2 ARCHITECTURE, Solu-2 detai
 | `app/` | Route handlers (tRPC, health) |
 | `src/modules/` | The nine module folders above |
 | `src/shared-kernel/` | SYS: ports, registries, outbox, audit, redaction |
-| `src/server/` | Server wiring: the tRPC router and formatter, auth, health, the database pool |
+| `src/server/` | Server wiring: the composition root, the tRPC router and formatter, Better Auth and its session reader, health, the database pool |
 | `prisma/schema.prisma` | Generated model (55 models, each tagged with its owning module) |
 | `test-support/` | Per-file test databases, virtual clock, sequential ids, simulated adapters, the Reference Seed Profile |
 | `docs/solu-2/` | Detailed design (`contracts.md`, `openapi.yaml`, events, DDL) and the ATDD and fitness suites |
@@ -140,7 +141,7 @@ TEZG is a modular monolith in hexagonal style (Plan-2 ARCHITECTURE, Solu-2 detai
   - a zod failure becomes `RequestValidationFailed` with es-CO `issues`;
   - a request tRPC itself refuses (unknown path, wrong method, batching) is a 400, not a 500 (decision #10);
   - anything else is `Unexpected` (500).
-- **The router.** It registers all 108 non-job procedures from the generated `PROCEDURES`/`INPUTS` tables. Its four procedure builders delegate every gate to identity (`UNWIRED_IDENTITY` until Epic 2 wires it).
+- **The router.** It registers all 108 non-job procedures from the generated `PROCEDURES`/`INPUTS` tables. Its four procedure builders delegate every gate to identity. Story 1.1 bound `UNWIRED_IDENTITY`; decision #24 replaced it with identity's `IdentityGateV2` in production (§11).
 - **The wire.** The formatter and `responseMeta` put the `ErrorBody` on the wire with its status. A per-request clock lives in `AsyncLocalStorage`, so a refusal raised before tRPC creates a context still carries the injected instant.
 - **No template interpolates free text** (decision #11). A test pins every placeholder to an id, an instant, a number, a field name or an enum value.
 - **CI.** `.github/workflows/impl1-quality-gate.yml` runs `npm run test:ci` on push and pull request. The Solu-1 and Solu-2 workflows became manual.
@@ -275,6 +276,7 @@ TEZG is a modular monolith in hexagonal style (Plan-2 ARCHITECTURE, Solu-2 detai
   | `infra/pg-outbox.test.ts` | 4 |
   | `scripts/lib/migrations.test.ts` | 4 |
 
+- **Over HTTP** (decision #24, `src/server/composition.test.ts`): `admin.events.replay` behind an admin's session returns 200 `delivered`, and the `"EventReplayLog"` row names the session admin; a signed-in non-admin gets `AdminOnly` 403, and the delivery stays `failed`.
 - **Diff:** `65741c1` (47 files, +1362/−218).
 
 **Review.** No High findings.
@@ -323,6 +325,7 @@ TEZG is a modular monolith in hexagonal style (Plan-2 ARCHITECTURE, Solu-2 detai
   | `src/modules/identity/idn-domain.test.ts` (`claimRefusal`) | 8 |
   | `src/shared-kernel/repositories.test.ts` | 2 |
 
+- **Over HTTP** (decision #24, `src/server/composition.test.ts`): `access.completeIndividualProfile` behind a signed Better Auth session returns 200 with the decision; without a session or with a forged cookie it is `NotAuthenticated` 401; a `userId` in the input is `RequestValidationFailed` 400; a second submit is `IndividualSellerProfileAlreadyComplete` 409.
 - **Diff:** `7f903f2` (15 files, +362/−19).
 
 **Review** (compact ceremony).
@@ -426,7 +429,7 @@ TEZG is a modular monolith in hexagonal style (Plan-2 ARCHITECTURE, Solu-2 detai
 | ATDD red for the right reason | 323, the stories after the cut |
 | NFR green | 2 (`NFR-SYS-8.canary`, `NFR-SYS-6.sweep`) |
 | NFR red for the right reason | 1 |
-| Unit and integration | 135 tests in 17 files |
+| Unit and integration | 143 tests in 18 files, 8 of them over HTTP behind a real session (decision #24) |
 | Skipped tests | 0 (no `.skip`, `.only` or `.todo`) |
 | Fitness | 12 tests in 2 files |
 
@@ -463,9 +466,9 @@ npm run test:ci
 55 models, each tagged with its owning module; prisma/schema.prisma is current
 
 > npm run test:unit
- Test Files  17 passed (17)
-      Tests  135 passed (135)
-   Duration  2.14s
+ Test Files  18 passed (18)
+      Tests  143 passed (143)
+   Duration  3.01s
 
 > npm run gate:impl1
 (typecheck: no output, exit 0)
@@ -478,7 +481,7 @@ docs/solu-2/planning/epics.md is current: 13 epics, 69 stories
 12 domain files checked, 0 problems
  Test Files  2 passed (2)
       Tests  12 passed (12)
-   Duration  12.81s
+   Duration  12.64s
 solu2-atdd: 352 tests in 19 files; 323 red for the right reason; 29 green for done stories (34 contracts or test ids done); 0 not as expected
 solu2-nfr: 3 tests in 3 files; 1 red for the right reason; 2 green for done stories (34 contracts or test ids done); 0 not as expected
 
@@ -505,9 +508,24 @@ POST /api/trpc/no.such.proc   400 {"error":{"code":"RequestValidationFailed","ht
 
 `docker compose down -v` removed the stack afterwards.
 
+**The wired procedures over HTTP** (decision #24; 2026-10-25, `docker compose up -d --build --wait` from the working tree). Sign-up is not configured (§11), so a script inserted two `"User"` rows with live `"Session"` rows and one failed delivery into `tezg_dev`, then signed each session token with the compose secret, as Better Auth does:
+
+```
+GET  /api/auth/get-session                     200 the session's user
+POST /api/trpc/access.completeIndividualProfile 401 NotAuthenticated                       (no cookie)
+POST /api/trpc/access.completeIndividualProfile 200 {"sellerKind":"individual","decision":{"outcome":"allowed",
+                                                     "reasonCode":"IndividualSellerProfileCompleted",
+                                                     "humanMessage":"Tu perfil de vendedor quedó completo; ya puedes publicar como persona.",...}}
+POST /api/trpc/access.completeIndividualProfile 409 IndividualSellerProfileAlreadyComplete (same user again)
+POST /api/trpc/admin.events.replay              403 AdminOnly                              (non-admin)
+POST /api/trpc/admin.events.replay              200 {"status":"failed","replayed":true,...} (admin; EventReplayLog row by that admin)
+```
+
+The admin's replay records `failed` because the subscribers' handlers belong to later stories (§11). The HTTP tests bind handlers that succeed and prove the `delivered` path.
+
 ## 10. AI governance
 
-`docs/impl-1/ai-log/ai-decision-log.md` records 23 decisions. Each entry holds the prompt, the AI's output and Martín's decision, with the option the AI recommended and why.
+`docs/impl-1/ai-log/ai-decision-log.md` records 24 decisions. Each entry holds the prompt, the AI's output and Martín's decision, with the option the AI recommended and why.
 
 | Entries | Topic |
 |---|---|
@@ -518,6 +536,7 @@ POST /api/trpc/no.such.proc   400 {"error":{"code":"RequestValidationFailed","ht
 | #14–#21 | Story 1.3 and its review |
 | #22 | The delivery cut |
 | #23 | Commit timing for proof-only stories |
+| #24 | Wiring the two done procedures behind a real session |
 
 **Tagged entries.**
 
@@ -533,8 +552,10 @@ Examples:
 
 ## 11. Known limits
 
-- **No production composition root yet.** The services are wired in the test harness (`test-support/solu2/fixtures.ts` `wiring()`). The tRPC procedures still answer through `UNWIRED_IDENTITY`, which a later Epic 2 story replaces.
-- **No production `TransactionRunner` yet.** The port's JSDoc carries the obligation from 2.3's review M1, so the runner that lands registers the ambient transaction.
+- **Two procedures are wired; the rest answer `Unexpected` (500) behind their gate** (decision #24). `access.completeIndividualProfile` (2.1) and `admin.events.replay` (1.3) call their services through the composition root; every other procedure belongs to a story after the cut. Story 2.3 has no procedure: its projection is an outbound port that later stories call.
+- **Sign-up and sign-in are not configured.** Better Auth serves `get-session` and `sign-out`, but no Impl-1 story owns the consent fields of sign-up or a sign-in method (Story 2.4 adds the sign-in throttle). A session therefore comes from a `"Session"` row, as the HTTP tests create it.
+- **`canBuy` is Story 2.4's.** The gate forwards it to `requireCanBuy`, which still throws `NotImplementedError`.
+- **The subscribers' handlers are unwired.** Commission, listings and collections handle events in their own stories, so a production replay records `failed` until then.
 - **`dispatch()` and `sweep()` are not called in production** (1.3 review M4). Decision #21 assigns the wiring to the first story that publishes an event.
 - **Windows reserved port.** Windows can reserve a port range that includes 55432, which `docker-compose.yml` and `.env.example` use. That happened once on the machine that produced this walkthrough, and the gate run in §9 used a second Postgres 16.6 container on port 15432. The reservation was later released, and the clean-clone check in §9 ran on the default port. The README's Troubleshooting section gives both fixes.
 - **Windows long paths.** Cloning on Windows needs `git config --global core.longpaths true` (or `git clone -c core.longpaths=true`), because some paths under `.agents/skills/` exceed 260 characters.
