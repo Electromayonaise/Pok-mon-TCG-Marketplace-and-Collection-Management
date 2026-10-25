@@ -1,6 +1,6 @@
 # Solu-2 quality gate (bmad-testarch-ci). Mirrored byte-for-byte at
 # docs/solu-2/test/ci/quality-gate.yml (the deliverable path); the first step fails on drift.
-# It proves, on every push and PR:
+# It proves, when run:
 #   1. the stubs, DTOs, ports and tests typecheck;
 #   2. the generated surface (openapi.yaml, dto.ts, v2 stubs, ports) is current with
 #      operations.json, every UI state is backed, every error code and test id cited by
@@ -15,10 +15,9 @@
 # by the same files once the stories are done (docs/solu-2/test/nfr-evidence.md).
 name: solu2-quality-gate
 
+# Manual evidence only since Impl-1 (decision log #9); impl1-quality-gate runs on push and PR.
 on:
-  push:
-    branches: [main, 'solu-*']
-  pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: solu2-gate-${{ github.ref }}

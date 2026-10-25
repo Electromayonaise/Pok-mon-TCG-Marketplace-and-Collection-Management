@@ -1,0 +1,55 @@
+# Impl-1 quality gate (decision log #9). It runs `npm run test:ci`, the same chain as
+# `npm test` minus `db:up`: CI gets Postgres from the service container below instead of
+# docker compose. It proves, on every push and PR:
+#   1. lint, the dependency and Prisma-schema gates, and the impl1-unit tests are green;
+#   2. the Solu-2 generated surface, citations, trace and fitness functions are still current
+#      and green (gate:impl1 reuses the gate:solu2 checks);
+#   3. every ATDD test and NFR benchmark of a story not yet `done` in
+#      docs/impl-1/implementation-artifacts/sprint-status.yaml is RED for the right reason,
+#      and every one of a `done` story PASSES;
+#   4. the Solu-2 workflow still matches its docs/solu-2/test/ci mirror byte for byte.
+# The Solu-1 and Solu-2 gates stay as manual (workflow_dispatch) evidence.
+name: impl1-quality-gate
+
+on:
+  push:
+    branches: [main, 'impl-*']
+  pull_request:
+
+concurrency:
+  group: impl1-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.6
+        env:
+          POSTGRES_USER: tezg
+          POSTGRES_PASSWORD: tezg
+          POSTGRES_DB: tezg
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U tezg -d tezg"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 30
+    env:
+      TEZG_PG_HOST: 127.0.0.1
+      TEZG_PG_PORT: '55432'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install (postinstall also installs the isolated tools/lint toolchain)
+        run: npm ci
+      - name: npm test without db:up
+        run: npm run test:ci
+      - name: The Solu-2 workflow and its docs mirror are identical
+        run: cmp .github/workflows/solu2-quality-gate.yml docs/solu-2/test/ci/quality-gate.yml

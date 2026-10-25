@@ -1,4 +1,4 @@
-# Solu-1 quality gate (bmad-testarch-ci). It proves, on every push and PR:
+# Solu-1 quality gate (bmad-testarch-ci). It proves, when run:
 #   1. the stubs and DTOs typecheck;
 #   2. the migrations physically enforce the invariants (GREEN schema suite);
 #   3. every ATDD test is RED for the right reason — it fails on NotImplementedError, never
@@ -8,10 +8,9 @@
 # repeated 10 times, because a flaky constraint proof would make the gate a rubber stamp.
 name: solu1-quality-gate
 
+# Manual evidence only since Impl-1 (decision log #9); impl1-quality-gate runs on push and PR.
 on:
-  push:
-    branches: [main, 'solu-*']
-  pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: solu1-gate-${{ github.ref }}

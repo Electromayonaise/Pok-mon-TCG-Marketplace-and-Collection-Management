@@ -25,3 +25,13 @@ export class DomainError extends Error {
     super(code);
   }
 }
+
+/**
+ * A programming error: an invariant breach, such as a module raising a code it does not own
+ * (AD-11). It formats as `'Unexpected'` (HTTP 500); its message is for logs and never reaches
+ * a body.
+ */
+export class UnexpectedError extends Error {
+  override readonly name = 'Unexpected';
+  readonly code = 'Unexpected';
+}

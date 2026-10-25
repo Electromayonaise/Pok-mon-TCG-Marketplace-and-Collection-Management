@@ -22,7 +22,8 @@
     "test:unit": "vitest run --project impl1-unit",
     "gate:deps": "node scripts/check-deps.mjs",
     "gate:prisma": "node scripts/gen-prisma-schema.mjs --check",
-    "test": "npm run db:up && npm run lint && npm run gate:deps && npm run gate:prisma && npm run test:unit && npm run gate:solu2 && npm run gate:atdd-red:impl1",
+    "test": "npm run db:up && npm run test:ci",
+    "test:ci": "npm run lint && npm run gate:deps && npm run gate:prisma && npm run test:unit && npm run gate:impl1",
     "test:schema:solu1": "vitest run --project solu1-schema",
     "test:atdd:solu1": "vitest run --project solu1-atdd",
     "gate:atdd-red:solu1": "node scripts/check-atdd-red.mjs solu1-atdd 131 --status docs/solu-1/implementation-artifacts/sprint-status.yaml --epics docs/solu-1/planning/epics.md",
@@ -42,7 +43,9 @@
     "gen:epics:solu2": "node scripts/gen-solu2-epics.mjs",
     "gate:epics:solu2": "node scripts/gen-solu2-epics.mjs --check",
     "gate:solu2": "npm run typecheck && npm run gate:api:solu2 && npm run gate:ui:solu2 && npm run gate:codes:solu2 && npm run gate:ids:solu2 && npm run gate:trace:solu2 && npm run gate:epics:solu2 && npm run gate:purity && npm run test:fitness:solu2 && npm run gate:atdd-red:solu2 && npm run gate:nfr-red:solu2",
-    "gate:atdd-red:impl1": "node scripts/check-atdd-red.mjs solu2-atdd 352 --status docs/impl-1/implementation-artifacts/sprint-status.yaml --epics docs/solu-2/planning/epics.md"
+    "gate:atdd-red:impl1": "node scripts/check-atdd-red.mjs solu2-atdd 352 --status docs/impl-1/implementation-artifacts/sprint-status.yaml --epics docs/solu-2/planning/epics.md",
+    "gate:nfr-red:impl1": "node scripts/check-atdd-red.mjs solu2-nfr 3 --status docs/impl-1/implementation-artifacts/sprint-status.yaml --epics docs/solu-2/planning/epics.md",
+    "gate:impl1": "npm run typecheck && npm run gate:api:solu2 && npm run gate:ui:solu2 && npm run gate:codes:solu2 && npm run gate:ids:solu2 && npm run gate:trace:solu2 && npm run gate:epics:solu2 && npm run gate:purity && npm run test:fitness:solu2 && npm run gate:atdd-red:impl1 && npm run gate:nfr-red:impl1"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

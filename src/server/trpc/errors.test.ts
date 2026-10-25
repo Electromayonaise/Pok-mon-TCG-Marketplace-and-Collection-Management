@@ -1,0 +1,117 @@
+import { TRPCError } from '@trpc/server';
+import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
+import type { Citation } from '../../shared-kernel/decision.js';
+import { DomainError, NotImplementedError, UnexpectedError } from '../../shared-kernel/errors.js';
+import { explainAssert, T0 } from '../../../test-support/solu2/fixtures.js';
+import { toErrorBody } from './errors.js';
+import { INPUTS } from './inputs.generated.js';
+
+// The redactor is Story 1.2's; here only the routing to it is under test.
+const redact = vi.hoisted(() => vi.fn((cs: Citation[]) => cs.map((c) => ({ ...c, inputs: { ...c.inputs, phone: '[redacted]' } }))));
+vi.mock('../../shared-kernel/regulated.js', async (original) => ({ ...(await original<object>()), redact }));
+
+const now = new Date(T0);
+const input = z.strictObject({ name: z.string().min(2), qty: z.number().int().max(5), kind: z.enum(['card', 'sealed']), at: z.iso.datetime() });
+const zodError = (value: unknown) => input.safeParse(value).error!;
+
+describe('toErrorBody — DomainError', () => {
+  it('maps the code to its family status and a cited, rendered, rejected decision', () => {
+    const body = toErrorBody(new DomainError('InsufficientQuantity', [{ rule: 'FR-INV-9', inputs: { requested: 3, available: 1 } }]), now);
+    expect(body).toEqual({
+      code: 'InsufficientQuantity',
+      httpStatus: 409,
+      decision: { outcome: 'rejected', reasonCode: 'InsufficientQuantity', humanMessage: 'Pediste 3; quedan 1.', citations: [{ rule: 'FR-INV-9', inputs: { requested: 3, available: 1 } }], occurredAt: T0 },
+    });
+  });
+
+  it('unwraps the cause tRPC adds around a thrown DomainError', () => {
+    const wrapped = new TRPCError({ code: 'INTERNAL_SERVER_ERROR', cause: new DomainError('AdminOnly', [{ rule: 'AD-SYS-1', inputs: {} }]) });
+    expect(toErrorBody(wrapped, now)).toMatchObject({ code: 'AdminOnly', httpStatus: 403 });
+  });
+
+  it('routes citations through the redactor only when an input key is regulated', () => {
+    redact.mockClear();
+    toErrorBody(new DomainError('AdminOnly', [{ rule: 'AD-SYS-1', inputs: { orderId: 'o1' } }]), now);
+    expect(redact).not.toHaveBeenCalled();
+    const body = toErrorBody(new DomainError('NotBusinessAccount', [{ rule: 'AD-SYS-1', inputs: { status: 'suspendida', phone: '+573001234567' } }]), now);
+    expect(redact).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(body)).not.toContain('3001234567');
+  });
+});
+
+describe('toErrorBody — request validation', () => {
+  it('maps a ZodError to RequestValidationFailed with one es-CO issue and line per problem', () => {
+    const body = toErrorBody(zodError({ name: 'x', qty: 9, kind: 'deck', at: 'ayer', role: 'admin' }), now);
+    expect(body.code).toBe('RequestValidationFailed');
+    expect(body.httpStatus).toBe(400);
+    expect(body.issues).toEqual([
+      { field: 'name', issue: 'debe tener al menos 2 caracteres' },
+      { field: 'qty', issue: 'debe ser menor o igual a 5' },
+      { field: 'kind', issue: 'no es una de las opciones permitidas' },
+      { field: 'at', issue: 'debe ser una fecha y hora ISO 8601 en UTC' },
+      { field: 'role', issue: 'no es un campo permitido' },
+    ]);
+    expect(body.decision.humanMessage.split('\n')).toEqual(body.issues!.map((i) => `Revisa ${i.field}: ${i.issue}.`));
+    expect(body.decision.citations).toEqual([{ rule: 'AD-SYS-1', inputs: { field: 'name', issue: 'debe tener al menos 2 caracteres' } }]);
+    expect(body.decision).toMatchObject({ outcome: 'rejected', reasonCode: 'RequestValidationFailed', occurredAt: T0 });
+  });
+
+  it('reads the ZodError tRPC wraps in a BAD_REQUEST', () => {
+    const body = toErrorBody(new TRPCError({ code: 'BAD_REQUEST', cause: zodError(null) }), now);
+    expect(body.issues).toEqual([{ field: 'la solicitud', issue: 'debe ser un objeto' }]);
+  });
+
+  it('names the expected type of a wrong or missing value', () => {
+    expect(toErrorBody(zodError({ name: 7, qty: 1.5, kind: 'card', at: T0 }), now).issues).toEqual([
+      { field: 'name', issue: 'debe ser un texto' },
+      { field: 'qty', issue: 'debe ser un número entero' },
+    ]);
+  });
+
+  it('echoes a client-chosen key only when it is a plain camelCase name, and caps the issues', () => {
+    const valid = { name: 'xx', qty: 1, kind: 'card', at: T0 };
+    expect(toErrorBody(zodError({ ...valid, RelationOrder: 1, 'relation "Order"': 2, okKey: 3 }), now).issues).toEqual([
+      { field: 'un campo desconocido', issue: 'no es un campo permitido' },
+      { field: 'un campo desconocido', issue: 'no es un campo permitido' },
+      { field: 'okKey', issue: 'no es un campo permitido' },
+    ]);
+    const many = toErrorBody(zodError({ ...valid, ...Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`k${i}`, i])) }), now);
+    expect(many.issues).toHaveLength(20);
+    expect(many.decision.humanMessage.split('\n')).toHaveLength(20);
+  });
+
+  it('every generated input refuses a bad value with an explainable decision: no option list, no PascalCase', () => {
+    const probes: unknown[] = ['__zz__', 1.5, true, null, [], {}];
+    const failing: string[] = [];
+    for (const [procedure, schema] of Object.entries(INPUTS)) {
+      for (const key of Object.keys(schema.shape)) {
+        for (const value of probes) {
+          const r = schema.safeParse({ [key]: value });
+          if (r.success) continue;
+          try {
+            explainAssert(toErrorBody(r.error, now).decision, { code: 'RequestValidationFailed', outcome: 'rejected' });
+          } catch {
+            failing.push(`${procedure}.${key} = ${JSON.stringify(value)}`);
+          }
+        }
+      }
+    }
+    expect(failing).toEqual([]);
+  });
+});
+
+describe('toErrorBody — Unexpected', () => {
+  const unexpected = { code: 'Unexpected', httpStatus: 500, decision: { outcome: 'rejected', reasonCode: 'Unexpected', humanMessage: 'Algo falló de nuestro lado; no se aplicó ningún cambio.', citations: [{ rule: 'AD-SYS-1', inputs: {} }], occurredAt: T0 } };
+
+  it.each([
+    ['a driver error', new Error('relation "Order" does not exist at 10.0.0.7')],
+    ['a non-owner raise', new UnexpectedError('reviews raised AdminOnly, which identity owns')],
+    ['a stub', new NotImplementedError('orders.placeOrder')],
+    ['a tRPC NOT_FOUND', new TRPCError({ code: 'NOT_FOUND', message: 'No procedure found on path "x.y"' })],
+    ['a wrapped driver error', new TRPCError({ code: 'INTERNAL_SERVER_ERROR', cause: new Error('ECONNREFUSED 10.0.0.7') })],
+    ['a thrown string', 'boom'],
+  ])('%s is Unexpected, and nothing of it reaches the body', (_, error) => {
+    expect(toErrorBody(error, now)).toEqual(unexpected);
+  });
+});

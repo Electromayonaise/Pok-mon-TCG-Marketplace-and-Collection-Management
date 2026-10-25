@@ -128,3 +128,17 @@
 - **Reason:** It is the only option that clears the audit without hand-forced transitive versions, and it stays within the majors the Stack Decisions fix.
 - **Artifact changed:** `package.json`, `package-lock.json`, `scripts/check-deps.mjs` (approval references), `docs/impl-1/task-statement.md` (§1 Stack, §4.2).
 - **Decided by:** Martín.
+
+### 9. Impl-1 gets its own CI gate; the Solu-1 and Solu-2 red gates become manual evidence (Governance)
+
+- **Phase:** 2 (Epic 1, preparing Story 1.1).
+- **Persona/Skill:** `bmad-create-story`.
+- **Prompt (summary):** Story 1.1 turns 5 Solu-2 ATDD tests green, and its `AdminGuard` turns 2 Solu-1 tests green (`cat-contracts.test.ts`). Both `solu1-quality-gate.yml` and `solu2-quality-gate.yml` run on every PR and every push to `main`, and their red gates read the frozen Solu-1 and Solu-2 `sprint-status.yaml`, where nothing is `done`. From Story 1.1 on, both workflows would fail on a correct implementation. `npm test` has the same problem: `gate:solu2` includes the Solu-2 red gate.
+- **AI output (summary):** The agent offered three options:
+  - **(recommended)** a new `impl1-quality-gate.yml` that runs `npm test`: the Solu-2 static gates plus the red gate pointed at the Impl-1 status. The two Solu workflows lose their push and PR triggers. They stay runnable by hand (`workflow_dispatch`), and `32e2b57` remains their green evidence.
+  - Change only `npm test`; PRs to `main` would then show red checks.
+  - Point the Solu workflows at the Impl-1 status. This edits the Solu-2 deliverable mirror and loses the historical evidence.
+- **Human decision:** ACCEPT the Impl-1 CI gate.
+- **Reason:** It is what the statement's Phase 0 asks for ("point the red gate at it"), and the CI stops showing false reds.
+- **Artifact changed:** `.github/workflows/impl1-quality-gate.yml` (new); the triggers of `.github/workflows/solu1-quality-gate.yml` and `solu2-quality-gate.yml`, plus its mirror `docs/solu-2/test/ci/quality-gate.yml`; `package.json` (`gate:impl1`, `test`). All of these land in Story 1.1.
+- **Decided by:** Martín.
