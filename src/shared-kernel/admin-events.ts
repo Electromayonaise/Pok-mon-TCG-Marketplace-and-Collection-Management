@@ -30,13 +30,27 @@ export interface AdminEventsV2UseCases {
 }
 // </gen-solu2-api>
 
+import type { DeliveryRowDTO, Subscriber } from './admin-events.dto.js';
 import type { Decision } from './decision.js';
 import type { ReplayOutcome } from './dispatcher.js';
-import { NotImplementedError } from './errors.js';
 import { MESSAGES, type MessageCode } from './messages.generated.js';
 import { renderMessage } from './messages.js';
 import type { Tx } from './ports.js';
+import { raiserFor } from './raise.js';
 import type { CuidId, IsoInstant } from './types.js';
+
+const raise = raiserFor('shared-kernel');
+const HOUR = 3_600_000;
+
+/** S-SYS.deliveries: rows per page (ARCH §7.3). */
+export const DELIVERIES_PAGE = 25;
+/** AD-SYS-2 rule 9: a `pending` delivery older than this is stuck. */
+export const STUCK_AFTER_MS = 24 * HOUR;
+/** ARCH §4: the tick is silent when none started in this long, read inside the window below. */
+export const TICK_SILENCE_MS = 3 * HOUR;
+/** ARCH §4: the silence window, 10:17–23:17 Bogotá inclusive, in minutes of the Bogotá day (UTC−5, no DST). */
+const SILENCE_WINDOW = { from: 10 * 60 + 17, to: 23 * 60 + 17 };
+const BOGOTA_OFFSET_MIN = -5 * 60;
 
 export interface ReplayLogRow {
   id: CuidId;
@@ -55,6 +69,52 @@ export interface ReplayLogRow {
 export interface AdminEventsRepository {
   /** S-SYS.replay: one row per replay, written in the transaction that settles it (decision log Impl-1 #15). */
   insertReplayLog(tx: Tx, row: ReplayLogRow): Promise<void>;
+  /** S-SYS.tick: the latest `tick` JobRun started at or before `notAfter`, in any outcome. */
+  readLastTickStartedAt(tx: Tx, notAfter: IsoInstant): Promise<IsoInstant | null>;
+  /** S-SYS.deliveries: up to `limit` rows of one set, oldest first, after `after` when given. */
+  listDeliveries(tx: Tx, q: { kind: DeliveryPageKey['kind']; stuckBefore: IsoInstant; after: DeliveryPageKey | null; limit: number }): Promise<DeliveryRowDTO[]>;
+  /** S-SYS.health: the live counts and the latest FailedDeliveryDigest row. */
+  readDeliveryHealth(tx: Tx, stuckBefore: IsoInstant): Promise<GetDeliveryHealthResponse>;
+}
+
+/** The sort key a deliveries page continues after: `firstFailedAt` (failed) or `createdAt` (stuck), then the primary key. */
+export interface DeliveryPageKey {
+  kind: 'failed' | 'stuck';
+  at: IsoInstant;
+  eventId: CuidId;
+  subscriber: Subscriber;
+}
+
+/**
+ * ARCH §4: the tick is silent when read inside 10:17–23:17 Bogotá with no tick started in the
+ * previous 3 h. Outside the window the scheduler runs no tick, so its absence is not silence.
+ */
+export function isTickSilent(now: Date, lastTickStartedAt: IsoInstant | null): boolean {
+  const minute = (((now.getUTCHours() * 60 + now.getUTCMinutes() + BOGOTA_OFFSET_MIN) % 1440) + 1440) % 1440;
+  if (minute < SILENCE_WINDOW.from || minute > SILENCE_WINDOW.to) return false;
+  return lastTickStartedAt === null || now.getTime() - Date.parse(lastTickStartedAt) >= TICK_SILENCE_MS;
+}
+
+const SUBSCRIBERS: readonly Subscriber[] = ['commission', 'listings', 'collections'];
+
+/** The opaque cursor of a deliveries page: base64url JSON of its last row's sort key. */
+export function encodeDeliveryCursor(key: DeliveryPageKey): string {
+  return Buffer.from(JSON.stringify([key.kind, key.at, key.eventId, key.subscriber])).toString('base64url');
+}
+
+/** A cursor this list issued for the same `kind`, else `RequestValidationFailed` citing the cursor. */
+export function decodeDeliveryCursor(cursor: string, kind: DeliveryPageKey['kind']): DeliveryPageKey {
+  let parts: unknown = null;
+  try {
+    parts = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+  } catch {
+    // falls through to the refusal below
+  }
+  if (Array.isArray(parts) && parts.length === 4 && parts[0] === kind && typeof parts[1] === 'string' && !Number.isNaN(Date.parse(parts[1]))
+    && typeof parts[2] === 'string' && parts[2].length > 0 && SUBSCRIBERS.includes(parts[3])) {
+    return { kind, at: new Date(parts[1]).toISOString(), eventId: parts[2], subscriber: parts[3] };
+  }
+  return raise('RequestValidationFailed', [{ rule: 'AD-SYS-1', inputs: { field: 'cursor', issue: 'no corresponde a una página de esta lista' } }]);
 }
 
 /** A handler's stored code as a catalog code; anything the catalog lacks reads as 'Unexpected'. */
@@ -62,16 +122,42 @@ function messageCodeOf(code: string | undefined): MessageCode {
   return code !== undefined && Object.hasOwn(MESSAGES, code) ? (code as MessageCode) : 'Unexpected';
 }
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
 export class AdminEventsServiceV2 implements AdminEventsV2UseCases {
   constructor(protected readonly deps: AdminEventsV2Deps) {}
 
+  /** S-SYS.tick (ARCH §4): derived at read from the latest tick JobRun and `clock.now()`. */
   async getTickHealth(_input: GetTickHealthRequest): Promise<GetTickHealthResponse> {
-    throw new NotImplementedError('shared-kernel.getTickHealth');
+    const { repo, transactions, clock } = this.deps;
+    const now = clock.now();
+    const readAt = now.toISOString();
+    const lastTickStartedAt = await transactions.run((tx) => repo.readLastTickStartedAt(tx, readAt), { readOnly: true });
+    const tickSilent = isTickSilent(now, lastTickStartedAt);
+    const reasonCode: MessageCode = tickSilent ? 'TickSilent' : 'TickOnSchedule';
+    const inputs = { lastTickStartedAt, readAt };
+    const decision: Decision = {
+      outcome: 'allowed',
+      reasonCode,
+      humanMessage: renderMessage(reasonCode, inputs),
+      citations: [{ rule: 'AD-SYS-2', inputs }],
+      occurredAt: readAt,
+    };
+    return { lastTickStartedAt, tickSilent, decision };
   }
 
-  async listDeliveries(_input: ListDeliveriesRequest): Promise<ListDeliveriesResponse> {
-    throw new NotImplementedError('shared-kernel.listDeliveries');
+  /** S-SYS.deliveries (AD-SYS-2 rule 9): 25 rows of `failed` by `firstFailedAt`, or of stuck `pending` by `createdAt`. */
+  async listDeliveries(input: ListDeliveriesRequest): Promise<ListDeliveriesResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { kind, cursor } = input;
+    const after = cursor === null ? null : decodeDeliveryCursor(cursor, kind);
+    const stuckBefore = new Date(clock.now().getTime() - STUCK_AFTER_MS).toISOString();
+    // One row past the page says whether a next page exists.
+    const found = await transactions.run((tx) => repo.listDeliveries(tx, { kind, stuckBefore, after, limit: DELIVERIES_PAGE + 1 }), { readOnly: true });
+    const rows = found.slice(0, DELIVERIES_PAGE);
+    const last = rows.at(-1);
+    const nextCursor = found.length > DELIVERIES_PAGE && last
+      ? encodeDeliveryCursor({ kind, at: kind === 'failed' ? last.firstFailedAt! : last.createdAt, eventId: last.eventId, subscriber: last.subscriber })
+      : null;
+    return { rows, nextCursor };
   }
 
   /**
@@ -99,7 +185,10 @@ export class AdminEventsServiceV2 implements AdminEventsV2UseCases {
     return { status: result.status, replayed: result.replayed, decision };
   }
 
+  /** S-SYS.health (AD-SYS-2 rule 9): the badge counts and the latest daily digest, read in one statement. */
   async getDeliveryHealth(_input: GetDeliveryHealthRequest): Promise<GetDeliveryHealthResponse> {
-    throw new NotImplementedError('shared-kernel.getDeliveryHealth');
+    const { repo, transactions, clock } = this.deps;
+    const stuckBefore = new Date(clock.now().getTime() - STUCK_AFTER_MS).toISOString();
+    return transactions.run((tx) => repo.readDeliveryHealth(tx, stuckBefore), { readOnly: true });
   }
 }

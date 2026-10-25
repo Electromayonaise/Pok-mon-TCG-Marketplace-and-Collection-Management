@@ -59,7 +59,7 @@ development_status:
   1-2-record-an-audit-trail-and-keep-regulated-data-out-of-every-egress: done
   1-3-deliver-every-committed-event-exactly-once-in-effect: done
   1-4-keep-time-sockets-and-module-boundaries-deterministic: review
-  1-5-show-admins-the-delivery-and-tick-health: backlog
+  1-5-show-admins-the-delivery-and-tick-health: review
   epic-1-retrospective: optional
   epic-2: in-progress
   2-1-complete-the-individual-seller-profile-and-claim-the-track: done

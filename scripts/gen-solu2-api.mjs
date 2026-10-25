@@ -621,7 +621,8 @@ for (const [host, block] of indexBlocks) {
 // contracts.md §13 is the one source of the explanation templates (AD-SYS-1 rule 6). Every
 // registry code needs a row with its registry status; the only other rows are 'Unexpected' and
 // the stored-only codes (DeliveryAttemptsExhausted; EventDeliveryReplayed,
-// EventDeliveryReplayInProgress and IndividualSellerProfileCompleted, decision log Impl-1 #16).
+// EventDeliveryReplayInProgress and IndividualSellerProfileCompleted, decision log Impl-1 #16;
+// TickOnSchedule and TickSilent, Story 1.5).
 {
   const section = /^## 13\. Typed Error Catalog\n([\s\S]*?)^## 14\./m.exec(contractsMd)?.[1] ?? '';
   const messages = new Map();

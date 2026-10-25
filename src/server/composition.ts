@@ -30,13 +30,17 @@ export interface AppDeps {
 }
 
 /**
- * The procedures whose contracts the done stories implement: IDN-1.ingress (Story 2.1) and
- * S-SYS.replay (Story 1.3). Every other procedure stays NotImplemented until its story wires it.
+ * The procedures whose contracts the done stories implement: IDN-1.ingress (Story 2.1),
+ * S-SYS.replay (Story 1.3) and S-SYS.tick, .deliveries, .health (Story 1.5). Every other
+ * procedure stays NotImplemented until its story wires it.
  */
 function resolvers(s: { idn: IdnServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
   return {
     'access.completeIndividualProfile': (input, userId) => s.idn.completeIndividualProfile({ ...input, userId }),
     'admin.events.replay': (input, adminId) => s.adminEvents.replayEventDelivery({ ...input, adminId }),
+    'admin.jobs.tickHealth': (_input, adminId) => s.adminEvents.getTickHealth({ adminId }),
+    'admin.events.deliveries': (input, adminId) => s.adminEvents.listDeliveries({ ...input, adminId }),
+    'admin.events.deliveryHealth': (_input, adminId) => s.adminEvents.getDeliveryHealth({ adminId }),
   };
 }
 

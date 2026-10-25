@@ -26,10 +26,13 @@ export function toErrorBody(error: unknown, now: Date): ErrorBody {
   const domain = domainErrorIn(error);
   if (domain) {
     const citations = redact(domain.citations);
+    const { field, issue } = citations[0].inputs;
     return {
       code: domain.code,
       httpStatus: HTTP_STATUS[DOMAIN_ERRORS[domain.code].trpc] as HttpStatus,
       decision: { outcome: 'rejected', reasonCode: domain.code, humanMessage: renderMessage(domain.code, citations[0].inputs), citations, occurredAt },
+      // A service-raised RequestValidationFailed (a bad cursor) carries its one issue like the parser's.
+      ...(domain.code === 'RequestValidationFailed' ? { issues: [{ field: String(field), issue: String(issue) }] } : {}),
     };
   }
   const zod = error instanceof ZodError ? error : error instanceof TRPCError && error.code === 'BAD_REQUEST' && error.cause instanceof ZodError ? error.cause : null;

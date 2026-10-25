@@ -114,6 +114,43 @@ describe('admin.events.replay over HTTP (S-SYS.replay, S-FR-IDN-7)', () => {
   });
 });
 
+describe('the delivery and tick health over HTTP (S-SYS.tick, .deliveries, .health; Story 1.5)', () => {
+  async function get(path: string, input: unknown, cookie: string) {
+    const url = `http://localhost/api/trpc/${path}?input=${encodeURIComponent(JSON.stringify(input))}`;
+    const res = await serveTrpc(new Request(url, { headers: { cookie } }), app.router, clock, { identity: app.identity });
+    return { status: res.status, json: (await res.json()) as { result?: { data: Record<string, unknown> }; error?: Record<string, unknown> } };
+  }
+
+  it('a signed-in non-admin is AdminOnly 403 on each read', async () => {
+    await user(db, { id: id('camila') });
+    const cookie = await signIn(id('camila'));
+    for (const [path, input] of [['admin.jobs.tickHealth', {}], ['admin.events.deliveries', { kind: 'failed', cursor: null }], ['admin.events.deliveryHealth', {}]] as const) {
+      const { status, json } = await get(path, input, cookie);
+      expect([path, status, json.error?.code]).toEqual([path, 403, 'AdminOnly']);
+    }
+  });
+
+  it('an admin reads the three: the health counts, the failed page and the explained tick', async () => {
+    await admin(db);
+    await ins(db, 'OutboxEvent', { id: id('ev1'), type: 'CommissionBalanceExhausted', aggregateId: id('tienda'), schemaVersion: 1, payload: JSON.stringify({ businessId: id('tienda'), ledgerSeq: 1, balanceAfter: 0 }) }, 'created');
+    await ins(db, 'EventDelivery', { eventId: id('ev1'), subscriber: 'listings', status: 'failed', attempts: 3, lastErrorCode: 'DeliveryAttemptsExhausted', firstFailedAt: at(-DAY), lastFailedAt: at(-DAY) });
+    const cookie = await signIn(id('admin'));
+    expect((await get('admin.events.deliveryHealth', {}, cookie)).json.result?.data).toEqual({ failedCount: 1, oldestFirstFailedAt: at(-DAY), stuckPendingCount: 0, latestDigest: null });
+    const page = await get('admin.events.deliveries', { kind: 'failed', cursor: null }, cookie);
+    expect(page.json.result?.data).toMatchObject({ rows: [{ eventId: id('ev1'), eventType: 'CommissionBalanceExhausted', subscriber: 'listings', attempts: 3 }], nextCursor: null });
+    const tick = await get('admin.jobs.tickHealth', {}, cookie);
+    // T0 is 10:00 Bogotá, before the 10:17 window opens: no tick yet is not silence.
+    expect(tick.json.result?.data).toMatchObject({ lastTickStartedAt: null, tickSilent: false, decision: { reasonCode: 'TickOnSchedule', citations: [{ rule: 'AD-SYS-2' }] } });
+  });
+
+  it('a cursor the list did not issue is RequestValidationFailed 400 with its issue', async () => {
+    await admin(db);
+    const { status, json } = await get('admin.events.deliveries', { kind: 'failed', cursor: 'x' }, await signIn(id('admin')));
+    expect([status, json.error?.code]).toEqual([400, 'RequestValidationFailed']);
+    expect(json.error?.issues).toEqual([{ field: 'cursor', issue: 'no corresponde a una página de esta lista' }]);
+  });
+});
+
 describe('the rest of the registry stays unwired', () => {
   it('a procedure no done story implements is still Unexpected 500 behind a real session', async () => {
     await user(db, { id: id('camila') });

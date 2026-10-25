@@ -8,6 +8,8 @@ export const MESSAGES = {
   DeliveryAttemptsExhausted: 'La entrega agotó sus 3 intentos automáticos; reintenta desde el panel.',
   EventDeliveryReplayed: 'La entrega se reintentó y quedó entregada.',
   EventDeliveryReplayInProgress: 'Otro reintento de esta entrega está en curso; su estado sigue en {status}.',
+  TickOnSchedule: 'La tarea horaria no está en silencio; la última empezó a las {lastTickStartedAt}.',
+  TickSilent: 'Ninguna tarea horaria empezó en las últimas 3 horas; la última empezó a las {lastTickStartedAt}.',
   NotAuthenticated: 'Inicia sesión para continuar.',
   AdminOnly: 'Esta acción es solo para administradores.',
   EmailNotVerified: 'Verifica tu correo para comprar, ofertar o escribir; abre el enlace que te enviamos.',
@@ -97,6 +99,6 @@ export const MESSAGES = {
   DuplicateReview: 'Ya reseñaste a este vendedor; puedes editar tu reseña.',
   ReviewNotFound: 'No encontramos esa reseña.',
   Unexpected: 'Algo falló de nuestro lado; no se aplicó ningún cambio.',
-} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified', string>;
+} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified', string>;
 
 export type MessageCode = keyof typeof MESSAGES;
