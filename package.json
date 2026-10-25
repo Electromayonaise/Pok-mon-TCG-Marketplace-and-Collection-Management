@@ -19,6 +19,7 @@
     "db:pull": "node scripts/gen-prisma-schema.mjs && prisma generate",
     "typecheck": "tsc --noEmit",
     "lint": "node tools/lint/node_modules/eslint/bin/eslint.js .",
+    "test:lint-rules": "node --test tools/lint/tezg-plugin.test.mjs",
     "test:unit": "vitest run --project impl1-unit",
     "gate:deps": "node scripts/check-deps.mjs",
     "gate:prisma": "node scripts/gen-prisma-schema.mjs --check",
@@ -45,7 +46,7 @@
     "gate:solu2": "npm run typecheck && npm run gate:api:solu2 && npm run gate:ui:solu2 && npm run gate:codes:solu2 && npm run gate:ids:solu2 && npm run gate:trace:solu2 && npm run gate:epics:solu2 && npm run gate:purity && npm run test:fitness:solu2 && npm run gate:atdd-red:solu2 && npm run gate:nfr-red:solu2",
     "gate:atdd-red:impl1": "node scripts/check-atdd-red.mjs solu2-atdd 352 --status docs/impl-1/implementation-artifacts/sprint-status.yaml --epics docs/solu-2/planning/epics.md",
     "gate:nfr-red:impl1": "node scripts/check-atdd-red.mjs solu2-nfr 3 --status docs/impl-1/implementation-artifacts/sprint-status.yaml --epics docs/solu-2/planning/epics.md",
-    "gate:impl1": "npm run typecheck && npm run gate:api:solu2 && npm run gate:ui:solu2 && npm run gate:codes:solu2 && npm run gate:ids:solu2 && npm run gate:trace:solu2 && npm run gate:epics:solu2 && npm run gate:purity && npm run test:fitness:solu2 && npm run gate:atdd-red:impl1 && npm run gate:nfr-red:impl1"
+    "gate:impl1": "npm run typecheck && npm run test:lint-rules && npm run gate:api:solu2 && npm run gate:ui:solu2 && npm run gate:codes:solu2 && npm run gate:ids:solu2 && npm run gate:trace:solu2 && npm run gate:epics:solu2 && npm run gate:purity && npm run test:fitness:solu2 && npm run gate:atdd-red:impl1 && npm run gate:nfr-red:impl1"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

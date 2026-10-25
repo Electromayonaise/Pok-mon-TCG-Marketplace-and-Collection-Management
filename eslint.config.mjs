@@ -1,5 +1,15 @@
 // ESLint for the whole repository. The packages live in the isolated toolchain under tools/lint
-// (decision log #7); run it with `npm run lint`. Story 1.4 adds the `tezg/*` rules here.
+// (decision log #7); run it with `npm run lint`. The `tezg/*` rules (Story 1.4) guard product
+// code; tests seed foreign tables and plant violations by design, so they are exempt.
 import { base } from './tools/lint/base.mjs';
+import tezg from './tools/lint/tezg-plugin.mjs';
 
-export default [...base];
+export default [
+  ...base,
+  {
+    files: ['src/**/*.ts'],
+    ignores: ['src/**/*.test.ts'],
+    plugins: { tezg },
+    rules: { 'tezg/error-owner': 'error', 'tezg/table-owner': 'error', 'tezg/regulated-select': 'error' },
+  },
+];
