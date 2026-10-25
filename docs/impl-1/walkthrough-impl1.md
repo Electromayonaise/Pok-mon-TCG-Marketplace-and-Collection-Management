@@ -32,6 +32,19 @@ The other 37 Impl-1 stories continue after the delivery, one epic at a time (§9
 
 `docs/impl-1/implementation-artifacts/sprint-status.yaml` records all six as `done`. Epics 1 and 2 stay `in-progress`, because each has stories after the cut.
 
+**Status progression.** Each story is committed once, when it is `done`, so the git history of `sprint-status.yaml` shows `backlog → done` per story commit. The steps in between are recorded in each story file's Change Log and Dev Agent Record:
+
+| Story | Progression | Where it is recorded |
+|---|---|---|
+| 1.1 | ready-for-dev → in-progress → review (2026-10-24) → done (2026-10-25) | Change Log; Dev Agent Record, "Status" |
+| 1.2 | ready-for-dev → in-progress → review → done | Change Log; Task 6.5 |
+| 1.3 | ready-for-dev → in-progress → review → done | Change Log |
+| 2.1 | ready-for-dev → in-progress → done, after the fresh-context review | Change Log |
+| 2.2 | ready-for-dev → done: a proof-only story with no production code (decision #23) | Change Log |
+| 2.3 | ready-for-dev → in-progress → done, after the fresh-context review | Change Log |
+
+Stories 1.1–1.3 passed through `review` in sprint-status, as the Full Ceremony requires. Under the compact ceremony (decision #22), stories 2.1–2.3 ran their review without changing the sprint-status value.
+
 **The ceremony as run.**
 
 - **Stories 1.1–1.3 ran the Full Ceremony** (`task-statement.md` §3):
@@ -420,7 +433,7 @@ TEZG is a modular monolith in hexagonal style (Plan-2 ARCHITECTURE, Solu-2 detai
 **The command.** One npm command runs the whole chain:
 
 ```bash
-export TEZG_PG_PORT=15432   # only on this Windows machine; see §11
+export TEZG_PG_PORT=15432   # optional: only when port 55432 is reserved; see §11
 npm run test:ci
 ```
 
@@ -474,6 +487,24 @@ exit 0
 
 The 3 lint warnings predate Impl-1. They sit in the Solu-2 ATDD files.
 
+**Clean-clone check** (`task-statement.md` §6.2; 2026-10-25, a fresh clone of `impl-1` at `b317ad7`, outside the working copy, following only the README):
+
+- **`npm ci && npm test`, with the default port 55432 and no `TEZG_PG_*` variables:** exit 0, with the same totals as above.
+- **`docker compose up -d --build --wait`:**
+  - The image built, and both services reported Healthy after 45 s.
+  - The app log shows `created database tezg_dev`, `applied 001_tezg_schema.sql`, `tezg_dev: 1 migrations applied, 1 new`, then `✓ Ready`.
+  - The two health probes, then a call to an unknown procedure, which gets the structured 400 of Story 1.1:
+
+```
+GET  /api/health/live         200 {"status":"ok"}
+GET  /api/health/ready        200 {"ready":true,"checks":{"database":"ok","migrations":"current"},"pending":[]}
+POST /api/trpc/no.such.proc   400 {"error":{"code":"RequestValidationFailed","httpStatus":400,"decision":{"outcome":"rejected",
+                                   "reasonCode":"RequestValidationFailed","humanMessage":"Revisa la solicitud: no corresponde a ningún procedimiento.",
+                                   "citations":[{"rule":"AD-SYS-1",...}],"occurredAt":"..."},"issues":[{"field":"la solicitud",...}]}}
+```
+
+`docker compose down -v` removed the stack afterwards.
+
 ## 10. AI governance
 
 `docs/impl-1/ai-log/ai-decision-log.md` records 23 decisions. Each entry holds the prompt, the AI's output and Martín's decision, with the option the AI recommended and why.
@@ -505,8 +536,8 @@ Examples:
 - **No production composition root yet.** The services are wired in the test harness (`test-support/solu2/fixtures.ts` `wiring()`). The tRPC procedures still answer through `UNWIRED_IDENTITY`, which a later Epic 2 story replaces.
 - **No production `TransactionRunner` yet.** The port's JSDoc carries the obligation from 2.3's review M1, so the runner that lands registers the ambient transaction.
 - **`dispatch()` and `sweep()` are not called in production** (1.3 review M4). Decision #21 assigns the wiring to the first story that publishes an event.
-- **Windows reserved port.** On the machine that produced this walkthrough, Windows reserves port 55432, which `docker-compose.yml` and `.env.example` use. The suite ran against a second Postgres 16.6 container on port 15432 (`TEZG_PG_PORT=15432`). The permanent fix is in the README's Troubleshooting section.
-- **`docker compose up` was not re-run on that machine for this delivery**, because of the reserved port. The clean-clone check (§6.2 of the task statement) should run after the winnat restart, or on another machine.
+- **Windows reserved port.** Windows can reserve a port range that includes 55432, which `docker-compose.yml` and `.env.example` use. That happened once on the machine that produced this walkthrough, and the gate run in §9 used a second Postgres 16.6 container on port 15432. The reservation was later released, and the clean-clone check in §9 ran on the default port. The README's Troubleshooting section gives both fixes.
+- **Windows long paths.** Cloning on Windows needs `git config --global core.longpaths true` (or `git clone -c core.longpaths=true`), because some paths under `.agents/skills/` exceed 260 characters.
 - **Deferred review findings** are recorded in each story file and carried to the Epic 1 and Epic 2 gates:
   - 1.3 L1 and L3;
   - 2.1 L1–L3;

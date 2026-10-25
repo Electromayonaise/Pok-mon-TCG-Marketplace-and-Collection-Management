@@ -65,6 +65,8 @@ curl http://localhost:3000/api/health/ready
 
 Compose builds the service, starts PostgreSQL 16, applies the migrations and serves the API on `http://localhost:3000`. Both health probes are green once `--wait` returns. The database runs on tmpfs, so `docker compose down` discards it.
 
+On Windows, clone with `git clone -c core.longpaths=true …`, because some paths under `.agents/skills/` exceed 260 characters.
+
 ## Development setup
 
 You need Node.js 22 (`.nvmrc`) and Docker.
@@ -122,6 +124,20 @@ The delivery of 2026-10-26 (decision log #22) is the foundation and the first th
 | 2.3 | An account that may not list learns why and when it may reapply. Capabilities, verification and eligibility come from one pure projection |
 
 [`docs/impl-1/walkthrough-impl1.md`](docs/impl-1/walkthrough-impl1.md) covers each story's goal, procedures, database changes and test evidence, together with the gate output. Each story's full record is in `docs/impl-1/implementation-artifacts/`.
+
+**Where each deliverable is** (Impl-1 task statement §6.1; `docs/impl-1/task-statement.md` §4.1 maps the generic paths):
+
+| Deliverable | Path |
+|---|---|
+| Code: scaffold and stories | `src/`, `app/`, `scripts/` (migrations runner), `docker-compose.yml`, `Dockerfile`, `.env.example` |
+| Tests | `src/**/*.test.ts`, `docs/solu-2/test/` (ATDD, NFR, fitness), `test-support/` |
+| Fixtures | `test-support/fixtures/` |
+| Sprint status | [`docs/impl-1/implementation-artifacts/sprint-status.yaml`](docs/impl-1/implementation-artifacts/sprint-status.yaml) |
+| Story files | [`docs/impl-1/implementation-artifacts/`](docs/impl-1/implementation-artifacts/) |
+| Walkthrough and test output | [`docs/impl-1/walkthrough-impl1.md`](docs/impl-1/walkthrough-impl1.md) |
+| AI decision log | [`docs/impl-1/ai-log/ai-decision-log.md`](docs/impl-1/ai-log/ai-decision-log.md) |
+| PRD | [`docs/plan-2/planning/prd.md`](docs/plan-2/planning/prd.md) and `addendum.md` |
+| Contracts (OpenAPI, schemas) | [`docs/solu-2/planning/detailed-design/`](docs/solu-2/planning/detailed-design/) |
 
 ## Architecture
 
