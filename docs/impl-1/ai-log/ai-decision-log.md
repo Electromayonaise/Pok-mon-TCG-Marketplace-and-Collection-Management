@@ -327,3 +327,17 @@
 - **Reason:** It meets the statement as written, with one module's Core, MEC and Failure-state stories built on a foundation that is already reviewed. The epic-batched flow is the only pace at which the whole product gets finished, and the ATDD tests and gates still hold every story to its contract.
 - **Artifact changed:** `docs/impl-1/task-statement.md` (scope note, §1, §3, §5, §6, Appendices A and B), `docs/impl-1/implementation-artifacts/sprint-status.yaml` (`impl1_delivery`).
 - **Decided by:** Martín.
+
+### 23. A proof-only story is committed right after the story it proves; the gate stays as it is (Process)
+
+- **Phase:** 3 (Stories 2.1 and 2.2).
+- **Persona/Skill:** `bmad-dev-story`, then the `scripts/check-atdd-red.mjs` gate.
+- **Prompt (summary):** Implementing Story 2.1 turned three of Story 2.2's four tests green before 2.2 was `done`. 2.2 is proof-only (Files: —): its tests prove IDN-1, which 2.1 owns. The red gate therefore flagged them as premature greens at the 2.1 commit, against F-5's "implementing a story never breaks the gate". The epics file holds about 19 such proof-only stories.
+- **AI output (summary):** The agent offered three ways:
+  - **(recommended)** Commit the owning story and its proof story back to back, and leave the gate unchanged. The gate goes green again at the proof commit, F-5 keeps its full strictness, and the epic batches commit both stories together anyway.
+  - Let the gate accept the green tests of a proof-only story once its owning story is `done`. Intermediate commits stay green, but the gate gets looser.
+  - Combine the owning story and its proof in one commit. This breaks the one-commit-per-story rule.
+- **Human decision:** ACCEPT the recommendation.
+- **Reason:** It keeps both rules, the strict gate and one commit per story. The red gate appears only on a local intermediate commit that is never pushed on its own, and the commit after it restores green.
+- **Artifact changed:** none (practice). Applied in `7f903f2` (2.1) followed by `2189038` (2.2).
+- **Decided by:** Martín.
