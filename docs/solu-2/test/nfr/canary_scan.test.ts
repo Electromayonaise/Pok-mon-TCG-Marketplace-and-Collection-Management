@@ -44,6 +44,7 @@ describe('AD-SYS-8 rule 4 — canary scan (S-4)', () => {
       captured.push(JSON.stringify(redact(row)));
     }
     expect(captured.join('\n').match(canaries) ?? []).toEqual([]);
-    expect(captured.join('\n')).toContain(id('ord0'));
+    // ord40 is the seed's first paid order, so the first one carrying a comprobante (decision log Impl-1 #12).
+    expect(captured.join('\n')).toContain(id('ord40'));
   }, 300_000);
 });

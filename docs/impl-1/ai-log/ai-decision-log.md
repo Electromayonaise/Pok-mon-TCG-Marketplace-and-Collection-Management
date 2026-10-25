@@ -15,6 +15,7 @@
 | #3 | `[IMPROVED]` | "API only; pages left for a later task" | The front end gets an owner: its own phase after Impl-2 | Martín |
 | #10 | `[CORRECTED]` | Story 1.1 Task 3.3: a request tRPC itself refuses (unknown path, wrong method, batching) is 500 `Unexpected` | It is the client's mistake: 400 `RequestValidationFailed` on `la solicitud` | Martín |
 | #11 | `[CORRECTED]` | Solu-2 contracts.md §13: six es-CO templates interpolate free text (a collection name, a product title, an admin's reason text, an email hint, an upload key) | No template carries free text; a test pins every placeholder to an id, instant, number, field or enum | Martín |
+| #12 | `[CORRECTED]` | Solu-2 `canary_scan.test.ts`: "a non-regulated orderId survives" names `ord0`, an unpaid seed order with no comprobante, so it is never scanned | The check names `ord40`, the seed's first paid order and the first one with a comprobante | Martín |
 
 ---
 
@@ -170,4 +171,18 @@
 - **Human decision:** ACCEPT the removal. In Martín's words: *"Vámonos con lo que recomiendas en ambos casos, y continúa"*. Applying it, the agent traced each placeholder to its source. `{cause}` is an enum (`missing`, `size`, `magic`, `scanner`), so it stays. Two more carry free text and were removed: `EmailNotVerified {emailHint}` (the user's address) and `InvalidDocumentFile {key}` (a client-chosen upload key). The six rewritten templates are `CollectionNameTaken`, `SealedProductInBundle` (now cites `{itemRef}`), `ReapplicationBarred`, `ListingNotPurchasable`, `EmailNotVerified` and `InvalidDocumentFile`.
 - **Reason:** A refusal body depends only on the code, the citations and `now` (S-2); free text in it can leak personal data or break the explanation rule, and the client already knows what it sent.
 - **Artifact changed:** `docs/solu-2/planning/detailed-design/contracts.md` §13 (six templates), `src/server/trpc/messages.generated.ts` (regenerated), `src/server/trpc/messages.test.ts`, the Story 1.1 Review Findings and Change Log.
+- **Decided by:** Martín.
+
+### 12. `[CORRECTED]` The canary scan's "orderId survives" check names an order the scan never sees (Testing)
+
+- **Phase:** 2 (Epic 1, Story 1.2 dev-story).
+- **Persona/Skill:** `bmad-dev-story`.
+- **Prompt (summary):** With the redactor and the logger implemented, `[NFR-SYS-8.canary]` captures 0 canaries, but its last assertion fails. It expects the captured text to contain `id('ord0')`. The test scans only orders with `"comprobanteObjectKey" IS NOT NULL`, and in `seed-marketplace.ts` orders `ord0`–`ord39` are overdue or unpaid, so they carry no comprobante (`order_paid_requires_comprobante`; the `order` fixture adds one only when `paidAt` is set). In Solu-2 the defect never showed, because the test failed earlier with `NotImplemented`. Editing a fixed Solu-2 test needs Martín's decision.
+- **AI output (summary):** The agent offered three ways:
+  - **(recommended)** change one line of the test, `id('ord0')` → `id('ord40')`, the seed's first paid order. It keeps the intent (a non-regulated `orderId` survives redaction) and leaves the shared seed alone.
+  - Give `ord0` a comprobante in the seed. The test stays as written, but a fixture other NFR tests share (`[NFR-ORD-2.p95]`) would change.
+  - Scan every order, dropping the filter. It is a larger change and dilutes the comprobante probe.
+- **Human decision:** ACCEPT the one-line change.
+- **Reason:** It is the smallest fix that keeps the test's intent, and the seed stays what other tests rely on.
+- **Artifact changed:** `docs/solu-2/test/nfr/canary_scan.test.ts` (line 47 and a comment citing this entry); the Story 1.2 Debug Log and Change Log.
 - **Decided by:** Martín.

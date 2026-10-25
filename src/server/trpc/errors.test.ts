@@ -1,15 +1,10 @@
 import { TRPCError } from '@trpc/server';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import type { Citation } from '../../shared-kernel/decision.js';
 import { DomainError, NotImplementedError, UnexpectedError } from '../../shared-kernel/errors.js';
 import { explainAssert, T0 } from '../../../test-support/solu2/fixtures.js';
 import { toErrorBody } from './errors.js';
 import { INPUTS } from './inputs.generated.js';
-
-// The redactor is Story 1.2's; here only the routing to it is under test.
-const redact = vi.hoisted(() => vi.fn((cs: Citation[]) => cs.map((c) => ({ ...c, inputs: { ...c.inputs, phone: '[redacted]' } }))));
-vi.mock('../../shared-kernel/regulated.js', async (original) => ({ ...(await original<object>()), redact }));
 
 const now = new Date(T0);
 const input = z.strictObject({ name: z.string().min(2), qty: z.number().int().max(5), kind: z.enum(['card', 'sealed']), at: z.iso.datetime() });
@@ -30,13 +25,13 @@ describe('toErrorBody — DomainError', () => {
     expect(toErrorBody(wrapped, now)).toMatchObject({ code: 'AdminOnly', httpStatus: 403 });
   });
 
-  it('routes citations through the redactor only when an input key is regulated', () => {
-    redact.mockClear();
-    toErrorBody(new DomainError('AdminOnly', [{ rule: 'AD-SYS-1', inputs: { orderId: 'o1' } }]), now);
-    expect(redact).not.toHaveBeenCalled();
-    const body = toErrorBody(new DomainError('NotBusinessAccount', [{ rule: 'AD-SYS-1', inputs: { status: 'suspendida', phone: '+573001234567' } }]), now);
-    expect(redact).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(body)).not.toContain('3001234567');
+  it('redacts a regulated citation input before it reaches the citations or the humanMessage (AD-SYS-8 rule 4)', () => {
+    const body = toErrorBody(new DomainError('ContactRateLimited', [{ rule: 'FR-MSG-2', inputs: { phone: '+573009912345', listingId: 'lst1', retryAt: T0 } }]), now);
+    expect(JSON.stringify(body)).not.toContain('3009912345');
+    expect(body.decision.citations[0].inputs).toEqual({ phone: '[redacted]', listingId: 'lst1', retryAt: T0 });
+    explainAssert(body.decision, { code: 'ContactRateLimited', outcome: 'rejected', rule: 'FR-MSG-2' });
+    const plain = new DomainError('AdminOnly', [{ rule: 'AD-SYS-1', inputs: { orderId: 'o1' } }]);
+    expect(toErrorBody(plain, now).decision.citations).toEqual(plain.citations);
   });
 });
 

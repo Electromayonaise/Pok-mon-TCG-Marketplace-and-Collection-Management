@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { UnexpectedError } from '../../shared-kernel/errors.js';
 import { raiserFor } from '../../shared-kernel/raise.js';
+import { createLogger, type Logger } from '../../shared-kernel/regulated.js';
 import { VirtualClock } from '../../../test-support/clock.js';
 import { id } from '../../../test-support/ids.js';
 import { T0 } from '../../../test-support/solu2/fixtures.js';
@@ -11,10 +13,10 @@ const raise = raiserFor('identity');
 const actor = id('camila');
 const listingId = id('lst1');
 
-const call = async (path: string, input: unknown, o: { method?: 'GET' | 'POST'; identity?: IdentityGate; query?: string } = {}) => {
+const call = async (path: string, input: unknown, o: { method?: 'GET' | 'POST'; identity?: IdentityGate; query?: string; log?: Logger } = {}) => {
   const method = o.method ?? (PROCEDURES.find((p) => p.procedure === path)?.kind === 'mutation' ? 'POST' : 'GET');
   const url = `http://localhost/api/trpc/${path}${method === 'GET' ? `?input=${encodeURIComponent(JSON.stringify(input))}${o.query ?? ''}` : (o.query ?? '')}`;
-  const res = await serveTrpc(new Request(url, method === 'GET' ? {} : { method, body: JSON.stringify(input), headers: { 'content-type': 'application/json' } }), appRouter, new VirtualClock(), o.identity);
+  const res = await serveTrpc(new Request(url, method === 'GET' ? {} : { method, body: JSON.stringify(input), headers: { 'content-type': 'application/json' } }), appRouter, new VirtualClock(), o);
   return { status: res.status, json: (await res.json()) as { error: Record<string, unknown> } };
 };
 
@@ -98,5 +100,56 @@ describe('builders delegate every gate to identity (AD-11)', () => {
   it('until Epic 2 wires sessions, a gated procedure is Unexpected (NotImplemented), not a guessed identity code', async () => {
     const { status, json } = await call('collections.addEntry', {});
     expect([status, json.error.code]).toEqual([500, 'Unexpected']);
+  });
+});
+
+describe('the cause of an Unexpected is logged, and only its names (Story 1.1 review L3, NFR-SYS-8)', () => {
+  const capture = () => {
+    const lines: string[] = [];
+    return { lines, log: createLogger((line) => lines.push(line)), parsed: () => lines.map((l) => JSON.parse(l) as Record<string, unknown>) };
+  };
+
+  it('a driver error is one error line with the path, its class and SQLSTATE, never its message', async () => {
+    const { lines, log, parsed } = capture();
+    const driver = Object.assign(new Error('invalid input syntax for type integer: "+573009912345"'), { severity: 'ERROR', code: '22P02', detail: 'Key (phone)=(+573009912345)' });
+    const { status, json } = await call('collections.addEntry', {}, { identity: gate({ resolveSession: async () => { throw driver; } }), log });
+    expect([status, json.error.code]).toEqual([500, 'Unexpected']);
+    expect(parsed()).toEqual([{ level: 'error', msg: 'trpc.unexpected', data: { path: 'collections.addEntry', type: 'mutation', errorClass: 'Error', sqlState: '22P02' } }]);
+    expect(lines.join('\n')).not.toMatch(/3009912345|invalid input/);
+  });
+
+  it('our own NotImplementedError and UnexpectedError add their message, which names only operations', async () => {
+    const { log, parsed } = capture();
+    await call('inventory.get', { listingId }, { log });
+    await call('collections.addEntry', {}, { identity: gate({ resolveSession: async () => { throw new UnexpectedError('identity raised a code it does not own: OrderNotFound'); } }), log });
+    expect(parsed().map((l) => l.data)).toEqual([
+      { path: 'inventory.get', type: 'query', errorClass: 'NotImplementedError', detail: 'NotImplemented: inventory.get' },
+      { path: 'collections.addEntry', type: 'mutation', errorClass: 'UnexpectedError', detail: 'identity raised a code it does not own: OrderNotFound' },
+    ]);
+  });
+
+  it('a code that is not a driver SQLSTATE (an errno) is not logged as one, and errorClass reads the prototype (review L2)', async () => {
+    const { log, parsed } = capture();
+    await call('collections.addEntry', {}, { identity: gate({ resolveSession: async () => { throw Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }); } }), log });
+    await call('collections.addEntry', {}, { identity: gate({ resolveSession: async () => { throw { constructor: { name: '+573009912345' } }; } }), log });
+    expect(parsed().map((l) => l.data)).toEqual([
+      { path: 'collections.addEntry', type: 'mutation', errorClass: 'Error' },
+      { path: 'collections.addEntry', type: 'mutation', errorClass: expect.not.stringMatching(/3009912345/) },
+    ]);
+  });
+
+  it('a sink that throws never changes the response (review L3)', async () => {
+    const log: Logger = { info: () => {}, error: () => { throw new Error('write EPIPE'); } };
+    const { status, json } = await call('inventory.get', { listingId }, { log });
+    expect([status, json.error.code]).toEqual([500, 'Unexpected']);
+  });
+
+  it('a domain refusal, an invalid input and a request tRPC refuses write no line', async () => {
+    const { lines, log } = capture();
+    await call('collections.addEntry', {}, { identity: gate({ resolveSession: async () => raise('NotAuthenticated', [{ rule: 'AD-SYS-8 rule 1', inputs: {} }]) }), log });
+    await call('inventory.get', { listingId: 'nope' }, { log });
+    await call('inventory.nope', {}, { method: 'GET', log });
+    await call('inventory.get,catalog.browse', { 0: { listingId }, 1: {} }, { query: '&batch=1', log });
+    expect(lines).toEqual([]);
   });
 });

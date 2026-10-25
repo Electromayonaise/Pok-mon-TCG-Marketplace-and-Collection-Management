@@ -6,14 +6,14 @@ import { DOMAIN_ERRORS, HTTP_STATUS } from '../../shared-kernel/codes.js';
 import type { Citation } from '../../shared-kernel/decision.js';
 import { DomainError } from '../../shared-kernel/errors.js';
 import type { ErrorBody, ErrorIssue, HttpStatus } from '../../shared-kernel/explanation.js';
-import { REGULATED_FIELDS, redact } from '../../shared-kernel/regulated.js';
+import { redact } from '../../shared-kernel/regulated.js';
 import { renderMessage } from './messages.js';
 
 /**
  * Maps a thrown value to the wire body:
  * - a DomainError, or one tRPC wrapped as a `cause` → its registry family's status, the es-CO
- *   `humanMessage`, the citations (through the redactor when an input key is regulated), and
- *   `occurredAt = now`;
+ *   `humanMessage` and the citations, both from the citations as the redactor returns them
+ *   (AD-SYS-8 rule 4), and `occurredAt = now`;
  * - a ZodError, or a tRPC BAD_REQUEST caused by one → `RequestValidationFailed` with `issues`;
  * - a request tRPC itself refuses (unknown path, wrong method, batching, bad JSON…) →
  *   `RequestValidationFailed` with one issue on `la solicitud` (decision log Impl-1 #10);
@@ -25,8 +25,7 @@ export function toErrorBody(error: unknown, now: Date): ErrorBody {
   const occurredAt = now.toISOString();
   const domain = domainErrorIn(error);
   if (domain) {
-    const regulated = domain.citations.some((c) => Object.keys(c.inputs).some((k) => REGULATED_FIELDS.some((f) => f.test(k))));
-    const citations = regulated ? redact(domain.citations) : domain.citations;
+    const citations = redact(domain.citations);
     return {
       code: domain.code,
       httpStatus: HTTP_STATUS[DOMAIN_ERRORS[domain.code].trpc] as HttpStatus,
