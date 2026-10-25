@@ -13,6 +13,8 @@
 | --- | --- | --- | --- | --- |
 | #2 | `[CORRECTED]` | Impl-1 = skeleton + Core, Supporting and one Failure-state per module (41), with every MEC moved to Impl-2 | Not dependency-closed; replaced by the 43-story dependency cut | Martín |
 | #3 | `[IMPROVED]` | "API only; pages left for a later task" | The front end gets an owner: its own phase after Impl-2 | Martín |
+| #10 | `[CORRECTED]` | Story 1.1 Task 3.3: a request tRPC itself refuses (unknown path, wrong method, batching) is 500 `Unexpected` | It is the client's mistake: 400 `RequestValidationFailed` on `la solicitud` | Martín |
+| #11 | `[CORRECTED]` | Solu-2 contracts.md §13: six es-CO templates interpolate free text (a collection name, a product title, an admin's reason text, an email hint, an upload key) | No template carries free text; a test pins every placeholder to an id, instant, number, field or enum | Martín |
 
 ---
 
@@ -141,4 +143,31 @@
 - **Human decision:** ACCEPT the Impl-1 CI gate.
 - **Reason:** It is what the statement's Phase 0 asks for ("point the red gate at it"), and the CI stops showing false reds.
 - **Artifact changed:** `.github/workflows/impl1-quality-gate.yml` (new); the triggers of `.github/workflows/solu1-quality-gate.yml` and `solu2-quality-gate.yml`, plus its mirror `docs/solu-2/test/ci/quality-gate.yml`; `package.json` (`gate:impl1`, `test`). All of these land in Story 1.1.
+- **Decided by:** Martín.
+
+### 10. `[CORRECTED]` A request tRPC refuses on its own is the client's mistake, not a 500 (API)
+
+- **Phase:** 2 (Epic 1, Story 1.1 code-review triage).
+- **Persona/Skill:** `bmad-code-review` (finding L2), triaged with `bmad-agent-dev`.
+- **Prompt (summary):** The fresh-context review of Story 1.1 found that the refusals tRPC makes before any procedure runs answer 500 `Unexpected`: an unknown procedure (`NOT_FOUND`), a wrong HTTP method (`METHOD_NOT_SUPPORTED`), a batched call (`BAD_REQUEST`, R-9), malformed JSON (`PARSE_ERROR`), and an unsupported content type or oversize body. Story 1.1's own Task 3.3, which the agent wrote, asked for exactly this. Martín asked what the agent recommended.
+- **AI output (summary):** The agent offered three ways:
+  - **(recommended)** map those rejections to `RequestValidationFailed` (400), with the field `la solicitud`. A 500 means "we failed"; once Story 1.2 logs every `Unexpected`, each client mistake would show up as a server failure and muddy the monitoring. `RequestValidationFailed` already exists in the shared kernel, so the registry gains no code, and no Solu-2 ATDD test asks for the 500. Cost: correct Task 3.3, adjust 2 tests, log the decision.
+  - Keep the spec as written: free, but it sends the wrong signal.
+  - A new code such as `ProcedureNotFound` (404): it changes the registry and costs more for little gain.
+- **Human decision:** ACCEPT the mapping. In Martín's words: *"Vámonos con lo que recomiendas en ambos casos, y continúa"*. Applying it, the agent covered the six codes tRPC raises on its own (the three above plus `PARSE_ERROR`, `UNSUPPORTED_MEDIA_TYPE` and `PAYLOAD_TOO_LARGE`), each with its own es-CO issue, and tRPC's message never reaches the body.
+- **Reason:** The client caused these refusals, and the registry already has the code for a malformed request; nothing new enters the contract.
+- **Artifact changed:** `src/server/trpc/errors.ts` (`REQUEST_REFUSALS`), `src/server/trpc/errors.test.ts`, `src/server/trpc/router.test.ts`, the Story 1.1 Review Findings and Change Log.
+- **Decided by:** Martín.
+
+### 11. `[CORRECTED]` No refusal message interpolates free text (API copy)
+
+- **Phase:** 2 (Epic 1, Story 1.1 code-review triage).
+- **Persona/Skill:** `bmad-code-review` (finding L8), triaged with `bmad-agent-dev`.
+- **Prompt (summary):** The review found that some es-CO templates in Solu-2 `contracts.md` §13 fill a placeholder with a value the user typed. `explainAssert` forbids a PascalCase token in a `humanMessage`, so a legitimate value breaks it: a collection named "MiColección" makes `CollectionNameTaken` ("Ya tienes una colección llamada {name}.") fail. The agent named `{name}`, `{title}`, `{reasonText}` and `{cause}`.
+- **AI output (summary):** The agent offered two ways:
+  - **(recommended)** remove the free text from the templates (for example "Ya tienes una colección con ese nombre."), keeping dates, ids, numbers and enum values. The rule then always holds, the same kind of sweep added for review finding M1 can prove it, the Solu-2 test helper stays untouched, and the client already knows the value it sent. Cost: about 5 templates in §13, then regenerate.
+  - Quote user values in «…» and have the check skip quoted text. It reads better, but it means changing `explainAssert`, a Solu-2 test helper that should stay fixed.
+- **Human decision:** ACCEPT the removal. In Martín's words: *"Vámonos con lo que recomiendas en ambos casos, y continúa"*. Applying it, the agent traced each placeholder to its source. `{cause}` is an enum (`missing`, `size`, `magic`, `scanner`), so it stays. Two more carry free text and were removed: `EmailNotVerified {emailHint}` (the user's address) and `InvalidDocumentFile {key}` (a client-chosen upload key). The six rewritten templates are `CollectionNameTaken`, `SealedProductInBundle` (now cites `{itemRef}`), `ReapplicationBarred`, `ListingNotPurchasable`, `EmailNotVerified` and `InvalidDocumentFile`.
+- **Reason:** A refusal body depends only on the code, the citations and `now` (S-2); free text in it can leak personal data or break the explanation rule, and the client already knows what it sent.
+- **Artifact changed:** `docs/solu-2/planning/detailed-design/contracts.md` §13 (six templates), `src/server/trpc/messages.generated.ts` (regenerated), `src/server/trpc/messages.test.ts`, the Story 1.1 Review Findings and Change Log.
 - **Decided by:** Martín.

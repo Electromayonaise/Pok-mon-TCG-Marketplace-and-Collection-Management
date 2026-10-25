@@ -52,10 +52,18 @@ describe('the wire: every refusal is { error: ErrorBody } with its own HTTP stat
     expect(JSON.stringify(json)).not.toMatch(/NotImplemented|inventory\.get|stack/);
   });
 
-  it('a batched call, refused before any context exists, still gets an ErrorBody and a clock instant', async () => {
+  it('a batched call, refused before any context exists, is RequestValidationFailed 400 with a clock instant', async () => {
     const { status, json } = await call('inventory.get,catalog.browse', { 0: { listingId }, 1: {} }, { query: '&batch=1' });
-    expect(status).toBe(500);
-    expect(json.error).toMatchObject({ code: 'Unexpected', decision: { occurredAt: T0 } });
+    expect(status).toBe(400);
+    expect(json.error).toMatchObject({ code: 'RequestValidationFailed', httpStatus: 400, decision: { occurredAt: T0 }, issues: [{ field: 'la solicitud', issue: 'no tiene la forma esperada' }] });
+  });
+
+  it('an unknown procedure and a wrong method are RequestValidationFailed 400, and the body never echoes the path', async () => {
+    const unknown = await call('inventory.nope', {}, { method: 'GET' });
+    expect([unknown.status, unknown.json.error.code]).toEqual([400, 'RequestValidationFailed']);
+    expect(JSON.stringify(unknown.json)).not.toContain('nope');
+    const wrongMethod = await call('inventory.get', { listingId }, { method: 'POST' });
+    expect([wrongMethod.status, wrongMethod.json.error.code]).toEqual([400, 'RequestValidationFailed']);
   });
 
   it('concurrent requests refused before their context each keep their own clock', async () => {

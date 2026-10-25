@@ -99,6 +99,7 @@ Order (statement §3 step 3): domain → ports → infra → tRPC → tests. Wri
   - [x] 3.3 Anything else maps to `{ code: 'Unexpected', httpStatus: 500 }`, with citation `{ rule: 'AD-SYS-1', inputs: {} }` and the §13 message.
     - Never copy `error.message`, `stack` or `cause` into the body.
     - A tRPC `TRPCError` without a zod cause (for example `NOT_FOUND` for an unknown path) is also `Unexpected`, unless its `cause` is a `DomainError`. Unwrap `cause` first, because tRPC wraps thrown errors.
+    - **Corrected by decision log Impl-1 #10 (review finding L2):** the six codes tRPC raises itself for a client's mistake (`NOT_FOUND`, `METHOD_NOT_SUPPORTED`, `BAD_REQUEST` without a zod cause, `PARSE_ERROR`, `UNSUPPORTED_MEDIA_TYPE`, `PAYLOAD_TOO_LARGE`) map to `RequestValidationFailed` (400) with one issue on `la solicitud`. Every other `TRPCError` stays `Unexpected`.
   - [x] 3.4 Redaction gate:
     - When any citation input key matches `REGULATED_FIELDS`, pass the citations through `redact()` from `src/shared-kernel/regulated.ts`. Otherwise leave them untouched.
     - `redact` stays `NotImplemented` until Story 1.2, so 1.2's `[SYS-8.R4.error]` (citation key `phone`) stays red for the right reason.
@@ -288,7 +289,7 @@ Claude Opus 5.5 (`claude-opus-5-5`), through `bmad-dev-story` in Claude Code.
 - **Business goal.** Every client of the 108 procedures gets one refusal shape: the registry code, its HTTP status, an es-CO message and a cited decision. Screens no longer have to guess what went wrong. Driver text and stack traces never leak.
 - **What changed:**
   - `raiserFor(module)` enforces AD-11 ownership: a module that raises another module's code fails as `Unexpected`.
-  - `toErrorBody` maps a domain error, a zod failure (`RequestValidationFailed` with es-CO `issues`) or anything else (`Unexpected` 500), and routes regulated citation keys through `redact` (Story 1.2's body).
+  - `toErrorBody` maps a domain error, a zod failure or a request tRPC itself refuses (`RequestValidationFailed` with es-CO `issues`), or anything else (`Unexpected` 500), and routes regulated citation keys through `redact` (Story 1.2's body).
   - The generator now emits the es-CO catalog and the zod inputs.
   - The four builders delegate every gate to identity.
   - The router registers all 108 non-job procedures from the generated table.
@@ -300,7 +301,7 @@ Claude Opus 5.5 (`claude-opus-5-5`), through `bmad-dev-story` in Claude Code.
   - CI on push and PR now runs `impl1-quality-gate`; the Solu-1 and Solu-2 workflows are manual.
   - `AdminGuard` now calls identity, which also turns 2 Solu-1 tests green.
   - No schema, migration or dependency change.
-- **Verification.** AC3's 6 bound tests pass, 45 impl1-unit tests pass, and `gate:impl1` and `test:ci` pass, as listed below.
+- **Verification.** AC3's 6 bound tests pass, 45 impl1-unit tests pass (53 after the decision #10 and #11 fixes), and `gate:impl1` and `test:ci` pass, as listed below.
 
 **Diff evidence.** Baseline `3187e01`. This story's commit is the `feat(story-1.1)` commit on `impl-1`; its hash is recorded as `baseline_commit` in the Story 1.2 file. The commit cannot contain its own hash.
 
@@ -344,7 +345,7 @@ $ npx vitest run --project solu2-fitness          # includes [SYS-8.R2.static] a
  Test Files  2 passed (2)
       Tests  12 passed (12)
 
-$ npm run test:unit                               # 45 after the review fixes (42 before)
+$ npm run test:unit                               # 45 after the review fixes (42 before); 53 after decisions #10, #11
       Tests  45 passed (45)
 
 $ cmp .github/workflows/solu2-quality-gate.yml docs/solu-2/test/ci/quality-gate.yml   # exit 0 (review fix M2)
@@ -393,13 +394,13 @@ $ npx vitest run docs/solu-1/tests/atdd/cat-contracts.test.ts      # Task 6.2 si
 | M1 | Med | `invalid_value` echoed the allowed enum values (registry codes, PascalCase) into `issues` and `humanMessage`. | **Fixed.** The copy is now `no es una de las opciones permitidas`. New test: a sweep over every `INPUTS` schema and key with 6 probe values runs `explainAssert` on each decision (84 failures before the fix, 0 after). |
 | M2 | Med | Nothing on push or PR compared the Solu-2 workflow with its docs mirror once that workflow went manual. | **Fixed.** `impl1-quality-gate.yml` has a `cmp` step after `test:ci`. |
 | L1 | Low | Client-chosen keys (`unrecognized_keys`) were echoed verbatim, and the issue count had no cap. | **Fixed.** A path segment is echoed only if it is a number or matches `^[a-z][A-Za-z0-9]{0,63}$`; otherwise the field reads `un campo desconocido`. Issues are capped at 20. New test covers both. |
-| L2 | Low | Client mistakes tRPC rejects itself (unknown procedure, wrong method, batching) answer 500 `Unexpected`. | **Decision for Martín at the Epic 1 gate.** Task 3.3 asks for exactly this mapping; changing it means a new registry code or a spec change. |
+| L2 | Low | Client mistakes tRPC rejects itself (unknown procedure, wrong method, batching) answer 500 `Unexpected`. | **Fixed (decision #10).** Martín chose the recommended mapping. `REQUEST_REFUSALS` in `errors.ts` maps the six codes tRPC raises on its own to `RequestValidationFailed` 400 with an es-CO issue on `la solicitud`; Task 3.3 and contracts.md §0 say so. New tests: one per code in `errors.test.ts` (6 red before), plus the batched call, an unknown path and a wrong method over the wire in `router.test.ts` (2 red before). |
 | L3 | Low | No `onError` hook logs the cause of an `Unexpected`. | **Deferred to Story 1.2**, which brings the logger and the redactor. |
 | L4 | Low | The module-level `unroutedClock` could race between concurrent requests on different clocks. | **Fixed.** `AsyncLocalStorage<Clock>`; new concurrent-clocks test. |
 | L5 | Low | The zod emitter wrote patterns as regex literals, accepted numeric enum values, and dropped unknown keywords silently. | **Fixed.** Patterns go through `new RegExp(JSON.stringify(…))`; numeric enum values and any unhandled keyword throw. Regenerated; `gate:api:solu2` is current. |
 | L6 | Low | `z.iso.datetime()` refuses UTC offsets other than `Z`. | **Documented, no change.** contracts.md §0 fixes every instant as UTC `Z`. |
 | L7 | Low | The AD-16 role-key test looked at top-level keys only. | **Fixed.** The test walks the zod tree (object, optional, nullable, array, union, record), with a self-check on a nested `role`. |
-| L8 | Low | Domain messages interpolate user values, which could carry PascalCase into `humanMessage`. | **Decision for Martín at the Epic 1 gate** (it affects the catalog copy of every module). |
+| L8 | Low | Domain messages interpolate user values, which could carry PascalCase into `humanMessage`. | **Fixed (decision #11).** Martín chose the recommended removal. Six contracts.md §13 templates no longer interpolate free text (`CollectionNameTaken`, `SealedProductInBundle`, `ReapplicationBarred`, `ListingNotPurchasable`, `EmailNotVerified`, `InvalidDocumentFile`); the catalog is regenerated. New test in `messages.test.ts` pins every placeholder to an id, instant, number, field name or enum value (6 red before). **Open for later stories:** a few enum values are compound PascalCase (`latestState` `PaymentConfirmed`, which `[REP-1.P4]` cites; `RejectionReason` codes such as `DataMismatch`). They pass this test but would fail `explainAssert`; the story that first renders each one (3.2, 13.3) needs an es-CO label for it. |
 | L9 | Low | A unit test runs the generator `--check`. | **Won't fix.** Task 1.3 requires that test. |
 | L10 | Low | The story text says 99 codes, and the diff stat was stale. | AC text is outside what dev-story may edit; the 87-code fact is in the Completion Notes. The diff stat above was regenerated after the fixes. |
 
@@ -427,9 +428,11 @@ $ npx vitest run docs/solu-1/tests/atdd/cat-contracts.test.ts      # Task 6.2 si
 - `src/server/trpc/router.v2.ts`
 - `docs/impl-1/implementation-artifacts/sprint-status.yaml`
 - `docs/impl-1/implementation-artifacts/1-1-refuse-every-request-with-one-typed-explained-error-body.md`
-- `docs/impl-1/ai-log/ai-decision-log.md` (entry #9, Martín's decision)
+- `docs/impl-1/ai-log/ai-decision-log.md` (entries #9, #10 and #11, Martín's decisions)
+- `docs/solu-2/planning/detailed-design/contracts.md` (§0 typed errors, §13 six templates; decisions #10, #11)
 
 ### Change Log
 
 - 2026-10-24: Story 1.1 implemented (Tasks 1–8). Status → `review`.
 - 2026-10-25: Code-review fixes M1, M2, L1, L4, L5, L7 (see Review Findings); L2 and L8 go to Martín at the Epic 1 gate; L3 deferred to Story 1.2. Status → `done`.
+- 2026-10-25: Martín decided L2 and L8 before Story 1.2 (decision log #10, #11); both fixed test-first. Rerun with the story `done`: `npm test` exit 0 (impl1-unit 53/53, fitness 12, `gate:atdd-red:impl1` 347 red, 5 green, 0 not as expected; NFR 3 red), typecheck exit 0, `gate:purity` 0 problems, lint 0 errors (the same 3 warnings).

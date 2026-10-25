@@ -93,7 +93,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 ### 0.3 Conventions every clause relies on
 
-- **Typed errors.** A typed error is written `Code` (HTTP *n*, owner *module*). The status is the tRPC 11 status of the code's AD-SYS-1 family: UNAUTHORIZED 401, FORBIDDEN 403, NOT_FOUND 404, BAD_REQUEST 400, CONFLICT 409, TOO_MANY_REQUESTS 429. `'Unexpected'` is HTTP 500 and is never a registry code. A code raised by a non-owner is propagated unchanged (AD-11).
+- **Typed errors.** A typed error is written `Code` (HTTP *n*, owner *module*). The status is the tRPC 11 status of the code's AD-SYS-1 family: UNAUTHORIZED 401, FORBIDDEN 403, NOT_FOUND 404, BAD_REQUEST 400, CONFLICT 409, TOO_MANY_REQUESTS 429. `'Unexpected'` is HTTP 500 and is never a registry code. A request tRPC itself refuses before any procedure runs (unknown path, wrong method, batching, malformed JSON, unsupported content type, oversize body) is `RequestValidationFailed` (HTTP 400) on the field `la solicitud` (Impl-1 decision #10). A code raised by a non-owner is propagated unchanged (AD-11).
 - **Shape validation precedes every contract.** The procedure's zod schema refuses a wrong type, length, enum or format as `RequestValidationFailed` (HTTP 400, owner shared-kernel), with `issues: { field, issue }[]`, before the body runs (AD-SYS-1 rule 7). Preconditions that state types are therefore guaranteed by the parser. An internal caller that bypasses the parser and violates one gets `'Unexpected'`.
 - **Error body (R-9, review G-03).** Every refusal returns `{ error: ErrorBody }` with `ErrorBody = { code, httpStatus, decision: ExplanationDTO, issues? }`. `ExplanationDTO` is the AD-SYS-1 `Decision`, with `occurredAt` in ISO-8601. For `*NotVisibleToCaller` and `*NotFound` codes, two bodies differ only in `occurredAt` (S-2).
 - **Explanation (Q4; review G-16).** Every `Decision`, whether on a refusal or on a successful result, has `citations.length ≥ 1`. `citations[0].rule` matches `^(AD|FR|NFR)-[A-Z0-9-]+( rule \d+)?$`, and `citations[0].inputs` holds the observed values that decided the outcome, never a regulated value (AD-SYS-8 rule 4). A decision about an order has `citations[0].inputs.orderId` (AD-SYS-1 rule 4). The Phase 3 fixture `explain_assert` checks exactly this.
@@ -1260,7 +1260,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `DeliveryAttemptsExhausted` | — (stored only) | shared-kernel | AD-SYS-2 rule 4, the fourth automatic attempt | "La entrega agotó sus 3 intentos automáticos; reintenta desde el panel." | no |
 | `NotAuthenticated` | 401 | identity | Any non-public procedure without a session (S-FR-IDN-7) | "Inicia sesión para continuar." | no |
 | `AdminOnly` | 403 | identity | Every admin procedure (VER-1, CAT-1, COM-2, COM-3, REP-2, IDN-3, …) | "Esta acción es solo para administradores." | no |
-| `EmailNotVerified` | 403 | identity | `requireCanBuy` (ORD-1, MSG-1, MSG-2, REP-1, S-FR-TRD-1) | "Verifica tu correo para comprar, ofertar o escribir; te enviamos el enlace a {emailHint}." | no |
+| `EmailNotVerified` | 403 | identity | `requireCanBuy` (ORD-1, MSG-1, MSG-2, REP-1, S-FR-TRD-1) | "Verifica tu correo para comprar, ofertar o escribir; abre el enlace que te enviamos." | no |
 | `AuthRateLimited` | 429 | identity | Sign-in or sign-up throttle (S-FR-IDN-7) | "Demasiados intentos. Vuelve a intentarlo después de las {retryAt}." | yes |
 | `AccountNotFound` † | 404 | identity | IDN-3 P2 (C-GAP-1) | "No encontramos esa cuenta." | no |
 | `IndividualSellerProfileIncomplete` | 409 | identity | IDN-2 Q-fail | "Completa tu perfil de vendedor para publicar." | no |
@@ -1274,18 +1274,18 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `ApplicationNotFound` | 404 | identity | VER-1 P2; VER-3 P2 | "No encontramos esa solicitud." | no |
 | `MissingRequiredField` | 400 | identity | VER-2 P1 | "Falta completar: {fields}." | no |
 | `ReapplicationCooldownActive` | 409 | identity | VER-2 P7 | "Podrás volver a aplicar desde el {reapplyNotBefore}." | no |
-| `ReapplicationBarred` | 409 | identity | VER-2 P7 | "Esta solicitud no se puede volver a enviar: {reasonText}." | no |
+| `ReapplicationBarred` | 409 | identity | VER-2 P7 | "Esta solicitud no se puede volver a enviar: el motivo de su rechazo no lo permite." | no |
 | `LegalIdentityAccessDenied` | 403 | identity | VER-3 P1 | "No tienes acceso a los datos legales; este intento quedó registrado." | no |
 | `RejectionReasonUnknown` | 409 | identity | VER-1 P4 | "El motivo {reasonCode} no está activo; elige otro." | no |
 | `LastActiveReasonRequired` | 409 | identity | S-FR-VER-8 | "Debe quedar al menos un motivo de rechazo activo." | no |
-| `InvalidDocumentFile` | 400 | identity | VER-2 P3 | "El documento {key} no se pudo usar: {cause}." | no |
+| `InvalidDocumentFile` | 400 | identity | VER-2 P3 | "Uno de los documentos no se pudo usar: {cause}." | no |
 | `CatalogEntryNotFound` | 404 | catalog | CAT-3 P2; DSC-2 P1 | "No encontramos esa carta o producto." | no |
 | `FeedRunInProgress` | 409 | catalog | CAT-1 Q-fail; `catalog.feed.continue` | "Ya hay una carga en curso desde las {startedAt}." | yes |
 | `InvalidItemRef` | 400 | listings | INV-2 P3; TRD-2 P3 | "La carta {itemRef} no existe o no corresponde al tipo elegido." | no |
 | `InvalidPrice` | 400 | listings | INV-2 P4 | "El precio debe estar entre $1.000 y $100.000.000 COP." | no |
 | `InvalidLocation` | 400 | listings | INV-2 P5 | "El punto de encuentro debe estar en Colombia." | no |
 | `EmptyComponentList` | 400 | listings | S-FR-INV-2 | "Agrega al menos una carta al lote." | no |
-| `SealedProductInBundle` | 409 | listings | S-FR-INV-2 | "{title} es un producto sellado y no puede ir en un lote." | no |
+| `SealedProductInBundle` | 409 | listings | S-FR-INV-2 | "La carta {itemRef} es un producto sellado y no puede ir en un lote." | no |
 | `OpenToTradeNotAllowed` | 409 | listings | INV-2 P2 | "Las tiendas no reciben ofertas de intercambio." | no |
 | `ListingNotOpenToTrade` | 409 | listings | TRD-1 P5; S-FR-TRD-1 | "Esta publicación ya no acepta intercambios." | no |
 | `NotBusinessListing` | 409 | listings | INV-1 P3 | "Esta publicación es de una persona; contáctala en lugar de comprar." | no |
@@ -1293,7 +1293,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `InsufficientQuantity` | 409 | listings | INV-1 P5; TRD-1 P6; S-FR-INV-9 | "Pediste {requested}; quedan {available}." | no |
 | `ListingNotFound` | 404 | listings | INV-1 P2; MSG-2 P2; S-FR-INV-10 | "Esta publicación ya no está disponible." | no |
 | `ListingNotOwnedByCaller` | 403 | listings | S-FR-INV-9 | "Solo quien publicó puede cambiar esta publicación." | no |
-| `ListingNotPurchasable` | 409 | listings | INV-1 P4 | "Esta tienda no puede vender ahora: {reasonText}." | no |
+| `ListingNotPurchasable` | 409 | listings | INV-1 P4 | "Esta tienda no puede vender ahora." | no |
 | `InvalidSearchArea` | 400 | listings | DSC-3 | "El radio debe estar entre 1 y 300 km y el centro en Colombia." | no |
 | `SearchFilterTooBroad` | 400 | listings | DSC-1 P2 | "Tu filtro abarca más de {threshold} cartas; agrega otro criterio." | no |
 | `ContactRateLimited` | 429 | listings | MSG-2 P4 | "Ya contactaste a muchos vendedores; vuelve a intentarlo después de las {retryAt}." | yes |
@@ -1330,7 +1330,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `ConversationNotVisibleToCaller` | 403 | messaging | MSG-1 P3; S-FR-MSG-7 | "No encontramos esa conversación." | no |
 | `BusinessCannotInitiate` | 409 | messaging | MSG-1 P4 | "Las tiendas responden; no pueden iniciar conversaciones." | no |
 | `CollectionNotFound` | 404 | collections | COL-1 P3; COL-3 P3; VAL-1..3 P1 | "No encontramos esa colección." | no |
-| `CollectionNameTaken` | 409 | collections | S-FR-COL-1 | "Ya tienes una colección llamada {name}." | no |
+| `CollectionNameTaken` | 409 | collections | S-FR-COL-1 | "Ya tienes una colección con ese nombre." | no |
 | `CollectionLimitReached` | 409 | collections | S-FR-COL-1 | "Llegaste al máximo de 50 colecciones." | no |
 | `CollectionEntryNotFound` | 404 | collections | S-FR-COL-4 | "No encontramos esa carta en tu colección." | no |
 | `InvalidExternalLink` | 400 | collections | S-FR-COL-3 | "Revisa el enlace: {field} no es válido." | no |

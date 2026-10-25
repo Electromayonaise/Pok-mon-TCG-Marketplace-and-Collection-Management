@@ -99,6 +99,24 @@ describe('toErrorBody — request validation', () => {
     }
     expect(failing).toEqual([]);
   });
+
+  it.each([
+    ['NOT_FOUND', 'No procedure found on path "x.y"', 'no corresponde a ningún procedimiento'],
+    ['METHOD_NOT_SUPPORTED', 'Unsupported GET-request to mutation procedure at path "x.y"', 'usa un método HTTP que este procedimiento no acepta'],
+    ['BAD_REQUEST', 'Batching is not enabled on the server', 'no tiene la forma esperada'],
+    ['PARSE_ERROR', 'Unexpected token } in JSON at position 1', 'no es un JSON válido'],
+    ['UNSUPPORTED_MEDIA_TYPE', 'Unsupported content-type "text/x-Order"', 'no tiene un tipo de contenido aceptado'],
+    ['PAYLOAD_TOO_LARGE', 'Request body too large', 'es demasiado grande'],
+  ] as const)('a request tRPC itself refuses (%s) is RequestValidationFailed, and its message never reaches the body', (code, message, issue) => {
+    const body = toErrorBody(new TRPCError({ code, message }), now);
+    expect(body).toEqual({
+      code: 'RequestValidationFailed',
+      httpStatus: 400,
+      decision: { outcome: 'rejected', reasonCode: 'RequestValidationFailed', humanMessage: `Revisa la solicitud: ${issue}.`, citations: [{ rule: 'AD-SYS-1', inputs: { field: 'la solicitud', issue } }], occurredAt: T0 },
+      issues: [{ field: 'la solicitud', issue }],
+    });
+    explainAssert(body.decision, { code: 'RequestValidationFailed', outcome: 'rejected' });
+  });
 });
 
 describe('toErrorBody — Unexpected', () => {
@@ -108,7 +126,7 @@ describe('toErrorBody — Unexpected', () => {
     ['a driver error', new Error('relation "Order" does not exist at 10.0.0.7')],
     ['a non-owner raise', new UnexpectedError('reviews raised AdminOnly, which identity owns')],
     ['a stub', new NotImplementedError('orders.placeOrder')],
-    ['a tRPC NOT_FOUND', new TRPCError({ code: 'NOT_FOUND', message: 'No procedure found on path "x.y"' })],
+    ['a tRPC CONFLICT no procedure of ours raises', new TRPCError({ code: 'CONFLICT', message: 'relation "Order" is locked' })],
     ['a wrapped driver error', new TRPCError({ code: 'INTERNAL_SERVER_ERROR', cause: new Error('ECONNREFUSED 10.0.0.7') })],
     ['a thrown string', 'boom'],
   ])('%s is Unexpected, and nothing of it reaches the body', (_, error) => {

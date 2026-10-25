@@ -15,6 +15,8 @@ import { renderMessage } from './messages.js';
  *   `humanMessage`, the citations (through the redactor when an input key is regulated), and
  *   `occurredAt = now`;
  * - a ZodError, or a tRPC BAD_REQUEST caused by one → `RequestValidationFailed` with `issues`;
+ * - a request tRPC itself refuses (unknown path, wrong method, batching, bad JSON…) →
+ *   `RequestValidationFailed` with one issue on `la solicitud` (decision log Impl-1 #10);
  * - anything else → `'Unexpected'` (HTTP 500), whose body never carries the error's message.
  *
  * The body depends only on the code, the citations and `now` (S-2).
@@ -32,8 +34,10 @@ export function toErrorBody(error: unknown, now: Date): ErrorBody {
     };
   }
   const zod = error instanceof ZodError ? error : error instanceof TRPCError && error.code === 'BAD_REQUEST' && error.cause instanceof ZodError ? error.cause : null;
-  if (zod) {
-    const issues = zod.issues.flatMap(toIssues).slice(0, MAX_ISSUES);
+  const issues = zod ? zod.issues.flatMap(toIssues).slice(0, MAX_ISSUES)
+    : error instanceof TRPCError && Object.hasOwn(REQUEST_REFUSALS, error.code) ? [{ field: ROOT_FIELD, issue: REQUEST_REFUSALS[error.code]! }]
+    : null;
+  if (issues) {
     const first = issues[0] ?? { field: ROOT_FIELD, issue: 'no es válido' };
     const citations: [Citation, ...Citation[]] = [{ rule: 'AD-SYS-1', inputs: { ...first } }];
     return {
@@ -60,6 +64,19 @@ function domainErrorIn(error: unknown): DomainError | null {
 
 /** How an issue on the whole input (an empty path) names its field. */
 const ROOT_FIELD = 'la solicitud';
+
+/**
+ * The codes tRPC raises itself, before any procedure runs, for a request the client got wrong.
+ * No procedure of ours throws a TRPCError (they raise DomainErrors), so these are never ours.
+ */
+const REQUEST_REFUSALS: Partial<Record<TRPCError['code'], string>> = {
+  NOT_FOUND: 'no corresponde a ningún procedimiento',
+  METHOD_NOT_SUPPORTED: 'usa un método HTTP que este procedimiento no acepta',
+  BAD_REQUEST: 'no tiene la forma esperada',
+  PARSE_ERROR: 'no es un JSON válido',
+  UNSUPPORTED_MEDIA_TYPE: 'no tiene un tipo de contenido aceptado',
+  PAYLOAD_TOO_LARGE: 'es demasiado grande',
+};
 
 const EXPECTED: Record<string, string> = {
   string: 'un texto', number: 'un número', int: 'un número entero', boolean: 'verdadero o falso',

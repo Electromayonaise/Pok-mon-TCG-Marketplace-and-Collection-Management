@@ -17,6 +17,18 @@ describe('es-CO message catalog (contracts.md §13, AD-SYS-1 rule 6)', () => {
     expect(Object.entries(MESSAGES).filter(([, t]) => PASCAL.test(t))).toEqual([]);
   });
 
+  it('a placeholder is only ever an id, an instant, a number, a field name or an enum value, never free text (decision log Impl-1 #11)', () => {
+    const allowed = new Set([
+      ...['orderId', 'itemRef', 'catalogEntryId', 'decidedBy', 'openOrderIds'], // ids
+      ...['acquiredAt', 'at', 'confirmedAt', 'decidedAt', 'effectiveFrom', 'reapplyNotBefore', 'resolvedAt', 'retryAt', 'startedAt', 'submittedAt', 'today'], // instants
+      ...['available', 'requested', 'round', 'threshold'], // numbers
+      ...['field', 'fields', 'issue'], // input keys, and the parser's own es-CO copy
+      ...['cause', 'status', 'latestState', 'reasonCode', 'turn'], // enum values
+    ]);
+    const freeText = Object.entries(MESSAGES).flatMap(([code, t]) => [...t.matchAll(/\{(\w+)\}/g)].filter(([, p]) => !allowed.has(p!)).map(([m]) => `${code} ${m}`));
+    expect(freeText).toEqual([]);
+  });
+
   it('the generated catalog matches contracts.md (generator --check)', () => {
     const r = spawnSync(process.execPath, ['scripts/gen-solu2-api.mjs', '--check'], { encoding: 'utf8' });
     expect(r.stderr).toBe('');
@@ -40,6 +52,6 @@ describe('renderMessage', () => {
   });
 
   it('booleans read as sí/no', () => {
-    expect(renderMessage('CollectionNameTaken', { name: true })).toBe('Ya tienes una colección llamada sí.');
+    expect(renderMessage('InsufficientQuantity', { requested: true, available: false })).toBe('Pediste sí; quedan no.');
   });
 });
