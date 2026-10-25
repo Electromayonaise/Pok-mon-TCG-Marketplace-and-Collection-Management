@@ -29,7 +29,8 @@
     "gate:trace:solu2": "node scripts/gen-solu2-trace.mjs --check",
     "gen:epics:solu2": "node scripts/gen-solu2-epics.mjs",
     "gate:epics:solu2": "node scripts/gen-solu2-epics.mjs --check",
-    "gate:solu2": "npm run typecheck && npm run gate:api:solu2 && npm run gate:ui:solu2 && npm run gate:codes:solu2 && npm run gate:ids:solu2 && npm run gate:trace:solu2 && npm run gate:epics:solu2 && npm run gate:purity && npm run test:fitness:solu2 && npm run gate:atdd-red:solu2 && npm run gate:nfr-red:solu2"
+    "gate:solu2": "npm run typecheck && npm run gate:api:solu2 && npm run gate:ui:solu2 && npm run gate:codes:solu2 && npm run gate:ids:solu2 && npm run gate:trace:solu2 && npm run gate:epics:solu2 && npm run gate:purity && npm run test:fitness:solu2 && npm run gate:atdd-red:solu2 && npm run gate:nfr-red:solu2",
+    "gate:atdd-red:impl1": "node scripts/check-atdd-red.mjs solu2-atdd 352 --status docs/impl-1/implementation-artifacts/sprint-status.yaml --epics docs/solu-2/planning/epics.md"
   },
   "devDependencies": {
     "@paralleldrive/cuid2": "3.3.0",

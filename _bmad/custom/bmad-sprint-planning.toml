@@ -13,4 +13,5 @@ activation_steps_prepend = [
 
 persistent_facts = [
   "For a Solu package, epics are read from <package>/planning/epics.md and the status file is written to <package>/implementation-artifacts/sprint-status.yaml, instead of the default planning_artifacts and implementation_artifacts folders.",
+  "For Impl-1, the backlog is Solu-2's: the readiness audit runs on docs/solu-2, epics are read from docs/solu-2/planning/epics.md, and the status file is docs/impl-1/implementation-artifacts/sprint-status.yaml. Its impl2_scope list (docs/impl-1/task-statement.md Appendix B.2) is carried over unchanged, and those stories stay backlog.",
 ]
