@@ -175,10 +175,23 @@ export const review = (db: Q, o: { id: string; reviewerId: string; targetUserId:
   });
 
 // ---------------------------------------------------------------- wiring
+/**
+ * One id sequence per database and prefix, so two wirings in one test (a race's two sessions,
+ * a loop's fresh services) never issue the same row id. No test asserts a generated id's value.
+ */
+const sequences = new WeakMap<TestDb, Map<string, SequentialIds>>();
+function sharedIds(db: TestDb, prefix: string): SequentialIds {
+  const byPrefix = sequences.get(db) ?? new Map<string, SequentialIds>();
+  sequences.set(db, byPrefix);
+  const ids = byPrefix.get(prefix) ?? new SequentialIds(prefix);
+  byPrefix.set(prefix, ids);
+  return ids;
+}
+
 /** Per-test shared ports: virtual clock, deterministic ids and the simulated adapters (R-14, R-1, R-2). */
 export function wiring(db: TestDb, idPrefix = 'n') {
   const clock = new VirtualClock();
-  const ids = new SequentialIds(idPrefix);
+  const ids = sharedIds(db, idPrefix);
   return {
     clock, ids,
     transactions: db.transactions,

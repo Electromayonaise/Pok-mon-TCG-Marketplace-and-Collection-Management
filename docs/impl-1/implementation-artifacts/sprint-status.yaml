@@ -63,7 +63,7 @@ development_status:
   epic-1-retrospective: optional
   epic-2: in-progress
   2-1-complete-the-individual-seller-profile-and-claim-the-track: done
-  2-2-let-exactly-one-seller-track-win-a-race: backlog
+  2-2-let-exactly-one-seller-track-win-a-race: done
   2-3-explain-why-an-account-may-not-list: backlog
   2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins: backlog
   2-5-trace-capabilities-for-admins-and-answer-neighbours-identity-queries: backlog
