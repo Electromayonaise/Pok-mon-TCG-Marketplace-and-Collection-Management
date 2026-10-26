@@ -119,7 +119,7 @@ describe('access.traceCapabilities over HTTP (IDN-3, S-FR-IDN-7)', () => {
     await user(db, { id: id('camila') });
     const { status, json } = await post('access.traceCapabilities', { targetUserId: id('camila') }, await signIn(id('camila')));
     expect([status, json.error?.code]).toEqual([403, 'AdminOnly']);
-    expect(await rows(db, 'CapabilityAuditRead')).toHaveLength(0);
+    expect(await db.counts(['CapabilityAuditRead', 'audit_events'])).toEqual({ CapabilityAuditRead: 0, audit_events: 0 });
   });
 
   it('an admin traces an account: 200 with the six lines, and the audit row names the session admin', async () => {
@@ -132,10 +132,11 @@ describe('access.traceCapabilities over HTTP (IDN-3, S-FR-IDN-7)', () => {
     expect(await rows(db, 'CapabilityAuditRead')).toMatchObject([{ adminId: id('admin'), targetUserId: id('camila') }]);
   });
 
-  it('an unknown target is AccountNotFound 404', async () => {
+  it('an unknown target is AccountNotFound 404, and nothing is audited', async () => {
     await admin(db);
     const { status, json } = await post('access.traceCapabilities', { targetUserId: id('nobody') }, await signIn(id('admin')));
     expect([status, json.error?.code]).toEqual([404, 'AccountNotFound']);
+    expect(await db.counts(['CapabilityAuditRead', 'audit_events'])).toEqual({ CapabilityAuditRead: 0, audit_events: 0 });
   });
 });
 

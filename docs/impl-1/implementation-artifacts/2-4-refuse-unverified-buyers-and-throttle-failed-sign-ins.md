@@ -94,3 +94,11 @@ context:
 - `requireCanBuy` reads the clock only on the allowed path, to date the decision; a refusal carries no instant.
 - Unit tests: `src/modules/identity/application/idn.v2.test.ts` (10 cases). The messages test already lists `retryAt` as an instant, so no change was needed there.
 - Recording `"AuthThrottleEvent"` rows and the Better Auth hook are logged in `deferred-work.md`.
+
+### Review Findings
+
+Epic 2 close review (2026-10-25, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `af97624..9701f19`.
+
+- [x] [Review][Patch] The ghost-session `NotAuthenticated` cites `S-FR-IDN-7`, which fails the §0.3 rule format `^(AD|FR|NFR)-…`; the gate's `NotAuthenticated` and `AdminOnly` copy the same pattern [src/modules/identity/application/idn.v2.ts:205, src/modules/identity/application/gate.ts:27]
+- [x] [Review][Patch] The AC "`EmailNotVerified` and writes nothing" and the matrix rows "10 rows at T0 → `retryAt` = T0 + 15 min" and "10 rows at T0 − 15 min → allowed" are not asserted as written [src/modules/identity/application/idn.v2.test.ts]
+- [x] [Review][Defer] Throttle hardening for the hook story: the per-account limit lets anyone lock out a known account (AD-IDN-3 as designed); the hook must pass a 64-hex `ipHmac` and `null` (never `''`) for an unknown account; the insert must write the clock's millisecond instants [src/modules/identity/application/idn.v2.ts:223] — deferred: nothing calls the check or writes the table until sign-in is configured

@@ -28,6 +28,7 @@ describe('IdnServiceV2.requireCanBuy', () => {
     expect(codeOf(error)).toBe('EmailNotVerified');
     expect(httpOf(error)).toBe(403);
     expect(citedInputs(error)).toEqual({ emailVerified: false, signupConsentAt: true });
+    expect(await db.counts(['audit_events', 'AuthThrottleEvent'])).toEqual({ audit_events: 0, AuthThrottleEvent: 0 });
   });
 
   it('a verified email is allowed with BuyerEligible, the same citation, dated by the clock', async () => {
@@ -37,10 +38,10 @@ describe('IdnServiceV2.requireCanBuy', () => {
     explainAssert(result.decision, { code: 'BuyerEligible', outcome: 'allowed', rule: 'FR-IDN-1', inputs: { emailVerified: true, signupConsentAt: true }, occurredAt: T0 });
   });
 
-  it('a session whose User row is gone is NotAuthenticated (401)', async () => {
+  it('a session whose User row is gone is NotAuthenticated (401), citing an AD', async () => {
     const error = await caught(() => idn().requireCanBuy({ userId: id('ghost') }));
-    expect(codeOf(error)).toBe('NotAuthenticated');
     expect(httpOf(error)).toBe(401);
+    explainAssert(error, { code: 'NotAuthenticated', rule: 'AD-IDN-3', inputs: { account: null } });
   });
 });
 
@@ -57,6 +58,17 @@ describe('IdnServiceV2.checkAuthThrottle', () => {
     await attempts(9, { key: id('camila') });
     await attempts(1, { key: id('camila'), atMs: -15 * MIN, tag: 'old' });
     expect(await idn().checkAuthThrottle(signIn)).toEqual({ allowed: true });
+  });
+
+  it('ten rows exactly 15 minutes old are all outside the window', async () => {
+    await attempts(10, { key: id('camila'), atMs: -15 * MIN });
+    expect(await idn().checkAuthThrottle(signIn)).toEqual({ allowed: true });
+  });
+
+  it('the 11th failed sign-in at T0 is refused until T0 + 15 min', async () => {
+    await attempts(10, { key: id('camila') });
+    const error = await caught(() => idn().checkAuthThrottle(signIn));
+    expect(citedInputs(error)).toMatchObject({ limit: 10, retryAt: at(15 * MIN) });
   });
 
   it('ten rows refuse until the tenth newest leaves the window, citing the limit and never the keys', async () => {
@@ -111,6 +123,7 @@ describe('IdnServiceV2.traceCapabilities', () => {
     const two = await caught(() => idn().traceCapabilities({ targetUserId: id('ghost'), adminId: id('admin') }));
     expect(citedInputs(one)).toEqual({ account: null });
     expect(citedInputs(two)).toEqual(citedInputs(one));
+    expect(await db.counts(['CapabilityAuditRead', 'audit_events'])).toEqual({ CapabilityAuditRead: 0, audit_events: 0 });
   });
 
   it('two traces write two audit pairs (not idempotent)', async () => {
@@ -152,8 +165,8 @@ describe('IdnServiceV2.getContactCard / getDisplayNames', () => {
   it('a seller with no individual profile is IndividualSellerProfileIncomplete (409)', async () => {
     await business(db, id('andres'), 'Approved');
     const error = await caught(() => idn().getContactCard({ sellerId: id('andres') }));
-    expect(codeOf(error)).toBe('IndividualSellerProfileIncomplete');
     expect(httpOf(error)).toBe(409);
+    explainAssert(error, { code: 'IndividualSellerProfileIncomplete', rule: 'AD-SYS-8 rule 3', inputs: { individualProfile: false } });
   });
 
   it('names take the profile display name, else the account name, in input order without duplicates', async () => {

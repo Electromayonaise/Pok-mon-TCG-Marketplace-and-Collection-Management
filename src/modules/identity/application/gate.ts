@@ -24,14 +24,14 @@ export class IdentityGateV2 {
   /** `actor = { userId }` from the session; without one, NotAuthenticated (401). */
   async resolveSession(headers: Headers): Promise<CuidId> {
     const userId = await this.deps.sessions.userIdOf(headers);
-    return userId ?? raise('NotAuthenticated', [{ rule: 'S-FR-IDN-7', inputs: { session: null } }]);
+    return userId ?? raise('NotAuthenticated', [{ rule: 'AD-SYS-8', inputs: { session: null } }]);
   }
 
   /** P: `isAdmin`, read from the same facts `deriveCapabilities` reads (AD-IDN-1 rule 1). Zero writes. */
   async requireAdmin(actorId: CuidId): Promise<void> {
     const { repo, transactions } = this.deps;
     const facts = await transactions.run((tx) => repo.readCapabilityFacts(tx, actorId), { readOnly: true });
-    if (!facts?.isAdmin) raise('AdminOnly', [{ rule: 'S-FR-IDN-7', inputs: { isAdmin: false } }]);
+    if (!facts?.isAdmin) raise('AdminOnly', [{ rule: 'AD-16', inputs: { isAdmin: false } }]);
   }
 
   async requireCanBuy(input: RequireCanBuyRequest): Promise<RequireCanBuyResponse> {

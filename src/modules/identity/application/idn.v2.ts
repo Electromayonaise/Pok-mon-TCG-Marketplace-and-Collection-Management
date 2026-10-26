@@ -202,7 +202,7 @@ export class IdnServiceV2 implements IdnV2UseCases {
    */
   async requireCanBuy({ userId }: RequireCanBuyRequest): Promise<RequireCanBuyResponse> {
     const facts = await this.factsOf(userId);
-    if (facts === null) return raise('NotAuthenticated', [{ rule: 'S-FR-IDN-7', inputs: { account: null } }]);
+    if (facts === null) return raise('NotAuthenticated', [{ rule: 'AD-IDN-3', inputs: { account: null } }]);
     const line = deriveCapabilities(facts).capabilities.find((c) => c.name === 'canBuy')!;
     const inputs = Object.fromEntries(line.derivedFrom.map((f) => [f.fact, f.value]));
     if (!line.value) return raise('EmailNotVerified', [{ rule: 'FR-IDN-1', inputs }]);
@@ -265,7 +265,7 @@ export class IdnServiceV2 implements IdnV2UseCases {
    */
   async getContactCard({ sellerId }: GetContactCardRequest): Promise<GetContactCardResponse> {
     const card = await this.reading((tx) => this.deps.repo.readContactCard(tx, sellerId));
-    if (card === null) return raise('IndividualSellerProfileIncomplete', [{ rule: 'P-IDN.contact', inputs: { individualProfile: false } }]);
+    if (card === null) return raise('IndividualSellerProfileIncomplete', [{ rule: 'AD-SYS-8 rule 3', inputs: { individualProfile: false } }]);
     return card;
   }
 

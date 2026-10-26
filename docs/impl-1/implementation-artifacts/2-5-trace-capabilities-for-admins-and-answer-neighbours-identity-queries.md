@@ -102,5 +102,16 @@ context:
 - `CapabilitiesTraced` has a fixed text with no placeholder: the messages test does not list `capabilityCount` as an allowed input, and the count is always 6.
 - The trace reads the facts before the clock, so a refused trace never reads it. The audit row's `data` holds `sellerKind` only.
 - `getSellerKinds` and `getDisplayNames` dedupe with a `Set` and keep input order. The repository returns maps, and an empty list returns before any transaction.
-- `getContactCard` cites `{ rule: 'P-IDN.contact', inputs: { individualProfile: false } }`, using the fact name of `deriveCapabilities`. The phone never enters a citation or an audit row.
+- `getContactCard` cites `{ rule: 'AD-SYS-8 rule 3', inputs: { individualProfile: false } }` (the AD that P-IDN.contact binds; the code review replaced `P-IDN.contact`, which fails the §0.3 rule format), using the fact name of `deriveCapabilities`. The phone never enters a citation or an audit row.
 - Unit tests: 8 new cases in `src/modules/identity/application/idn.v2.test.ts` (18 in total). There are also 3 HTTP cases in `src/server/composition.test.ts`: non-admin 403, admin 200, unknown target 404. The ATDD file is 24/24 green.
+
+### Review Findings
+
+Epic 2 close review (2026-10-25, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `af97624..9701f19`.
+
+- [x] [Review][Patch] The contact card's refusal cites `P-IDN.contact`, which fails the §0.3 rule format; the contract binds AD-SYS-8 rule 3 [src/modules/identity/application/idn.v2.ts:268]
+- [x] [Review][Patch] No test proves the AC "unknown target → zero rows in `CapabilityAuditRead` and `audit_events`"; the non-admin HTTP case counts `CapabilityAuditRead` only [src/modules/identity/application/idn.v2.test.ts, src/server/composition.test.ts]
+- [x] [Review][Defer] `PgAuditLog.record` stamps `createdAt` with its own clock read, so a trace reads the clock twice [src/shared-kernel/infra/pg-audit.ts:18] — deferred, pre-existing: shared with Story 2.1; the fix passes the instant through the `AuditLog` port
+- [x] [Review][Defer] IDN-3 Q4's per-line es-CO text is not built [src/modules/identity/application/idn.v2.ts:152] — deferred: `CapabilityTraceLine` has no text field; page 1.3 (Impl-2) renders each line (spec Ask First)
+- [x] [Review][Defer] `IndividualSellerProfileIncomplete` from the contact card carries the seller's text "Completa tu perfil de vendedor para publicar." [src/modules/identity/application/idn.v2.ts:268] — deferred: the listings contact story calls it only for an individual listing's seller and owns the buyer-facing refusal
+- [x] [Review][Defer] A `"User"` row deleted between the trace's fact read and its insert surfaces as an FK violation (500), not `AccountNotFound` [src/modules/identity/application/idn.v2.ts:159] — deferred: no flow deletes a `"User"` row today
