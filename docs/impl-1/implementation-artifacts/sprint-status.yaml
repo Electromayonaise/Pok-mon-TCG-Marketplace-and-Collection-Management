@@ -65,7 +65,7 @@ development_status:
   2-1-complete-the-individual-seller-profile-and-claim-the-track: done
   2-2-let-exactly-one-seller-track-win-a-race: done
   2-3-explain-why-an-account-may-not-list: done
-  2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins: backlog
+  2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins: done
   2-5-trace-capabilities-for-admins-and-answer-neighbours-identity-queries: backlog
   epic-2-retrospective: optional
   epic-3: backlog
@@ -162,7 +162,8 @@ impl1_delivery:
   - 2-3-explain-why-an-account-may-not-list
 
 # Stories deferred to Impl-2 (decision log Impl-1 #2). They stay backlog in Impl-1,
-# and their ATDD tests stay red for the right reason.
+# and their ATDD tests stay red for the right reason. Exception: 2-4 was built early
+# with the Epic 2 batch (its spec, approved 2026-10-25), so it is done above.
 impl2_scope:
   - 2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins
   - 3-3-refuse-incomplete-unsafe-and-premature-applications

@@ -108,6 +108,38 @@ export function deriveCapabilities(facts: CapabilityFacts): DerivedCapabilities 
   };
 }
 
+export type AuthThrottleScope = 'signInFail' | 'signUp';
+
+/** One OQ-11 limit: at most `limit` rows on the `key` within `windowMs`. */
+export interface AuthThrottleLimit {
+  key: 'account' | 'ip';
+  limit: number;
+  windowMs: number;
+}
+
+const MINUTE = 60_000;
+
+/** AD-IDN-3 rule 3: 10 failed sign-ins per account and 30 per IP in 15 min; 5 sign-ups per IP in 1 h. */
+export const AUTH_THROTTLE_LIMITS: Record<AuthThrottleScope, readonly AuthThrottleLimit[]> = {
+  signInFail: [{ key: 'account', limit: 10, windowMs: 15 * MINUTE }, { key: 'ip', limit: 30, windowMs: 15 * MINUTE }],
+  signUp: [{ key: 'ip', limit: 5, windowMs: 60 * MINUTE }],
+};
+
+/**
+ * A limit trips when its limit-th newest row (`cutoff`) lies in the window; once that row
+ * leaves the window the key is under the limit again, so `retryAt = cutoff + window`. With
+ * several limits tripped the latest `retryAt` wins. `null` when none tripped.
+ */
+export function throttleRefusal(checks: readonly { limit: AuthThrottleLimit; cutoff: IsoInstant | null }[]): { limit: AuthThrottleLimit; retryAt: IsoInstant } | null {
+  let refusal: { limit: AuthThrottleLimit; retryAt: IsoInstant } | null = null;
+  for (const { limit, cutoff } of checks) {
+    if (cutoff === null) continue;
+    const retryAt = new Date(Date.parse(cutoff) + limit.windowMs).toISOString();
+    if (refusal === null || retryAt > refusal.retryAt) refusal = { limit, retryAt };
+  }
+  return refusal;
+}
+
 function listingEligibility(sellerTrack: SellerTrack | null, status: ApplicationStatus | null): ListingEligibility {
   if (sellerTrack === 'individual') return { allowed: true, listingKind: 'individual', verified: false, notice: null };
   if (sellerTrack === null) return { allowed: false, refusal: 'IndividualSellerProfileIncomplete' };

@@ -17,7 +17,7 @@ export interface IdnV2Deps {
 
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import type { ApplicationStatus, CapabilityFacts, SellerTrack } from '../domain/idn.js';
+import type { ApplicationStatus, AuthThrottleScope, CapabilityFacts, SellerTrack } from '../domain/idn.js';
 
 /** One `"IndividualSellerProfile"` row as IDN-1.ingress inserts it; `contactPhoneE164` is regulated. */
 export interface IndividualProfileRow {
@@ -46,4 +46,6 @@ export interface IdnRepository {
   insertIndividualProfile(tx: Tx, row: IndividualProfileRow, now: IsoInstant): Promise<void>;
   /** AD-IDN-1 rule 1: one statement for the user's flags, latest application and profile presence; `null` when no `"User"` row. */
   readCapabilityFacts(tx: Tx, userId: CuidId): Promise<CapabilityFacts | null>;
+  /** AD-IDN-3 rule 3: `"createdAt"` of the limit-th newest `"AuthThrottleEvent"` on `key` in `(since, until]`, or null. */
+  readThrottleCutoff(tx: Tx, q: { scope: AuthThrottleScope; key: string; since: IsoInstant; until: IsoInstant; limit: number }): Promise<IsoInstant | null>;
 }

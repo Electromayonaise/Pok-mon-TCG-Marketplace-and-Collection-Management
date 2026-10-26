@@ -1265,6 +1265,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `NotAuthenticated` | 401 | identity | Any non-public procedure without a session (S-FR-IDN-7) | "Inicia sesión para continuar." | no |
 | `AdminOnly` | 403 | identity | Every admin procedure (VER-1, CAT-1, COM-2, COM-3, REP-2, IDN-3, …) | "Esta acción es solo para administradores." | no |
 | `EmailNotVerified` | 403 | identity | `requireCanBuy` (ORD-1, MSG-1, MSG-2, REP-1, S-FR-TRD-1) | "Verifica tu correo para comprar, ofertar o escribir; abre el enlace que te enviamos." | no |
+| `BuyerEligible` | — (stored only) | identity | `requireCanBuy` allowed: a verified email with recorded consent (S-FR-IDN-7.canBuy; the rule of decision log Impl-1 #16) | "Tu correo está verificado; puedes comprar, ofertar y escribir." | no |
 | `AuthRateLimited` | 429 | identity | Sign-in or sign-up throttle (S-FR-IDN-7) | "Demasiados intentos. Vuelve a intentarlo después de las {retryAt}." | yes |
 | `AccountNotFound` † | 404 | identity | IDN-3 P2 (C-GAP-1) | "No encontramos esa cuenta." | no |
 | `IndividualSellerProfileIncomplete` | 409 | identity | IDN-2 Q-fail | "Completa tu perfil de vendedor para publicar." | no |

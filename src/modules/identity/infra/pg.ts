@@ -5,7 +5,7 @@
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import type { ApplicationStatus, CapabilityFacts, SellerTrack } from '../domain/idn.js';
+import type { ApplicationStatus, AuthThrottleScope, CapabilityFacts, SellerTrack } from '../domain/idn.js';
 import type { LatestApplicationSnapshot } from '../domain/ver.js';
 import type { PaymentInstructionsDTO } from '../dto/ver.dto.js';
 import type { IUserRepository } from '../ports/idn.js';
@@ -118,6 +118,17 @@ export class PgIdnRepository implements IdnRepository {
         id: r.appId, status: r.status, decidedAt: iso(r.decidedAt), reapplyNotBefore: iso(r.reapplyNotBefore), barred: r.barred ?? false,
       },
     };
+  }
+
+  async readThrottleCutoff(tx: Tx, q: { scope: AuthThrottleScope; key: string; since: IsoInstant; until: IsoInstant; limit: number }): Promise<IsoInstant | null> {
+    // One row from the (scope, key, "createdAt") index: the limit-th newest in the window.
+    const { rows } = await tx.query<{ createdAt: Date }>(
+      `SELECT "createdAt" FROM "AuthThrottleEvent"
+        WHERE scope = $1 AND key = $2 AND "createdAt" > $3 AND "createdAt" <= $4
+        ORDER BY "createdAt" DESC OFFSET $5 LIMIT 1`,
+      [q.scope, q.key, q.since, q.until, q.limit - 1],
+    );
+    return iso(rows[0]?.createdAt ?? null);
   }
 }
 

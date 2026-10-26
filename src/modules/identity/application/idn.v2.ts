@@ -39,7 +39,7 @@ import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/err
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import { claimRefusal, deriveCapabilities, type CapabilityFacts } from '../domain/idn.js';
+import { AUTH_THROTTLE_LIMITS, claimRefusal, deriveCapabilities, throttleRefusal, type AuthThrottleLimit, type CapabilityFacts } from '../domain/idn.js';
 
 const raise = raiserFor('identity');
 
@@ -135,10 +135,13 @@ export class IdnServiceV2 implements IdnV2UseCases {
    * AD-SYS-4 rule 9: reads on the caller's open transaction when there is one, so a neighbour
    * query never takes a second connection; otherwise in one read-only transaction of its own.
    */
-  private async factsOf(userId: CuidId): Promise<CapabilityFacts | null> {
-    const { repo, transactions } = this.deps;
+  private async reading<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
     const tx = ambientTx();
-    return tx ? repo.readCapabilityFacts(tx, userId) : transactions.run((own) => repo.readCapabilityFacts(own, userId), { readOnly: true });
+    return tx ? fn(tx) : this.deps.transactions.run(fn, { readOnly: true });
+  }
+
+  private async factsOf(userId: CuidId): Promise<CapabilityFacts | null> {
+    return this.reading((tx) => this.deps.repo.readCapabilityFacts(tx, userId));
   }
 
   async traceCapabilities(_input: TraceCapabilitiesRequest): Promise<TraceCapabilitiesResponse> {
@@ -153,12 +156,49 @@ export class IdnServiceV2 implements IdnV2UseCases {
     throw new NotImplementedError('identity.getReviewTarget');
   }
 
-  async requireCanBuy(_input: RequireCanBuyRequest): Promise<RequireCanBuyResponse> {
-    throw new NotImplementedError('identity.requireCanBuy');
+  /**
+   * S-FR-IDN-7.canBuy: the canBuy line of `deriveCapabilities` (AD-IDN-3 rule 2). The refusal
+   * and the allowed decision both cite the facts the line was derived from. Zero writes.
+   */
+  async requireCanBuy({ userId }: RequireCanBuyRequest): Promise<RequireCanBuyResponse> {
+    const facts = await this.factsOf(userId);
+    if (facts === null) return raise('NotAuthenticated', [{ rule: 'S-FR-IDN-7', inputs: { account: null } }]);
+    const line = deriveCapabilities(facts).capabilities.find((c) => c.name === 'canBuy')!;
+    const inputs = Object.fromEntries(line.derivedFrom.map((f) => [f.fact, f.value]));
+    if (!line.value) return raise('EmailNotVerified', [{ rule: 'FR-IDN-1', inputs }]);
+    const decision: Decision = {
+      outcome: 'allowed',
+      reasonCode: 'BuyerEligible',
+      humanMessage: renderMessage('BuyerEligible', inputs),
+      citations: [{ rule: 'FR-IDN-1', inputs }],
+      occurredAt: this.deps.clock.now().toISOString(),
+    };
+    return { canBuy: true, decision };
   }
 
-  async checkAuthThrottle(_input: CheckAuthThrottleRequest): Promise<CheckAuthThrottleResponse> {
-    throw new NotImplementedError('identity.checkAuthThrottle');
+  /**
+   * S-FR-IDN-7.throttle: counts `"AuthThrottleEvent"` rows per key in `(now − window, now]`
+   * (AD-IDN-3 rule 3). The citation carries the limit and `retryAt`, never the keys. Zero writes.
+   */
+  async checkAuthThrottle({ scope, accountId, ipHmac }: CheckAuthThrottleRequest): Promise<CheckAuthThrottleResponse> {
+    const now = this.deps.clock.now();
+    const until = now.toISOString();
+    const checks = await this.reading(async (tx) => {
+      const found: { limit: AuthThrottleLimit; cutoff: IsoInstant | null }[] = [];
+      for (const limit of AUTH_THROTTLE_LIMITS[scope]) {
+        const key = limit.key === 'account' ? accountId : ipHmac;
+        if (key === null) continue;
+        const since = new Date(now.getTime() - limit.windowMs).toISOString();
+        found.push({ limit, cutoff: await this.deps.repo.readThrottleCutoff(tx, { scope, key, since, until, limit: limit.limit }) });
+      }
+      return found;
+    });
+    const refusal = throttleRefusal(checks);
+    if (refusal !== null) {
+      const { limit, retryAt } = refusal;
+      return raise('AuthRateLimited', [{ rule: 'FR-IDN-7', inputs: { scope, limit: limit.limit, windowMinutes: limit.windowMs / 60_000, retryAt } }]);
+    }
+    return { allowed: true };
   }
 
   /** P-IDN.capabilities: one fact read, one `deriveCapabilities`, zero writes, no cache (AD-IDN-1 rules 2, 4). */
