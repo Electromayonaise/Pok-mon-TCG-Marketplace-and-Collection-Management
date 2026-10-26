@@ -37,8 +37,9 @@ export function createVerModule(w: IdentityWiring): VerUseCases {
   });
 }
 
-/** The Solu-2 Postgres adapter of `IdnRepository`, for the composition that builds the one `repo` (R-14). */
-export { PgIdnRepository } from './infra/pg.js';
+/** The Solu-2 Postgres adapters of `IdnRepository` and `VerRepository`, for the composition that builds the one `repo` (R-14). */
+export { PgIdnRepository, PgVerRepository } from './infra/pg.js';
+export { PgLegalIdentityRepository } from './infra/legalIdentityRepository.js';
 /** S-FR-IDN-7: the gates the procedure builders ask, and the session port Better Auth binds. */
 export { IdentityGateV2, type IdentityGateDeps } from './application/gate.js';
 export type { SessionReader } from './ports/session.js';

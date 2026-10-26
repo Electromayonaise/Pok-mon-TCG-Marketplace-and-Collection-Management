@@ -386,3 +386,32 @@
 - **Also decided:** the other Epic 2 deferrals have owners. The `PgAuditLog` second clock read is fixed before Epic 3, because Epic 3 adds audited operations: `AuditEntry.at` carries the writer's `now` (AD-SYS-6). The trace's per-line es-CO text goes to page 1.3 (Impl-2). The contact card's buyer-facing refusal goes to Story 9.3. The FK race on a deleted `"User"` waits for a flow that deletes accounts. From now on, each epic's specs pick up the `deferred-work.md` items they own.
 - **Artifact changed:** `docs/impl-1/implementation-artifacts/deferred-work.md`, `src/shared-kernel/audit.ts`, `src/shared-kernel/infra/pg-audit.ts` (+ test), `test-support/simulated/index.ts`, `src/modules/identity/application/idn.v2.ts` (+ test), `docs/solu-2/planning/detailed-design/contracts.md` (the `audit` row), Story 2.5's Review Findings.
 - **Decided by:** Martín.
+
+### 27. Epic 3 is built whole: Stories 3.3 and 3.4 leave `impl2_scope`, in the order 3.1, 3.2, 3.3, 3.5, 3.4 (Scope)
+
+- **Phase:** 3 (Epic 3 planning, after `140bd6a`).
+- **Persona/Skill:** `bmad-quick-dev`, epic-batched (#22).
+- **Prompt (summary):** Stories 3.3 and 3.4 are listed in `impl2_scope`, but their bound tests run code that Stories 3.1, 3.2 and 3.5 must build anyway:
+  - 3.3 is proof-only. Its six tests, the refusals of VER-1 and VER-2, turn green as soon as 3.1 and 3.2 are done.
+  - 3.4's `[VER-3.I2]` calls only the reads of 3.5.
+  - Built alone, 3.1, 3.2 and 3.5 would leave unexpected greens, and the red gate would fail.
+- **AI output (summary):** The agent offered three ways:
+  - **(recommended)** Build the whole epic. Build 3.3 and 3.4 early, as 2.4 was (#26), and commit in the order 3.1, 3.2, 3.3, 3.5, 3.4. As with #23, the 3.1, 3.2 and 3.5 commits may be red locally, are never pushed alone, and the next commit restores the gate. 3.4 also delivers the `tezg/legal-identity-confined` lint rule (#25) and the NFR-VER-3 benchmark.
+  - Build only 3.1, 3.2 and 3.5, and mark the early-green tests as expected in the gate. The gate would then need an exception list, and 3.3 would be `done` in practice without saying so.
+  - Postpone the whole of Epic 3 to Impl-2. This leaves VER, a P0 risk (R-02), unbuilt in Impl-1.
+- **Human decision:** ACCEPT the recommendation.
+- **Reason:** `done` keeps meaning what the bound tests prove, the gate needs no exceptions, and the legal-identity guard ships with the first code that writes a legal identity.
+- **Also decided:**
+  - P2 of VER-2 (the NIT check digit, the CC length and the consent version) is built. `RequestValidationFailed` belongs to the shared kernel, so a kernel helper `rejectRequest` raises it.
+  - IDN-1's claim becomes callable at a given `now`, so VER reuses it unchanged.
+  - NFR-VER-2 is proven by `[VER-3.I1]` from the log itself, with no runtime counter.
+  - Epic 3 picks up the deferred items it owns: the `RETURNING` false negative, closed by the new lint rule, and the keyset `OR $1 IS NULL`, split into two statements in the queue and in the access list.
+  - Like 2.4, Stories 3.3 and 3.4 stay listed under `impl2_scope` with an exception note, are `done` early, and do not count toward the 43 Impl-1 stories.
+  - The ATDD test data used the NIT `9001234563`, whose DIAN check digit is wrong (the mod-11 digit of `900123456` is 8). The bound tests would have tested a refusal, not a submit. The data is corrected to `9001234568`. Martín chose to correct the data over relaxing the check.
+  - `RequestValidationFailed` now carries one citation per issue (`errors.ts`), so P2 names every bad field at once. No issue echoes the submitted value, because the NIT and the CC are regulated.
+  - The `I1` race is settled inside the transaction. The insert runs under a savepoint, and a unique violation on the one-Pending index (23505) rolls back to it. The loser then re-reads the winner and raises `ApplicationAlreadyPending` citing the winner's `submittedAt`.
+  - Quarantine objects are deleted only after the commit, so a refused submit can be retried with the same upload keys. The promoted `ver-documents` copies are deleted when promotion or the transaction fails.
+  - Production `ObjectStorage` and `MalwareScanner` adapters are not part of Impl-1. `compose()` binds stand-ins that fail as NotImplemented, and `deferred-work.md` records the gap.
+  - With Story 3.1 done and 3.2 not yet, `[VER-2.P1]`, `[VER-2.P3]` and `[VER-2.P7]` of Story 3.3 are early greens. Story 3.3 is committed after 3.2 and restores the gate.
+- **Artifact changed:** `docs/impl-1/implementation-artifacts/sprint-status.yaml` (the `impl2_scope` note), the five Epic 3 story files, `deferred-work.md`, `docs/solu-2/test/atdd/ver_contracts.test.ts` and `ver_supporting.test.ts` (the NIT), `docs/solu-2/planning/detailed-design/contracts.md` (`ApplicationSubmitted`), `src/server/trpc/errors.ts`.
+- **Decided by:** Martín.

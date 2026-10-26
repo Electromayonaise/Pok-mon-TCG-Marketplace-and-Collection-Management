@@ -623,7 +623,7 @@ for (const [host, block] of indexBlocks) {
 // the stored-only codes (DeliveryAttemptsExhausted; EventDeliveryReplayed,
 // EventDeliveryReplayInProgress and IndividualSellerProfileCompleted, decision log Impl-1 #16;
 // TickOnSchedule and TickSilent, Story 1.5; BuyerEligible, Story 2.4; CapabilitiesTraced,
-// Story 2.5).
+// Story 2.5; ApplicationSubmitted, Story 3.1).
 {
   const section = /^## 13\. Typed Error Catalog\n([\s\S]*?)^## 14\./m.exec(contractsMd)?.[1] ?? '';
   const messages = new Map();

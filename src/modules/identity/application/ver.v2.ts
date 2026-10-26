@@ -34,9 +34,29 @@ export interface VerV2UseCases {
 }
 // </gen-solu2-api>
 
+import type { Citation, Decision } from '../../../shared-kernel/decision.js';
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
+import type { CuidId } from '../../../shared-kernel/types.js';
+import { CURRENT_CONSENT_VERSION, evaluateSubmission, isValidCc, isValidNit } from '../domain/ver.js';
+import { IdnServiceV2 } from './idn.v2.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('identity');
+
+/** AD-SYS-8 rule 6: the 5 MiB cap and the magic bytes of the three accepted document types. */
+const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
+const DOCUMENT_MAGIC = [
+  ['image/jpeg', [0xff, 0xd8, 0xff]],
+  ['image/png', [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
+  ['application/pdf', [0x25, 0x50, 0x44, 0x46, 0x2d]],
+] as const;
+
+type DocumentType = (typeof DOCUMENT_MAGIC)[number][0];
+type DocumentRefusal = 'missing' | 'size' | 'magic' | 'scanner';
+
+/** Every method not yet done throws NotImplementedError (red for the right reason). */
 export class VerServiceV2 implements VerV2UseCases {
   constructor(protected readonly deps: VerV2Deps) {}
 
@@ -44,8 +64,88 @@ export class VerServiceV2 implements VerV2UseCases {
     throw new NotImplementedError('identity.decideApplication');
   }
 
-  async submitApplication(_input: SubmitApplicationRequest): Promise<SubmitApplicationResponse> {
-    throw new NotImplementedError('identity.submitApplication');
+  /**
+   * VER-2: the shape (P1–P2), the promotion before the transaction (P3, AD-VER-3 rule 4), then
+   * one transaction in AD-VER-3 rule 1 order. The legal identity reaches only its own repository
+   * method; no error, log line or audit row carries it (AD-VER-2 rule 1).
+   */
+  async submitApplication(input: SubmitApplicationRequest): Promise<SubmitApplicationResponse> {
+    checkSubmissionShape(input);
+    const { repo, transactions, clock, ids, audit, storage } = this.deps;
+    const promoted = await this.promoteDocuments(input.businessId, input.documentUploadKeys);
+    let response: SubmitApplicationResponse;
+    try {
+      response = await transactions.run(async (tx) => {
+        const at = clock.now();
+        const now = at.toISOString();
+        await new IdnServiceV2(this.deps).claimAt(tx, { userId: input.businessId, track: 'business' }, now);
+        const latest = await repo.readLatestApplication(tx, input.businessId);
+        const verdict = evaluateSubmission(latest, at);
+        if (verdict !== 'allowed') return raise(verdict, [submissionCitation(verdict, latest!)]);
+        const applicationId = ids.next();
+        const { businessId, businessName, city, externalPresenceUrl, consentVersion, paymentInstructions: pay } = input;
+        if (!(await repo.insertApplication(tx, { id: applicationId, businessId, businessName, city, externalPresenceUrl, consentVersion }, now))) {
+          const winner = await repo.readLatestApplication(tx, businessId);
+          return raise('ApplicationAlreadyPending', [{ rule: 'FR-VER-1', inputs: { submittedAt: winner?.submittedAt ?? null } }]);
+        }
+        await repo.insertLegalIdentity(tx, {
+          applicationId, type: input.legalIdentity.type, number: input.legalIdentity.number, documentKeys: promoted.map((d) => `ver-documents/${d.key}`),
+        }, now);
+        await repo.upsertBusinessProfile(tx, {
+          businessId, publicName: businessName, city, externalPresenceUrl,
+          bankName: pay.bankName, accountType: pay.accountType, accountNumber: pay.accountNumber, holderName: pay.holderName,
+          // Stored unpromoted until the payment-QR upload exists (Story 3.1, Ask First).
+          qrObjectKey: pay.qrUploadKey,
+        }, now);
+        const reapplication = latest !== null;
+        await audit.record(tx, {
+          actorId: businessId, actorKind: 'user', module: 'identity', action: 'verification.application.submitted',
+          aggregateType: 'BusinessApplication', aggregateId: applicationId, decisionCode: null, data: { reapplication }, at: now,
+        });
+        const inputs = { applicationId, reapplication };
+        const decision: Decision = {
+          outcome: 'allowed',
+          reasonCode: 'ApplicationSubmitted',
+          humanMessage: renderMessage('ApplicationSubmitted', inputs),
+          citations: [{ rule: 'FR-VER-1', inputs }],
+          occurredAt: now,
+        };
+        return { applicationId, status: 'Pending' as const, submittedAt: now, decision };
+      });
+    } catch (error) {
+      // Q-fail: the rollback left no row pointing at them (AD-VER-3 rule 4).
+      await Promise.all(promoted.map((d) => storage.delete('ver-documents', d.key)));
+      throw error;
+    }
+    await Promise.all(promoted.map((d) => storage.delete('upload-quarantine', d.quarantineKey)));
+    return response;
+  }
+
+  /**
+   * VER-2 P3, AD-SYS-8 rules 5.3 and 6, first-fail per key. Clean bytes are copied to
+   * `ver-documents`; the quarantine objects go only after the commit, so a refused submit can be
+   * retried with the same keys. A refusal deletes the copies already made.
+   */
+  private async promoteDocuments(businessId: CuidId, keys: readonly string[]): Promise<{ key: string; quarantineKey: string }[]> {
+    const { storage, scanner, ids } = this.deps;
+    const promoted: { key: string; quarantineKey: string }[] = [];
+    const refuse = async (key: string, cause: DocumentRefusal): Promise<never> => {
+      await Promise.all(promoted.map((d) => storage.delete('ver-documents', d.key)));
+      return raise('InvalidDocumentFile', [{ rule: 'AD-SYS-8', inputs: { key, cause } }]);
+    };
+    for (const key of keys) {
+      const bytes = key.startsWith(`business-document/${businessId}/`) ? await storage.get('upload-quarantine', key) : null;
+      if (bytes === null) return refuse(key, 'missing');
+      if (bytes.length > MAX_DOCUMENT_BYTES) return refuse(key, 'size');
+      const declared = sniffDocumentType(bytes);
+      if (declared === null) return refuse(key, 'magic');
+      const scan = await scanner.scan(bytes, declared);
+      if (scan.verdict !== 'clean') return refuse(key, 'scanner');
+      const promotedKey = ids.next();
+      await storage.put('ver-documents', promotedKey, scan.sanitized ?? bytes, declared);
+      promoted.push({ key: promotedKey, quarantineKey: key });
+    }
+    return promoted;
   }
 
   async getApplicationForReview(_input: GetApplicationForReviewRequest): Promise<GetApplicationForReviewResponse> {
@@ -90,5 +190,72 @@ export class VerServiceV2 implements VerV2UseCases {
 
   async listLegalIdentityAccess(_input: ListLegalIdentityAccessRequest): Promise<ListLegalIdentityAccessResponse> {
     throw new NotImplementedError('identity.listLegalIdentityAccess');
+  }
+}
+
+const blank = (value: unknown): boolean => value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
+const lengthIn = (value: string, min: number, max: number): boolean => value.length >= min && value.length <= max;
+
+/**
+ * VER-2 P1–P2: every issue at once. A missing field is `MissingRequiredField` (identity); a
+ * malformed one is the kernel's `RequestValidationFailed`, one issue per field. No issue text
+ * repeats a submitted value, so the legal identity never reaches the error (AD-VER-2 rule 1).
+ */
+function checkSubmissionShape(input: SubmitApplicationRequest): void {
+  const legal: Partial<SubmitApplicationRequest['legalIdentity']> = input.legalIdentity ?? {};
+  const pay: Partial<SubmitApplicationRequest['paymentInstructions']> = input.paymentInstructions ?? {};
+  const required: [string, unknown][] = [
+    ['businessName', input.businessName], ['legalIdentity.type', legal.type], ['legalIdentity.number', legal.number],
+    ['documentUploadKeys', input.documentUploadKeys?.length ? input.documentUploadKeys : null],
+    ['externalPresenceUrl', input.externalPresenceUrl], ['city', input.city],
+    ['paymentInstructions.bankName', pay.bankName], ['paymentInstructions.accountType', pay.accountType],
+    ['paymentInstructions.accountNumber', pay.accountNumber], ['paymentInstructions.holderName', pay.holderName],
+    ['consentAccepted', input.consentAccepted === true ? true : null], ['consentVersion', input.consentVersion],
+  ];
+  const missing = required.filter(([, value]) => blank(value)).map(([field]) => field);
+  if (missing.length > 0) raise('MissingRequiredField', [{ rule: 'FR-VER-1', inputs: { fields: missing.join(', ') } }]);
+
+  const issues: RequestIssue[] = [];
+  const check = (ok: boolean, field: string, issue: string) => { if (!ok) issues.push({ field, issue }); };
+  check(lengthIn(input.businessName, 2, 80), 'businessName', 'debe tener entre 2 y 80 caracteres');
+  if (legal.type === 'NIT') check(isValidNit(legal.number!), 'legalIdentity.number', 'no es un NIT válido con su dígito de verificación');
+  else if (legal.type === 'CC') check(isValidCc(legal.number!), 'legalIdentity.number', 'una cédula tiene entre 6 y 10 dígitos');
+  else check(false, 'legalIdentity.type', 'debe ser NIT o CC');
+  check(input.documentUploadKeys.length <= 3, 'documentUploadKeys', 'admite como máximo 3 documentos');
+  check(isHttpsUrl(input.externalPresenceUrl), 'externalPresenceUrl', 'debe ser un enlace https de hasta 2048 caracteres');
+  check(lengthIn(input.city, 2, 60), 'city', 'debe tener entre 2 y 60 caracteres');
+  check(pay.accountType === 'savings' || pay.accountType === 'checking', 'paymentInstructions.accountType', 'debe ser ahorros o corriente');
+  check(/^[0-9]{6,20}$/.test(pay.accountNumber!), 'paymentInstructions.accountNumber', 'debe tener entre 6 y 20 dígitos');
+  check(lengthIn(pay.holderName!, 2, 80), 'paymentInstructions.holderName', 'debe tener entre 2 y 80 caracteres');
+  check(input.consentVersion === CURRENT_CONSENT_VERSION, 'consentVersion', 'no es la versión vigente del aviso de privacidad');
+  const [first, ...rest] = issues;
+  if (first) rejectRequest([first, ...rest]);
+}
+
+function isHttpsUrl(value: string): boolean {
+  if (value.length > 2048 || !value.startsWith('https://')) return false;
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** AD-SYS-8 rule 6: the declared type is what the magic bytes say, never the upload's header. */
+function sniffDocumentType(bytes: Uint8Array): DocumentType | null {
+  return DOCUMENT_MAGIC.find(([, magic]) => magic.every((b, i) => bytes[i] === b))?.[0] ?? null;
+}
+
+/** VER-2 P5–P7: each refusal cites its rule and the snapshot values it compared (Q4). */
+function submissionCitation(
+  verdict: Exclude<ReturnType<typeof evaluateSubmission>, 'allowed'>,
+  latest: NonNullable<Awaited<ReturnType<VerV2Deps['repo']['readLatestApplication']>>>,
+): Citation {
+  switch (verdict) {
+    case 'ApplicationAlreadyPending': return { rule: 'FR-VER-1', inputs: { submittedAt: latest.submittedAt } };
+    case 'AlreadyVerifiedBusiness': return { rule: 'FR-VER-1', inputs: { latestApplicationStatus: latest.status } };
+    case 'ReapplicationBarred': return { rule: 'FR-VER-6', inputs: { applicationId: latest.id, reapplyBarred: true } };
+    case 'ReapplicationCooldownActive': return { rule: 'FR-VER-6', inputs: { reapplyNotBefore: latest.reapplyNotBefore!.toISOString() } };
   }
 }

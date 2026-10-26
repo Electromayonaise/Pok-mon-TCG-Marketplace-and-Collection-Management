@@ -18,7 +18,7 @@ function application(businessId: string, w: ReturnType<typeof wiring>, o: Partia
   const key = `business-document/${businessId}/doc1`;
   w.storage.simulateDirectUpload(key, PDF, 'application/pdf');
   return {
-    businessId, businessName: 'Cartas Andrés', legalIdentity: { type: 'NIT', number: '9001234563' }, documentUploadKeys: [key],
+    businessId, businessName: 'Cartas Andrés', legalIdentity: { type: 'NIT', number: '9001234568' }, documentUploadKeys: [key],
     externalPresenceUrl: 'https://instagram.com/cartasandres', city: 'Medellín',
     paymentInstructions: { bankName: 'Bancolombia', accountType: 'savings', accountNumber: '12345678901', holderName: 'Andrés', qrUploadKey: null },
     consentAccepted: true, consentVersion: 'privacy-v1', ...o,

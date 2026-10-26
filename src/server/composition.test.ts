@@ -1,5 +1,5 @@
 // The production composition over HTTP (decision log Impl-1 #24): a real Better Auth session on
-// the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3 and S-SYS.replay,
+// the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-2 and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -7,6 +7,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '../../generated/prisma/client.js';
 import { VirtualClock } from '../../test-support/clock.js';
 import { useTestDatabase } from '../../test-support/db.js';
+import { InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
 import { admin, at, DAY, id, ins, rows, T0, user } from '../../test-support/solu2/fixtures.js';
 import { createAuth } from './auth.js';
 import { compose } from './composition.js';
@@ -16,13 +17,14 @@ import { serveTrpc } from './trpc/init.js';
 const db = useTestDatabase();
 const SECRET = 'composition-test-secret-0123456789abcdef';
 const clock = new VirtualClock();
+const storage = new InMemoryObjectStorage(clock);
 let app: ReturnType<typeof compose>;
 let sessions = 0;
 
 beforeAll(() => {
   const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000' });
   const ok = async () => undefined;
-  app = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { commission: ok, listings: ok, collections: ok } });
+  app = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { commission: ok, listings: ok, collections: ok }, storage, scanner: new SimulatedScanner() });
 });
 
 /** A live `"Session"` row and the cookie Better Auth signs for it (HMAC-SHA256 of the token). */
@@ -174,6 +176,31 @@ describe('the delivery and tick health over HTTP (S-SYS.tick, .deliveries, .heal
     const { status, json } = await get('admin.events.deliveries', { kind: 'failed', cursor: 'x' }, await signIn(id('admin')));
     expect([status, json.error?.code]).toEqual([400, 'RequestValidationFailed']);
     expect(json.error?.issues).toEqual([{ field: 'cursor', issue: 'no corresponde a una página de esta lista' }]);
+  });
+});
+
+describe('verification.submit over HTTP (VER-2, S-FR-IDN-7)', () => {
+  const key = (userId: string) => `business-document/${userId}/doc1`;
+  const application = (userId: string) => ({
+    businessName: 'Cartas Andrés', legalIdentity: { type: 'NIT', number: '9001234568' }, documentUploadKeys: [key(userId)],
+    externalPresenceUrl: 'https://instagram.com/cartasandres', city: 'Medellín',
+    paymentInstructions: { bankName: 'Bancolombia', accountType: 'savings', accountNumber: '12345678901', holderName: 'Andrés', qrUploadKey: null },
+    consentAccepted: true, consentVersion: 'privacy-v1',
+  });
+
+  it('without a session it is NotAuthenticated 401 and nothing is written', async () => {
+    const { status, json } = await post('verification.submit', application(id('andres')));
+    expect([status, json.error?.code]).toEqual([401, 'NotAuthenticated']);
+    expect(await rows(db, 'BusinessApplication')).toHaveLength(0);
+  });
+
+  it('a signed-in user submits: 200 ApplicationSubmitted, and the application is the session user\'s', async () => {
+    await user(db, { id: id('andres') });
+    storage.simulateDirectUpload(key(id('andres')), new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]), 'application/pdf');
+    const { status, json } = await post('verification.submit', application(id('andres')), await signIn(id('andres')));
+    expect(status).toBe(200);
+    expect(json.result?.data).toMatchObject({ decision: { outcome: 'allowed', reasonCode: 'ApplicationSubmitted' } });
+    expect(await rows(db, 'BusinessApplication')).toMatchObject([{ businessId: id('andres'), status: 'Pending' }]);
   });
 });
 

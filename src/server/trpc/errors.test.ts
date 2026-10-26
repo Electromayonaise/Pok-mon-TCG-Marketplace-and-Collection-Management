@@ -26,6 +26,18 @@ describe('toErrorBody — DomainError', () => {
     expect([cited.issues, bare.issues]).toEqual([[{ field: 'cursor', issue: 'no corresponde a una página de esta lista' }], [{ field: 'la solicitud', issue: 'no es válido' }]]);
   });
 
+  it('a service-raised RequestValidationFailed with several citations carries one issue and one line per citation (VER-2 P2)', () => {
+    const body = toErrorBody(new DomainError('RequestValidationFailed', [
+      { rule: 'AD-SYS-1', inputs: { field: 'legalIdentity.number', issue: 'no tiene un dígito de verificación válido' } },
+      { rule: 'AD-SYS-1', inputs: { field: 'consentVersion', issue: 'no es la versión vigente del aviso de privacidad' } },
+    ]), now);
+    expect(body.issues).toEqual([
+      { field: 'legalIdentity.number', issue: 'no tiene un dígito de verificación válido' },
+      { field: 'consentVersion', issue: 'no es la versión vigente del aviso de privacidad' },
+    ]);
+    expect(body.decision.humanMessage.split('\n')).toEqual(body.issues!.map((i) => `Revisa ${i.field}: ${i.issue}.`));
+  });
+
   it('unwraps the cause tRPC adds around a thrown DomainError', () => {
     const wrapped = new TRPCError({ code: 'INTERNAL_SERVER_ERROR', cause: new DomainError('AdminOnly', [{ rule: 'AD-SYS-1', inputs: {} }]) });
     expect(toErrorBody(wrapped, now)).toMatchObject({ code: 'AdminOnly', httpStatus: 403 });

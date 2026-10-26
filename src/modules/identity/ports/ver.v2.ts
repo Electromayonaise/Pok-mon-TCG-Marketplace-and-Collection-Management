@@ -18,9 +18,59 @@ export interface VerV2Deps {
 }
 // </gen-solu2-api>
 
+import type { Tx } from '../../../shared-kernel/ports.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import type { AccountType, LatestApplicationSnapshot } from '../domain/ver.js';
+import type { IdnRepository } from './idn.v2.js';
+
+/** VER-2 Q2: one `"BusinessApplication"` row as a submission inserts it (Pending, consent snapshot). */
+export interface ApplicationRow {
+  id: CuidId;
+  businessId: CuidId;
+  businessName: string;
+  city: string;
+  externalPresenceUrl: string;
+  consentVersion: string;
+}
+
+/** VER-2 Q2: the regulated row; it travels only into `legalIdentityRepository` (AD-VER-2 rule 1). */
+export interface LegalIdentityRow {
+  applicationId: CuidId;
+  type: 'NIT' | 'CC';
+  number: string;
+  /** Bucket-qualified: `ver-documents/<cuid2>`. */
+  documentKeys: string[];
+}
+
+/** VER-2 Q2: the public fields and payment instructions of `"BusinessProfile"`. */
+export interface BusinessProfileRow {
+  businessId: CuidId;
+  publicName: string;
+  city: string;
+  externalPresenceUrl: string;
+  bankName: string;
+  accountType: AccountType;
+  accountNumber: string;
+  holderName: string;
+  qrObjectKey: string | null;
+}
+
 /**
  * Repository port of VER (review A-4): the only way its application service reads or writes
- * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * its own tables (AD-8). It extends IDN's, because VER-2 runs IDN-1's claim on the same `repo`
+ * (R-14). `infra/pg.ts` implements the VER methods; `insertLegalIdentity` is implemented only by
+ * `infra/legalIdentityRepository.ts` (AD-VER-2 rule 1).
  */
-export interface VerRepository {}
+export interface VerRepository extends IdnRepository {
+  /** VER-2 Q2: the latest application by ("submittedAt" DESC, id DESC), read after the claim locked `"User"`. */
+  readLatestApplication(tx: Tx, businessId: CuidId): Promise<(LatestApplicationSnapshot & { id: CuidId; submittedAt: IsoInstant }) | null>;
+  /**
+   * VER-2 Q2: the Pending row. False when a 23505 on `business_application_one_pending` refused
+   * it (I1); the insert ran under a savepoint, so `tx` stays usable for the refusal's read.
+   */
+  insertApplication(tx: Tx, row: ApplicationRow, now: IsoInstant): Promise<boolean>;
+  /** VER-2 Q2: the legal identity, with no `RETURNING`. */
+  insertLegalIdentity(tx: Tx, row: LegalIdentityRow, now: IsoInstant): Promise<void>;
+  /** VER-2 Q2: inserts or replaces the shop's profile (S-FR-VER-9 edits it later). */
+  upsertBusinessProfile(tx: Tx, row: BusinessProfileRow, now: IsoInstant): Promise<void>;
+}

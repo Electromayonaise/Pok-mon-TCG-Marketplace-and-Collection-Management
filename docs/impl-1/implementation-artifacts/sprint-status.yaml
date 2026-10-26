@@ -1,5 +1,5 @@
 # generated: 2026-10-24
-# last_updated: 2026-10-25
+# last_updated: 2026-10-26
 # project: Pok-mon-TCG-Marketplace-and-Collection-Management
 # project_key: NOKEY
 # tracking_system: file-system
@@ -47,7 +47,7 @@
 # - An epic is 'done' when its Impl-1 stories are done and Martín signed its gate; its impl2_scope stories stay backlog
 
 generated: 2026-10-24
-last_updated: 2026-10-25
+last_updated: 2026-10-26
 project: Pok-mon-TCG-Marketplace-and-Collection-Management
 project_key: NOKEY
 tracking_system: file-system
@@ -68,12 +68,12 @@ development_status:
   2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins: done
   2-5-trace-capabilities-for-admins-and-answer-neighbours-identity-queries: done
   epic-2-retrospective: optional
-  epic-3: backlog
-  3-1-submit-a-business-application-with-its-legal-identity: backlog
-  3-2-decide-an-application-exactly-once: backlog
-  3-3-refuse-incomplete-unsafe-and-premature-applications: backlog
-  3-4-guard-and-audit-every-legal-identity-read: backlog
-  3-5-run-the-review-queue-the-rejection-policy-and-payment-instructions: backlog
+  epic-3: in-progress
+  3-1-submit-a-business-application-with-its-legal-identity: done
+  3-2-decide-an-application-exactly-once: ready-for-dev
+  3-3-refuse-incomplete-unsafe-and-premature-applications: ready-for-dev
+  3-4-guard-and-audit-every-legal-identity-read: ready-for-dev
+  3-5-run-the-review-queue-the-rejection-policy-and-payment-instructions: ready-for-dev
   epic-3-retrospective: optional
   epic-4: backlog
   4-1-start-and-continue-a-catalog-feed-run: backlog
@@ -162,8 +162,9 @@ impl1_delivery:
   - 2-3-explain-why-an-account-may-not-list
 
 # Stories deferred to Impl-2 (decision log Impl-1 #2). They stay backlog in Impl-1,
-# and their ATDD tests stay red for the right reason. Exception: 2-4 was built early
-# with the Epic 2 batch (its spec, approved 2026-10-25), so it is done above.
+# and their ATDD tests stay red for the right reason. Exceptions: 2-4 was built early
+# with the Epic 2 batch (its spec, approved 2026-10-25), so it is done above; 3-3 and
+# 3-4 are built with the whole of Epic 3 (decision log Impl-1 #27).
 impl2_scope:
   - 2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins
   - 3-3-refuse-incomplete-unsafe-and-premature-applications

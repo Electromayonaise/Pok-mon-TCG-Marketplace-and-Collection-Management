@@ -9,7 +9,7 @@ import { expect } from 'vitest';
 import { SEED_INSTANT, VirtualClock } from '../clock.js';
 import type { TestDb } from '../db.js';
 import { id, SequentialIds } from '../ids.js';
-import { PgIdnRepository } from '../../src/modules/identity/index.js';
+import { PgIdnRepository, PgLegalIdentityRepository, PgVerRepository } from '../../src/modules/identity/index.js';
 import { PgAdminEventsRepository } from '../../src/shared-kernel/infra/pg-admin-events.js';
 import { PgOutboxV2 } from '../../src/shared-kernel/infra/pg-outbox.js';
 import { oneRepository } from '../../src/shared-kernel/repositories.js';
@@ -205,7 +205,7 @@ export function wiring(db: TestDb, idPrefix = 'n') {
      * The one repository object every service receives (R-14): each story binds the Postgres
      * adapter of the methods it declares; ports still empty accept it unchanged.
      */
-    repo: oneRepository(new PgAdminEventsRepository(), new PgIdnRepository()),
+    repo: oneRepository(new PgAdminEventsRepository(), new PgIdnRepository(), new PgVerRepository(), new PgLegalIdentityRepository()),
   };
 }
 

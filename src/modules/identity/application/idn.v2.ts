@@ -49,7 +49,7 @@ export class IdnServiceV2 implements IdnV2UseCases {
 
   /** IDN-1: the first row-locking statement of the caller's `tx` (AD-SYS-4; `"User"` is lock position 2). */
   async claimSellerTrack(tx: Tx, input: ClaimSellerTrackRequest): Promise<ClaimSellerTrackResponse> {
-    return this.claim(tx, input, this.deps.clock.now().toISOString());
+    return this.claimAt(tx, input, this.deps.clock.now().toISOString());
   }
 
   /**
@@ -60,7 +60,7 @@ export class IdnServiceV2 implements IdnV2UseCases {
     const { repo, transactions, clock } = this.deps;
     return transactions.run(async (tx) => {
       const now = clock.now().toISOString();
-      await this.claim(tx, { userId: input.userId, track: 'individual' }, now);
+      await this.claimAt(tx, { userId: input.userId, track: 'individual' }, now);
       const { lat, lng, city } = input.defaultMeetingPoint;
       await repo.insertIndividualProfile(tx, {
         userId: input.userId,
@@ -85,8 +85,11 @@ export class IdnServiceV2 implements IdnV2UseCases {
     });
   }
 
-  /** IDN-1 Q1–Q4 and Q-fail at the transaction's one instant `now`. */
-  private async claim(tx: Tx, { userId, track }: ClaimSellerTrackRequest, now: IsoInstant): Promise<ClaimSellerTrackResponse> {
+  /**
+   * IDN-1 Q1–Q4 and Q-fail at the transaction's one instant `now`. Public so VER-2 claims the
+   * business track at its own `now`, with the same refusals (contracts.md IDN-1 Q2).
+   */
+  async claimAt(tx: Tx, { userId, track }: ClaimSellerTrackRequest, now: IsoInstant): Promise<ClaimSellerTrackResponse> {
     const { repo, audit } = this.deps;
     if (await repo.claimSellerTrack(tx, userId, track, now) === 1) {
       await audit.record(tx, {

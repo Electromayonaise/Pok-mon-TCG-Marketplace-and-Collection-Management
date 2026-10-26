@@ -36,6 +36,7 @@ export const MESSAGES = {
   RejectionReasonUnknown: 'El motivo {reasonCode} no está activo; elige otro.',
   LastActiveReasonRequired: 'Debe quedar al menos un motivo de rechazo activo.',
   InvalidDocumentFile: 'Uno de los documentos no se pudo usar: {cause}.',
+  ApplicationSubmitted: 'Tu solicitud de tienda quedó en revisión; te avisaremos cuando la decidamos.',
   CatalogEntryNotFound: 'No encontramos esa carta o producto.',
   FeedRunInProgress: 'Ya hay una carga en curso desde las {startedAt}.',
   InvalidItemRef: 'La carta {itemRef} no existe o no corresponde al tipo elegido.',
@@ -101,6 +102,6 @@ export const MESSAGES = {
   DuplicateReview: 'Ya reseñaste a este vendedor; puedes editar tu reseña.',
   ReviewNotFound: 'No encontramos esa reseña.',
   Unexpected: 'Algo falló de nuestro lado; no se aplicó ningún cambio.',
-} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified', string>;
+} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted', string>;
 
 export type MessageCode = keyof typeof MESSAGES;

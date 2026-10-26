@@ -11,6 +11,7 @@ import type { PaymentInstructionsDTO } from '../dto/ver.dto.js';
 import type { IUserRepository } from '../ports/idn.js';
 import type { IdnRepository, IndividualProfileRow } from '../ports/idn.v2.js';
 import type { IBusinessApplicationRepository, IBusinessProfileRepository, IRejectionReasonRepository } from '../ports/ver.js';
+import type { ApplicationRow, BusinessProfileRow, VerRepository } from '../ports/ver.v2.js';
 
 export class PgUserRepository implements IUserRepository {
   constructor(protected readonly sql: Sql) {}
@@ -156,6 +157,58 @@ export class PgIdnRepository implements IdnRepository {
       [q.scope, q.key, q.since, q.until, q.limit - 1],
     );
     return iso(rows[0]?.createdAt ?? null);
+  }
+}
+
+/**
+ * The Solu-2 repository of VER, minus the legal identity (`legalIdentityRepository.ts`, AD-VER-2
+ * rule 1). Every statement runs on the caller's `tx`; every instant is a bound parameter.
+ * Proven by ver_contracts › VER-2.
+ */
+export class PgVerRepository implements Omit<VerRepository, keyof IdnRepository | 'insertLegalIdentity'> {
+  async readLatestApplication(tx: Tx, businessId: CuidId): Promise<(LatestApplicationSnapshot & { id: CuidId; submittedAt: IsoInstant }) | null> {
+    const { rows } = await tx.query<{ id: CuidId; status: ApplicationStatus; reapplyBarred: boolean; reapplyNotBefore: Date | null; submittedAt: Date }>(
+      `SELECT id, status, "reapplyBarred", "reapplyNotBefore", "submittedAt" FROM "BusinessApplication"
+        WHERE "businessId" = $1 ORDER BY "submittedAt" DESC, id DESC LIMIT 1`,
+      [businessId],
+    );
+    const r = rows[0];
+    return r === undefined ? null : { ...r, submittedAt: r.submittedAt.toISOString() };
+  }
+
+  async insertApplication(tx: Tx, row: ApplicationRow, now: IsoInstant): Promise<boolean> {
+    // The savepoint keeps `tx` usable after a 23505, so the caller can still cite the winner's
+    // "submittedAt" (25P02 never occurs; the same pattern as MSG-1's retry).
+    await tx.query('SAVEPOINT ver_insert_application');
+    try {
+      await tx.query(
+        `INSERT INTO "BusinessApplication" (id, "businessId", status, "businessName", city, "externalPresenceUrl",
+           "submittedAt", "consentAt", "consentVersion", "createdAt", "updatedAt")
+         VALUES ($1, $2, 'Pending', $3, $4, $5, $6, $6, $7, $6, $6)`,
+        [row.id, row.businessId, row.businessName, row.city, row.externalPresenceUrl, now, row.consentVersion],
+      );
+    } catch (error) {
+      const pgError = error as { code?: string; constraint?: string };
+      if (pgError.code !== '23505' || pgError.constraint !== 'business_application_one_pending') throw error;
+      await tx.query('ROLLBACK TO SAVEPOINT ver_insert_application');
+      return false;
+    }
+    await tx.query('RELEASE SAVEPOINT ver_insert_application');
+    return true;
+  }
+
+  async upsertBusinessProfile(tx: Tx, row: BusinessProfileRow, now: IsoInstant): Promise<void> {
+    await tx.query(
+      `INSERT INTO "BusinessProfile" ("businessId", "publicName", city, "externalPresenceUrl", "bankName", "accountType",
+         "accountNumber", "holderName", "qrObjectKey", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+       ON CONFLICT ("businessId") DO UPDATE SET
+         "publicName" = EXCLUDED."publicName", city = EXCLUDED.city, "externalPresenceUrl" = EXCLUDED."externalPresenceUrl",
+         "bankName" = EXCLUDED."bankName", "accountType" = EXCLUDED."accountType", "accountNumber" = EXCLUDED."accountNumber",
+         "holderName" = EXCLUDED."holderName", "qrObjectKey" = EXCLUDED."qrObjectKey", "updatedAt" = EXCLUDED."updatedAt"`,
+      [row.businessId, row.publicName, row.city, row.externalPresenceUrl, row.bankName, row.accountType,
+        row.accountNumber, row.holderName, row.qrObjectKey, now],
+    );
   }
 }
 

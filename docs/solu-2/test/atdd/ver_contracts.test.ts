@@ -18,7 +18,7 @@ function application(businessId: string, w: ReturnType<typeof wiring>, o: Partia
   const key = `business-document/${businessId}/doc1`;
   w.storage.simulateDirectUpload(key, PDF, 'application/pdf');
   return {
-    businessId, businessName: 'Cartas Andrés', legalIdentity: { type: 'NIT', number: '9001234563' }, documentUploadKeys: [key],
+    businessId, businessName: 'Cartas Andrés', legalIdentity: { type: 'NIT', number: '9001234568' }, documentUploadKeys: [key],
     externalPresenceUrl: 'https://instagram.com/cartasandres', city: 'Medellín',
     paymentInstructions: { bankName: 'Bancolombia', accountType: 'savings', accountNumber: '12345678901', holderName: 'Andrés', qrUploadKey: null },
     consentAccepted: true, consentVersion: 'privacy-v1', ...o,
@@ -114,9 +114,9 @@ describe('VER-2 — submitApplication (contracts.md §2)', () => {
     const result = await ver.submitApplication(application(id('andres'), w));
     expect(result).toMatchObject({ status: 'Pending', submittedAt: w.clock.iso() });
     explainAssert(result.decision, { outcome: 'allowed', rule: 'FR-VER-1', inputs: { applicationId: result.applicationId, reapplication: false } });
-    expect(await rows(db, 'BusinessApplicationLegalIdentity')).toMatchObject([{ applicationId: result.applicationId, type: 'NIT', number: '9001234563' }]);
+    expect(await rows(db, 'BusinessApplicationLegalIdentity')).toMatchObject([{ applicationId: result.applicationId, type: 'NIT', number: '9001234568' }]);
     expect(await rows(db, 'BusinessProfile')).toHaveLength(1);
-    expect(JSON.stringify(await rows(db, 'audit_events'))).not.toContain('9001234563');
+    expect(JSON.stringify(await rows(db, 'audit_events'))).not.toContain('9001234568');
     expect(await rows(db, 'OutboxEvent')).toHaveLength(0);
   });
 
