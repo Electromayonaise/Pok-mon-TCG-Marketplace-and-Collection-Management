@@ -1,5 +1,5 @@
 // The production composition over HTTP (decision log Impl-1 #24): a real Better Auth session on
-// the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-2 and S-SYS.replay,
+// the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2 and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -8,7 +8,7 @@ import { PrismaClient } from '../../generated/prisma/client.js';
 import { VirtualClock } from '../../test-support/clock.js';
 import { useTestDatabase } from '../../test-support/db.js';
 import { InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
-import { admin, at, DAY, id, ins, rows, T0, user } from '../../test-support/solu2/fixtures.js';
+import { admin, at, business, DAY, id, ins, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
 import { createAuth } from './auth.js';
 import { compose } from './composition.js';
 import { betterAuthSessions } from './sessions.js';
@@ -201,6 +201,35 @@ describe('verification.submit over HTTP (VER-2, S-FR-IDN-7)', () => {
     expect(status).toBe(200);
     expect(json.result?.data).toMatchObject({ decision: { outcome: 'allowed', reasonCode: 'ApplicationSubmitted' } });
     expect(await rows(db, 'BusinessApplication')).toMatchObject([{ businessId: id('andres'), status: 'Pending' }]);
+  });
+});
+
+describe('verification.approve and verification.reject over HTTP (VER-1, S-FR-IDN-7)', () => {
+  it('a signed-in non-admin is AdminOnly 403, and the application stays Pending', async () => {
+    const applicationId = await business(db, id('andres'), 'Pending');
+    await user(db, { id: id('camila') });
+    const { status, json } = await post('verification.approve', { applicationId }, await signIn(id('camila')));
+    expect([status, json.error?.code]).toEqual([403, 'AdminOnly']);
+    expect(await rows(db, 'BusinessApplication')).toMatchObject([{ status: 'Pending' }]);
+  });
+
+  it('an admin approves: 200 ApplicationApproved, decided by the session admin', async () => {
+    const applicationId = await business(db, id('andres'), 'Pending');
+    await admin(db);
+    const { status, json } = await post('verification.approve', { applicationId }, await signIn(id('admin')));
+    expect(status).toBe(200);
+    expect(json.result?.data).toMatchObject({ applicationId, status: 'Approved', decidedBy: id('admin'), decision: { reasonCode: 'ApplicationApproved' } });
+    expect(await rows(db, 'ApplicationDecisionLog')).toMatchObject([{ adminId: id('admin'), decision: 'Approved' }]);
+  });
+
+  it('an admin rejects: 200 ApplicationRejected, with the reason and the note stored', async () => {
+    await rejectionReason(db, { code: 'DataMismatch', cooldownDays: 7 });
+    const applicationId = await business(db, id('andres'), 'Pending');
+    await admin(db);
+    const { status, json } = await post('verification.reject', { applicationId, reasonCode: 'DataMismatch', note: 'El NIT no coincide' }, await signIn(id('admin')));
+    expect(status).toBe(200);
+    expect(json.result?.data).toMatchObject({ status: 'Rejected', decision: { reasonCode: 'ApplicationRejected' } });
+    expect(await rows(db, 'BusinessApplication')).toMatchObject([{ status: 'Rejected', rejectionReasonCode: 'DataMismatch', rejectionNote: 'El NIT no coincide' }]);
   });
 });
 

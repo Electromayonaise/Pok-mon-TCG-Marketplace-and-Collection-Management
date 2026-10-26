@@ -40,7 +40,8 @@ import { renderMessage } from '../../../shared-kernel/messages.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
 import type { CuidId } from '../../../shared-kernel/types.js';
-import { CURRENT_CONSENT_VERSION, evaluateSubmission, isValidCc, isValidNit } from '../domain/ver.js';
+import { CURRENT_CONSENT_VERSION, evaluateSubmission, isValidCc, isValidNit, rejectionSnapshot } from '../domain/ver.js';
+import type { ApplicationTransition } from '../ports/ver.v2.js';
 import { IdnServiceV2 } from './idn.v2.js';
 
 const raise = raiserFor('identity');
@@ -60,8 +61,65 @@ type DocumentRefusal = 'missing' | 'size' | 'magic' | 'scanner';
 export class VerServiceV2 implements VerV2UseCases {
   constructor(protected readonly deps: VerV2Deps) {}
 
-  async decideApplication(_input: DecideApplicationRequest): Promise<DecideApplicationResponse> {
-    throw new NotImplementedError('identity.decideApplication');
+  /**
+   * VER-1, AD-VER-1 rules 1–5: P2–P4 first-fail, then one conditional UPDATE. Its log row, audit
+   * row and one event share the transaction, so a race loser (0 rows) writes none of them.
+   */
+  async decideApplication(input: DecideApplicationRequest): Promise<DecideApplicationResponse> {
+    const { repo, transactions, clock, ids, outbox, audit } = this.deps;
+    const { applicationId, decision: choice, adminId } = input;
+    const rule = choice.kind === 'approve' ? 'FR-VER-3' : 'FR-VER-4';
+    return transactions.run(async (tx) => {
+      const at = clock.now();
+      const now = at.toISOString();
+      const refuseDecided = async (): Promise<never> => {
+        const state = await repo.readDecisionState(tx, applicationId);
+        if (state === null) return raise('ApplicationNotFound', [{ rule, inputs: { applicationId } }]);
+        return raise('ApplicationNotPending', [{ rule: 'AD-VER-1', inputs: { ...state } }]);
+      };
+      const state = await repo.readDecisionState(tx, applicationId);
+      if (state === null || state.status !== 'Pending') return refuseDecided();
+      let transition: ApplicationTransition = { to: 'Approved' };
+      if (choice.kind === 'reject') {
+        const reason = await repo.lockActiveReason(tx, choice.reasonCode);
+        if (reason === null) return raise('RejectionReasonUnknown', [{ rule, inputs: { reasonCode: choice.reasonCode } }]);
+        const snapshot = rejectionSnapshot(reason, at);
+        transition = {
+          to: 'Rejected', reasonCode: choice.reasonCode, note: choice.note,
+          reapplyBarred: snapshot.reapplyBarred, reapplyNotBefore: snapshot.reapplyNotBefore?.toISOString() ?? null,
+        };
+      }
+      const decided = await repo.transitionApplication(tx, applicationId, adminId, transition, now);
+      if (decided === null) return refuseDecided();
+      const reasonCode = transition.to === 'Rejected' ? transition.reasonCode : null;
+      await repo.insertDecisionLog(tx, { id: ids.next(), applicationId, adminId, decision: transition.to, reasonCode }, now);
+      const code = transition.to === 'Approved' ? 'ApplicationApproved' : 'ApplicationRejected';
+      await audit.record(tx, {
+        actorId: adminId, actorKind: 'admin', module: 'identity', action: 'verification.application.decided',
+        aggregateType: 'BusinessApplication', aggregateId: applicationId, decisionCode: code, data: { decision: transition.to, reasonCode }, at: now,
+      });
+      let inputs: Citation['inputs'] = { applicationId };
+      if (transition.to === 'Approved') {
+        await outbox.enqueue(tx, 'BusinessApplicationApproved', applicationId, {
+          applicationId, businessId: decided.businessId, businessName: decided.businessName, approvedAt: now, approvedBy: adminId,
+        });
+      } else {
+        const { reasonCode: rejectedFor, reapplyNotBefore } = transition;
+        const policy = reapplyNotBefore === null ? { barred: true as const } : { reapplyNotBefore };
+        await outbox.enqueue(tx, 'BusinessApplicationRejected', applicationId, {
+          applicationId, businessId: decided.businessId, reasonCode: rejectedFor, rejectedAt: now, ...policy,
+        });
+        inputs = { applicationId, reasonCode: rejectedFor, ...policy };
+      }
+      const decision: Decision = {
+        outcome: 'allowed',
+        reasonCode: code,
+        humanMessage: renderMessage(code, inputs),
+        citations: [{ rule, inputs }],
+        occurredAt: now,
+      };
+      return { applicationId, status: transition.to, decidedAt: now, decidedBy: adminId, decision };
+    });
   }
 
   /**

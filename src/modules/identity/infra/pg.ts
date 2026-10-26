@@ -6,12 +6,12 @@ import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { ApplicationStatus, AuthThrottleScope, CapabilityFacts, SellerTrack } from '../domain/idn.js';
-import type { LatestApplicationSnapshot } from '../domain/ver.js';
+import type { LatestApplicationSnapshot, RejectionPolicy } from '../domain/ver.js';
 import type { PaymentInstructionsDTO } from '../dto/ver.dto.js';
 import type { IUserRepository } from '../ports/idn.js';
 import type { IdnRepository, IndividualProfileRow } from '../ports/idn.v2.js';
 import type { IBusinessApplicationRepository, IBusinessProfileRepository, IRejectionReasonRepository } from '../ports/ver.js';
-import type { ApplicationRow, BusinessProfileRow, VerRepository } from '../ports/ver.v2.js';
+import type { ApplicationRow, ApplicationTransition, BusinessProfileRow, DecisionLogRow, DecisionState, VerRepository } from '../ports/ver.v2.js';
 
 export class PgUserRepository implements IUserRepository {
   constructor(protected readonly sql: Sql) {}
@@ -208,6 +208,48 @@ export class PgVerRepository implements Omit<VerRepository, keyof IdnRepository 
          "holderName" = EXCLUDED."holderName", "qrObjectKey" = EXCLUDED."qrObjectKey", "updatedAt" = EXCLUDED."updatedAt"`,
       [row.businessId, row.publicName, row.city, row.externalPresenceUrl, row.bankName, row.accountType,
         row.accountNumber, row.holderName, row.qrObjectKey, now],
+    );
+  }
+
+  async readDecisionState(tx: Tx, applicationId: CuidId): Promise<DecisionState | null> {
+    const { rows } = await tx.query<{ status: ApplicationStatus; decidedBy: CuidId | null; decidedAt: Date | null }>(
+      `SELECT status, "decidedBy", "decidedAt" FROM "BusinessApplication" WHERE id = $1`,
+      [applicationId],
+    );
+    const r = rows[0];
+    return r === undefined ? null : { ...r, decidedAt: iso(r.decidedAt) };
+  }
+
+  async lockActiveReason(tx: Tx, code: string): Promise<(RejectionPolicy & { textEsCo: string }) | null> {
+    const { rows } = await tx.query<RejectionPolicy & { textEsCo: string }>(
+      `SELECT "textEsCo", "cooldownDays", barred FROM "RejectionReason" WHERE code = $1 AND active FOR SHARE`,
+      [code],
+    );
+    return rows[0] ?? null;
+  }
+
+  async transitionApplication(
+    tx: Tx, applicationId: CuidId, adminId: CuidId, transition: ApplicationTransition, now: IsoInstant,
+  ): Promise<{ businessId: CuidId; businessName: string } | null> {
+    // Under READ COMMITTED a concurrent decider blocks on the row, then re-checks `status` and
+    // matches nothing (AD-VER-1 rule 2); no FOR UPDATE and no retry.
+    const rejected = transition.to === 'Rejected' ? transition : null;
+    const { rows } = await tx.query<{ businessId: CuidId; businessName: string }>(
+      `UPDATE "BusinessApplication" SET status = $2, "decidedBy" = $3, "decidedAt" = $4, "updatedAt" = $4, version = version + 1,
+         "rejectionReasonCode" = $5, "rejectionNote" = $6, "reapplyNotBefore" = $7, "reapplyBarred" = $8
+        WHERE id = $1 AND status = 'Pending'
+        RETURNING "businessId", "businessName"`,
+      [applicationId, transition.to, adminId, now, rejected?.reasonCode ?? null, rejected?.note ?? null,
+        rejected?.reapplyNotBefore ?? null, rejected?.reapplyBarred ?? false],
+    );
+    return rows[0] ?? null;
+  }
+
+  async insertDecisionLog(tx: Tx, row: DecisionLogRow, now: IsoInstant): Promise<void> {
+    await tx.query(
+      `INSERT INTO "ApplicationDecisionLog" (id, "applicationId", "adminId", decision, "reasonCode", "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [row.id, row.applicationId, row.adminId, row.decision, row.reasonCode, now],
     );
   }
 }

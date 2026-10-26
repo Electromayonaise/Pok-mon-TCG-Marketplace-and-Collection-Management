@@ -55,3 +55,23 @@ export function evaluateSubmission(latest: LatestApplicationSnapshot | null, now
   if (latest.reapplyNotBefore !== null && now.getTime() < latest.reapplyNotBefore.getTime()) return 'ReapplicationCooldownActive';
   return 'allowed';
 }
+
+const DAY_MS = 86_400_000;
+
+/** VER-1 P4: the active reason's policy, read under a share lock (AD-VER-1 rule 1). */
+export interface RejectionPolicy {
+  barred: boolean;
+  /** Null exactly when `barred` (`rejection_reason_policy_shape`). */
+  cooldownDays: number | null;
+}
+
+/** AD-VER-1 rule 5: the policy copied onto the application, so a later edit never moves it. */
+export type RejectionSnapshot =
+  | { reapplyBarred: true; reapplyNotBefore: null }
+  | { reapplyBarred: false; reapplyNotBefore: Date };
+
+/** VER-1 Q2: barred, or a cooldown of whole days from the decision instant. */
+export function rejectionSnapshot(policy: RejectionPolicy, now: Date): RejectionSnapshot {
+  if (policy.barred) return { reapplyBarred: true, reapplyNotBefore: null };
+  return { reapplyBarred: false, reapplyNotBefore: new Date(now.getTime() + (policy.cooldownDays ?? 0) * DAY_MS) };
+}

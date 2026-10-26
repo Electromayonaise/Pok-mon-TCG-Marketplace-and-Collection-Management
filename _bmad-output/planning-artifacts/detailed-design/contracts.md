@@ -1289,6 +1289,8 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `LastActiveReasonRequired` | 409 | identity | S-FR-VER-8 | "Debe quedar al menos un motivo de rechazo activo." | no |
 | `InvalidDocumentFile` | 400 | identity | VER-2 P3 | "Uno de los documentos no se pudo usar: {cause}." | no |
 | `ApplicationSubmitted` | — (stored only) | identity | `verification.submit` succeeded (VER-2 Q4; the rule of decision log Impl-1 #16) | "Tu solicitud de tienda quedó en revisión; te avisaremos cuando la decidamos." | no |
+| `ApplicationApproved` | — (stored only) | identity | `verification.approve` succeeded (VER-1 Q4; the rule of decision log Impl-1 #16) | "Aprobaste la solicitud; la tienda ya publica como verificada." | no |
+| `ApplicationRejected` | — (stored only) | identity | `verification.reject` succeeded (VER-1 Q4; the rule of decision log Impl-1 #16) | "Rechazaste la solicitud con el motivo {reasonCode}." | no |
 | `CatalogEntryNotFound` | 404 | catalog | CAT-3 P2; DSC-2 P1 | "No encontramos esa carta o producto." | no |
 | `FeedRunInProgress` | 409 | catalog | CAT-1 Q-fail; `catalog.feed.continue` | "Ya hay una carga en curso desde las {startedAt}." | yes |
 | `InvalidItemRef` | 400 | listings | INV-2 P3; TRD-2 P3 | "La carta {itemRef} no existe o no corresponde al tipo elegido." | no |

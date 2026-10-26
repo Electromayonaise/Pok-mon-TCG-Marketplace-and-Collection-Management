@@ -20,7 +20,8 @@ export interface VerV2Deps {
 
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import type { AccountType, LatestApplicationSnapshot } from '../domain/ver.js';
+import type { ApplicationStatus } from '../domain/idn.js';
+import type { AccountType, LatestApplicationSnapshot, RejectionPolicy } from '../domain/ver.js';
 import type { IdnRepository } from './idn.v2.js';
 
 /** VER-2 Q2: one `"BusinessApplication"` row as a submission inserts it (Pending, consent snapshot). */
@@ -73,4 +74,33 @@ export interface VerRepository extends IdnRepository {
   insertLegalIdentity(tx: Tx, row: LegalIdentityRow, now: IsoInstant): Promise<void>;
   /** VER-2 Q2: inserts or replaces the shop's profile (S-FR-VER-9 edits it later). */
   upsertBusinessProfile(tx: Tx, row: BusinessProfileRow, now: IsoInstant): Promise<void>;
+  /** VER-1 P2–P3 and Q-fail: a plain read; the conditional UPDATE is the lock (AD-VER-1 rule 2). */
+  readDecisionState(tx: Tx, applicationId: CuidId): Promise<DecisionState | null>;
+  /** VER-1 P4: the active reason under `FOR SHARE`, so a deactivation waits for the commit (AD-VER-1 rule 1). */
+  lockActiveReason(tx: Tx, code: string): Promise<(RejectionPolicy & { textEsCo: string }) | null>;
+  /** VER-1 Q2: `UPDATE … WHERE id AND status='Pending'`; null on 0 rows (the race loser, Q-fail). */
+  transitionApplication(tx: Tx, applicationId: CuidId, adminId: CuidId, transition: ApplicationTransition, now: IsoInstant): Promise<{ businessId: CuidId; businessName: string } | null>;
+  /** VER-1 Q3: the append-only row; `UNIQUE ("applicationId")` is the second guard (AD-VER-1 rule 4). */
+  insertDecisionLog(tx: Tx, row: DecisionLogRow, now: IsoInstant): Promise<void>;
+}
+
+/** VER-1 P3: who moved the application out of Pending, and when; both null while Pending. */
+export interface DecisionState {
+  status: ApplicationStatus;
+  decidedBy: CuidId | null;
+  decidedAt: IsoInstant | null;
+}
+
+/** VER-1 Q2: the terminal status and, for a reject, the reason and its snapshot (AD-VER-1 rule 5). */
+export type ApplicationTransition =
+  | { to: 'Approved' }
+  | { to: 'Rejected'; reasonCode: string; note: string | null; reapplyBarred: boolean; reapplyNotBefore: IsoInstant | null };
+
+/** VER-1 Q3: one `"ApplicationDecisionLog"` row; `reasonCode` is set exactly when Rejected. */
+export interface DecisionLogRow {
+  id: CuidId;
+  applicationId: CuidId;
+  adminId: CuidId;
+  decision: 'Approved' | 'Rejected';
+  reasonCode: string | null;
 }

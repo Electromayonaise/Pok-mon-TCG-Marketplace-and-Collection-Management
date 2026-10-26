@@ -1,11 +1,12 @@
 // VerServiceV2.submitApplication (VER-2), the edges the bound tests leave out: each promotion
 // refusal (P3) and what it leaves in storage, the cleanup after a refused transaction (Q-fail),
 // the shape stage (P1–P2) without the regulated value, P6–P7, and the 23505 savepoint (I1).
+// decideApplication (VER-1): the race loser's re-read (Q-fail) and the barred snapshot (Q2).
 import { describe, expect, it } from 'vitest';
 import { useTestDatabase } from '../../../../test-support/db.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
 import { caught, citedInputs, httpOf } from '../../../../test-support/errors.js';
-import { business, explainAssert, id, rows, user, wiring } from '../../../../test-support/solu2/fixtures.js';
+import { admin, at, business, DAY, explainAssert, id, rejectionReason, rows, user, wiring } from '../../../../test-support/solu2/fixtures.js';
 import type { SubmitApplicationRequest } from '../dto/ver.v2.dto.js';
 import { PgVerRepository } from '../infra/pg.js';
 import { VerServiceV2 } from './ver.v2.js';
@@ -149,6 +150,59 @@ describe('VerServiceV2.submitApplication — the latest application (P6–P7)', 
     w.storage.simulateDirectUpload(keyOf(id('andres')), PDF, 'application/pdf');
     const result = await ver.submitApplication(application(id('andres')));
     explainAssert(result.decision, { outcome: 'allowed', rule: 'FR-VER-1', inputs: { applicationId: result.applicationId, reapplication: true } });
+  });
+});
+
+describe('VerServiceV2.decideApplication — the race loser (VER-1 Q-fail, AD-VER-1 rule 3)', () => {
+  /** The P3 read saw Pending, but another decider committed first: the UPDATE matches 0 rows. */
+  function staleRead(w: ReturnType<typeof wiring>) {
+    const repo = Object.create(w.repo) as typeof w.repo;
+    let reads = 0;
+    repo.readDecisionState = async (tx, applicationId) =>
+      reads++ === 0 ? { status: 'Pending', decidedBy: null, decidedAt: null } : w.repo.readDecisionState(tx, applicationId);
+    return new VerServiceV2({ ...w, repo });
+  }
+
+  it('re-reads and names the winner, and writes no log, audit or event row', async () => {
+    await admin(db);
+    const applicationId = await business(db, id('andres'), 'Approved');
+    const error = await caught(() => staleRead(wiring(db)).decideApplication({ applicationId, decision: { kind: 'approve' }, adminId: id('admin2') }));
+    expect(codeOf(error)).toBe('ApplicationNotPending');
+    expect(citedInputs(error)).toEqual({ status: 'Approved', decidedBy: id('admin'), decidedAt: at(-DAY) });
+    expect(await db.counts(['ApplicationDecisionLog', 'OutboxEvent', 'audit_events'])).toEqual({ ApplicationDecisionLog: 0, OutboxEvent: 0, audit_events: 0 });
+  });
+
+  it('a row gone by the re-read is ApplicationNotFound', async () => {
+    await admin(db);
+    const error = await caught(() => staleRead(wiring(db)).decideApplication({ applicationId: id('noapp'), decision: { kind: 'approve' }, adminId: id('admin') }));
+    expect(codeOf(error)).toBe('ApplicationNotFound');
+  });
+});
+
+describe('VerServiceV2.decideApplication — the barred snapshot (VER-1 Q2, AD-VER-1 rule 5)', () => {
+  it('a barred reason sets reapplyBarred with no date, publishes barred: true and cites it', async () => {
+    await admin(db);
+    await rejectionReason(db, { code: 'Fraud', barred: true });
+    const applicationId = await business(db, id('andres'), 'Pending');
+    const { ver } = setup();
+    const result = await ver.decideApplication({ applicationId, decision: { kind: 'reject', reasonCode: 'Fraud', note: 'Documento alterado' }, adminId: id('admin') });
+    expect(await rows(db, 'BusinessApplication', 'id = $1', [applicationId])).toMatchObject([{ status: 'Rejected', reapplyBarred: true, reapplyNotBefore: null, rejectionNote: 'Documento alterado' }]);
+    const [event] = await rows<{ payload: Record<string, unknown> }>(db, 'OutboxEvent', `type = 'BusinessApplicationRejected'`);
+    expect(event?.payload).toMatchObject({ applicationId, reasonCode: 'Fraud', barred: true });
+    expect(event?.payload).not.toHaveProperty('reapplyNotBefore');
+    explainAssert(result.decision, { outcome: 'allowed', rule: 'FR-VER-4', inputs: { applicationId, reasonCode: 'Fraud', barred: true } });
+    expect(await rows(db, 'ApplicationDecisionLog')).toMatchObject([{ decision: 'Rejected', reasonCode: 'Fraud', adminId: id('admin') }]);
+  });
+
+  it('a later edit of the reason never moves the snapshot', async () => {
+    await admin(db);
+    await rejectionReason(db, { code: 'DataMismatch', cooldownDays: 7 });
+    const applicationId = await business(db, id('andres'), 'Pending');
+    const { w, ver } = setup();
+    await ver.decideApplication({ applicationId, decision: { kind: 'reject', reasonCode: 'DataMismatch', note: null }, adminId: id('admin') });
+    await db.query(`UPDATE "RejectionReason" SET "cooldownDays" = 30 WHERE code = 'DataMismatch'`);
+    const [app] = await rows<{ reapplyNotBefore: Date }>(db, 'BusinessApplication', 'id = $1', [applicationId]);
+    expect(app?.reapplyNotBefore.toISOString()).toBe(new Date(w.clock.now().getTime() + 7 * DAY).toISOString());
   });
 });
 

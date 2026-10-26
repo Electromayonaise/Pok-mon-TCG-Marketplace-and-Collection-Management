@@ -2,7 +2,7 @@
 title: 'Story 3.2: Decide an application exactly once'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: '140bd6a1b6b03ae0a7a56b826bc4ec3b9c326ef8'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -68,11 +68,11 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `contracts.md` §13 -- add `ApplicationApproved` and `ApplicationRejected` (stored only) and regenerate
-- [ ] ports + infra -- the four repository methods
-- [ ] `application/ver.v2.ts` -- `decideApplication`; unit tests for the loser path and the barred snapshot
-- [ ] `composition.ts` + test -- approve and reject, with HTTP cases (non-admin 403, admin 200)
-- [ ] this file -- the `[VER-1.MEC]` runtime
+- [x] `contracts.md` §13 -- add `ApplicationApproved` and `ApplicationRejected` (stored only) and regenerate -- decision #16
+- [x] ports + infra -- the four repository methods
+- [x] `application/ver.v2.ts` -- `decideApplication`; unit tests for the loser path and the barred snapshot
+- [x] `composition.ts` + test -- approve and reject, with HTTP cases (non-admin 403, admin 200)
+- [x] this file -- the `[VER-1.MEC]` runtime
 
 **Acceptance Criteria:**
 - Given the 4 bound tests, when the VER ATDD file runs, then they pass, and the MEC runs 100 repetitions with no half state.
@@ -85,3 +85,15 @@ context:
 - `npm run lint` -- expected: 0 errors
 - `npm run test:unit` -- expected: all pass
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/ver_contracts.test.ts` -- expected: the 4 bound tests pass
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 3 at its close (decision #22).
+- `[VER-1.MEC]` runtime (TG-7): 998 ms for 100 repetitions on the local docker Postgres 16 (2026-10-26).
+- The transition is `PgVerRepository.transitionApplication`, one `UPDATE … WHERE id AND status='Pending' RETURNING "businessId", "businessName"`. It sets every reject column on an approve too, to `null` or `false`, which the `Pending` row already holds.
+- The P3 read is plain; under READ COMMITTED a concurrent decider blocks on the row lock, then matches 0 rows. The service then re-reads with the same `readDecisionState` and raises `ApplicationNotFound` or `ApplicationNotPending`. No log, audit or event row is written.
+- The snapshot is the pure `rejectionSnapshot(policy, now)` in `domain/ver.ts`: barred, or `now + cooldownDays` whole days.
+- Citations: the decision and the P2/P4 refusals cite `FR-VER-3` (approve) or `FR-VER-4` (reject). `ApplicationNotPending` cites `AD-VER-1` with the winner's `{status, decidedBy, decidedAt}`.
+- The audit row has `actorKind: 'admin'`, `decisionCode` `ApplicationApproved` or `ApplicationRejected`, and `data: {decision, reasonCode}`.
+- Unit tests: `src/modules/identity/application/ver.v2.test.ts` (4 new cases: the loser's re-read, a row gone by the re-read, the barred snapshot, a later reason edit), and three HTTP cases in `src/server/composition.test.ts`.
+- Early greens until Story 3.3 is committed: `[VER-1.P2]`, `[VER-1.P3]`, `[VER-1.P4]` (new with this story), `[VER-2.P1]`, `[VER-2.P3]`, `[VER-2.P7]`.
