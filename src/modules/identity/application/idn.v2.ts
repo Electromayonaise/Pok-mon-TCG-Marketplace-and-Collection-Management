@@ -91,7 +91,7 @@ export class IdnServiceV2 implements IdnV2UseCases {
     if (await repo.claimSellerTrack(tx, userId, track, now) === 1) {
       await audit.record(tx, {
         actorId: userId, actorKind: 'user', module: 'identity', action: 'identity.sellerTrack.claimed',
-        aggregateType: 'User', aggregateId: userId, decisionCode: null, data: { track },
+        aggregateType: 'User', aggregateId: userId, decisionCode: null, data: { track }, at: now,
       });
       return { claimed: track };
     }
@@ -159,7 +159,7 @@ export class IdnServiceV2 implements IdnV2UseCases {
       await repo.insertCapabilityAuditRead(tx, { id: ids.next(), adminId, targetUserId, createdAt: now });
       await audit.record(tx, {
         actorId: adminId, actorKind: 'admin', module: 'identity', action: 'identity.capabilities.traced',
-        aggregateType: 'User', aggregateId: targetUserId, decisionCode: null, data: { sellerKind },
+        aggregateType: 'User', aggregateId: targetUserId, decisionCode: null, data: { sellerKind }, at: now,
       });
       const inputs = { targetUserId, capabilityCount: capabilities.length };
       const decision: Decision = {

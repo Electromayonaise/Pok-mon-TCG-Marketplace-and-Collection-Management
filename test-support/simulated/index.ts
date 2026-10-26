@@ -56,7 +56,7 @@ export class SqlAuditLog implements AuditLog {
     await tx.query(
       `INSERT INTO audit_events (id, "actorId", "actorKind", module, action, "aggregateType", "aggregateId", "decisionCode", data, "createdAt")
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [auditEventId, e.actorId, e.actorKind, e.module, e.action, e.aggregateType, e.aggregateId, e.decisionCode, JSON.stringify(e.data), this.clock.now().toISOString()],
+      [auditEventId, e.actorId, e.actorKind, e.module, e.action, e.aggregateType, e.aggregateId, e.decisionCode, JSON.stringify(e.data), e.at ?? this.clock.now().toISOString()],
     );
     return { auditEventId };
   }

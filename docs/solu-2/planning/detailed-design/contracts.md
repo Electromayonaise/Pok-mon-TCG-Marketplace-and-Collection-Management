@@ -38,7 +38,7 @@ Together they trace all 96 PRD FRs (decision log Solu-2 #3).
 | `actorId` | The `userId` that the procedure builder resolves from the session. It is never an input field (AD-SYS-8 rule 1, AD-16) |
 | "zero writes" | No `INSERT`, `UPDATE` or `DELETE` on any table, no `OutboxEvent`, and no `audit_events` row |
 | "rolls back" | The transaction aborts, and every row, outbox event and audit row it wrote disappears (AD-SYS-2 rule 1) |
-| `audit(action, aggregate, decision?)` | One `AuditLog.record(tx, entry)` call in the writer's transaction (refinement R-2). `entry = { actorId \| null, actorKind: 'user' \| 'admin' \| 'system', module, action, aggregateType, aggregateId, decisionCode \| null, data }`. `data` holds ids and non-regulated values only; the AD-SYS-8 redactor runs over it |
+| `audit(action, aggregate, decision?)` | One `AuditLog.record(tx, entry)` call in the writer's transaction (refinement R-2). `entry = { actorId \| null, actorKind: 'user' \| 'admin' \| 'system', module, action, aggregateType, aggregateId, decisionCode \| null, data, at? }`. `data` holds ids and non-regulated values only; the AD-SYS-8 redactor runs over it. `at` is the writer's `now`, so the row and its change share one Clock read (AD-SYS-6); absent, the adapter reads the Clock |
 
 ### 0.2 Operation map (review G-06)
 

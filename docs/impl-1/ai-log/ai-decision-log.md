@@ -371,3 +371,18 @@
 - **Also in this review:** the write scan of `tezg/table-owner` and of the fitness scanner `sqlWrites` no longer counts an upsert's `DO UPDATE` or a `FOR NO KEY UPDATE` lock as a write, and it matches uppercase SQL keywords only, so prose such as "could not update" is not read as SQL. This extends decision #18 (a row lock is a read). No lowercase SQL write exists in `src/` or `test-support/`.
 - **Artifact changed:** `tools/lint/tezg-plugin.mjs`, `tools/lint/tezg-plugin.test.mjs` (the drift test), `test-support/solu2/fitness.ts`, `docs/solu-2/test/fitness/sys_fitness.test.ts`; Story 1.4's Review Findings.
 - **Decided by:** Martín.
+
+### 26. Story 2.4 is pulled forward as the check only; sign-in, sign-up and the throttle hook complete it in Impl-2 (Scope)
+
+- **Phase:** 3 (after the Epic 2 close review, `38156cc`).
+- **Persona/Skill:** none; a scope review of the Epic 2 deferrals.
+- **Prompt (summary):** Story 2.4 is in `impl2_scope`, but the epic-batched flow (#22) built it with Epic 2. Every `canBuy` procedure needs `requireCanBuy`, and the bound tests `[S-FR-IDN-7.h]` and `[S-FR-IDN-7.f]` turned green. The story delivers `requireCanBuy` and `checkAuthThrottle`, a read-only count. It does not record failed sign-ins or sign-ups in `"AuthThrottleEvent"`, and no Better Auth `hooks.before` calls the check. No story in `epics.md` configures sign-up (with its consent fields and email verification) or sign-in, so the hook has nowhere to run (`src/server/auth.ts`). Martín asked when the decision, the hook and the deferred findings would be done.
+- **AI output (summary):** The agent offered three ways:
+  - **(recommended)** Keep 2.4 `done` for what it delivers and record the gap here. Story 2.4 is Impl-2 scope anyway, so its completion in Impl-2 adds the sign-up and sign-in configuration, the `"AuthThrottleEvent"` insert, the hook and the throttle hardening deferred by the Epic 2 review. Until then the brute-force limit is not active, and this entry says so.
+  - Add a new story now through `bmad-correct-course` and build sign-in in Impl-1. It closes the gap, but it is auth work outside the 43 Impl-1 stories.
+  - Revert 2.4 to backlog. The green bound tests would then fail the red gate, and every `canBuy` procedure would refuse with a 500 again.
+- **Human decision:** ACCEPT the recommendation.
+- **Reason:** `done` keeps meaning what the bound tests prove, and the record makes clear that brute-force protection is not active yet. The remaining work stays in the release that owns Story 2.4.
+- **Also decided:** the other Epic 2 deferrals have owners. The `PgAuditLog` second clock read is fixed before Epic 3, because Epic 3 adds audited operations: `AuditEntry.at` carries the writer's `now` (AD-SYS-6). The trace's per-line es-CO text goes to page 1.3 (Impl-2). The contact card's buyer-facing refusal goes to Story 9.3. The FK race on a deleted `"User"` waits for a flow that deletes accounts. From now on, each epic's specs pick up the `deferred-work.md` items they own.
+- **Artifact changed:** `docs/impl-1/implementation-artifacts/deferred-work.md`, `src/shared-kernel/audit.ts`, `src/shared-kernel/infra/pg-audit.ts` (+ test), `test-support/simulated/index.ts`, `src/modules/identity/application/idn.v2.ts` (+ test), `docs/solu-2/planning/detailed-design/contracts.md` (the `audit` row), Story 2.5's Review Findings.
+- **Decided by:** Martín.

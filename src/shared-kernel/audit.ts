@@ -1,4 +1,4 @@
-import type { CuidId } from './types.js';
+import type { CuidId, IsoInstant } from './types.js';
 import type { Tx } from './ports.js';
 
 // The uniform audit trail (Solu-2 refinement R-2). Written in the writer's transaction, so
@@ -22,9 +22,14 @@ export interface AuditEntry {
   decisionCode: string | null;
   /** Ids and non-regulated primitives only; the AD-SYS-8 redactor runs over it. */
   data: Record<string, string | number | boolean | null>;
+  /**
+   * The writer's instant (AD-SYS-6), so the row and the change it describes share one Clock
+   * read. Absent, the adapter reads its own Clock.
+   */
+  at?: IsoInstant;
 }
 
-/** Outbound port. The id and `createdAt` come from IdGenerator and Clock inside the adapter. */
+/** Outbound port. The id comes from the IdGenerator; `createdAt` is `entry.at`, else the adapter's Clock. */
 export interface AuditLog {
   record(tx: Tx, entry: AuditEntry): Promise<{ auditEventId: CuidId }>;
 }

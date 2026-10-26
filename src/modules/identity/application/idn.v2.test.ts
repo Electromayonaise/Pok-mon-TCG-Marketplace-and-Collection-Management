@@ -2,8 +2,8 @@
 // and the throttle matrix: under the limit, the window edge, the IP and sign-up limits, the
 // latest retryAt when two limits trip, and a citation that never carries a key. Then the
 // Story 2.5 edges the bound tests leave out: the trace's decision, input order with duplicates,
-// the empty list, unknown ids, and the contact card's refusal.
-import { describe, expect, it } from 'vitest';
+// the empty list, unknown ids, and the contact card's refusal. A trace reads the Clock once.
+import { describe, expect, it, vi } from 'vitest';
 import { useTestDatabase } from '../../../../test-support/db.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
 import { caught, citedInputs, httpOf } from '../../../../test-support/errors.js';
@@ -124,6 +124,15 @@ describe('IdnServiceV2.traceCapabilities', () => {
     expect(citedInputs(one)).toEqual({ account: null });
     expect(citedInputs(two)).toEqual(citedInputs(one));
     expect(await db.counts(['CapabilityAuditRead', 'audit_events'])).toEqual({ CapabilityAuditRead: 0, audit_events: 0 });
+  });
+
+  it('a trace reads the Clock once for both of its rows', async () => {
+    await admin(db);
+    await user(db, { id: id('camila') });
+    const w = wiring(db);
+    const now = vi.spyOn(w.clock, 'now');
+    await new IdnServiceV2(w).traceCapabilities({ targetUserId: id('camila'), adminId: id('admin') });
+    expect(now).toHaveBeenCalledTimes(1);
   });
 
   it('two traces write two audit pairs (not idempotent)', async () => {

@@ -26,6 +26,14 @@ describe('PgAuditLog.record', () => {
     expect(stored.map((r) => r.id).sort()).toEqual(ids.map((r) => r.auditEventId).sort());
   });
 
+  it("an entry's `at` dates the row, and the Clock is not read", async () => {
+    const w = wiring(db);
+    const at = '2026-03-01T09:30:00.000Z';
+    const audit = new PgAuditLog(w.ids, { now: () => { throw new Error('no clock read expected'); } });
+    await w.transactions.run((tx) => audit.record(tx, { ...entry, at }));
+    expect(await rows(db, 'audit_events')).toMatchObject([{ createdAt: new Date(at) }]);
+  });
+
   it('a row the schema refuses rejects inside the writer transaction, which then commits nothing', async () => {
     const w = wiring(db);
     const audit = new PgAuditLog(w.ids, w.clock);
