@@ -44,6 +44,8 @@ describe('SYS-AD8 — table ownership (AD-8, R-2)', () => {
     // A row lock is a read: `SELECT … FOR UPDATE [SKIP LOCKED]` writes no table (AD-SYS-2 rule 4
     // step 2; decision log Impl-1 #18).
     expect(sqlWrites('`SELECT 1 FROM "EventDelivery" WHERE status = \'failed\' FOR UPDATE SKIP LOCKED`')).toEqual([]);
+    // So are a FOR NO KEY UPDATE lock and an upsert's DO UPDATE, and prose is not SQL (Epic 1 review).
+    expect(sqlWrites('`SELECT 1 FROM "EventDelivery" FOR NO KEY UPDATE` `INSERT INTO "User" (id) VALUES ($1) ON CONFLICT (id) DO UPDATE SET name = $2` \'could not update the row\'')).toEqual(['User']);
   });
 
   it('[SYS-AD8] no foreign-table writes: each module writes only its own tables; audit and outbox rows only through their ports', () => {

@@ -2,7 +2,7 @@
 title: 'Story 1.4: Keep time, sockets and module boundaries deterministic'
 type: 'feature'
 created: '2026-10-25'
-status: 'in-review'
+status: 'done'
 baseline_commit: 'e51ed481bb16b7e78cd1042e8eec00bb5d901448'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD and fitness tests as the spec, one code review per epic'
@@ -82,3 +82,16 @@ context:
 - `tezg/error-owner` checks `raise('<Code>')` only when the callee is named `raise` and the code is a literal; a computed code (`idn.v2.ts` derives one) is left to the runtime guard in `raiserFor`.
 - A planted file in `src/modules/listings/infra/` with the three violations fails `npm run lint` with one error per rule, each naming the file, the rule and the offender; the file was removed.
 - Code review is batched with Story 1.5 at the close of Epic 1 (decision #22).
+
+### Review Findings
+
+Epic 1 close review (2026-10-25, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `e51ed48..d67400c`.
+
+- [x] [Review][Decision] `REGULATED_COLUMNS` widened without the Ask First — the rule also lists `Order.comprobanteObjectKey` and `TopUpRequest.proofObjectKey`, which follow the schema's `-- regulated` markers but were not in the Intent's list; the spec asked to stop and ask before changing it.
+- [x] [Review][Patch] `table-owner` write regex reports `ON CONFLICT … DO UPDATE`, `FOR NO KEY UPDATE` and the word "update" in prose as writes; the fitness scanner shares the regex [tools/lint/tezg-plugin.mjs:118, test-support/solu2/fitness.ts:95]
+- [x] [Review][Patch] `error-owner` misses the curried `raiserFor('x')('Code')`, which is the `[SYS-1.R2]` plant of the 1.4 DoD [tools/lint/tezg-plugin.mjs:84]
+- [x] [Review][Patch] ESLint applies the plugin to `src/**/*.ts` only; `.tsx`, `.mts` and `.cts` files skip it [eslint.config.mjs:10]
+- [x] [Review][Patch] `regulated-select` misses a regulated table joined with a comma and a `*` that is not the first select item [tools/lint/tezg-plugin.mjs:130]
+- [x] [Review][Defer] `regulated-select` false negatives on `RETURNING`, concatenated or interpolated SQL, schema-qualified and unquoted uppercase names [tools/lint/tezg-plugin.mjs:162] — deferred: the rule guards the repo's literal style; the DB-backed fitness tests remain the proof
+- [x] [Review][Defer] `error-owner` misses an aliased `raiserFor` and member callees (`x.raiserFor`) [tools/lint/tezg-plugin.mjs:84] — deferred: no such call exists; revisit if one appears
+- [x] [Review][Defer] The drift test reads column markers only; table-level `-- regulated` markers and `TRUNCATE a, b` lists are not parsed [tools/lint/tezg-plugin.test.mjs] — deferred: the schema has neither today

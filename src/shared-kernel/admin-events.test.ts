@@ -62,11 +62,11 @@ describe('AdminEventsServiceV2.replayEventDelivery', () => {
 
 describe('isTickSilent (ARCH §4)', () => {
   // Bogotá is UTC−5 with no DST: hh:mm Bogotá on 2026-10-01 is (hh + 5):mm UTC.
-  const bogota = (hh: number, mm: number) => new Date(Date.UTC(2026, 9, 1, hh + 5, mm));
+  const bogota = (hh: number, mm: number, ss = 0) => new Date(Date.UTC(2026, 9, 1, hh + 5, mm, ss));
 
   it('with no tick at all, it is silent only inside 10:17–23:17 Bogotá, both ends included', () => {
-    const read = (hh: number, mm: number) => isTickSilent(bogota(hh, mm), null);
-    expect([read(10, 16), read(10, 17), read(23, 17), read(23, 18), read(3, 0)]).toEqual([false, true, true, false, false]);
+    const read = (hh: number, mm: number, ss = 0) => isTickSilent(bogota(hh, mm, ss), null);
+    expect([read(10, 16, 59), read(10, 17), read(23, 17), read(23, 17, 1), read(23, 18), read(3, 0)]).toEqual([false, true, true, false, false, false]);
   });
 
   it('a tick exactly 3 h before the read no longer counts; one a minute later does', () => {
@@ -84,8 +84,10 @@ describe('AdminEventsServiceV2.listDeliveries: the cursor', () => {
   });
 
   it('a malformed cursor, or one the other list issued, is RequestValidationFailed citing the cursor', () => {
-    const wrongTime = Buffer.from(JSON.stringify(['failed', 'nope', id('ev1'), 'listings'])).toString('base64url');
-    for (const cursor of ['x', wrongTime, encodeDeliveryCursor({ ...key, kind: 'stuck' })]) {
+    const forged = (at: string, eventId: string = id('ev1')) => Buffer.from(JSON.stringify(['failed', at, eventId, 'listings'])).toString('base64url');
+    // Year 0, a non-canonical time and a NUL in the id would each reach Postgres and fail there as a 500.
+    const bad = ['x', forged('nope'), forged('0000-01-01T00:00:00.000Z'), forged('2026-10-01 10:00'), forged(T0, 'ev\u0000'), encodeDeliveryCursor({ ...key, kind: 'stuck' })];
+    for (const cursor of bad) {
       expect(() => decodeDeliveryCursor(cursor, 'failed')).toThrow(expect.objectContaining({
         code: 'RequestValidationFailed', citations: [expect.objectContaining({ inputs: expect.objectContaining({ field: 'cursor' }) })],
       }));

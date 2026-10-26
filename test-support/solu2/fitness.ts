@@ -87,12 +87,14 @@ export function tableOwners(schemaSql: string): Map<string, string> {
 
 /**
  * Tables a source text writes with INSERT, UPDATE, DELETE or TRUNCATE inside a string literal.
- * A row lock (`FOR UPDATE`) is a read and is not counted.
+ * Uppercase keywords only, as the repo writes SQL, so prose is not read as a write. A row lock
+ * (`FOR [NO KEY] UPDATE`) and an upsert's `DO UPDATE` write no table of their own. Same scan as
+ * the `tezg/table-owner` lint rule (tools/lint/tezg-plugin.mjs `SQL_WRITE`).
  */
 export function sqlWrites(text: string): string[] {
   const out: string[] = [];
   for (const lit of text.matchAll(/`[^`]*`|'(?:[^'\\\n]|\\.)*'/g)) {
-    for (const m of lit[0].matchAll(/\b(?:INSERT\s+INTO|(?<!\bFOR\s+)UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+"?(\w+)"?/gi)) out.push(m[1]!);
+    for (const m of lit[0].matchAll(/\b(?:INSERT\s+INTO|(?<!\b(?:FOR|DO|KEY)\s+)UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+"?(\w+)"?/g)) out.push(m[1]!);
   }
   return out;
 }

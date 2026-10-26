@@ -356,3 +356,18 @@
 - **Correction found while wiring:** Better Auth checks the Prisma schema at runtime and refused every session read, because the SQL migrations (decision #6) leave out `"Session".ipAddress` (R-12) and the OAuth-only `"Account"` columns. `createAuth` sets `advanced.database.validateSchema: false`, with the reason in a comment. Nothing had called Better Auth before, so the defect was latent.
 - **Artifact changed:** `src/server/composition.ts`, `src/server/composition.test.ts`, `src/server/auth.ts`, `src/server/sessions.ts`, `src/server/trpc/router.v2.ts` (`buildAppRouter`), `src/shared-kernel/infra/pg-transactions.ts`, `src/modules/identity/application/gate.ts`, `src/modules/identity/ports/session.ts`, `app/api/trpc/[trpc]/route.ts`, `app/api/auth/[...all]/route.ts`, `test-support/db.ts`; Story 2.1's notes.
 - **Decided by:** Martín.
+
+### 25. The regulated-select rule follows the schema's `-- regulated` markers (Architecture)
+
+- **Phase:** 3 (Epic 1 close review, after Stories 1.4 and 1.5).
+- **Persona/Skill:** `bmad-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor).
+- **Prompt (summary):** The Acceptance Auditor found that `REGULATED_COLUMNS` in `tezg/regulated-select` lists two columns the Story 1.4 Intent does not name: `"Order"."comprobanteObjectKey"` (AD-17) and `"TopUpRequest"."proofObjectKey"` (AD-SYS-8). The schema marks both `-- regulated`. The spec's Ask First said to stop before widening the rule, and the implementation did not ask.
+- **AI output (summary):** The agent offered three ways:
+  - **(recommended)** Keep both columns and record the decision. The rule then follows the schema, and the drift test fails when a schema marker is missing from the list, so the lint and the schema cannot diverge.
+  - Trim the list to the Intent's columns and drop the drift test. The rule matches the spec word for word, but two regulated columns go unguarded and the next marker goes unnoticed.
+  - Defer the choice to Story 3.4, which owns `tezg/legal-identity-confined`.
+- **Human decision:** ACCEPT the recommendation.
+- **Reason:** The two columns are regulated by AD-17 and AD-SYS-8, not by the rule. The schema is the source of truth that the rule and the fitness tests already read, and a copy that can drift is the defect the drift test prevents.
+- **Also in this review:** the write scan of `tezg/table-owner` and of the fitness scanner `sqlWrites` no longer counts an upsert's `DO UPDATE` or a `FOR NO KEY UPDATE` lock as a write, and it matches uppercase SQL keywords only, so prose such as "could not update" is not read as SQL. This extends decision #18 (a row lock is a read). No lowercase SQL write exists in `src/` or `test-support/`.
+- **Artifact changed:** `tools/lint/tezg-plugin.mjs`, `tools/lint/tezg-plugin.test.mjs` (the drift test), `test-support/solu2/fitness.ts`, `docs/solu-2/test/fitness/sys_fitness.test.ts`; Story 1.4's Review Findings.
+- **Decided by:** Martín.

@@ -7,8 +7,8 @@ import tezg from './tools/lint/tezg-plugin.mjs';
 export default [
   ...base,
   {
-    files: ['src/**/*.ts'],
-    ignores: ['src/**/*.test.ts'],
+    files: ['src/**/*.{ts,tsx,mts,cts}'],
+    ignores: ['src/**/*.test.{ts,tsx,mts,cts}'],
     plugins: { tezg },
     rules: { 'tezg/error-owner': 'error', 'tezg/table-owner': 'error', 'tezg/regulated-select': 'error' },
   },

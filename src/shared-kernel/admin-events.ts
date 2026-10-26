@@ -37,7 +37,7 @@ import { MESSAGES, type MessageCode } from './messages.generated.js';
 import { renderMessage } from './messages.js';
 import type { Tx } from './ports.js';
 import { raiserFor } from './raise.js';
-import type { CuidId, IsoInstant } from './types.js';
+import { CUID_PATTERN, type CuidId, type IsoInstant } from './types.js';
 
 const raise = raiserFor('shared-kernel');
 const HOUR = 3_600_000;
@@ -51,6 +51,7 @@ export const TICK_SILENCE_MS = 3 * HOUR;
 /** ARCH §4: the silence window, 10:17–23:17 Bogotá inclusive, in minutes of the Bogotá day (UTC−5, no DST). */
 const SILENCE_WINDOW = { from: 10 * 60 + 17, to: 23 * 60 + 17 };
 const BOGOTA_OFFSET_MIN = -5 * 60;
+const DAY_MS = 24 * HOUR;
 
 export interface ReplayLogRow {
   id: CuidId;
@@ -87,15 +88,21 @@ export interface DeliveryPageKey {
 
 /**
  * ARCH §4: the tick is silent when read inside 10:17–23:17 Bogotá with no tick started in the
- * previous 3 h. Outside the window the scheduler runs no tick, so its absence is not silence.
+ * previous 3 h. The scheduler fires hourly 07:17–20:17 Bogotá, and the window is that range
+ * shifted by the 3 h tolerance: before 10:17 the day's first run cannot be 3 h overdue yet, and
+ * after 23:17 the overnight gap until 07:17 is by design, so neither reads as silence.
  */
 export function isTickSilent(now: Date, lastTickStartedAt: IsoInstant | null): boolean {
-  const minute = (((now.getUTCHours() * 60 + now.getUTCMinutes() + BOGOTA_OFFSET_MIN) % 1440) + 1440) % 1440;
-  if (minute < SILENCE_WINDOW.from || minute > SILENCE_WINDOW.to) return false;
+  const msOfDay = (((now.getTime() + BOGOTA_OFFSET_MIN * 60_000) % DAY_MS) + DAY_MS) % DAY_MS;
+  if (msOfDay < SILENCE_WINDOW.from * 60_000 || msOfDay > SILENCE_WINDOW.to * 60_000) return false;
   return lastTickStartedAt === null || now.getTime() - Date.parse(lastTickStartedAt) >= TICK_SILENCE_MS;
 }
 
 const SUBSCRIBERS: readonly Subscriber[] = ['commission', 'listings', 'collections'];
+
+/** The canonical ISO form the encoder writes, in years Postgres accepts (0001–9999); anything else would reach the query. */
+const isCursorTime = (s: unknown): s is IsoInstant =>
+  typeof s === 'string' && /^(?!0000)\d{4}-/.test(s) && !Number.isNaN(Date.parse(s)) && new Date(s).toISOString() === s;
 
 /** The opaque cursor of a deliveries page: base64url JSON of its last row's sort key. */
 export function encodeDeliveryCursor(key: DeliveryPageKey): string {
@@ -110,9 +117,9 @@ export function decodeDeliveryCursor(cursor: string, kind: DeliveryPageKey['kind
   } catch {
     // falls through to the refusal below
   }
-  if (Array.isArray(parts) && parts.length === 4 && parts[0] === kind && typeof parts[1] === 'string' && !Number.isNaN(Date.parse(parts[1]))
-    && typeof parts[2] === 'string' && parts[2].length > 0 && SUBSCRIBERS.includes(parts[3])) {
-    return { kind, at: new Date(parts[1]).toISOString(), eventId: parts[2], subscriber: parts[3] };
+  if (Array.isArray(parts) && parts.length === 4 && parts[0] === kind && isCursorTime(parts[1])
+    && typeof parts[2] === 'string' && CUID_PATTERN.test(parts[2]) && SUBSCRIBERS.includes(parts[3])) {
+    return { kind, at: parts[1], eventId: parts[2], subscriber: parts[3] };
   }
   return raise('RequestValidationFailed', [{ rule: 'AD-SYS-1', inputs: { field: 'cursor', issue: 'no corresponde a una página de esta lista' } }]);
 }

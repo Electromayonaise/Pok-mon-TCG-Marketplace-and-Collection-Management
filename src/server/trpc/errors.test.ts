@@ -20,6 +20,12 @@ describe('toErrorBody — DomainError', () => {
     });
   });
 
+  it('a service-raised RequestValidationFailed carries its cited issue, or the whole input\'s when it cites none', () => {
+    const cited = toErrorBody(new DomainError('RequestValidationFailed', [{ rule: 'AD-SYS-1', inputs: { field: 'cursor', issue: 'no corresponde a una página de esta lista' } }]), now);
+    const bare = toErrorBody(new DomainError('RequestValidationFailed', [{ rule: 'AD-SYS-1', inputs: {} }]), now);
+    expect([cited.issues, bare.issues]).toEqual([[{ field: 'cursor', issue: 'no corresponde a una página de esta lista' }], [{ field: 'la solicitud', issue: 'no es válido' }]]);
+  });
+
   it('unwraps the cause tRPC adds around a thrown DomainError', () => {
     const wrapped = new TRPCError({ code: 'INTERNAL_SERVER_ERROR', cause: new DomainError('AdminOnly', [{ rule: 'AD-SYS-1', inputs: {} }]) });
     expect(toErrorBody(wrapped, now)).toMatchObject({ code: 'AdminOnly', httpStatus: 403 });

@@ -26,13 +26,12 @@ export function toErrorBody(error: unknown, now: Date): ErrorBody {
   const domain = domainErrorIn(error);
   if (domain) {
     const citations = redact(domain.citations);
-    const { field, issue } = citations[0].inputs;
     return {
       code: domain.code,
       httpStatus: HTTP_STATUS[DOMAIN_ERRORS[domain.code].trpc] as HttpStatus,
       decision: { outcome: 'rejected', reasonCode: domain.code, humanMessage: renderMessage(domain.code, citations[0].inputs), citations, occurredAt },
       // A service-raised RequestValidationFailed (a bad cursor) carries its one issue like the parser's.
-      ...(domain.code === 'RequestValidationFailed' ? { issues: [{ field: String(field), issue: String(issue) }] } : {}),
+      ...(domain.code === 'RequestValidationFailed' ? { issues: [citedIssue(citations[0].inputs)] } : {}),
     };
   }
   const zod = error instanceof ZodError ? error : error instanceof TRPCError && error.code === 'BAD_REQUEST' && error.cause instanceof ZodError ? error.cause : null;
@@ -66,6 +65,10 @@ function domainErrorIn(error: unknown): DomainError | null {
 
 /** How an issue on the whole input (an empty path) names its field. */
 const ROOT_FIELD = 'la solicitud';
+
+/** The issue a service-raised RequestValidationFailed cites; without a textual field and issue it reads as the whole input's. */
+const citedIssue = ({ field, issue }: Citation['inputs']): ErrorIssue =>
+  typeof field === 'string' && typeof issue === 'string' ? { field, issue } : { field: ROOT_FIELD, issue: 'no es válido' };
 
 /**
  * The codes tRPC raises itself, before any procedure runs, for a request the client got wrong.

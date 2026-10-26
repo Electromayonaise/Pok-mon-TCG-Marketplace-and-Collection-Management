@@ -2,8 +2,8 @@
 title: 'Story 1.5: Show admins the delivery and tick health'
 type: 'feature'
 created: '2026-10-25'
-status: 'in-review'
-baseline_commit: '0e6481d'
+status: 'done'
+baseline_commit: '0e6481d62e83634727f8d9f4e24af3a7aa7d2a21'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
 context:
@@ -89,6 +89,19 @@ context:
 
 - Two stored-only codes join contracts.md §13, `TickOnSchedule` and `TickSilent`, so the tick decision renders from the one template source. They follow the rule of decision #16 for allowed reads. `messages.test.ts` now accepts `lastTickStartedAt` as an instant input.
 - `toErrorBody` (`src/server/trpc/errors.ts`) now gives a service-raised `RequestValidationFailed` the same `issues` array the parser's refusals carry. Before, only zod refusals had `issues`, so a bad cursor reached the client without one.
-- Outside the 10:17–23:17 window no tick is not silence, even when none ever ran: the scheduler runs no tick then (ARCH §4). The HTTP case at T0 (10:00 Bogotá) proves it: `tickSilent: false`, `TickOnSchedule`.
+- Outside the 10:17–23:17 window no tick is not silence, even when none ever ran. The scheduler fires hourly 07:17–20:17 Bogotá, and the window is that range shifted by the 3 h tolerance: before 10:17 the day's first run cannot be 3 h overdue yet, and after 23:17 the overnight gap is by design (ARCH §4). The window check runs at millisecond precision, so 23:17:01 is already outside. The HTTP case at T0 (10:00 Bogotá) proves the outside case: `tickSilent: false`, `TickOnSchedule`.
 - The deliveries keyset compares the whole sort key `(at, eventId, subscriber)`, so a page edge inside a tie on `firstFailedAt` neither skips nor repeats a row; the unit case builds 27 rows in pairs that share a time.
 - Code review is batched with Story 1.4 at the close of Epic 1 (decision #22).
+
+### Review Findings
+
+Epic 1 close review (2026-10-25, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `e51ed48..d67400c`.
+
+- [x] [Review][Patch] `toErrorBody` destructures `field`/`issue` for every DomainError and stringifies whatever it finds; a RequestValidationFailed without them would emit `"undefined"` [src/server/trpc/errors.ts:29]
+- [x] [Review][Patch] `decodeDeliveryCursor` accepts any `Date.parse`-able time, so year 0 or a non-ISO string reaches Postgres and becomes a 500 instead of RequestValidationFailed [src/shared-kernel/admin-events.ts:106]
+- [x] [Review][Patch] `isTickSilent` compares whole minutes, so 23:17:59 still counts inside the window [src/shared-kernel/admin-events.ts:92]
+- [x] [Review][Patch] The comment and the Implementation Note say the scheduler runs no tick outside the window; it runs 07:17–20:17, and the window is that range shifted by the 3 h tolerance [src/shared-kernel/admin-events.ts:90]
+- [x] [Review][Patch] `baseline_commit` is a short SHA; the other specs record the full one [docs/impl-1/implementation-artifacts/1-5-show-admins-the-delivery-and-tick-health.md:6]
+- [x] [Review][Defer] The `OR $1 IS NULL` keyset predicate may keep the planner off the partial index on large tables [src/shared-kernel/infra/pg-admin-events.ts:27] — deferred: volumes are tiny; measure before splitting the statement
+- [x] [Review][Defer] No test for the stuck list's second page, nor that a refused cursor reads nothing [src/shared-kernel/admin-events.test.ts] — deferred: the failed list covers the keyset; the decoder throws before the read
+- [x] [Review][Defer] `TickSilent` renders "(sin dato)" when no tick ever ran [contracts.md §13] — deferred: wording polish for the admin UI story

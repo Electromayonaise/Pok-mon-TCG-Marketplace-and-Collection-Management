@@ -24,8 +24,14 @@ tester.run('tezg/error-owner', plugin.rules['error-owner'], {
     { filename: at('src/shared-kernel/raise.ts'), code: 'throw new DomainError(code, citations);' },
     // A computed code is left to raiserFor's runtime guard.
     { filename: at('src/modules/identity/application/idn.v2.ts'), code: "const raise = raiserFor('identity'); raise(code, [c]);" },
+    { filename: at('src/modules/identity/application/gate.ts'), code: "raiserFor('identity')('AdminOnly', [c]);" },
+    { filename: at('src/modules/identity/application/gate.ts'), code: 'const raise = raiserFor(`identity`); raise(`AdminOnly`, [c]);' },
   ],
   invalid: [
+    // [SYS-1.R2]: the owner's raiser, curried, raising a code another module owns.
+    { filename: at('src/modules/reviews/application/rep.ts'), code: "raiserFor('reviews')('AdminOnly', [c]);", errors: [{ messageId: 'foreignCode', data: { name: 'AdminOnly', module: 'reviews', owner: 'identity' } }] },
+    { filename: at('src/modules/reviews/application/rep.ts'), code: "function f() { fail('AdminOnly', [c]); } const fail = raiserFor('reviews');", errors: [{ messageId: 'foreignCode', data: { name: 'AdminOnly', module: 'reviews', owner: 'identity' } }] },
+    { filename: at('src/modules/reviews/application/rep.ts'), code: "const raise = raiserFor('reviews'); raise(`AdminOnly`, [c]);", errors: [{ messageId: 'foreignCode', data: { name: 'AdminOnly', module: 'reviews', owner: 'identity' } }] },
     { filename: at('src/modules/reviews/application/rep.ts'), code: "const raise = raiserFor('identity');", errors: [{ messageId: 'foreignRaiser', data: { name: 'identity', module: 'reviews' } }] },
     { filename: at('src/modules/reviews/application/rep.ts'), code: "const raise = raiserFor('reviews'); raise('AdminOnly', [c]);", errors: [{ messageId: 'foreignCode', data: { name: 'AdminOnly', module: 'reviews', owner: 'identity' } }] },
     { filename: at('src/server/composition.ts'), code: "raiserFor('identity');", errors: [{ messageId: 'raiserOutsideModule' }] },
@@ -38,6 +44,10 @@ tester.run('tezg/table-owner', plugin.rules['table-owner'], {
     { filename: at('src/modules/identity/infra/pg.ts'), code: 'q(`UPDATE "User" SET "sellerTrack" = $2 WHERE id = $1`);' },
     { filename: at('src/shared-kernel/dispatcher.ts'), code: 'q(`SELECT 1 FROM "EventDelivery" WHERE status = \'pending\' FOR UPDATE SKIP LOCKED`);' },
     { filename: at('src/shared-kernel/audit.ts'), code: "q('INSERT INTO audit_events (id) VALUES ($1)');" },
+    // An upsert's DO UPDATE and a FOR NO KEY UPDATE lock write no other table; prose is not SQL.
+    { filename: at('src/modules/identity/infra/pg.ts'), code: 'q(`INSERT INTO "User" (id) VALUES ($1) ON CONFLICT (id) DO UPDATE SET "sellerTrack" = $2`);' },
+    { filename: at('src/shared-kernel/dispatcher.ts'), code: 'q(`SELECT 1 FROM "EventDelivery" WHERE "eventId" = $1 FOR NO KEY UPDATE`);' },
+    { filename: at('src/modules/orders/application/ord.ts'), code: "const why = 'could not update the listing';" },
   ],
   invalid: [
     { filename: at('src/modules/listings/infra/pg.ts'), code: 'q(`UPDATE "CommissionAccount" SET balance = 0`);', errors: [{ messageId: 'foreignWrite', data: { name: 'CommissionAccount', module: 'listings', owner: 'commission' } }] },
@@ -65,6 +75,8 @@ tester.run('tezg/regulated-select', plugin.rules['regulated-select'], {
     { filename: at('src/modules/identity/infra/pg.ts'), code: 'q(`SELECT * FROM "IndividualSellerProfile" WHERE "userId" = $1`);', errors: [{ messageId: 'regulatedStar', data: { name: 'IndividualSellerProfile' } }] },
     { filename: at('src/modules/identity/application/ver.v2.ts'), code: 'q(`SELECT "proofObjectKey" FROM "TopUpRequest"`);', errors: [{ messageId: 'regulatedColumn', data: { name: 'TopUpRequest.proofObjectKey', owner: 'commission' } }] },
     { filename: at('src/modules/messaging/infra/pg.ts'), code: 'q(`SELECT c.id, m.* FROM "Conversation" c JOIN "Message" m ON m."conversationId" = c.id`);', errors: [{ messageId: 'regulatedStar', data: { name: 'Message' } }] },
+    { filename: at('src/shared-kernel/admin-events.ts'), code: 'q(`SELECT m.body FROM "Conversation" c, "Message" m WHERE m."conversationId" = c.id`);', errors: [{ messageId: 'regulatedColumn', data: { name: 'Message.body', owner: 'messaging' } }] },
+    { filename: at('src/modules/identity/infra/pg.ts'), code: 'q(`SELECT "userId", * FROM "IndividualSellerProfile"`);', errors: [{ messageId: 'regulatedStar', data: { name: 'IndividualSellerProfile' } }] },
   ],
 });
 

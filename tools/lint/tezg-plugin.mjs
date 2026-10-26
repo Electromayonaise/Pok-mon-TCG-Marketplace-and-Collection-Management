@@ -60,7 +60,20 @@ function sqlText(node) {
   return node.quasis.map((q) => q.value.cooked ?? q.value.raw).join('?');
 }
 
-const isString = (node) => node?.type === 'Literal' && typeof node.value === 'string';
+/** A literal's text when it is static: a string, or a template with no interpolation. */
+function staticText(node) {
+  if (node?.type === 'Literal' && typeof node.value === 'string') return node.value;
+  if (node?.type === 'TemplateLiteral' && node.expressions.length === 0) return node.quasis[0].value.cooked ?? null;
+  return null;
+}
+
+/**
+ * The tables a SQL text writes. Uppercase keywords only, as the repo writes SQL, so prose such as
+ * "update the row" is not read as a write. A row lock (`FOR [NO KEY] UPDATE`, decision log Impl-1
+ * #18) and an upsert's `ON CONFLICT … DO UPDATE` write no table of their own. Same scan as fitness
+ * `sqlWrites`.
+ */
+export const SQL_WRITE = /\b(?:INSERT\s+INTO|(?<!\b(?:FOR|DO|KEY)\s+)UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+"?(\w+)"?/g;
 
 const errorOwner = {
   meta: {
@@ -77,17 +90,33 @@ const errorOwner = {
   create(context) {
     const file = fileOf(context);
     const raiserModule = file.rel.startsWith('src/modules/') || file.rel.startsWith('src/shared-kernel/') ? file.module : '';
+    const isRaiserFor = (node) => node?.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === 'raiserFor';
+    // `raise`, and every name the file binds to a raiserFor(…) result, raises codes. The calls are
+    // checked at the end, so a raiser bound below its first use still counts.
+    const raisers = new Set(['raise']);
+    const raiseCalls = [];
     return {
+      VariableDeclarator(node) {
+        if (node.id.type === 'Identifier' && isRaiserFor(node.init)) raisers.add(node.id.name);
+      },
       CallExpression(node) {
-        if (node.callee.type !== 'Identifier') return;
         const [arg] = node.arguments;
-        if (node.callee.name === 'raiserFor') {
-          const name = isString(arg) ? arg.value : context.sourceCode.getText(arg ?? node);
+        if (isRaiserFor(node)) {
+          const name = staticText(arg) ?? context.sourceCode.getText(arg ?? node);
           if (!raiserModule) context.report({ node, messageId: 'raiserOutsideModule', data: { name } });
           else if (name !== raiserModule) context.report({ node, messageId: 'foreignRaiser', data: { name, module: raiserModule } });
-        } else if (node.callee.name === 'raise' && isString(arg) && CODE_OWNERS.has(arg.value)) {
-          const owner = CODE_OWNERS.get(arg.value);
-          if (owner !== raiserModule) context.report({ node, messageId: 'foreignCode', data: { name: arg.value, module: raiserModule || file.module || file.rel, owner } });
+        } else if (node.callee.type === 'Identifier' || isRaiserFor(node.callee)) {
+          // The curried form `raiserFor('m')('Code', …)` is the [SYS-1.R2] plant.
+          raiseCalls.push(node);
+        }
+      },
+      'Program:exit'() {
+        for (const node of raiseCalls) {
+          if (node.callee.type === 'Identifier' && !raisers.has(node.callee.name)) continue;
+          const code = staticText(node.arguments[0]);
+          if (code === null || !CODE_OWNERS.has(code)) continue;
+          const owner = CODE_OWNERS.get(code);
+          if (owner !== raiserModule) context.report({ node, messageId: 'foreignCode', data: { name: code, module: raiserModule || file.module || file.rel, owner } });
         }
       },
       NewExpression(node) {
@@ -114,8 +143,7 @@ const tableOwner = {
     const check = (node) => {
       const sql = sqlText(node);
       if (!sql) return;
-      // A row lock (`FOR UPDATE`) is a read (decision log Impl-1 #18).
-      for (const m of sql.matchAll(/\b(?:INSERT\s+INTO|(?<!\bFOR\s+)UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+"?(\w+)"?/gi)) {
+      for (const m of sql.matchAll(SQL_WRITE)) {
         const owner = TABLE_OWNERS.get(m[1]);
         const data = { name: m[1], module: file.module || file.rel, owner };
         if (!owner) context.report({ node, messageId: 'unknownTable', data });
@@ -126,20 +154,42 @@ const tableOwner = {
   },
 };
 
-/** Every `FROM`/`JOIN` table of a SQL text, with its alias (or its own name). */
+/** Every `FROM`/`JOIN` table of a SQL text, with its alias (or its own name), comma joins included (`FROM a x, b y`). */
 function tableRefs(sql) {
   const KEYWORDS = /^(?:WHERE|ON|USING|JOIN|LEFT|RIGHT|INNER|OUTER|CROSS|FULL|LATERAL|ORDER|GROUP|LIMIT|FOR|UNION|SET|AS)$/i;
-  return [...sql.matchAll(/\b(?:FROM|JOIN)\s+"?(\w+)"?(?:\s+(?:AS\s+)?"?(\w+)"?)?/gi)].map((m) => ({
-    table: m[1],
-    alias: m[2] && !KEYWORDS.test(m[2]) ? m[2] : m[1],
-  }));
+  const TABLE = /"?(\w+)"?/y;
+  const ALIAS = /\s+(?:AS\s+)?"?(\w+)"?/y;
+  const COMMA = /\s*,\s*/y;
+  const refs = [];
+  for (const m of sql.matchAll(/\b(?:FROM|JOIN)\s+/gi)) {
+    let at = m.index + m[0].length;
+    for (;;) {
+      TABLE.lastIndex = at;
+      const t = TABLE.exec(sql);
+      if (!t) break;
+      at = TABLE.lastIndex;
+      ALIAS.lastIndex = at;
+      const a = ALIAS.exec(sql);
+      const alias = a && !KEYWORDS.test(a[1]) ? a[1] : null;
+      if (alias) at = ALIAS.lastIndex;
+      refs.push({ table: t[1], alias: alias ?? t[1] });
+      COMMA.lastIndex = at;
+      if (!COMMA.exec(sql)) break;
+      at = COMMA.lastIndex;
+    }
+  }
+  return refs;
 }
 
-/** The tables each `SELECT *` reads: the FROM clause after it, up to the next clause or closing parenthesis. */
+/**
+ * The tables each `SELECT` with a bare `*` in its list reads (`SELECT *`, `SELECT id, *`): the FROM
+ * clause after it, up to the next clause or closing parenthesis. A list never spans a nested SELECT.
+ */
 function starTables(sql) {
   const out = [];
-  for (const m of sql.matchAll(/\bSELECT\s+(?:DISTINCT\s+)?\*\s+FROM\b([\s\S]*?)(?=\bWHERE\b|\bORDER\b|\bGROUP\b|\bLIMIT\b|\bUNION\b|\)|;|$)/gi)) {
-    out.push(...tableRefs(`FROM${m[1]}`).map((r) => r.table));
+  for (const m of sql.matchAll(/\bSELECT\s+((?:(?!\bSELECT\b)[\s\S])*?)\s+FROM\b([\s\S]*?)(?=\bWHERE\b|\bORDER\b|\bGROUP\b|\bLIMIT\b|\bUNION\b|\)|;|$)/gi)) {
+    const items = m[1].replace(/^DISTINCT\s+/i, '').split(',');
+    if (items.some((item) => item.trim() === '*')) out.push(...tableRefs(`FROM ${m[2]}`).map((r) => r.table));
   }
   return out;
 }
