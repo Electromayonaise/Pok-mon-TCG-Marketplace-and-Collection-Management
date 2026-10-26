@@ -6,7 +6,7 @@ import type { NextConfig } from 'next';
 
 const config: NextConfig = {
   output: 'standalone',
-  outputFileTracingIncludes: { '/api/health/ready': ['./docs/solu-2/planning/detailed-design/schemas/*.sql'] },
+  outputFileTracingIncludes: { '/api/health/ready': ['./_bmad-output/planning-artifacts/detailed-design/schemas/*.sql'] },
 };
 
 export default config;

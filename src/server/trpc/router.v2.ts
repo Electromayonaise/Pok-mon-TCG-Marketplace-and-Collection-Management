@@ -1,5 +1,5 @@
 // Driving adapter — the root tRPC router of the ingress procedures in
-// docs/solu-2/planning/detailed-design/schemas/operations.json (AD-SYS-8 rules 1–2), registered
+// _bmad-output/planning-artifacts/detailed-design/schemas/operations.json (AD-SYS-8 rules 1–2), registered
 // from the generated table, so the router cannot drift from the registry. Proven by sys › [SYS-8.R2].
 import type { AnyProcedure } from '@trpc/server';
 import type { z } from 'zod';

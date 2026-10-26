@@ -1,4 +1,4 @@
-// Driven adapter (persistence) — trading. Bound to docs/solu-1/planning/schemas/007_create_trading.sql.
+// Driven adapter (persistence) — trading. Bound to the Solu-1 migration 007_create_trading.sql (retired; git 853449c:docs/solu-1/planning/schemas/).
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql } from '../../../shared-kernel/ports.js';
 import type { ITradeOfferRepository } from '../ports/trd.js';

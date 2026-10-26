@@ -1,6 +1,6 @@
-// `seed_marketplace` — the PRD §3 Reference Seed Profile (docs/plan-2/planning/prd.md §3) on the
+// `seed_marketplace` — the PRD §3 Reference Seed Profile (_bmad-output/planning-artifacts/prd.md §3) on the
 // Solu-2 schema, for the NFR benchmarks and any test that needs a realistic marketplace. It sets
-// up Given state only and asserts nothing; docs/solu-2/test/fixtures/seed_marketplace.test.ts
+// up Given state only and asserts nothing; _bmad-output/test-artifacts/fixtures/seed_marketplace.test.ts
 // proves the profile. Deterministic: ids are `id()` names (SQL reproduces them with rpad), every
 // instant is relative to T0, and no value is random. `scale` multiplies the catalog and its
 // priced subset, the two dimensions the DSC and VAL benchmarks grow; every other count is fixed.

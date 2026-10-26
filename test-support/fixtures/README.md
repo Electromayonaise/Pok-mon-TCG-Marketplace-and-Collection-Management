@@ -1,6 +1,6 @@
 # test-support/fixtures — the Reference Seed Profile
 
-The PRD §3 Reference Seed Profile (`docs/plan-2/planning/prd.md` §3) is the data every realistic test and every NFR benchmark runs on. It is generated, not stored: `seedMarketplace(db)` writes it into the test file's own database, deterministically (fixed ids, every instant relative to `T0 = 2026-10-01T15:00:00Z`, no randomness).
+The PRD §3 Reference Seed Profile (`_bmad-output/planning-artifacts/prd.md` §3) is the data every realistic test and every NFR benchmark runs on. It is generated, not stored: `seedMarketplace(db)` writes it into the test file's own database, deterministically (fixed ids, every instant relative to `T0 = 2026-10-01T15:00:00Z`, no randomness).
 
 ```ts
 import { useTestDatabase } from '../../test-support/db.js';
@@ -22,4 +22,4 @@ const counts = await seedMarketplace(db); // { catalogEntries: 10_000, users: 30
 | Collections | 300 across 120 users; one of 500 entries with 20 link-added; 150 wishlist entries |
 | Reviews | 400, 15 hidden |
 
-`scale` multiplies the catalog and its priced subset (the dimensions the discovery and valuation benchmarks grow). The generator lives in `test-support/solu2/seed-marketplace.ts` (Story 1.4), and `docs/solu-2/test/fixtures/seed_marketplace.test.ts` proves the counts above.
+`scale` multiplies the catalog and its priced subset (the dimensions the discovery and valuation benchmarks grow). The generator lives in `test-support/solu2/seed-marketplace.ts` (Story 1.4), and `_bmad-output/test-artifacts/fixtures/seed_marketplace.test.ts` proves the counts above.

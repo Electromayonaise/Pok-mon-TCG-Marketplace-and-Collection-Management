@@ -128,7 +128,7 @@ graph LR
 - `_bmad-output/A-Product-Brief/project-brief.md` (Vision, Positioning, Business Model, ICP, Product Concept, Success Criteria, Platform Mechanics, Constraints)
 - `_bmad-output/specs/spec-pokemon-tcg-marketplace/SPEC.md` (CAP-1–CAP-28, Success Signal, Open Questions)
 - `_bmad-output/specs/spec-pokemon-tcg-marketplace/companion-files/persona-archetypes.md` (base archetypes, deepened here with psychology and driving forces)
-- `_bmad-output/planning-artifacts/architecture/.../reviews/review-adversarial-divergence.md` (informed the review-gate tension noted above; the technical event-contract findings in that review are handled separately, not folded into this UX-focused map — see Repair Plan Step 1's "Do both" split)
+- `853449c:_bmad-output/planning-artifacts/architecture/.../reviews/review-adversarial-divergence.md` (informed the review-gate tension noted above; the technical event-contract findings in that review are handled separately, not folded into this UX-focused map — see Repair Plan Step 1's "Do both" split)
 - `_bmad/wds/data/agent-guides/saga/trigger-mapping.md` (methodology reference actually present in this repo)
 
 **Next:** Feature Impact Analysis (`feature-impact-analysis.md`) for the full scored driving-force table; individual persona files in `personas/`.

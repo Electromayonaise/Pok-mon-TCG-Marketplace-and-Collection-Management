@@ -1,7 +1,7 @@
 // Code registry (AD-SYS-1 rule 1), restricted to the codes the Solu contracts reference.
-// Source of truth for owners and families: docs/plan-2/planning/addendum.md ADD-§3 and
+// Source of truth for owners and families: _bmad-output/planning-artifacts/addendum.md ADD-§3 and
 // ARCHITECTURE §8, plus PromptNotFound (Solu-1 GAP-1, decision log #6). Solu-2 added the
-// remaining ADD-§3.1 rows its contracts cite (docs/solu-2/planning/detailed-design/contracts.md §13).
+// remaining ADD-§3.1 rows its contracts cite (_bmad-output/planning-artifacts/detailed-design/contracts.md §13).
 
 export type CodeOwner =
   | 'shared-kernel' | 'identity' | 'catalog' | 'listings' | 'orders'

@@ -71,9 +71,9 @@ Saga proposes options with reasoning rather than open-ended questions or unilate
 
 Confirmed with Martin: the existing Spec Task 1 materials are the **starting truth** for this brief, not background to reconcile against afterward.
 
-- `docs/spec-task-1/SPEC.md` — Contract, Capabilities, Constraints, Non-Goals, Success Signal, Assumptions
-- `docs/spec-task-1/JUSTIFICATION.md` — decisions, AI-usage trail, self-review
-- `docs/spec-task-1/01-human-draft/SPEC.md` — pre-AI human draft
+- `853449c:docs/spec-task-1/SPEC.md` — Contract, Capabilities, Constraints, Non-Goals, Success Signal, Assumptions
+- `853449c:docs/spec-task-1/JUSTIFICATION.md` — decisions, AI-usage trail, self-review
+- `853449c:docs/spec-task-1/01-human-draft/SPEC.md` — pre-AI human draft
 - `docs/Problem-statement.pdf` — original course problem statement
 - `docs/Martin's specification peer review.pdf` — adversarial peer review
 - `_bmad-output/specs/spec-pokemon-tcg-marketplace/` — standalone `bmad-spec` run

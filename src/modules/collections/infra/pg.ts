@@ -1,4 +1,4 @@
-// Driven adapters (persistence) — collections. Bound to docs/solu-1/planning/schemas/009_create_collections.sql.
+// Driven adapters (persistence) — collections. Bound to the Solu-1 migration 009_create_collections.sql (retired; git 853449c:docs/solu-1/planning/schemas/).
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql } from '../../../shared-kernel/ports.js';
 import type { ICollectionRepository, IPromptRepository } from '../ports/collections.js';

@@ -9,7 +9,7 @@ status: final
 created: '2026-08-25'
 updated: '2026-08-25'
 binds: ["CAP-1","CAP-2","CAP-3","CAP-4","CAP-5","CAP-6","CAP-7","CAP-8","CAP-9","CAP-10","CAP-11","CAP-12","CAP-13","CAP-14","CAP-15","CAP-16","CAP-17","CAP-18","CAP-19","CAP-20","CAP-21","CAP-22","CAP-24","CAP-25","CAP-26","CAP-27","CAP-28"]
-sources: ["_bmad-output/specs/spec-pokemon-tcg-marketplace/SPEC.md", "_bmad-output/specs/spec-pokemon-tcg-marketplace/.memlog.md", "_bmad-output/specs/spec-pokemon-tcg-marketplace/stakeholders.md", "docs/spec-task-1/SPEC.md", "_bmad-output/A-Product-Brief/project-brief.md"]
+sources: ["_bmad-output/specs/spec-pokemon-tcg-marketplace/SPEC.md", "_bmad-output/specs/spec-pokemon-tcg-marketplace/.memlog.md", "_bmad-output/specs/spec-pokemon-tcg-marketplace/stakeholders.md", "853449c:docs/spec-task-1/SPEC.md", "_bmad-output/A-Product-Brief/project-brief.md"]
 companions: []
 ---
 

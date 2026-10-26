@@ -1,0 +1,194 @@
+# generated: 2026-10-24
+# last_updated: 2026-10-26
+# project: Pok-mon-TCG-Marketplace-and-Collection-Management
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+# backlog_source: _bmad-output/planning-artifacts/epics.md (13 epics, 69 stories)
+# scope: 853449c:docs/impl-1/task-statement.md Appendix B: 43 stories in Impl-1; the 26 listed under impl2_scope stay backlog until Impl-2
+# delivery: the 6 stories under impl1_delivery (decision log Impl-1 #22, Appendix B.0)
+# readiness_gate: IR-PASS (scripts/readiness-audit.mjs --package docs/solu-2, run as this workflow's prepend step, 2026-10-24)
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed (the Definition of Done in _bmad-output/planning-artifacts/epics.md, plus 853449c:docs/impl-1/task-statement.md §3)
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; sprint-status surfaces open ones
+# - A story marked 'done' makes scripts/check-atdd-red.mjs require its ATDD block to PASS (npm run gate:atdd-red:impl1)
+# - An epic is 'done' when its Impl-1 stories are done and Martín signed its gate; its impl2_scope stories stay backlog
+
+generated: 2026-10-24
+last_updated: 2026-10-26
+project: Pok-mon-TCG-Marketplace-and-Collection-Management
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: done
+  1-1-refuse-every-request-with-one-typed-explained-error-body: done
+  1-2-record-an-audit-trail-and-keep-regulated-data-out-of-every-egress: done
+  1-3-deliver-every-committed-event-exactly-once-in-effect: done
+  1-4-keep-time-sockets-and-module-boundaries-deterministic: done
+  1-5-show-admins-the-delivery-and-tick-health: done
+  epic-1-retrospective: optional
+  epic-2: done
+  2-1-complete-the-individual-seller-profile-and-claim-the-track: done
+  2-2-let-exactly-one-seller-track-win-a-race: done
+  2-3-explain-why-an-account-may-not-list: done
+  2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins: done
+  2-5-trace-capabilities-for-admins-and-answer-neighbours-identity-queries: done
+  epic-2-retrospective: optional
+  epic-3: in-progress
+  3-1-submit-a-business-application-with-its-legal-identity: done
+  3-2-decide-an-application-exactly-once: ready-for-dev
+  3-3-refuse-incomplete-unsafe-and-premature-applications: ready-for-dev
+  3-4-guard-and-audit-every-legal-identity-read: ready-for-dev
+  3-5-run-the-review-queue-the-rejection-policy-and-payment-instructions: ready-for-dev
+  epic-3-retrospective: optional
+  epic-4: backlog
+  4-1-start-and-continue-a-catalog-feed-run: backlog
+  4-2-keep-a-card-s-id-through-renames-and-reprints: backlog
+  4-3-refuse-a-second-live-run-and-quarantine-changed-kinds: backlog
+  4-4-never-fabricate-a-price: backlog
+  4-5-browse-the-catalog-and-answer-neighbours-catalog-queries: backlog
+  epic-4-retrospective: optional
+  epic-5: backlog
+  5-1-list-a-card-and-share-one-stock-pool: backlog
+  5-2-reserve-stock-in-the-caller-s-transaction-and-restore-it-on-abort: backlog
+  5-3-refuse-invalid-listings: backlog
+  5-4-refuse-unpurchasable-and-over-quantity-reservations: backlog
+  5-5-pause-withdraw-and-restore-listings-from-commission-and-verification-events: backlog
+  5-6-manage-my-listings-bundles-and-stock: backlog
+  epic-5-retrospective: optional
+  epic-6: backlog
+  6-1-refuse-invalid-search-areas: backlog
+  6-2-search-listings-by-area-with-an-explained-ranking: backlog
+  6-3-show-a-card-s-detail-at-the-area-boundaries: backlog
+  6-4-explain-excluded-listings-too-broad-filters-and-unknown-cards: backlog
+  epic-6-retrospective: optional
+  epic-7: backlog
+  7-1-buy-a-listing-and-attach-the-comprobante: backlog
+  7-2-confirm-paid-and-close-orders-safely-in-any-order: backlog
+  7-3-refuse-self-purchase-open-order-overflow-and-listing-refusals: backlog
+  7-4-refuse-out-of-role-repeated-and-expired-confirmations: backlog
+  7-5-cancel-expire-read-and-support-orders: backlog
+  epic-7-retrospective: optional
+  epic-8: backlog
+  8-1-open-the-commission-account-and-request-top-ups: backlog
+  8-2-charge-each-order-exactly-once: backlog
+  8-3-confirm-or-reject-a-top-up: backlog
+  8-4-refuse-invalid-top-ups-and-decided-requests: backlog
+  8-5-reconcile-ledgers-and-report-never-repair-discrepancies: backlog
+  8-6-set-commission-rates-and-read-the-ledger: backlog
+  epic-8-retrospective: optional
+  epic-9: backlog
+  9-1-answer-messaging-eligibility-from-current-verification: backlog
+  9-2-send-messages-while-verification-changes: backlog
+  9-3-generate-the-contact-handoff-for-every-product-name: backlog
+  9-4-refuse-outsiders-and-businesses-that-initiate: backlog
+  9-5-refuse-hidden-or-business-listings-and-rate-limit-contact: backlog
+  9-6-read-the-inbox-mark-threads-read-and-mute: backlog
+  epic-9-retrospective: optional
+  epic-10: backlog
+  10-1-make-read-and-withdraw-a-trade-offer: backlog
+  10-2-counter-an-offer-turn-by-turn: backlog
+  10-3-accept-the-last-unit-from-two-sessions: backlog
+  10-4-refuse-stale-out-of-turn-and-duplicate-offer-actions: backlog
+  10-5-cancel-complete-and-expire-trades-exactly-once: backlog
+  epic-10-retrospective: optional
+  epic-11: backlog
+  11-1-organize-my-collections: backlog
+  11-2-add-catalog-cards-to-a-collection: backlog
+  11-3-turn-a-closed-order-into-one-prompt-and-one-entry-set: backlog
+  11-4-refuse-foreign-resolved-and-invalid-collection-actions: backlog
+  11-5-use-the-binder-add-external-cards-move-entries-and-wishlist-cards: backlog
+  11-6-refuse-unsafe-links-foreign-entries-and-unknown-wishlist-cards: backlog
+  epic-11-retrospective: optional
+  epic-12: backlog
+  12-1-value-a-collection-exactly: backlog
+  12-2-show-the-valuation-trend-and-daily-history: backlog
+  12-3-value-500-mixed-entries-with-zero-drift-and-a-zero-baseline: backlog
+  12-4-refuse-foreign-collections-and-invalid-periods: backlog
+  12-5-explain-empty-series-and-rounding-edges: backlog
+  epic-12-retrospective: optional
+  epic-13: backlog
+  13-1-write-edit-and-check-eligibility-for-a-review: backlog
+  13-2-hide-and-unhide-reviews-with-logged-snapshots: backlog
+  13-3-keep-reputation-honest-paid-is-not-enough-and-a-racing-hide-never-skews-the-aggregate: backlog
+  13-4-refuse-self-unknown-and-duplicate-reviews: backlog
+  13-5-read-profiles-search-moderation-logs-and-hide-listings: backlog
+  13-6-refuse-invalid-moderation-and-bad-aggregate-requests: backlog
+  epic-13-retrospective: optional
+
+# The Impl-1 delivery cut (decision log Impl-1 #22): the foundation plus the Identity
+# module's Core, MEC and Failure-state stories. The other Impl-1 stories continue after
+# the delivery in epic batches; until then they stay backlog, red for the right reason.
+impl1_delivery:
+  - 1-1-refuse-every-request-with-one-typed-explained-error-body
+  - 1-2-record-an-audit-trail-and-keep-regulated-data-out-of-every-egress
+  - 1-3-deliver-every-committed-event-exactly-once-in-effect
+  - 2-1-complete-the-individual-seller-profile-and-claim-the-track
+  - 2-2-let-exactly-one-seller-track-win-a-race
+  - 2-3-explain-why-an-account-may-not-list
+
+# Stories deferred to Impl-2 (decision log Impl-1 #2). They stay backlog in Impl-1,
+# and their ATDD tests stay red for the right reason. Exceptions: 2-4 was built early
+# with the Epic 2 batch (its spec, approved 2026-10-25), so it is done above; 3-3 and
+# 3-4 are built with the whole of Epic 3 (decision log Impl-1 #27).
+impl2_scope:
+  - 2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins
+  - 3-3-refuse-incomplete-unsafe-and-premature-applications
+  - 3-4-guard-and-audit-every-legal-identity-read
+  - 4-3-refuse-a-second-live-run-and-quarantine-changed-kinds
+  - 5-3-refuse-invalid-listings
+  - 5-4-refuse-unpurchasable-and-over-quantity-reservations
+  - 5-5-pause-withdraw-and-restore-listings-from-commission-and-verification-events
+  - 6-4-explain-excluded-listings-too-broad-filters-and-unknown-cards
+  - 7-3-refuse-self-purchase-open-order-overflow-and-listing-refusals
+  - 7-4-refuse-out-of-role-repeated-and-expired-confirmations
+  - 8-4-refuse-invalid-top-ups-and-decided-requests
+  - 8-5-reconcile-ledgers-and-report-never-repair-discrepancies
+  - 8-6-set-commission-rates-and-read-the-ledger
+  - 9-4-refuse-outsiders-and-businesses-that-initiate
+  - 9-5-refuse-hidden-or-business-listings-and-rate-limit-contact
+  - 9-6-read-the-inbox-mark-threads-read-and-mute
+  - 10-4-refuse-stale-out-of-turn-and-duplicate-offer-actions
+  - 10-5-cancel-complete-and-expire-trades-exactly-once
+  - 11-4-refuse-foreign-resolved-and-invalid-collection-actions
+  - 11-5-use-the-binder-add-external-cards-move-entries-and-wishlist-cards
+  - 11-6-refuse-unsafe-links-foreign-entries-and-unknown-wishlist-cards
+  - 12-4-refuse-foreign-collections-and-invalid-periods
+  - 12-5-explain-empty-series-and-rounding-edges
+  - 13-4-refuse-self-unknown-and-duplicate-reviews
+  - 13-5-read-profiles-search-moderation-logs-and-hide-listings
+  - 13-6-refuse-invalid-moderation-and-bad-aggregate-requests

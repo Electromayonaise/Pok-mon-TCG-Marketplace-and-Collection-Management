@@ -1,4 +1,4 @@
-// Driven adapters (persistence) — listings. Bound to docs/solu-1/planning/schemas/004_create_listings_inventory.sql.
+// Driven adapters (persistence) — listings. Bound to the Solu-1 migration 004_create_listings_inventory.sql (retired; git 853449c:docs/solu-1/planning/schemas/).
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql } from '../../../shared-kernel/ports.js';
 import type { IDiscoveryQuery, IInventoryUnitRepository, IListingRepository } from '../ports/listings.js';

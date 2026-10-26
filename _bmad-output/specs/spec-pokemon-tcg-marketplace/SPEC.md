@@ -1,10 +1,10 @@
 ---
 id: SPEC-pokemon-tcg-marketplace
-companions: ["stakeholders.md", "ARCHITECTURE-SPINE.md", "companion-files/glossary.md", "companion-files/persona-archetypes.md", "companion-files/diagrams/system-context.mmd", "companion-files/diagrams/state-transitions.mmd", "../../../docs/spec-task-1/SPEC.md", "../../A-Product-Brief/project-brief.md"]
+companions: ["stakeholders.md", "ARCHITECTURE-SPINE.md", "companion-files/glossary.md", "companion-files/persona-archetypes.md", "companion-files/diagrams/system-context.mmd", "companion-files/diagrams/state-transitions.mmd", "../../../853449c:docs/spec-task-1/SPEC.md", "../../A-Product-Brief/project-brief.md"]
 sources: ["../../../docs/Problem-statement.pdf"]
 ---
 
-> **Canonical contract.** This SPEC and the files in `companions:` are the complete, preservation-validated contract for what to build, test, and validate. `docs/spec-task-1/SPEC.md` carries the hand-authored Contract (exact operation signatures) that this kernel deliberately excludes by design — read it alongside this file, not instead of it. `project-brief.md` carries the strategic/GTM layer (positioning, business model rationale, tone of voice) this kernel distills but does not restate in full.
+> **Canonical contract.** This SPEC and the files in `companions:` are the complete, preservation-validated contract for what to build, test, and validate. `853449c:docs/spec-task-1/SPEC.md` carries the hand-authored Contract (exact operation signatures) that this kernel deliberately excludes by design — read it alongside this file, not instead of it. `project-brief.md` carries the strategic/GTM layer (positioning, business model rationale, tone of voice) this kernel distills but does not restate in full.
 
 # Pokémon TCG Marketplace and Collection Management Platform
 

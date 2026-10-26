@@ -20,6 +20,6 @@
     "jsx": "react-jsx",
     "plugins": [{ "name": "next" }]
   },
-  "include": ["src/**/*.ts", "app/**/*.ts", "test-support/**/*.ts", "scripts/**/*.ts", "docs/solu-*/**/*.ts", "vitest*.config.ts", "next.config.ts", "prisma.config.ts", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
+  "include": ["src/**/*.ts", "app/**/*.ts", "test-support/**/*.ts", "scripts/**/*.ts", "_bmad-output/planning-artifacts/detailed-design/**/*.ts", "_bmad-output/test-artifacts/**/*.ts", "vitest*.config.ts", "next.config.ts", "prisma.config.ts", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
   "exclude": ["node_modules"]
 }

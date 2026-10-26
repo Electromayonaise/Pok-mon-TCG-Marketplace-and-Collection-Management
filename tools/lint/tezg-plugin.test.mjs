@@ -91,7 +91,7 @@ describe('the rules read their sources of truth', () => {
   });
 
   it('REGULATED_COLUMNS names real columns and covers every `-- regulated` marker in the schema', () => {
-    const schema = fs.readFileSync(path.join(REPO_ROOT, 'docs/solu-2/planning/detailed-design/schemas/001_tezg_schema.sql'), 'utf8');
+    const schema = fs.readFileSync(path.join(REPO_ROOT, '_bmad-output/planning-artifacts/detailed-design/schemas/001_tezg_schema.sql'), 'utf8');
     const blocks = new Map([...schema.matchAll(/^CREATE TABLE IF NOT EXISTS "?(\w+)"?[^\n]*\n([\s\S]*?)^\);/gm)].map((m) => [m[1], m[2]]));
     for (const [table, columns] of Object.entries(REGULATED_COLUMNS)) {
       assert.ok(TABLE_OWNERS.has(table), `${table} has a schema section`);

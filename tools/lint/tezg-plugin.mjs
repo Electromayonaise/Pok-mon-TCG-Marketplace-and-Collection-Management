@@ -2,14 +2,14 @@
 // AD-SYS-8 rule 3. Parse-only (decision log #7): each rule reads string and template literals and
 // call shapes, never types. The sources of truth are read once at load: the code registry
 // (src/shared-kernel/codes.ts) and the SQL-first schema the migrations apply. The fitness project
-// keeps the repository-wide proofs (docs/solu-2/test/fitness); these rules fail the same plants
+// keeps the repository-wide proofs (_bmad-output/test-artifacts/fitness); these rules fail the same plants
 // in the editor and at `npm run lint`. Proven by tools/lint/tezg-plugin.test.mjs.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const SCHEMA = 'docs/solu-2/planning/detailed-design/schemas/001_tezg_schema.sql';
+const SCHEMA = '_bmad-output/planning-artifacts/detailed-design/schemas/001_tezg_schema.sql';
 
 /** Code → owning module, from the `DOMAIN_ERRORS` block (one `Code: { owner: '…', … }` entry per line). */
 export function codeOwners(codesTs) {

@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const MIGRATIONS_DIR = 'docs/solu-2/planning/detailed-design/schemas';
+export const MIGRATIONS_DIR = '_bmad-output/planning-artifacts/detailed-design/schemas';
 
 /** The migration files under `dir`, in apply order, with their LF-normalized SHA-256. */
 export function migrationFiles(dir) {

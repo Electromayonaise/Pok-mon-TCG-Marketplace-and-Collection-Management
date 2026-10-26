@@ -1,4 +1,4 @@
-// Driven adapter (persistence) — messaging. Bound to docs/solu-1/planning/schemas/008_create_messaging.sql.
+// Driven adapter (persistence) — messaging. Bound to the Solu-1 migration 008_create_messaging.sql (retired; git 853449c:docs/solu-1/planning/schemas/).
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql } from '../../../shared-kernel/ports.js';
 import type { IConversationRepository } from '../ports/msg.js';

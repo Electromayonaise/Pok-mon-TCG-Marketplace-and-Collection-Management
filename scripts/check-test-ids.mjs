@@ -1,13 +1,13 @@
 // Test-id coverage gate (Solu-2 Phase 3). Every test id that contracts.md cites — in a clause,
 // the §14 binding table, the §15 supporting contracts or the offered-port table — must be the
-// bracketed id of exactly one test under docs/solu-2/test/, and every core operation must have
+// bracketed id of exactly one test under _bmad-output/test-artifacts/, and every core operation must have
 // at least one test. An id defined twice is ambiguous evidence and fails too.
 // Usage: node scripts/check-test-ids.mjs [contracts.md] [test dir]
 import fs from 'node:fs';
 import path from 'node:path';
 
-const contractsFile = process.argv[2] ?? 'docs/solu-2/planning/detailed-design/contracts.md';
-const testDir = process.argv[3] ?? 'docs/solu-2/test';
+const contractsFile = process.argv[2] ?? '_bmad-output/planning-artifacts/detailed-design/contracts.md';
+const testDir = process.argv[3] ?? '_bmad-output/test-artifacts';
 const ID = /\[((?:S-FR-[A-Z]+-\d+|S-SYS|P-[A-Z]+|SYS|IDN|VER|CAT|DSC|INV|ORD|COM|TRD|MSG|COL|VAL|REP)[A-Za-z0-9.-]*)\]/g;
 
 const contracts = fs.readFileSync(contractsFile, 'utf8');

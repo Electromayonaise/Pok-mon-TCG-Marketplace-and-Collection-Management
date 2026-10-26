@@ -169,7 +169,7 @@
 ### 2026-08-24 — Project initialized (Phase 0)
 - Type: greenfield
 - Complexity: complex (web application)
-- Tech stack: skipped (deliberate Non-Goal, see `docs/spec-task-1/SPEC.md`)
+- Tech stack: skipped (deliberate Non-Goal, see `853449c:docs/spec-task-1/SPEC.md`)
 - Component library: custom
 - Strategic analysis: simplified — Phase 2 (Trigger Mapping) skipped per course exercise handout ("not needed in this project")
 - Existing materials registered: Problem Statement PDF, Spec Task 1 SPEC.md + JUSTIFICATION.md + human draft, Martín's peer review PDF, standalone `bmad-spec` run at `_bmad-output/specs/spec-pokemon-tcg-marketplace/`

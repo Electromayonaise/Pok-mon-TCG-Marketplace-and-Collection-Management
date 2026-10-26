@@ -8,10 +8,10 @@
 [workflow]
 
 activation_steps_prepend = [
-  "Identify the Solu package from the user's request: docs/solu-1 or docs/solu-2. Run `node {project-root}/scripts/readiness-audit.mjs --package <package> --json {project-root}/.vitest-results/readiness-<package-basename>.json` from the project root and show its full output verbatim. If it exits non-zero (IR-FAIL), HALT: do not create or update sprint-status.yaml; list each finding and name the skill that fixes it (bmad-architecture for contracts and schemas, bmad-create-epics-and-stories for stories, bmad-correct-course for scope). Only on exit 0 (IR-PASS) continue with the workflow.",
+  "The backlog is the Solu-2 package, docs/solu-2 (the Solu-1 package was retired, git 853449c). Run `node {project-root}/scripts/readiness-audit.mjs --package docs/solu-2 --json {project-root}/.vitest-results/readiness-solu-2.json` from the project root and show its full output verbatim. If it exits non-zero (IR-FAIL), HALT: do not create or update sprint-status.yaml; list each finding and name the skill that fixes it (bmad-architecture for contracts and schemas, bmad-create-epics-and-stories for stories, bmad-correct-course for scope). Only on exit 0 (IR-PASS) continue with the workflow.",
 ]
 
 persistent_facts = [
-  "For a Solu package, epics are read from <package>/planning/epics.md and the status file is written to <package>/implementation-artifacts/sprint-status.yaml, instead of the default planning_artifacts and implementation_artifacts folders.",
-  "For Impl-1, the backlog is Solu-2's: the readiness audit runs on docs/solu-2, epics are read from docs/solu-2/planning/epics.md, and the status file is docs/impl-1/implementation-artifacts/sprint-status.yaml. Its impl2_scope list (docs/impl-1/task-statement.md Appendix B.2) is carried over unchanged, and those stories stay backlog.",
+  "Epics are read from _bmad-output/planning-artifacts/epics.md, and the only status file is _bmad-output/implementation-artifacts/sprint-status.yaml.",
+  "For Impl-1, the backlog is Solu-2's: the readiness audit runs on docs/solu-2, epics are read from _bmad-output/planning-artifacts/epics.md, and the status file is _bmad-output/implementation-artifacts/sprint-status.yaml. Its impl2_scope list (853449c:docs/impl-1/task-statement.md Appendix B.2) is carried over unchanged, and those stories stay backlog.",
 ]
