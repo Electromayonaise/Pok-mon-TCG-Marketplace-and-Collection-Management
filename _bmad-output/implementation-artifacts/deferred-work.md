@@ -33,3 +33,4 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 
 - The production `ObjectStorage` and `MalwareScanner` adapters need a provider and a dependency approval. Until they land, `compose()` binds `UNWIRED_STORAGE` and `UNWIRED_SCANNER`, so a production submit that reaches promotion fails as NotImplemented (500), never silently. Tests bind `InMemoryObjectStorage` and `SimulatedScanner`.
 - The upload ticket for `business-document/<businessId>/<cuid2>`, the client step before VER-2, is not wired yet. It belongs to the story that wires the upload procedures.
+- The payment QR (`paymentInstructions.qrUploadKey`) is refused until it has an upload ticket and a promotion like the documents' (owner prefix, size, magic bytes, scanner, server-generated key). `qrObjectKey` stays `null` until then.

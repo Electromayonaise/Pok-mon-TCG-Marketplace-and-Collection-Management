@@ -94,8 +94,8 @@ export class VerServiceV2 implements VerV2UseCases {
         await repo.upsertBusinessProfile(tx, {
           businessId, publicName: businessName, city, externalPresenceUrl,
           bankName: pay.bankName, accountType: pay.accountType, accountNumber: pay.accountNumber, holderName: pay.holderName,
-          // Stored unpromoted until the payment-QR upload exists (Story 3.1, Ask First).
-          qrObjectKey: pay.qrUploadKey,
+          // No QR is accepted until the payment-QR upload can promote one (checkSubmissionShape).
+          qrObjectKey: null,
         }, now);
         const reapplication = latest !== null;
         await audit.record(tx, {
@@ -227,6 +227,8 @@ function checkSubmissionShape(input: SubmitApplicationRequest): void {
   check(pay.accountType === 'savings' || pay.accountType === 'checking', 'paymentInstructions.accountType', 'debe ser ahorros o corriente');
   check(/^[0-9]{6,20}$/.test(pay.accountNumber!), 'paymentInstructions.accountNumber', 'debe tener entre 6 y 20 dígitos');
   check(lengthIn(pay.holderName!, 2, 80), 'paymentInstructions.holderName', 'debe tener entre 2 y 80 caracteres');
+  // An unpromoted client key could name another account's object (AD-SYS-8 rule 5.3).
+  check(pay.qrUploadKey == null, 'paymentInstructions.qrUploadKey', 'el código QR de pago aún no se puede adjuntar');
   check(input.consentVersion === CURRENT_CONSENT_VERSION, 'consentVersion', 'no es la versión vigente del aviso de privacidad');
   const [first, ...rest] = issues;
   if (first) rejectRequest([first, ...rest]);

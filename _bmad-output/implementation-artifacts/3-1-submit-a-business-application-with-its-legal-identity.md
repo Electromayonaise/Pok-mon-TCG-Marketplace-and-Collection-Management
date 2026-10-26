@@ -44,7 +44,7 @@ context:
 - Wire `verification.submit` (authed) and add an HTTP case to `composition.test.ts`.
 
 **Ask First:**
-- A `qrUploadKey` promotion. The ATDD request sends `null`. This story stores a non-null key unpromoted; promoting it waits for the payment-QR upload UI.
+- A `qrUploadKey` promotion. The ATDD request sends `null`. A non-null key is refused as `RequestValidationFailed` (`paymentInstructions.qrUploadKey`) and `qrObjectKey` is stored `null`, because an unpromoted client key could name another account's object. Promoting it waits for the payment-QR upload.
 - Any DTO or bound-test change.
 
 **Never:** a regulated value in an error, a log line or an audit row; SQL `now()`; reading the current `"RejectionReason"` for P7.

@@ -115,6 +115,15 @@ describe('VerServiceV2.submitApplication — shape (P1–P2)', () => {
     const error = await caught(() => ver.submitApplication(input)) as { citations: { inputs: { field: string } }[] };
     expect(error.citations.map((c) => c.inputs.field)).toEqual(['legalIdentity.number', 'documentUploadKeys', 'externalPresenceUrl']);
   });
+
+  it('a payment-QR key is refused until the QR upload can promote it, and nothing is written', async () => {
+    const { ver } = setup();
+    const pay = { ...application(id('andres')).paymentInstructions, qrUploadKey: `business-document/${id('otro')}/qr` };
+    const error = await caught(() => ver.submitApplication(application(id('andres'), { paymentInstructions: pay }))) as { code: string; citations: { inputs: { field: string } }[] };
+    expect(error.code).toBe('RequestValidationFailed');
+    expect(error.citations.map((c) => c.inputs.field)).toEqual(['paymentInstructions.qrUploadKey']);
+    expect(await db.counts(['BusinessApplication', 'BusinessProfile'])).toEqual({ BusinessApplication: 0, BusinessProfile: 0 });
+  });
 });
 
 describe('VerServiceV2.submitApplication — the latest application (P6–P7)', () => {
