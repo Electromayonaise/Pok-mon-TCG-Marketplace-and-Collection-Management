@@ -36,16 +36,16 @@
 | FR-IDN-1 | Derive capabilities server-side (CAP-19, CAP-5) | IDN-2, IDN-3 | AD-IDN-1, AD-16, AD-VER-2, AD-13 | 9 — `IDN-2.I1`, `IDN-2.Q1`, `IDN-2.QF1` +6 | 2.3 (done), 2.5 (done) | red |
 | FR-IDN-2 | Complete the individual-seller profile step (CAP-19) | IDN-1 | AD-SYS-4, AD-IDN-2, AD-18 | 7 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +4 | 2.1 (done), 2.2 (done) | red |
 | FR-IDN-3 | Answer listing eligibility (CAP-19, CAP-5) | IDN-2 | AD-IDN-1, AD-16 | 4 — `IDN-2.I1`, `IDN-2.Q1`, `IDN-2.QF1` +1 | 2.3 (done) | red |
-| FR-IDN-4 | Guard seller-type exclusivity atomically (CAP-5, CAP-19) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | 2.1 (done), 2.2 (done), 3.1 (done), 3.3 (ready-for-dev) | red |
+| FR-IDN-4 | Guard seller-type exclusivity atomically (CAP-5, CAP-19) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | 2.1 (done), 2.2 (done), 3.1 (done), 3.3 (done) | red |
 | FR-IDN-5 | Capability audit trace for admins (CAP-15) | IDN-3 | AD-IDN-1, AD-VER-2, AD-13, AD-SYS-8 | 5 — `IDN-3.I1`, `IDN-3.I3`, `IDN-3.P2` +2 | 2.5 (done) | red |
 | FR-IDN-6 | Messaging, review-target and seller-kind queries (CAP-18, CAP-7, CAP-1) | MSG-3, S-FR-IDN-6 | AD-IDN-1, AD-MSG-2 | 5 — `MSG-3.MEC`, `MSG-3.Q1`, `MSG-3.QF1` +2 | 2.5 (done), 9.1 (backlog) | red |
 | FR-IDN-7 | Authentication and admin gating (CAP-15, CAP-28) | S-FR-IDN-7 | AD-16, AD-IDN-3, AD-SYS-8 | 2 — `S-FR-IDN-7.f`, `S-FR-IDN-7.h` | 2.4 (done) | red |
-| FR-VER-1 | Submit a business application (CAP-15, CAP-5) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | 2.1 (done), 2.2 (done), 3.1 (done), 3.3 (ready-for-dev) | red |
+| FR-VER-1 | Submit a business application (CAP-15, CAP-5) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | 2.1 (done), 2.2 (done), 3.1 (done), 3.3 (done) | red |
 | FR-VER-2 | Admin review queue (CAP-15) | VER-3, S-FR-VER-2 | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 8 — `VER-3.I1`, `VER-3.I2`, `VER-3.I3` +5 | 3.4 (ready-for-dev), 3.5 (ready-for-dev) | red |
-| FR-VER-3 | Approve (CAP-15, CAP-5) | VER-1 | AD-VER-1, AD-SYS-5, AD-SYS-2 | 7 — `VER-1.I1`, `VER-1.MEC`, `VER-1.P2` +4 | 3.2 (done), 3.3 (ready-for-dev) | red |
-| FR-VER-4 | Reject with a policy reason (CAP-15) | VER-1 | AD-VER-1, AD-SYS-5, AD-SYS-2 | 7 — `VER-1.I1`, `VER-1.MEC`, `VER-1.P2` +4 | 3.2 (done), 3.3 (ready-for-dev) | red |
+| FR-VER-3 | Approve (CAP-15, CAP-5) | VER-1 | AD-VER-1, AD-SYS-5, AD-SYS-2 | 7 — `VER-1.I1`, `VER-1.MEC`, `VER-1.P2` +4 | 3.2 (done), 3.3 (done) | red |
+| FR-VER-4 | Reject with a policy reason (CAP-15) | VER-1 | AD-VER-1, AD-SYS-5, AD-SYS-2 | 7 — `VER-1.I1`, `VER-1.MEC`, `VER-1.P2` +4 | 3.2 (done), 3.3 (done) | red |
 | FR-VER-5 | Access to legal identity only through admin review (CAP-15) | VER-3, S-FR-VER-5.audit | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 7 — `VER-3.I1`, `VER-3.I2`, `VER-3.I3` +4 | 3.4 (ready-for-dev) | red |
-| FR-VER-6 | Reapplication policy (CAP-15) | VER-2 | AD-SYS-8, AD-VER-3, AD-VER-1, AD-VER-2 | 7 — `VER-2.I1`, `VER-2.I2`, `VER-2.P1` +4 | 3.1 (done), 3.3 (ready-for-dev) | red |
+| FR-VER-6 | Reapplication policy (CAP-15) | VER-2 | AD-SYS-8, AD-VER-3, AD-VER-1, AD-VER-2 | 7 — `VER-2.I1`, `VER-2.I2`, `VER-2.P1` +4 | 3.1 (done), 3.3 (done) | red |
 | FR-VER-7 | Applicant status view (CAP-15) | S-FR-VER-7 | AD-VER-3 | 2 — `S-FR-VER-7.f`, `S-FR-VER-7.h` | 3.5 (ready-for-dev) | red |
 | FR-VER-8 | Rejection-reason policy settings (CAP-15) | S-FR-VER-8, S-FR-VER-8.list | AD-VER-1 | 3 — `S-FR-VER-8.f`, `S-FR-VER-8.h`, `S-FR-VER-8.list.h` | 3.5 (ready-for-dev) | red |
 | FR-VER-9 | Business payment instructions for orders (CAP-20) | S-FR-VER-9 | AD-9 | 2 — `S-FR-VER-9.f`, `S-FR-VER-9.h` | 3.5 (ready-for-dev) | red |
@@ -223,7 +223,7 @@
 | AD-SYS-5 | Every transition is one conditional UPDATE | `WHERE <from-state>` + loser re-read | `VER-1.MEC`, `TRD-2.I3` | 3.2 (done), 10.2 (backlog) | red |
 | AD-SYS-6 | Determinism boundary (Clock, IdGenerator, no network) | `Clock` port; network guard; no SQL `now()` | `SYS-6.R1`, `SYS-6.R4` | 1.4 (done) | green |
 | AD-SYS-7 | Branded money, one set of formulas | BigInt helpers; rounding CHECK on deductions | `COM-1.I3`, `VAL-2.I3` | 8.2 (backlog), 12.5 (backlog) | red |
-| AD-SYS-8 | Server-side authorization, regulated data, uploads | Procedure builders; redactor; quarantine promotion | `SYS-8.R2`, `VER-2.P3` | 1.1 (done), 3.3 (ready-for-dev) | red |
+| AD-SYS-8 | Server-side authorization, regulated data, uploads | Procedure builders; redactor; quarantine promotion | `SYS-8.R2`, `VER-2.P3` | 1.1 (done), 3.3 (done) | red |
 | AD-IDN-1 | Capabilities from one pure function | `deriveCapabilities`; trace = projection | `IDN-3.I3` | 2.5 (done) | red |
 | AD-IDN-2 | Seller-track exclusivity | Conditional `UPDATE "User"."sellerTrack"` | `IDN-1.I1` | 2.2 (done) | red |
 | AD-IDN-3 | `canBuy` gate and auth throttle | `requireCanBuy`; `AuthThrottleEvent` count | `S-FR-IDN-7.f` | 2.4 (done) | red |

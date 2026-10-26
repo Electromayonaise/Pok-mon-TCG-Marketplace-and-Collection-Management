@@ -2,7 +2,7 @@
 title: 'Story 3.3: Refuse incomplete, unsafe and premature applications'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: '140bd6a1b6b03ae0a7a56b826bc4ec3b9c326ef8'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -57,8 +57,8 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] run the 6 tests on the 3.2 tree; fix any gap in the 3.1 or 3.2 files
-- [ ] `sprint-status.yaml` -- 3.3 `done`, out of `impl2_scope` (decision #27)
+- [x] run the 6 tests on the 3.2 tree; fix any gap in the 3.1 or 3.2 files
+- [x] `sprint-status.yaml` -- 3.3 `done`, out of `impl2_scope` (decision #27)
 
 **Acceptance Criteria:**
 - Given 3.1, 3.2 and 3.3 `done`, when `npm run test:ci` runs, then every gate is green, including `gate:atdd-red:solu2`.
@@ -68,3 +68,13 @@ context:
 **Commands:**
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/ver_contracts.test.ts` -- expected: the 14 tests of 3.1–3.3 pass
 - `npm run test:ci` -- expected: exit 0
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 3 at its close (decision #22).
+- The 6 bound tests passed on the Story 3.2 tree (commit `0bce787`) with no change. No gap needed a fix in the files of 3.1 or 3.2.
+- Each refusal and where it is built:
+  - `[VER-2.P1]` and `[VER-2.P3]`: `checkSubmissionShape` and `promoteDocuments`, both before the transaction (Story 3.1).
+  - `[VER-2.P7]`: the half-open comparison in `evaluateSubmission` (Story 3.1).
+  - `[VER-1.P2]`, `[VER-1.P3]` and `[VER-1.P4]`: `decideApplication`'s first-fail reads (Story 3.2).
+- With 3.3 `done`, `gate:atdd-red:impl1` has no unexpected greens left.
