@@ -1,7 +1,7 @@
-// Driven adapters (persistence) — identity. Bound to
-// docs/solu-1/planning/schemas/001_create_identity_user_and_profile.sql and
-// 002_create_identity_business_application.sql (the Solu-1 stubs below), and the Solu-2
-// PgIdnRepository at the end, bound to docs/solu-2/planning/detailed-design/schemas.
+// Driven adapters (persistence) — identity. Bound to the retired Solu-1 migrations
+// 001_create_identity_user_and_profile.sql and 002_create_identity_business_application.sql
+// (git 853449c:docs/solu-1/planning/schemas/; the Solu-1 stubs below), and the Solu-2
+// PgIdnRepository at the end, bound to _bmad-output/planning-artifacts/detailed-design/schemas.
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';

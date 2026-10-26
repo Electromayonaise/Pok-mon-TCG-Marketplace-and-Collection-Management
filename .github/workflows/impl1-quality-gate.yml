@@ -5,10 +5,10 @@
 #   2. the Solu-2 generated surface, citations, trace and fitness functions are still current
 #      and green (gate:impl1 reuses the gate:solu2 checks);
 #   3. every ATDD test and NFR benchmark of a story not yet `done` in
-#      docs/impl-1/implementation-artifacts/sprint-status.yaml is RED for the right reason,
+#      _bmad-output/implementation-artifacts/sprint-status.yaml is RED for the right reason,
 #      and every one of a `done` story PASSES;
-#   4. the Solu-2 workflow still matches its docs/solu-2/test/ci mirror byte for byte.
-# The Solu-1 and Solu-2 gates stay as manual (workflow_dispatch) evidence.
+#   4. the Solu-2 workflow still matches its _bmad-output/test-artifacts/ci mirror byte for byte.
+# The Solu-2 gate stays as manual (workflow_dispatch) evidence.
 name: impl1-quality-gate
 
 on:
@@ -52,4 +52,4 @@ jobs:
       - name: npm test without db:up
         run: npm run test:ci
       - name: The Solu-2 workflow and its docs mirror are identical
-        run: cmp .github/workflows/solu2-quality-gate.yml docs/solu-2/test/ci/quality-gate.yml
+        run: cmp .github/workflows/solu2-quality-gate.yml _bmad-output/test-artifacts/ci/quality-gate.yml

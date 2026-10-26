@@ -1,7 +1,7 @@
 // Dependency gate (Impl-1 statement §4.2–4.3): every manifest entry is pinned to an exact version
 // and is on the approved list below, and `npm audit --omit=dev` finds nothing high or critical.
-// The list is the Solu-2 Stack Decisions (docs/solu-2/planning/ARCHITECTURE.md, "SD-n") plus the
-// Impl-1 decision log (docs/impl-1/ai-log/ai-decision-log.md, "#n"); adding a package means a
+// The list is the Solu-2 Stack Decisions (_bmad-output/planning-artifacts/ARCHITECTURE-v2-delta.md, "SD-n") plus the
+// Impl-1 decision log (_bmad-output/decision-logs/impl-1-ai-decision-log.md, "#n"); adding a package means a
 // log entry first, then a line here.
 //
 // Usage: node scripts/check-deps.mjs   exit 1 on any finding

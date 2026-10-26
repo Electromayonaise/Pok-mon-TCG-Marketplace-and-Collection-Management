@@ -1,4 +1,4 @@
-// Driven adapters (persistence) — catalog. Bound to docs/solu-1/planning/schemas/003_create_catalog.sql.
+// Driven adapters (persistence) — catalog. Bound to the Solu-1 migration 003_create_catalog.sql (retired; git 853449c:docs/solu-1/planning/schemas/).
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql } from '../../../shared-kernel/ports.js';
 import type { ReferencePriceDTO } from '../dto/cat.dto.js';

@@ -1,4 +1,4 @@
-// Driven adapter (persistence) — orders. Bound to docs/solu-1/planning/schemas/005_create_orders.sql.
+// Driven adapter (persistence) — orders. Bound to the Solu-1 migration 005_create_orders.sql (retired; git 853449c:docs/solu-1/planning/schemas/).
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql } from '../../../shared-kernel/ports.js';
 import type { IOrderRepository } from '../ports/ord.js';

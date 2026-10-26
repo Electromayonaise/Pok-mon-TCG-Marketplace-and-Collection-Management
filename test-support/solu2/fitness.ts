@@ -1,4 +1,4 @@
-// Static fitness functions for the Solu-2 SYS proofs (docs/solu-2/test/fitness/). Pure scanners:
+// Static fitness functions for the Solu-2 SYS proofs (_bmad-output/test-artifacts/fitness/). Pure scanners:
 // they read source text and return findings; every expect() stays in the test body. Each one is
 // proven against a planted violation in the same test file, so a pass is never vacuous.
 import fs from 'node:fs';

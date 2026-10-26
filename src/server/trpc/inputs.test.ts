@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { INPUTS } from './inputs.generated.js';
 
 type Ingress = { procedure: string; kind: string; input?: string; omit: string[] };
-const ingress = (JSON.parse(fs.readFileSync('docs/solu-2/planning/detailed-design/schemas/operations.json', 'utf8')) as { ingress: Ingress[] }).ingress.filter((g) => g.kind !== 'job');
+const ingress = (JSON.parse(fs.readFileSync('_bmad-output/planning-artifacts/detailed-design/schemas/operations.json', 'utf8')) as { ingress: Ingress[] }).ingress.filter((g) => g.kind !== 'job');
 const inputs: Record<string, { shape: Record<string, unknown> } | undefined> = INPUTS;
 const ROLE_LIKE = /^(role|roles|sellerKind|isAdmin|capabilities)$/;
 

@@ -1,5 +1,5 @@
 # Solu-2 quality gate (bmad-testarch-ci). Mirrored byte-for-byte at
-# docs/solu-2/test/ci/quality-gate.yml (the deliverable path); the first step fails on drift.
+# _bmad-output/test-artifacts/ci/quality-gate.yml (the deliverable path); the first step fails on drift.
 # It proves, when run:
 #   1. the stubs, DTOs, ports and tests typecheck;
 #   2. the generated surface (openapi.yaml, dto.ts, v2 stubs, ports) is current with
@@ -12,7 +12,7 @@
 #      NotImplementedError, never passes, and never fails on a broken Given step.
 # Burn-in: the GREEN project is repeated 5 times; a flaky fitness proof would make the gate a
 # rubber stamp. The NFR benchmarks run only their red check here; their thresholds are asserted
-# by the same files once the stories are done (docs/solu-2/test/nfr-evidence.md).
+# by the same files once the stories are done (_bmad-output/test-artifacts/nfr-evidence.md).
 name: solu2-quality-gate
 
 # Manual evidence only since Impl-1 (decision log #9); impl1-quality-gate runs on push and PR.
@@ -47,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: The deliverable mirror equals this workflow
-        run: cmp .github/workflows/solu2-quality-gate.yml docs/solu-2/test/ci/quality-gate.yml
+        run: cmp .github/workflows/solu2-quality-gate.yml _bmad-output/test-artifacts/ci/quality-gate.yml
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc

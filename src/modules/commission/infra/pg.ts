@@ -1,4 +1,4 @@
-// Driven adapters (persistence) — commission. Bound to docs/solu-1/planning/schemas/006_create_commission.sql.
+// Driven adapters (persistence) — commission. Bound to the Solu-1 migration 006_create_commission.sql (retired; git 853449c:docs/solu-1/planning/schemas/).
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql } from '../../../shared-kernel/ports.js';
 import type { CommissionAccountDTO } from '../dto/com.dto.js';

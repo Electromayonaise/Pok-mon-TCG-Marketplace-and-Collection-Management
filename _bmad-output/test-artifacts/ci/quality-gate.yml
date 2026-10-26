@@ -1,0 +1,113 @@
+# Solu-2 quality gate (bmad-testarch-ci). Mirrored byte-for-byte at
+# _bmad-output/test-artifacts/ci/quality-gate.yml (the deliverable path); the first step fails on drift.
+# It proves, when run:
+#   1. the stubs, DTOs, ports and tests typecheck;
+#   2. the generated surface (openapi.yaml, dto.ts, v2 stubs, ports) is current with
+#      operations.json, every UI state is backed, every error code and test id cited by
+#      contracts.md exists, the traceability matrix is current with no FR, AD or P0 risk
+#      left without a test, and the domain cores are pure;
+#   3. the static fitness functions and the seed profile are GREEN (AD-1, AD-8, AD-9,
+#      AD-SYS-6, AD-SYS-8, R-2; PRD §3);
+#   4. every ATDD test and NFR benchmark is RED for the right reason: it fails on
+#      NotImplementedError, never passes, and never fails on a broken Given step.
+# Burn-in: the GREEN project is repeated 5 times; a flaky fitness proof would make the gate a
+# rubber stamp. The NFR benchmarks run only their red check here; their thresholds are asserted
+# by the same files once the stories are done (_bmad-output/test-artifacts/nfr-evidence.md).
+name: solu2-quality-gate
+
+# Manual evidence only since Impl-1 (decision log #9); impl1-quality-gate runs on push and PR.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: solu2-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.6
+        env:
+          POSTGRES_USER: tezg
+          POSTGRES_PASSWORD: tezg
+          POSTGRES_DB: tezg
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U tezg -d tezg"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 30
+    env:
+      TEZG_PG_HOST: 127.0.0.1
+      TEZG_PG_PORT: '55432'
+    steps:
+      - uses: actions/checkout@v4
+      - name: The deliverable mirror equals this workflow
+        run: cmp .github/workflows/solu2-quality-gate.yml _bmad-output/test-artifacts/ci/quality-gate.yml
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Typecheck (stubs, DTOs, ports, tests)
+        run: npm run typecheck
+      - name: Generated surface is current with operations.json
+        run: npm run gate:api:solu2
+      - name: Every UI state is backed by a DTO, a code or a client rule
+        run: npm run gate:ui:solu2
+      - name: Error-code citations match the registry
+        run: npm run gate:codes:solu2
+      - name: Every cited test id exists exactly once
+        run: npm run gate:ids:solu2
+      - name: Every FR, AD and P0 risk traces to a red test; the matrix is current
+        run: npm run gate:trace:solu2
+      - name: Domain cores are pure
+        run: npm run gate:purity
+      - name: GREEN — fitness functions and seed profile (JUnit report)
+        run: npx vitest run --project solu2-fitness --reporter=default --reporter=junit --outputFile.junit=.vitest-results/solu2-fitness.junit.xml
+      - name: RED — ATDD fails for the right reason (≥ 352 tests)
+        run: npm run gate:atdd-red:solu2
+      - name: RED — NFR benchmarks fail for the right reason (≥ 3)
+        run: npm run gate:nfr-red:solu2
+      - name: Keep the test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solu2-vitest-results
+          path: .vitest-results/
+          retention-days: 14
+
+  burn-in:
+    needs: gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16.6
+        env:
+          POSTGRES_USER: tezg
+          POSTGRES_PASSWORD: tezg
+          POSTGRES_DB: tezg
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U tezg -d tezg"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 30
+    env:
+      TEZG_PG_HOST: 127.0.0.1
+      TEZG_PG_PORT: '55432'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: GREEN project × 5
+        run: for i in $(seq 1 5); do npm run test:fitness:solu2 || exit 1; done

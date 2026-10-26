@@ -1,4 +1,4 @@
-// Measurement helpers for the Solu-2 NFR benchmarks (docs/solu-2/test/nfr/). They compute only;
+// Measurement helpers for the Solu-2 NFR benchmarks (_bmad-output/test-artifacts/nfr/). They compute only;
 // every expect() stays in the benchmark.
 
 /** Nearest-rank percentile (p in 0–100) of a sample; NaN for an empty sample. */

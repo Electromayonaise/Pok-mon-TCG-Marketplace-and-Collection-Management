@@ -2,7 +2,7 @@ import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { ExplanationDTO } from '../../../shared-kernel/explanation.js';
 import type { SellerKind, SellerTrack } from '../domain/idn.js';
 
-// Solu-2 DTOs — IDN (docs/solu-2/planning/detailed-design/contracts.md §1, §15). Primitive fields only.
+// Solu-2 DTOs — IDN (_bmad-output/planning-artifacts/detailed-design/contracts.md §1, §15). Primitive fields only.
 
 // IDN-1 claimSellerTrack
 export interface ClaimSellerTrackRequest { userId: CuidId; track: SellerTrack }

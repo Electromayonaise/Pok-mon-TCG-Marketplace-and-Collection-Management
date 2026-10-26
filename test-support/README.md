@@ -15,10 +15,10 @@ Connection settings come from `TEZG_PG_*` (see `.env.example`). The defaults mat
 
 | Command | What it proves | Expected today |
 |---|---|---|
-| `npm run test:schema:solu1` | The migrations physically enforce the invariants (GREEN) | all pass |
-| `npm run test:atdd:solu1` | The contract scaffolds (RED) | all fail with `NotImplementedError` |
-| `npm run gate:atdd-red:solu1` | Every ATDD test fails, and fails *for the right reason* | exit 0 |
-| `npm run gate:solu1` | typecheck + GREEN + RED check + code citations | exit 0 |
+| `npm run test:unit` | The unit and integration tests colocated with the code | all pass |
+| `npm run test:fitness:solu2` | The static fitness functions and the seed profile (GREEN) | all pass |
+| `npm run gate:atdd-red:impl1` | Every ATDD test of a `done` story passes; every other one fails *for the right reason* | exit 0 |
+| `npm run gate:impl1` | typecheck + the Solu-2 contract gates + fitness + the red checks | exit 0 |
 
 ## Architecture
 
@@ -43,7 +43,7 @@ Connection settings come from `TEZG_PG_*` (see `.env.example`). The defaults mat
 
 ## CI integration
 
-`.github/workflows/solu1-quality-gate.yml`: a Postgres 16 service, then typecheck → GREEN (with JUnit) → RED check → code citations, and a 10× burn-in of the GREEN suite. Reports are uploaded as artifacts.
+`.github/workflows/impl1-quality-gate.yml` runs `npm run test:ci` against a Postgres 16 service on every push and pull request. `.github/workflows/solu2-quality-gate.yml` is the manual (`workflow_dispatch`) Solu-2 gate, with a burn-in of the fitness suite. Reports are uploaded as artifacts.
 
 ## Knowledge-base references
 
@@ -54,6 +54,6 @@ Connection settings come from `TEZG_PG_*` (see `.env.example`). The defaults mat
 | Symptom | Cause | Fix |
 |---|---|---|
 | `connect ECONNREFUSED 127.0.0.1:55432` | Database not running | `npm run db:up` |
-| `source database "tezg_tpl_solu1" is being accessed by other users` | A crashed run left a connection to the template | `npm run db:down && npm run db:up` |
-| `Migration NNN failed: …` in global setup | A migration's SQL is invalid | Run the file with `psql -v ON_ERROR_STOP=1` (see `docs/solu-1/planning/schemas/README.md`) |
+| `source database "tezg_tpl_solu2" is being accessed by other users` | A crashed run left a connection to the template | `npm run db:down && npm run db:up` |
+| `Migration NNN failed: …` in global setup | A migration's SQL is invalid | Run `_bmad-output/planning-artifacts/detailed-design/schemas/001_tezg_schema.sql` with `psql -v ON_ERROR_STOP=1 -U tezg -d tezg` |
 | A RED test reported "failed for another reason" | A Given step or a fixture broke, so the test never reached the stub | Read the first line the checker prints. Typical causes are fixture id collisions or a violated constraint in a factory |

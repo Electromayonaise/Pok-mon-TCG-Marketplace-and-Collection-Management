@@ -1,6 +1,5 @@
 .playwright-mcp/
-# Course statements are kept out of version control; anchored to the root so the
-# adapted docs/*/task-statement.md files are still tracked.
+# Course statements are kept out of version control (anchored to the root).
 /task*
 node_modules/
 coverage/

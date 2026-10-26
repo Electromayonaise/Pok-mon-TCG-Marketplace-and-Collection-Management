@@ -1,7 +1,7 @@
 // Readiness check 2 (task statement §7) / review G-17: every UI state of every UX page spec is
 // backed by a contract and a DTO. Reads the "Page States" table of each page spec, maps the page
 // to registry operations through schemas/ui-states.json, classifies each state and writes
-// docs/solu-2/planning/detailed-design/ui-states.md.
+// _bmad-output/planning-artifacts/detailed-design/ui-states.md.
 //   client  — a transport or interaction state with no server data (loading, network error)
 //   data    — rendered from the response DTOs of the page's operations
 //   refusal — rendered from ErrorBody; the page's operations must declare at least one code
@@ -11,7 +11,7 @@ import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
-const DD = 'docs/solu-2/planning/detailed-design';
+const DD = '_bmad-output/planning-artifacts/detailed-design';
 const map = JSON.parse(read(`${DD}/schemas/ui-states.json`));
 const reg = JSON.parse(read(`${DD}/schemas/operations.json`));
 const ops = new Map(reg.operations.map((o) => [o.id, o]));
@@ -23,7 +23,7 @@ const CLIENT = new RegExp(map.classes.client, 'i');
 const REFUSAL = new RegExp(map.classes.refusal, 'i');
 const DATA = new RegExp(map.classes.data, 'i');
 
-const scenarioRoot = 'docs/plan-2/ux/C-UX-Scenarios';
+const scenarioRoot = '_bmad-output/planning-artifacts/ux/C-UX-Scenarios';
 const pages = [];
 for (const dir of fs.readdirSync(path.join(ROOT, scenarioRoot)).sort()) {
   const full = path.join(ROOT, scenarioRoot, dir);

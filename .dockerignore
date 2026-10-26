@@ -9,6 +9,13 @@ coverage
 .vitest-results
 *.tsbuildinfo
 _bmad
-_bmad-output
+# Planning artifacts stay out of the image, except the migrations the service applies at start-up
+# (next.config.ts traces them into the standalone output).
+_bmad-output/*
+!_bmad-output/planning-artifacts
+_bmad-output/planning-artifacts/*
+!_bmad-output/planning-artifacts/detailed-design
+_bmad-output/planning-artifacts/detailed-design/*
+!_bmad-output/planning-artifacts/detailed-design/schemas
 .claude
 .playwright-mcp

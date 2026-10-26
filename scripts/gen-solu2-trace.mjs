@@ -1,20 +1,20 @@
 // Solu-2 traceability matrix (bmad-testarch-trace). Joins the PRD's FRs and NFRs, the contract
 // clauses of contracts.md (core operations, §15 supporting contracts, §15.11/§15.12 tables), the
-// §14 AD binding table, the risk register of test-design.md, the test ids under docs/solu-2/test
+// §14 AD binding table, the risk register of test-design.md, the test ids under _bmad-output/test-artifacts
 // and, once Phase 4 has written it, the stories of epics.md. Writes test/traceability-matrix.md.
 //   --check  fails if the Phase 3 gate does not hold (an FR, AD or P0/P1 risk without a test, a
 //            cited id that is not defined) or if the committed matrix is not current.
 import fs from 'node:fs';
 import path from 'node:path';
 
-const PRD = 'docs/plan-2/planning/prd.md';
-const CONTRACTS = 'docs/solu-2/planning/detailed-design/contracts.md';
-const DESIGN = 'docs/solu-2/test/test-design.md';
-const EVIDENCE = 'docs/solu-2/test/nfr-evidence.md';
-const TESTS = 'docs/solu-2/test';
-const EPICS = 'docs/solu-2/planning/epics.md';
-const STATUS = 'docs/solu-2/implementation-artifacts/sprint-status.yaml';
-const OUT = 'docs/solu-2/test/traceability-matrix.md';
+const PRD = '_bmad-output/planning-artifacts/prd.md';
+const CONTRACTS = '_bmad-output/planning-artifacts/detailed-design/contracts.md';
+const DESIGN = '_bmad-output/test-artifacts/test-design.md';
+const EVIDENCE = '_bmad-output/test-artifacts/nfr-evidence.md';
+const TESTS = '_bmad-output/test-artifacts';
+const EPICS = '_bmad-output/planning-artifacts/epics.md';
+const STATUS = '_bmad-output/implementation-artifacts/sprint-status.yaml';
+const OUT = '_bmad-output/test-artifacts/traceability-matrix.md';
 const check = process.argv.includes('--check');
 const read = (f) => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
 const uniq = (xs) => [...new Set(xs)];
@@ -173,7 +173,7 @@ P('- *PRD FRs and NFRs;*');
 P('- *contract clauses (`contracts.md`);*');
 P('- *AD bindings (§14);*');
 P('- *the risk register (`test-design.md`);*');
-P('- *test ids (`docs/solu-2/test/`);*');
+P('- *test ids (`_bmad-output/test-artifacts/`);*');
 P('- *stories (`epics.md`, once Phase 4 has written it).*');
 P();
 P('*Test state: **red** means it fails today on `NotImplementedError`, by design (ATDD and NFR benchmarks). **Green** means it passes and must stay passing (fitness functions and fixture proofs).*');

@@ -6,9 +6,15 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const ROOT = 'docs/solu-2';
-const DD = `${ROOT}/planning/detailed-design`;
-const EPICS = `${ROOT}/planning/epics.md`;
+const ROOT = 'docs/solu-2'; // the package label; its files live at the paths below
+const PLAN = '_bmad-output/planning-artifacts';
+const TEST = '_bmad-output/test-artifacts';
+const REVIEWS = '_bmad-output/planning-artifacts/reviews';
+// The package's own reviews; the Plan-2 reviews in the same folder predate the triage-status format.
+const REVIEW_FILES = ['review-arch-implementability.md', 'review-detailed-design.md', 'review-epics.md', 'review-test-quality.md'];
+const STATUS = '_bmad-output/implementation-artifacts/sprint-status.yaml';
+const DD = `${PLAN}/detailed-design`;
+const EPICS = `${PLAN}/epics.md`;
 const read = (p) => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
 const uniq = (xs) => [...new Set(xs)];
 const FRS = (s) => uniq([...s.matchAll(/(?<![A-Z-])FR-([A-Z]+)-(\d+)(?:\.\.(\d+))?/g)].flatMap((m) => {
@@ -41,7 +47,7 @@ export async function auditSolu2({ runTests, jsonOut }) {
   }
 
   // ---------------------------------------------------------------- reference data
-  const prdFrs = new Set([...read('docs/plan-2/planning/prd.md').matchAll(/^\*\*(FR-[A-Z]+-\d+) —/gm)].map((m) => m[1]));
+  const prdFrs = new Set([...read('_bmad-output/planning-artifacts/prd.md').matchAll(/^\*\*(FR-[A-Z]+-\d+) —/gm)].map((m) => m[1]));
   const contracts = read(`${DD}/contracts.md`);
   const s14 = contracts.slice(contracts.indexOf('## 14.'), contracts.indexOf('## 15.'));
   const adRows = [...s14.matchAll(/^\| ([^|]+) \| ([^|]*AD[^|]*) \| ([^|]+) \| ([^|]+) \|$/gm)]
@@ -53,7 +59,7 @@ export async function auditSolu2({ runTests, jsonOut }) {
   const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
   const exported = new Set([...walk('src').filter((f) => f.endsWith('.ts')).map(read).join('\n').matchAll(/export (?:interface|type|class) (\w+)/g)].map((m) => m[1]));
   const testFile = new Map();
-  for (const f of walk(`${ROOT}/test`).filter((x) => x.endsWith('.test.ts'))) {
+  for (const f of walk(TEST).filter((x) => x.endsWith('.test.ts'))) {
     for (const m of read(f).matchAll(/\bit(?:\.\w+)?\(\s*['"`]((?:\[[^\]]+\]\s*)+)/g)) for (const i of m[1].matchAll(/\[([^\]]+)\]/g)) testFile.set(i[1], f.replace(/\\/g, '/'));
   }
   const pages = Object.entries(JSON.parse(read(`${DD}/schemas/ui-states.json`)).pages);
@@ -155,8 +161,8 @@ export async function auditSolu2({ runTests, jsonOut }) {
 
   // ---------------------------------------------------------------- C6 every review finding triaged
   let findings = 0;
-  for (const f of fs.readdirSync(`${ROOT}/reviews`).filter((x) => x.endsWith('.md'))) {
-    const text = read(`${ROOT}/reviews/${f}`);
+  for (const f of REVIEW_FILES) {
+    const text = read(`${REVIEWS}/${f}`);
     const st = /\*\*Triage status:\*\* (\d+) findings — (\d+) accepted, (\d+) rejected, (\d+) deferred, (\d+) open/.exec(text);
     if (!st) { fail('C6 review triage', `${f} has no "Triage status" line`); continue; }
     const [total, acc, rej, def, open] = st.slice(1).map(Number);
@@ -179,7 +185,7 @@ export async function auditSolu2({ runTests, jsonOut }) {
     const g = run('npx', ['vitest', 'run', '--project', 'solu2-fitness']);
     green = ((g.stdout ?? '').match(/Tests\s+(.+)/) ?? [])[1]?.trim() ?? 'no result';
     if (g.status !== 0) fail('C7 executable gates', `GREEN fitness project failed: ${green}`);
-    const r = run('node', ['scripts/check-atdd-red.mjs', 'solu2-atdd', '352', '--status', `${ROOT}/implementation-artifacts/sprint-status.yaml`, '--epics', EPICS]);
+    const r = run('node', ['scripts/check-atdd-red.mjs', 'solu2-atdd', '352', '--status', STATUS, '--epics', EPICS]);
     red = lastLine(r);
     if (r.status !== 0) fail('C7 executable gates', `ATDD red check failed: ${(r.stdout ?? '').trim().split('\n').slice(0, 4).join(' | ')}`);
     const n = run('node', ['scripts/check-atdd-red.mjs', 'solu2-nfr', '3']);
@@ -205,7 +211,7 @@ export async function auditSolu2({ runTests, jsonOut }) {
     row(`C4 No forward dependency: ${failures.some((f) => f.startsWith('[C4')) ? 'FAIL' : `PASS (${stories.reduce((n, s) => n + [...(s.f['Depends on'] ?? '').matchAll(/Story /g)].length, 0)} dependencies, all backward)`}`),
     row(`C5 No contradictions: ${failures.some((f) => f.startsWith('[C5')) ? 'FAIL' : 'PASS'} (each operation and test id in one story; tables, DTOs, files and generators consistent)`),
     ...gateLines.map((g) => row(`   ${g}`)),
-    row(`C6 Review triage: ${failures.some((f) => f.startsWith('[C6')) ? 'FAIL' : 'PASS'} (${findings} findings across ${fs.readdirSync(`${ROOT}/reviews`).filter((x) => x.endsWith('.md')).length} reviews, 0 open)`),
+    row(`C6 Review triage: ${failures.some((f) => f.startsWith('[C6')) ? 'FAIL' : 'PASS'} (${findings} findings across ${REVIEW_FILES.length} reviews, 0 open)`),
     row(`C7 GREEN fitness: ${green}`),
     row(`C7 ATDD: ${red}`),
     row(`C7 NFR: ${nfr}`),

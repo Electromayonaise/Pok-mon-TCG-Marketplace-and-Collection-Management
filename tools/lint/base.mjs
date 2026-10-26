@@ -4,8 +4,15 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export const base = tseslint.config(
-  // Agent tooling (.agents, .claude, .cline, _bmad) and the Plan-2 UX prototypes are not product code.
-  { ignores: ['**/node_modules/**', '.*/**', '_bmad/**', '_bmad-output/**', 'docs/plan-2/**', '.next/**', 'generated/**', 'next-env.d.ts'] },
+  // Agent tooling (.agents, .claude, .cline, _bmad) and the planning documents (the Plan-2 UX
+  // prototypes among them) are not product code. The test suites, the DTO index and the epics source are.
+  {
+    ignores: [
+      '**/node_modules/**', '.*/**', '_bmad/**', '.next/**', 'generated/**', 'next-env.d.ts',
+      '_bmad-output/*', '!_bmad-output/test-artifacts/', '!_bmad-output/planning-artifacts/',
+      '_bmad-output/planning-artifacts/ux/',
+    ],
+  },
   js.configs.recommended,
   tseslint.configs.recommended,
   {
@@ -20,7 +27,7 @@ export const base = tseslint.config(
   },
   {
     // The Solu-2 red suites keep Given helpers their stories have not called yet.
-    files: ['docs/solu-*/test/**/*.ts'],
+    files: ['_bmad-output/test-artifacts/**/*.ts'],
     rules: { '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }] },
   },
 );

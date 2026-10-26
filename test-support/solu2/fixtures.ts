@@ -1,4 +1,4 @@
-// Solu-2 fixtures (task statement §6, step 3.2), over docs/solu-2/planning/detailed-design/schemas/001_tezg_schema.sql:
+// Solu-2 fixtures (task statement §6, step 3.2), over _bmad-output/planning-artifacts/detailed-design/schemas/001_tezg_schema.sql:
 //   fake_clock      — VirtualClock (../clock.ts), seeded at 2026-10-01T15:00:00Z
 //   db              — useTestDatabase (../db.ts): per-file database from the Solu-2 template + network guard
 //   sim_events      — SubscriberFaults (../simulated) + the stubbed OutboxDispatcherV2

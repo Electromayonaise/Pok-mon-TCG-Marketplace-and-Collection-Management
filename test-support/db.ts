@@ -8,7 +8,7 @@ import { PG } from './env.js';
 
 // Migration seed rows (for example the A-24 commission rate) must survive every truncate. They
 // are read from the freshly cloned template, whatever its schema, so one harness serves the
-// Solu-1 migrations and the Solu-2 schema alike.
+// Solu-2 schema and any later migration alike.
 interface SeedRows { table: string; columns: string[]; rows: unknown[][] }
 
 let fileCounter = 0;

@@ -125,21 +125,21 @@ The delivery of 2026-10-26 (decision log #22) is the foundation and the first th
 
 **Over HTTP** (decision log #24): `access.completeIndividualProfile` (2.1) and `admin.events.replay` (1.3) are wired to their services behind a Better Auth session. A request without a session gets `NotAuthenticated` (401), and a non-admin replay gets `AdminOnly` (403). Story 2.3 has no procedure; later stories call its projection. Every other procedure belongs to a story after the cut and answers `Unexpected` (500). Sign-up and sign-in are not configured yet, because no Impl-1 story owns them.
 
-[`docs/impl-1/walkthrough-impl1.md`](docs/impl-1/walkthrough-impl1.md) covers each story's goal, procedures, database changes and test evidence, together with the gate output. Each story's full record is in `docs/impl-1/implementation-artifacts/`.
+[`_bmad-output/implementation-artifacts/walkthrough-impl1.md`](_bmad-output/implementation-artifacts/walkthrough-impl1.md) covers each story's goal, procedures, database changes and test evidence, together with the gate output. Each story's full record is in `_bmad-output/implementation-artifacts/`.
 
-**Where each deliverable is** (Impl-1 task statement §6.1; `docs/impl-1/task-statement.md` §4.1 maps the generic paths):
+**Where each deliverable is** (Impl-1 task statement §6.1):
 
 | Deliverable | Path |
 |---|---|
 | Code: scaffold and stories | `src/`, `app/`, `scripts/` (migrations runner), `docker-compose.yml`, `Dockerfile`, `.env.example` |
-| Tests | `src/**/*.test.ts`, `docs/solu-2/test/` (ATDD, NFR, fitness), `test-support/` |
+| Tests | `src/**/*.test.ts`, `_bmad-output/test-artifacts/` (ATDD, NFR, fitness), `test-support/` |
 | Fixtures | `test-support/fixtures/` |
-| Sprint status | [`docs/impl-1/implementation-artifacts/sprint-status.yaml`](docs/impl-1/implementation-artifacts/sprint-status.yaml) |
-| Story files | [`docs/impl-1/implementation-artifacts/`](docs/impl-1/implementation-artifacts/) |
-| Walkthrough and test output | [`docs/impl-1/walkthrough-impl1.md`](docs/impl-1/walkthrough-impl1.md) |
-| AI decision log | [`docs/impl-1/ai-log/ai-decision-log.md`](docs/impl-1/ai-log/ai-decision-log.md) |
-| PRD | [`docs/plan-2/planning/prd.md`](docs/plan-2/planning/prd.md) and `addendum.md` |
-| Contracts (OpenAPI, schemas) | [`docs/solu-2/planning/detailed-design/`](docs/solu-2/planning/detailed-design/) |
+| Sprint status | [`_bmad-output/implementation-artifacts/sprint-status.yaml`](_bmad-output/implementation-artifacts/sprint-status.yaml) |
+| Story files | [`_bmad-output/implementation-artifacts/`](_bmad-output/implementation-artifacts/) |
+| Walkthrough and test output | [`_bmad-output/implementation-artifacts/walkthrough-impl1.md`](_bmad-output/implementation-artifacts/walkthrough-impl1.md) |
+| AI decision log | [`_bmad-output/decision-logs/impl-1-ai-decision-log.md`](_bmad-output/decision-logs/impl-1-ai-decision-log.md) |
+| PRD | [`_bmad-output/planning-artifacts/prd.md`](_bmad-output/planning-artifacts/prd.md) and `addendum.md` |
+| Contracts (OpenAPI, schemas) | [`_bmad-output/planning-artifacts/detailed-design/`](_bmad-output/planning-artifacts/detailed-design/) |
 
 ## Architecture
 
@@ -147,7 +147,7 @@ TEZG is a modular monolith in hexagonal style (Plan-2 ARCHITECTURE, Solu-2 detai
 
 - **Inbound adapters.** A Next.js 16 App Router app with no pages. `app/api/trpc/[trpc]/route.ts` serves tRPC 11 on the non-batched wire, from the composition root `src/server/composition.ts`. `app/api/auth/[...all]/route.ts` mounts Better Auth for sessions. `app/api/health/` holds the liveness and readiness probes.
 - **Modules.** The 12 logical modules live in nine folders under `src/modules/<module>/`: `identity` (IDN, VER), `catalog`, `listings` (INV, DSC), `orders`, `commission`, `trading`, `messaging`, `collections` (COL, VAL) and `reviews`. Each folder has a `domain/` (pure: no framework, driver, network or wall clock; `gate:purity` enforces it), `application/`, `ports/`, `dto/` and `infra/`. Other modules may import it only through its `index.ts`, and only along the AD-1 edges.
-- **Persistence.** PostgreSQL 16. The SQL DDL in `docs/solu-2/planning/detailed-design/schemas/` is the schema source of truth: `npm run db:migrate` applies it, and every table belongs to exactly one module. Repositories run SQL through the `Sql`/`Tx` ports. The Prisma model is generated from the migrated database and backs Better Auth only.
+- **Persistence.** PostgreSQL 16. The SQL DDL in `_bmad-output/planning-artifacts/detailed-design/schemas/` is the schema source of truth: `npm run db:migrate` applies it, and every table belongs to exactly one module. Repositories run SQL through the `Sql`/`Tx` ports. The Prisma model is generated from the migrated database and backs Better Auth only.
 - **Shared kernel.** `src/shared-kernel/` holds the ports (`Clock`, `IdGenerator`, `TransactionRunner`, the outbox), the error registry, the event registry and the validated configuration (`config.ts`).
 - **Determinism.** Time and ids come only through ports. Every external system is a simulated adapter, and the tests run behind a network guard on a virtual clock.
 
@@ -157,8 +157,8 @@ TEZG is a modular monolith in hexagonal style (Plan-2 ARCHITECTURE, Solu-2 detai
 | `src/` | Modules, shared kernel, server wiring (`src/server/`) |
 | `prisma/schema.prisma` | Generated model (`npm run db:pull`) |
 | `test-support/` | Test harness: per-file databases, virtual clock, ids, simulated adapters, the Reference Seed Profile (`fixtures/`) |
-| `docs/solu-2/` | Detailed design (`contracts.md`, `openapi.yaml`, events, DDL) and the ATDD and fitness suites |
-| `docs/impl-1/` | The Impl-1 statement, the walkthrough (`walkthrough-impl1.md`), the story files and sprint status (`implementation-artifacts/`), and the AI decision log (`ai-log/`) |
+| `docs/` | One short summary per course task, in development order (`docs/README.md`) |
+| `_bmad-output/` | Every BMAD artifact (`_bmad-output/README.md`): specs, planning (PRDs, UX, architecture, the Solu-2 detailed design with `contracts.md`, `openapi.yaml`, events and DDL), the ATDD and fitness suites (`test-artifacts/`), the story files, sprint status and walkthrough (`implementation-artifacts/`), and the decision logs |
 | `scripts/`, `tools/lint/` | Gates, generators, the migration runner, the lint toolchain |
 
 <div align="center">

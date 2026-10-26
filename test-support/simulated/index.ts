@@ -1,6 +1,6 @@
 // Simulated driven adapters for the Solu-2 suites (task statement §5 hard rule 3). Each one
 // implements a shared-kernel port with fixtures and fault switches, never the network
-// (NFR-SYS-3). Phase 2 deliverable, audited in docs/solu-2/reviews/review-detailed-design.md.
+// (NFR-SYS-3). Phase 2 deliverable, audited in _bmad-output/planning-artifacts/reviews/review-detailed-design.md.
 import { createHash } from 'node:crypto';
 import type { AuditEntry, AuditLog } from '../../src/shared-kernel/audit.js';
 import { EVENT_SCHEMA_VERSIONS, EVENT_SUBSCRIBERS, type EventEnvelope, type EventPayloads, type EventType, type OutboxV2 } from '../../src/shared-kernel/events.js';
