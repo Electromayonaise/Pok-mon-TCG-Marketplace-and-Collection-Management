@@ -92,23 +92,25 @@ export class PgIdnRepository implements IdnRepository {
   }
 
   async readCapabilityFacts(tx: Tx, userId: CuidId): Promise<CapabilityFacts | null> {
-    // AD-IDN-1 rule 1 for one user: the latest application by ("submittedAt" DESC, id DESC).
+    return (await this.readCapabilityFactsMany(tx, [userId])).get(userId) ?? null;
+  }
+
+  async readCapabilityFactsMany(tx: Tx, userIds: readonly CuidId[]): Promise<Map<CuidId, CapabilityFacts>> {
+    // AD-IDN-1 rule 1: the latest application by ("submittedAt" DESC, id DESC), one statement for every id.
     const { rows } = await tx.query<{
-      emailVerified: boolean; signupConsentAt: Date | null; isAdmin: boolean; sellerTrack: SellerTrack | null; hasIndividualProfile: boolean;
+      id: CuidId; emailVerified: boolean; signupConsentAt: Date | null; isAdmin: boolean; sellerTrack: SellerTrack | null; hasIndividualProfile: boolean;
       appId: CuidId | null; status: ApplicationStatus | null; decidedAt: Date | null; reapplyNotBefore: Date | null; barred: boolean | null;
     }>(
-      `SELECT u."emailVerified", u."signupConsentAt", u."isAdmin", u."sellerTrack",
+      `SELECT u.id, u."emailVerified", u."signupConsentAt", u."isAdmin", u."sellerTrack",
               EXISTS (SELECT 1 FROM "IndividualSellerProfile" p WHERE p."userId" = u.id) AS "hasIndividualProfile",
               a.id AS "appId", a.status, a."decidedAt", a."reapplyNotBefore", a."reapplyBarred" AS barred
          FROM "User" u
          LEFT JOIN LATERAL (SELECT * FROM "BusinessApplication" b WHERE b."businessId" = u.id
                              ORDER BY b."submittedAt" DESC, b.id DESC LIMIT 1) a ON true
-        WHERE u.id = $1`,
-      [userId],
+        WHERE u.id = ANY($1)`,
+      [userIds],
     );
-    const r = rows[0];
-    if (!r) return null;
-    return {
+    return new Map(rows.map((r) => [r.id, {
       emailVerified: r.emailVerified,
       signupConsentAt: iso(r.signupConsentAt),
       isAdmin: r.isAdmin,
@@ -117,7 +119,32 @@ export class PgIdnRepository implements IdnRepository {
       latestApplication: r.appId === null || r.status === null ? null : {
         id: r.appId, status: r.status, decidedAt: iso(r.decidedAt), reapplyNotBefore: iso(r.reapplyNotBefore), barred: r.barred ?? false,
       },
-    };
+    }]));
+  }
+
+  async insertCapabilityAuditRead(tx: Tx, row: { id: CuidId; adminId: CuidId; targetUserId: CuidId; createdAt: IsoInstant }): Promise<void> {
+    await tx.query(
+      `INSERT INTO "CapabilityAuditRead" (id, "adminId", "targetUserId", "createdAt") VALUES ($1, $2, $3, $4)`,
+      [row.id, row.adminId, row.targetUserId, row.createdAt],
+    );
+  }
+
+  async readContactCard(tx: Tx, userId: CuidId): Promise<{ displayName: string; contactPhoneE164: string } | null> {
+    const { rows } = await tx.query<{ displayName: string; contactPhoneE164: string }>(
+      `SELECT "displayName", "contactPhoneE164" FROM "IndividualSellerProfile" WHERE "userId" = $1`,
+      [userId],
+    );
+    return rows[0] ?? null;
+  }
+
+  async readDisplayNames(tx: Tx, userIds: readonly CuidId[]): Promise<Map<CuidId, string>> {
+    const { rows } = await tx.query<{ id: CuidId; displayName: string }>(
+      `SELECT u.id, COALESCE(p."displayName", u.name) AS "displayName"
+         FROM "User" u LEFT JOIN "IndividualSellerProfile" p ON p."userId" = u.id
+        WHERE u.id = ANY($1)`,
+      [userIds],
+    );
+    return new Map(rows.map((r) => [r.id, r.displayName]));
   }
 
   async readThrottleCutoff(tx: Tx, q: { scope: AuthThrottleScope; key: string; since: IsoInstant; until: IsoInstant; limit: number }): Promise<IsoInstant | null> {

@@ -35,11 +35,11 @@ export interface IdnV2UseCases {
 
 import { ambientTx } from '../../../shared-kernel/db.js';
 import type { Decision } from '../../../shared-kernel/decision.js';
-import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import { AUTH_THROTTLE_LIMITS, claimRefusal, deriveCapabilities, throttleRefusal, type AuthThrottleLimit, type CapabilityFacts } from '../domain/idn.js';
+import { AUTH_THROTTLE_LIMITS, claimRefusal, deriveCapabilities, throttleRefusal, type AuthThrottleLimit, type CapabilityFacts, type CapabilityValue, type DerivedCapabilities } from '../domain/idn.js';
 
 const raise = raiserFor('identity');
 
@@ -144,16 +144,56 @@ export class IdnServiceV2 implements IdnV2UseCases {
     return this.reading((tx) => this.deps.repo.readCapabilityFacts(tx, userId));
   }
 
-  async traceCapabilities(_input: TraceCapabilitiesRequest): Promise<TraceCapabilitiesResponse> {
-    throw new NotImplementedError('identity.traceCapabilities');
+  /**
+   * IDN-3: one fact read and one `deriveCapabilities`, then the `"CapabilityAuditRead"` row and
+   * the admin audit row, in one transaction that reads the `Clock` once. An unknown target is
+   * refused before any write; every successful trace is audited, so it is not idempotent.
+   */
+  async traceCapabilities({ targetUserId, adminId }: TraceCapabilitiesRequest): Promise<TraceCapabilitiesResponse> {
+    const { repo, transactions, clock, ids, audit } = this.deps;
+    return transactions.run(async (tx) => {
+      const facts = await repo.readCapabilityFacts(tx, targetUserId);
+      if (facts === null) return raise('AccountNotFound', [{ rule: 'FR-IDN-5', inputs: { account: null } }]);
+      const now = clock.now().toISOString();
+      const { capabilities, sellerKind } = deriveCapabilities(facts);
+      await repo.insertCapabilityAuditRead(tx, { id: ids.next(), adminId, targetUserId, createdAt: now });
+      await audit.record(tx, {
+        actorId: adminId, actorKind: 'admin', module: 'identity', action: 'identity.capabilities.traced',
+        aggregateType: 'User', aggregateId: targetUserId, decisionCode: null, data: { sellerKind },
+      });
+      const inputs = { targetUserId, capabilityCount: capabilities.length };
+      const decision: Decision = {
+        outcome: 'allowed',
+        reasonCode: 'CapabilitiesTraced',
+        humanMessage: renderMessage('CapabilitiesTraced', inputs),
+        citations: [{ rule: 'FR-IDN-5', inputs }],
+        occurredAt: now,
+      };
+      return { targetUserId, sellerKind, capabilities, decision };
+    });
   }
 
-  async getSellerKinds(_input: GetSellerKindsRequest): Promise<GetSellerKindsResponse> {
-    throw new NotImplementedError('identity.getSellerKinds');
+  /** S-FR-IDN-6.kinds: one fact read for the distinct ids; one row per known id, in input order. Zero writes, no cache. */
+  async getSellerKinds({ userIds }: GetSellerKindsRequest): Promise<GetSellerKindsResponse> {
+    const distinct = [...new Set(userIds)];
+    if (distinct.length === 0) return { sellers: [] };
+    const facts = await this.reading((tx) => this.deps.repo.readCapabilityFactsMany(tx, distinct));
+    return {
+      sellers: distinct.flatMap((userId) => {
+        const f = facts.get(userId);
+        if (f === undefined) return [];
+        const derived = deriveCapabilities(f);
+        return [{ userId, sellerKind: derived.sellerKind, verified: holds(derived, 'isVerifiedBusiness') }];
+      }),
+    };
   }
 
-  async getReviewTarget(_input: GetReviewTargetRequest): Promise<GetReviewTargetResponse> {
-    throw new NotImplementedError('identity.getReviewTarget');
+  /** S-FR-IDN-6.target: the seller kind and verification of a review target; an unknown id is `'none'`. */
+  async getReviewTarget({ userId }: GetReviewTargetRequest): Promise<GetReviewTargetResponse> {
+    const facts = await this.factsOf(userId);
+    if (facts === null) return { kind: 'none', verified: false };
+    const derived = deriveCapabilities(facts);
+    return { kind: derived.sellerKind, verified: holds(derived, 'isVerifiedBusiness') };
   }
 
   /**
@@ -219,11 +259,24 @@ export class IdnServiceV2 implements IdnV2UseCases {
     return { status: facts === null ? 'none' : deriveCapabilities(facts).verification };
   }
 
-  async getContactCard(_input: GetContactCardRequest): Promise<GetContactCardResponse> {
-    throw new NotImplementedError('identity.getContactCard');
+  /**
+   * P-IDN.contact: the individual profile's name and regulated phone (AD-SYS-8 rules 3–4). The
+   * phone is returned to the caller only: never logged, audited or cited.
+   */
+  async getContactCard({ sellerId }: GetContactCardRequest): Promise<GetContactCardResponse> {
+    const card = await this.reading((tx) => this.deps.repo.readContactCard(tx, sellerId));
+    if (card === null) return raise('IndividualSellerProfileIncomplete', [{ rule: 'P-IDN.contact', inputs: { individualProfile: false } }]);
+    return card;
   }
 
-  async getDisplayNames(_input: GetDisplayNamesRequest): Promise<GetDisplayNamesResponse> {
-    throw new NotImplementedError('identity.getDisplayNames');
+  /** P-IDN.names: one statement for the distinct ids; one row per known id, in input order, with no email and no phone. */
+  async getDisplayNames({ userIds }: GetDisplayNamesRequest): Promise<GetDisplayNamesResponse> {
+    const distinct = [...new Set(userIds)];
+    if (distinct.length === 0) return { names: [] };
+    const names = await this.reading((tx) => this.deps.repo.readDisplayNames(tx, distinct));
+    return { names: distinct.flatMap((userId) => (names.has(userId) ? [{ userId, displayName: names.get(userId)! }] : [])) };
   }
 }
+
+const holds = (derived: DerivedCapabilities, name: CapabilityValue['name']): boolean =>
+  derived.capabilities.find((c) => c.name === name)!.value;

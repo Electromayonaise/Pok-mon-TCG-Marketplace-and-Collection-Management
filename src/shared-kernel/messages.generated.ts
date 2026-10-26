@@ -16,6 +16,7 @@ export const MESSAGES = {
   BuyerEligible: 'Tu correo está verificado; puedes comprar, ofertar y escribir.',
   AuthRateLimited: 'Demasiados intentos. Vuelve a intentarlo después de las {retryAt}.',
   AccountNotFound: 'No encontramos esa cuenta.',
+  CapabilitiesTraced: 'Trazamos las 6 capacidades de la cuenta; cada una cita los datos de los que sale.',
   IndividualSellerProfileIncomplete: 'Completa tu perfil de vendedor para publicar.',
   IndividualSellerProfileAlreadyComplete: 'Tu cuenta ya vende como persona; no puede registrar una tienda.',
   IndividualSellerProfileCompleted: 'Tu perfil de vendedor quedó completo; ya puedes publicar como persona.',
@@ -100,6 +101,6 @@ export const MESSAGES = {
   DuplicateReview: 'Ya reseñaste a este vendedor; puedes editar tu reseña.',
   ReviewNotFound: 'No encontramos esa reseña.',
   Unexpected: 'Algo falló de nuestro lado; no se aplicó ningún cambio.',
-} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified', string>;
+} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified', string>;
 
 export type MessageCode = keyof typeof MESSAGES;

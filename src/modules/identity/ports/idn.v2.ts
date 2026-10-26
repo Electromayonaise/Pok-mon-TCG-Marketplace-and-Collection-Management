@@ -46,6 +46,14 @@ export interface IdnRepository {
   insertIndividualProfile(tx: Tx, row: IndividualProfileRow, now: IsoInstant): Promise<void>;
   /** AD-IDN-1 rule 1: one statement for the user's flags, latest application and profile presence; `null` when no `"User"` row. */
   readCapabilityFacts(tx: Tx, userId: CuidId): Promise<CapabilityFacts | null>;
+  /** AD-IDN-1 rule 1 for a list: the same statement over every id; ids with no `"User"` row are absent. */
+  readCapabilityFactsMany(tx: Tx, userIds: readonly CuidId[]): Promise<Map<CuidId, CapabilityFacts>>;
+  /** IDN-3 Q2: the append-only row every successful trace writes (AD-IDN-1 rule 5). */
+  insertCapabilityAuditRead(tx: Tx, row: { id: CuidId; adminId: CuidId; targetUserId: CuidId; createdAt: IsoInstant }): Promise<void>;
+  /** P-IDN.contact: the profile's name and regulated phone, or null with no profile (AD-SYS-8). */
+  readContactCard(tx: Tx, userId: CuidId): Promise<{ displayName: string; contactPhoneE164: string } | null>;
+  /** P-IDN.names: the profile's display name, else `"User".name`, per known id; never the email or the phone. */
+  readDisplayNames(tx: Tx, userIds: readonly CuidId[]): Promise<Map<CuidId, string>>;
   /** AD-IDN-3 rule 3: `"createdAt"` of the limit-th newest `"AuthThrottleEvent"` on `key` in `(since, until]`, or null. */
   readThrottleCutoff(tx: Tx, q: { scope: AuthThrottleScope; key: string; since: IsoInstant; until: IsoInstant; limit: number }): Promise<IsoInstant | null>;
 }

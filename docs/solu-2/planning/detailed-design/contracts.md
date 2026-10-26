@@ -1268,6 +1268,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `BuyerEligible` | — (stored only) | identity | `requireCanBuy` allowed: a verified email with recorded consent (S-FR-IDN-7.canBuy; the rule of decision log Impl-1 #16) | "Tu correo está verificado; puedes comprar, ofertar y escribir." | no |
 | `AuthRateLimited` | 429 | identity | Sign-in or sign-up throttle (S-FR-IDN-7) | "Demasiados intentos. Vuelve a intentarlo después de las {retryAt}." | yes |
 | `AccountNotFound` † | 404 | identity | IDN-3 P2 (C-GAP-1) | "No encontramos esa cuenta." | no |
+| `CapabilitiesTraced` | — (stored only) | identity | IDN-3 Q4: the trace's decision (the rule of decision log Impl-1 #16) | "Trazamos las 6 capacidades de la cuenta; cada una cita los datos de los que sale." | no |
 | `IndividualSellerProfileIncomplete` | 409 | identity | IDN-2 Q-fail | "Completa tu perfil de vendedor para publicar." | no |
 | `IndividualSellerProfileAlreadyComplete` | 409 | identity | IDN-1 Q-fail; VER-2 P4 | "Tu cuenta ya vende como persona; no puede registrar una tienda." | no |
 | `IndividualSellerProfileCompleted` | — (stored only) | identity | `access.completeIndividualProfile` succeeded (IDN-1.ingress; the rule of decision log Impl-1 #16) | "Tu perfil de vendedor quedó completo; ya puedes publicar como persona." | no |

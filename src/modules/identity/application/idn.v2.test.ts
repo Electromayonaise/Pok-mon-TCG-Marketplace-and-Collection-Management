@@ -1,11 +1,13 @@
 // IdnServiceV2 (S-FR-IDN-7; AD-IDN-3 rules 2–3): the explained canBuy refusal and allowance,
 // and the throttle matrix: under the limit, the window edge, the IP and sign-up limits, the
-// latest retryAt when two limits trip, and a citation that never carries a key.
+// latest retryAt when two limits trip, and a citation that never carries a key. Then the
+// Story 2.5 edges the bound tests leave out: the trace's decision, input order with duplicates,
+// the empty list, unknown ids, and the contact card's refusal.
 import { describe, expect, it } from 'vitest';
 import { useTestDatabase } from '../../../../test-support/db.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
 import { caught, citedInputs, httpOf } from '../../../../test-support/errors.js';
-import { at, explainAssert, id, ins, T0, user, wiring } from '../../../../test-support/solu2/fixtures.js';
+import { admin, at, business, explainAssert, id, individualSeller, ins, rows, T0, user, wiring } from '../../../../test-support/solu2/fixtures.js';
 import { IdnServiceV2 } from './idn.v2.js';
 
 const db = useTestDatabase();
@@ -90,5 +92,77 @@ describe('IdnServiceV2.checkAuthThrottle', () => {
     await attempts(30, { key: IP, tag: 'ip' });
     const error = await caught(() => idn().checkAuthThrottle(signIn));
     expect(citedInputs(error)).toMatchObject({ limit: 30, retryAt: at(15 * MIN) });
+  });
+});
+
+describe('IdnServiceV2.traceCapabilities', () => {
+  it('the decision is CapabilitiesTraced citing FR-IDN-5 with the target and six lines, dated by the clock', async () => {
+    await admin(db);
+    await user(db, { id: id('camila') });
+    const result = await idn().traceCapabilities({ targetUserId: id('camila'), adminId: id('admin') });
+    expect(result).toMatchObject({ targetUserId: id('camila'), sellerKind: 'none' });
+    explainAssert(result.decision, { code: 'CapabilitiesTraced', outcome: 'allowed', rule: 'FR-IDN-5', inputs: { targetUserId: id('camila'), capabilityCount: 6 }, occurredAt: T0 });
+    expect(await rows(db, 'CapabilityAuditRead')).toMatchObject([{ createdAt: new Date(T0) }]);
+  });
+
+  it('an unknown target cites the same inputs for every id', async () => {
+    await admin(db);
+    const one = await caught(() => idn().traceCapabilities({ targetUserId: id('nobody'), adminId: id('admin') }));
+    const two = await caught(() => idn().traceCapabilities({ targetUserId: id('ghost'), adminId: id('admin') }));
+    expect(citedInputs(one)).toEqual({ account: null });
+    expect(citedInputs(two)).toEqual(citedInputs(one));
+  });
+
+  it('two traces write two audit pairs (not idempotent)', async () => {
+    await admin(db);
+    await user(db, { id: id('camila') });
+    await idn().traceCapabilities({ targetUserId: id('camila'), adminId: id('admin') });
+    await idn().traceCapabilities({ targetUserId: id('camila'), adminId: id('admin') });
+    expect(await db.counts(['CapabilityAuditRead', 'audit_events'])).toEqual({ CapabilityAuditRead: 2, audit_events: 2 });
+  });
+});
+
+describe('IdnServiceV2.getSellerKinds / getReviewTarget', () => {
+  it('one row per known id in input order: duplicates collapse and unknown ids drop', async () => {
+    await business(db, id('andres'), 'Approved');
+    await individualSeller(db, id('valentina'));
+    await user(db, { id: id('camila') });
+    const { sellers } = await idn().getSellerKinds({ userIds: [id('valentina'), id('nobody'), id('andres'), id('valentina'), id('camila')] });
+    expect(sellers).toEqual([
+      { userId: id('valentina'), sellerKind: 'individual', verified: false },
+      { userId: id('andres'), sellerKind: 'business', verified: true },
+      { userId: id('camila'), sellerKind: 'none', verified: false },
+    ]);
+  });
+
+  it('an empty list returns no rows and opens no transaction', async () => {
+    const service = new IdnServiceV2({ ...wiring(db), transactions: { run: () => { throw new Error('no query expected'); } } });
+    expect(await service.getSellerKinds({ userIds: [] })).toEqual({ sellers: [] });
+    expect(await service.getDisplayNames({ userIds: [] })).toEqual({ names: [] });
+  });
+
+  it('an unknown review target reads kind none, and a pending business is unverified', async () => {
+    await business(db, id('andres'), 'Pending');
+    expect(await idn().getReviewTarget({ userId: id('nobody') })).toEqual({ kind: 'none', verified: false });
+    expect(await idn().getReviewTarget({ userId: id('andres') })).toEqual({ kind: 'business', verified: false });
+  });
+});
+
+describe('IdnServiceV2.getContactCard / getDisplayNames', () => {
+  it('a seller with no individual profile is IndividualSellerProfileIncomplete (409)', async () => {
+    await business(db, id('andres'), 'Approved');
+    const error = await caught(() => idn().getContactCard({ sellerId: id('andres') }));
+    expect(codeOf(error)).toBe('IndividualSellerProfileIncomplete');
+    expect(httpOf(error)).toBe(409);
+  });
+
+  it('names take the profile display name, else the account name, in input order without duplicates', async () => {
+    await individualSeller(db, id('valentina'));
+    await user(db, { id: id('camila') });
+    const { names } = await idn().getDisplayNames({ userIds: [id('camila'), id('nobody'), id('valentina'), id('camila')] });
+    expect(names).toEqual([
+      { userId: id('camila'), displayName: id('camila') },
+      { userId: id('valentina'), displayName: `Vendedor ${id('valentina').slice(0, 6)}` },
+    ]);
   });
 });

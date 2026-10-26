@@ -66,7 +66,7 @@ development_status:
   2-2-let-exactly-one-seller-track-win-a-race: done
   2-3-explain-why-an-account-may-not-list: done
   2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins: done
-  2-5-trace-capabilities-for-admins-and-answer-neighbours-identity-queries: backlog
+  2-5-trace-capabilities-for-admins-and-answer-neighbours-identity-queries: done
   epic-2-retrospective: optional
   epic-3: backlog
   3-1-submit-a-business-application-with-its-legal-identity: backlog

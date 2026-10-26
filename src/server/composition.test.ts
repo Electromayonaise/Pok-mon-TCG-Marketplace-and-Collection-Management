@@ -1,5 +1,5 @@
 // The production composition over HTTP (decision log Impl-1 #24): a real Better Auth session on
-// the test database, the identity gate, and the resolvers of IDN-1.ingress and S-SYS.replay,
+// the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3 and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -111,6 +111,31 @@ describe('admin.events.replay over HTTP (S-SYS.replay, S-FR-IDN-7)', () => {
     expect(status).toBe(200);
     expect(json.result?.data).toMatchObject({ status: 'delivered', replayed: true, decision: { reasonCode: 'EventDeliveryReplayed' } });
     expect(await rows(db, 'EventReplayLog')).toMatchObject([{ adminId: id('admin'), outcome: 'delivered' }]);
+  });
+});
+
+describe('access.traceCapabilities over HTTP (IDN-3, S-FR-IDN-7)', () => {
+  it('a signed-in non-admin is AdminOnly 403, and nothing is audited', async () => {
+    await user(db, { id: id('camila') });
+    const { status, json } = await post('access.traceCapabilities', { targetUserId: id('camila') }, await signIn(id('camila')));
+    expect([status, json.error?.code]).toEqual([403, 'AdminOnly']);
+    expect(await rows(db, 'CapabilityAuditRead')).toHaveLength(0);
+  });
+
+  it('an admin traces an account: 200 with the six lines, and the audit row names the session admin', async () => {
+    await admin(db);
+    await user(db, { id: id('camila') });
+    const { status, json } = await post('access.traceCapabilities', { targetUserId: id('camila') }, await signIn(id('admin')));
+    expect(status).toBe(200);
+    expect(json.result?.data).toMatchObject({ targetUserId: id('camila'), sellerKind: 'none', decision: { reasonCode: 'CapabilitiesTraced' } });
+    expect(json.result?.data.capabilities).toHaveLength(6);
+    expect(await rows(db, 'CapabilityAuditRead')).toMatchObject([{ adminId: id('admin'), targetUserId: id('camila') }]);
+  });
+
+  it('an unknown target is AccountNotFound 404', async () => {
+    await admin(db);
+    const { status, json } = await post('access.traceCapabilities', { targetUserId: id('nobody') }, await signIn(id('admin')));
+    expect([status, json.error?.code]).toEqual([404, 'AccountNotFound']);
   });
 });
 

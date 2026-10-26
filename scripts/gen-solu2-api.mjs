@@ -622,7 +622,8 @@ for (const [host, block] of indexBlocks) {
 // registry code needs a row with its registry status; the only other rows are 'Unexpected' and
 // the stored-only codes (DeliveryAttemptsExhausted; EventDeliveryReplayed,
 // EventDeliveryReplayInProgress and IndividualSellerProfileCompleted, decision log Impl-1 #16;
-// TickOnSchedule and TickSilent, Story 1.5; BuyerEligible, Story 2.4).
+// TickOnSchedule and TickSilent, Story 1.5; BuyerEligible, Story 2.4; CapabilitiesTraced,
+// Story 2.5).
 {
   const section = /^## 13\. Typed Error Catalog\n([\s\S]*?)^## 14\./m.exec(contractsMd)?.[1] ?? '';
   const messages = new Map();
