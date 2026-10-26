@@ -16,14 +16,14 @@ const source = tsFiles('src').map((file) => ({ file, text: fs.readFileSync(file,
 describe('SYS-AD1 — import graph (AD-1)', () => {
   it('[SYS-AD1.probe] the scanner flags a forbidden edge and a deep import', () => {
     expect(importViolations([
-      { file: 'src/modules/trading/ports/x.ts', text: `import type { A } from '../catalog/index.js';` },
-      { file: 'src/modules/orders/ports/x.ts', text: `import type { B } from '../listings/dto/inv.v2.dto.js';` },
-      { file: 'src/modules/reviews/ports/x.ts', text: `import type { C } from '../orders/index.js';` },
+      { file: 'src/modules/trading/ports/x.ts', text: `import type { A } from '../../catalog/index.js';` },
+      { file: 'src/modules/orders/ports/x.ts', text: `import type { B } from '../../listings/dto/inv.v2.dto.js';` },
+      { file: 'src/modules/reviews/ports/x.ts', text: `import type { C } from '../../orders/index.js';` },
     ])).toHaveLength(2);
     // The kernel and the modules never import the driving adapter in src/server (decision log Impl-1 #19).
     expect(importViolations([
       { file: 'src/shared-kernel/x.ts', text: `import { renderMessage } from '../server/trpc/messages.js';` },
-      { file: 'src/modules/orders/application/x.ts', text: `import type { D } from '../../server/trpc/init.js';` },
+      { file: 'src/modules/orders/application/x.ts', text: `import type { D } from '../../../server/trpc/init.js';` },
       { file: 'src/server/trpc/x.ts', text: `import { E } from './errors.js';` },
     ])).toHaveLength(2);
   });
