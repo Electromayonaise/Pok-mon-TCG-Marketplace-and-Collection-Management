@@ -15,8 +15,26 @@ export interface DscV2UseCases {
 // </gen-solu2-api>
 
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest } from '../../../shared-kernel/request.js';
+import { validateSearchArea } from '../domain/dsc.js';
+import type { SearchArea } from '../dto/dsc.v2.dto.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('listings');
+
+/**
+ * DSC-3: the area guard shared by DSC-1, DSC-2 and INV's availability port. Pure: a non-finite
+ * input is the parser's refusal (P1), repeated for in-process callers; any other refusal is
+ * InvalidSearchArea citing the three inputs (Q4).
+ */
+export function checkSearchArea(area: SearchArea): void {
+  const { lat, lng, radiusKm } = area;
+  const field = (['lat', 'lng', 'radiusKm'] as const).find((k) => !Number.isFinite(area[k]));
+  if (field) rejectRequest([{ field: `area.${field}`, issue: 'debe ser un número finito' }]);
+  if (validateSearchArea(area) !== 'valid') raise('InvalidSearchArea', [{ rule: 'FR-DSC-1', inputs: { lat, lng, radiusKm } }]);
+}
+
+/** Every method not yet built throws NotImplementedError until its story is done (red for the right reason). */
 export class DscServiceV2 implements DscV2UseCases {
   constructor(protected readonly deps: DscV2Deps) {}
 
@@ -28,7 +46,8 @@ export class DscServiceV2 implements DscV2UseCases {
     throw new NotImplementedError('listings.getCardDetail');
   }
 
-  assertSearchArea(_input: AssertSearchAreaRequest): void {
-    throw new NotImplementedError('listings.assertSearchArea');
+  /** DSC-3: no read, no write, no clock (Q2, Q3). */
+  assertSearchArea(input: AssertSearchAreaRequest): void {
+    checkSearchArea(input.area);
   }
 }

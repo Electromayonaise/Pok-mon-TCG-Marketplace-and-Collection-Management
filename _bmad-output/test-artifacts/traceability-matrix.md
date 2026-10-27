@@ -67,7 +67,7 @@
 | FR-INV-8 | Withdraw on rejection, restore on approval (CAP-5, CAP-15) | S-FR-INV-8 | AD-INV-3 | 2 — `S-FR-INV-8.f`, `S-FR-INV-8.h` | 5.5 (done) | red |
 | FR-INV-9 | Edit, restock and deactivate (CAP-4) | S-FR-INV-9 | AD-INV-1, AD-SYS-5 | 2 — `S-FR-INV-9.f`, `S-FR-INV-9.h` | 5.6 (done) | red |
 | FR-INV-10 | Listing detail and owner view (CAP-4, CAP-28) | S-FR-INV-10 | AD-12 | 2 — `S-FR-INV-10.f`, `S-FR-INV-10.h` | 5.6 (done) | red |
-| FR-DSC-1 | One browse query for both seller kinds (CAP-1, CAP-2) | DSC-3, DSC-1 | AD-DSC-1, AD-5, AD-DSC-2, AD-12 | 11 — `DSC-3.I1`, `DSC-3.Q1`, `DSC-3.QF1` +8 | 6.1 (backlog), 6.2 (backlog), 6.4 (backlog) | red |
+| FR-DSC-1 | One browse query for both seller kinds (CAP-1, CAP-2) | DSC-3, DSC-1 | AD-DSC-1, AD-5, AD-DSC-2, AD-12 | 11 — `DSC-3.I1`, `DSC-3.Q1`, `DSC-3.QF1` +8 | 6.1 (done), 6.2 (backlog), 6.4 (backlog) | red |
 | FR-DSC-2 | Correct geodesic distance and an inclusive boundary (CAP-1) | DSC-1 | AD-DSC-2, AD-5, AD-DSC-1, AD-12 | 7 — `DSC-1.I1`, `DSC-1.I2`, `DSC-1.I4` +4 | 6.2 (backlog), 6.4 (backlog) | red |
 | FR-DSC-3 | Unusable locations are excluded and explained (CAP-1) | DSC-1 | AD-DSC-2, AD-5, AD-DSC-1, AD-12 | 7 — `DSC-1.I1`, `DSC-1.I2`, `DSC-1.I4` +4 | 6.2 (backlog), 6.4 (backlog) | red |
 | FR-DSC-4 | Pickup is derived on read (CAP-1) | DSC-1 | AD-DSC-2, AD-5, AD-DSC-1, AD-12 | 7 — `DSC-1.I1`, `DSC-1.I2`, `DSC-1.I4` +4 | 6.2 (backlog), 6.4 (backlog) | red |
