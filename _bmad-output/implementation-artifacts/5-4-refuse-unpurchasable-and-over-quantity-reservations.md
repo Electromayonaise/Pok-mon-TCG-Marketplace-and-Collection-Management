@@ -2,7 +2,7 @@
 title: 'Story 5.4: Refuse unpurchasable and over-quantity reservations'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'ab3430b'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -55,8 +55,8 @@ Once 5.2 is done, the 4 tests turn green and the red gate fails.
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] run the 4 tests on the 5.2 tree; fix any gap in 5.2's files
-- [ ] `sprint-status.yaml` -- 5.4 `done`, out of `impl2_scope`; `gen:trace:solu2`
+- [x] run the 4 tests on the 5.2 tree; fix any gap in 5.2's files
+- [x] `sprint-status.yaml` -- 5.4 `done`, out of `impl2_scope`; `gen:trace:solu2`
 
 **Acceptance Criteria:**
 - Given 5.2 and 5.4 `done`, when the INV-1 tests run, then all 9 pass.
@@ -69,3 +69,10 @@ Once 5.2 is done, the 4 tests turn green and the red gate fails.
 ## Implementation Notes
 
 - Code review is batched with the rest of Epic 5 at its close (decision #22).
+- The 4 bound tests passed on the Story 5.2 tree (commit `490b7fd`) with no change. No gap needed a fix in 5.2's files.
+- Where each refusal is built, all in `reserveForPurchase` (Story 5.2):
+  - `[INV-1.P2]`: the read's `visible` flag. The citation is `{ visible: false }` with no listing id, so a hidden listing and an unknown id read the same (S-2).
+  - `[INV-1.P3]`: `"sellerKindAtCreation"`.
+  - `[INV-1.P4]`: the domain `purchasable` predicate, after `getSellerVerification`.
+  - `[INV-1.P5]`: the conditional decrement that changes 0 rows, then a read of the unit's quantity. The caller's transaction aborts, which restores any unit decremented before it.
+- 5.4 leaves `impl2_scope` with a note in `sprint-status.yaml`. Like 5.3, it is `done` early and does not count toward the 43 Impl-1 stories.
