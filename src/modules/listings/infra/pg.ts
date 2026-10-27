@@ -135,6 +135,63 @@ export class PgInvRepository implements InvRepository {
     return rows[0] ?? null;
   }
 
+  async upsertProjection(tx: Tx, p: { businessId: CuidId; seq: number; paused: boolean; now: IsoInstant }): Promise<boolean> {
+    const { rowCount } = await tx.query(
+      `INSERT INTO "SellerCommissionState" ("businessId", "lastAppliedSeq", paused, "appliedAt", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $4, $4)
+       ON CONFLICT ("businessId") DO UPDATE SET "lastAppliedSeq" = EXCLUDED."lastAppliedSeq", paused = EXCLUDED.paused, "appliedAt" = EXCLUDED."appliedAt", "updatedAt" = EXCLUDED."updatedAt"
+       WHERE "SellerCommissionState"."lastAppliedSeq" < EXCLUDED."lastAppliedSeq" RETURNING 1`,
+      [p.businessId, p.seq, p.paused, p.now],
+    );
+    return rowCount === 1;
+  }
+
+  async setPausedForSeller(tx: Tx, businessId: CuidId, paused: boolean, now: IsoInstant): Promise<number> {
+    const { rowCount } = await tx.query(
+      paused
+        ? `UPDATE "Listing" SET "pausedAt" = $2, "updatedAt" = $2 WHERE "sellerId" = $1 AND "sellerKindAtCreation" = 'business' AND "pausedAt" IS NULL`
+        : `UPDATE "Listing" SET "pausedAt" = NULL, "updatedAt" = $2 WHERE "sellerId" = $1 AND "pausedAt" IS NOT NULL`,
+      [businessId, now],
+    );
+    return rowCount;
+  }
+
+  async lockSellerListings(tx: Tx, sellerId: CuidId): Promise<void> {
+    await tx.query(`SELECT id FROM "Listing" WHERE "sellerId" = $1 ORDER BY id FOR UPDATE`, [sellerId]);
+  }
+
+  async newestAppliedDecision(tx: Tx, businessId: CuidId): Promise<IsoInstant | null> {
+    const { rows } = await tx.query<{ newest: Date | null }>(
+      `SELECT max("decidedAt") AS newest FROM "AppliedApplicationDecision" WHERE "businessId" = $1 AND NOT ignored`, [businessId]);
+    return rows[0]?.newest?.toISOString() ?? null;
+  }
+
+  async insertAppliedDecision(tx: Tx, d: { applicationId: CuidId; businessId: CuidId; decision: 'Approved' | 'Rejected'; decidedAt: IsoInstant; ignored: boolean; now: IsoInstant }): Promise<boolean> {
+    const { rowCount } = await tx.query(
+      `INSERT INTO "AppliedApplicationDecision" ("applicationId", "businessId", decision, "decidedAt", "appliedAt", ignored, "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $5) ON CONFLICT ("applicationId") DO NOTHING`,
+      [d.applicationId, d.businessId, d.decision, d.decidedAt, d.now, d.ignored],
+    );
+    return rowCount === 1;
+  }
+
+  async withdrawForRejection(tx: Tx, sellerId: CuidId, applicationId: CuidId, now: IsoInstant): Promise<number> {
+    const { rowCount } = await tx.query(
+      `UPDATE "Listing" SET "withdrawnAt" = $3, "withdrawnReason" = 'ApplicationRejected', "withdrawnByApplicationId" = $2, "updatedAt" = $3
+       WHERE "sellerId" = $1 AND "withdrawnAt" IS NULL`,
+      [sellerId, applicationId, now],
+    );
+    return rowCount;
+  }
+
+  async restoreFromRejection(tx: Tx, sellerId: CuidId, now: IsoInstant): Promise<number> {
+    const { rowCount } = await tx.query(
+      `UPDATE "Listing" SET "withdrawnAt" = NULL, "withdrawnReason" = NULL, "withdrawnByApplicationId" = NULL, "updatedAt" = $2
+       WHERE "sellerId" = $1 AND "withdrawnReason" = 'ApplicationRejected'`,
+      [sellerId, now],
+    );
+    return rowCount;
+  }
+
   async listingUnitIds(tx: Tx, listingId: CuidId): Promise<CuidId[]> {
     const { rows } = await tx.query<{ unit: CuidId }>(`SELECT x.unit FROM (SELECT $1::text AS id) l, LATERAL (${LISTING_UNITS}) x ORDER BY x.unit`, [listingId]);
     return rows.map((r) => r.unit);

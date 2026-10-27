@@ -7,7 +7,8 @@ import { InvServiceV2, PgInvRepository } from '../modules/listings/index.js';
 import { IdentityGateV2, IdnServiceV2, PgIdnRepository, PgLegalIdentityRepository, PgVerRepository, VerServiceV2, type SessionReader } from '../modules/identity/index.js';
 import { AdminEventsServiceV2 } from '../shared-kernel/admin-events.js';
 import { OutboxDispatcherV2, type DeliveryHandler, type SubscriberName } from '../shared-kernel/dispatcher.js';
-import { NotImplementedError } from '../shared-kernel/errors.js';
+import { NotImplementedError, UnexpectedError } from '../shared-kernel/errors.js';
+import type { EventPayloads } from '../shared-kernel/events.js';
 import type { CatalogFeedSource, FxRateSource, MalwareScanner, ObjectStorage } from '../shared-kernel/external.js';
 import { CuidIds } from '../shared-kernel/infra/cuid-ids.js';
 import { PgAdminEventsRepository } from '../shared-kernel/infra/pg-admin-events.js';
@@ -18,12 +19,43 @@ import type { Clock } from '../shared-kernel/ports.js';
 import { oneRepository } from '../shared-kernel/repositories.js';
 import { buildAppRouter, type Resolvers } from './trpc/router.v2.js';
 
-/** The subscribers' handlers belong to their stories (commission, listings, collections); until then a replay records `failed`. */
-const UNWIRED_HANDLERS: Record<SubscriberName, DeliveryHandler> = {
+/**
+ * The subscribers' handlers belong to their stories (commission, collections); until then a replay records
+ * `failed`. `listings` is wired by `compose()` (Story 5.5).
+ */
+const UNWIRED_HANDLERS: Omit<Record<SubscriberName, DeliveryHandler>, 'listings'> = {
   commission: async () => { throw new NotImplementedError('commission.handleEvent'); },
-  listings: async () => { throw new NotImplementedError('listings.handleEvent'); },
   collections: async () => { throw new NotImplementedError('collections.handleEvent'); },
 };
+
+/**
+ * The `listings` subscriber (Story 5.5): each delivery runs INV-3 or S-FR-INV-8 in the handler's
+ * transaction, from the envelope's payload only (AD-9).
+ */
+function listingsHandler(inv: InvServiceV2): DeliveryHandler {
+  return async (tx, envelope) => {
+    switch (envelope.type) {
+      case 'CommissionBalanceExhausted':
+      case 'CommissionBalanceReplenished': {
+        const { businessId, ledgerSeq, balanceAfter } = envelope.payload as EventPayloads['CommissionBalanceExhausted'];
+        await inv.applyCommissionProjection(tx, { type: envelope.type, businessId, ledgerSeq, balanceAfter });
+        return;
+      }
+      case 'BusinessApplicationApproved': {
+        const { applicationId, businessId, approvedAt } = envelope.payload as EventPayloads['BusinessApplicationApproved'];
+        await inv.applyApplicationDecision(tx, { type: envelope.type, applicationId, businessId, decidedAt: approvedAt });
+        return;
+      }
+      case 'BusinessApplicationRejected': {
+        const { applicationId, businessId, rejectedAt } = envelope.payload as EventPayloads['BusinessApplicationRejected'];
+        await inv.applyApplicationDecision(tx, { type: envelope.type, applicationId, businessId, decidedAt: rejectedAt });
+        return;
+      }
+      default:
+        throw new UnexpectedError(`listings has no subscriber for ${envelope.type}`);
+    }
+  };
+}
 
 /**
  * The production object storage and malware scanner need a provider and a dependency approval
@@ -61,7 +93,8 @@ export interface AppDeps {
   pool: pg.Pool;
   clock: Clock;
   sessions: SessionReader;
-  handlers?: Record<SubscriberName, DeliveryHandler>;
+  /** Overrides per subscriber; `listings` defaults to its real handler, the others to UNWIRED_HANDLERS. */
+  handlers?: Partial<Record<SubscriberName, DeliveryHandler>>;
   storage?: ObjectStorage;
   scanner?: MalwareScanner;
   feed?: CatalogFeedSource;
@@ -108,7 +141,7 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
 }
 
 export function compose({
-  pool, clock, sessions, handlers = UNWIRED_HANDLERS, storage = UNWIRED_STORAGE, scanner = UNWIRED_SCANNER, feed = UNWIRED_FEED, fx = UNWIRED_FX,
+  pool, clock, sessions, handlers = {}, storage = UNWIRED_STORAGE, scanner = UNWIRED_SCANNER, feed = UNWIRED_FEED, fx = UNWIRED_FX,
 }: AppDeps) {
   const ids = new CuidIds();
   const transactions = new PgTransactionRunner(pool);
@@ -120,7 +153,7 @@ export function compose({
   const ver = new VerServiceV2({ repo, transactions, clock, ids, outbox, audit, storage, scanner });
   const cat = new CatServiceV2({ repo, transactions, clock, ids, outbox, audit, feed, fx });
   const inv = new InvServiceV2({ repo, transactions, clock, ids, outbox, audit, catalog: cat, identity: idn });
-  const dispatcher = new OutboxDispatcherV2({ transactions, clock }, handlers);
+  const dispatcher = new OutboxDispatcherV2({ transactions, clock }, { ...UNWIRED_HANDLERS, listings: listingsHandler(inv), ...handlers });
   const adminEvents = new AdminEventsServiceV2({ repo, transactions, clock, ids, outbox, audit, dispatcher });
   return {
     identity: new IdentityGateV2({ sessions, repo, transactions, idn }),

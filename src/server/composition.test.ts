@@ -10,7 +10,7 @@ import { PrismaClient } from '../../generated/prisma/client.js';
 import { VirtualClock } from '../../test-support/clock.js';
 import { useTestDatabase } from '../../test-support/db.js';
 import { FixtureFeedSource, FixtureFxRateSource, InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
-import { admin, at, business, catalogEntry, DAY, feedRun, HOUR, id, individualSeller, ins, observation, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
+import { admin, at, business, catalogEntry, DAY, feedRun, HOUR, id, individualSeller, ins, listing, observation, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
 import { createAuth } from './auth.js';
 import { compose } from './composition.js';
 import { betterAuthSessions } from './sessions.js';
@@ -29,7 +29,7 @@ let sessions = 0;
 beforeAll(() => {
   const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000' });
   const ok = async () => undefined;
-  app = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { commission: ok, listings: ok, collections: ok }, storage, scanner: new SimulatedScanner(), feed,
+  app = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { commission: ok, collections: ok }, storage, scanner: new SimulatedScanner(), feed,
     fx: new FixtureFxRateSource([{ valor: '4130.00', validFrom: '2026-10-01', validTo: '2026-10-01' }]) });
 });
 
@@ -118,13 +118,25 @@ describe('admin.events.replay over HTTP (S-SYS.replay, S-FR-IDN-7)', () => {
     expect(await rows(db, 'EventDelivery')).toMatchObject([{ status: 'failed' }]);
   });
 
-  it('an admin replays a failed delivery: 200 delivered, and the log row names the session admin', async () => {
+  it('an admin replays a failed delivery: 200 delivered, the log row names the session admin, and the real listings handler applied it (INV-3, Story 5.5)', async () => {
     await failedDelivery();
     await admin(db);
+    await listing(db, { id: id('ltienda'), sellerId: id('tienda'), unitId: null, kind: 'bundle' });
     const { status, json } = await post('admin.events.replay', replay, await signIn(id('admin')));
     expect(status).toBe(200);
     expect(json.result?.data).toMatchObject({ status: 'delivered', replayed: true, decision: { reasonCode: 'EventDeliveryReplayed' } });
     expect(await rows(db, 'EventReplayLog')).toMatchObject([{ adminId: id('admin'), outcome: 'delivered' }]);
+    expect(await rows(db, 'SellerCommissionState')).toMatchObject([{ businessId: id('tienda'), lastAppliedSeq: '1', paused: true }]);
+    expect(await rows(db, 'Listing', '"pausedAt" IS NOT NULL')).toHaveLength(1);
+  });
+
+  it('a delivery of a type listings does not subscribe to fails as Unexpected, and the replay records failed', async () => {
+    await ins(db, 'OutboxEvent', { id: id('ev2'), type: 'OrderClosed', aggregateId: id('tienda'), schemaVersion: 1, payload: JSON.stringify({}) }, 'created');
+    await ins(db, 'EventDelivery', { eventId: id('ev2'), subscriber: 'listings', status: 'failed', attempts: 3, lastErrorCode: 'DeliveryAttemptsExhausted', firstFailedAt: at(-DAY), lastFailedAt: at(-DAY) });
+    await admin(db);
+    const { json } = await post('admin.events.replay', { eventId: id('ev2'), subscriber: 'listings' }, await signIn(id('admin')));
+    expect(json.result?.data).toMatchObject({ status: 'failed' });
+    expect(await rows(db, 'EventDelivery', `"eventId" = $1`, [id('ev2')])).toMatchObject([{ status: 'failed', lastErrorCode: 'Unexpected' }]);
   });
 });
 

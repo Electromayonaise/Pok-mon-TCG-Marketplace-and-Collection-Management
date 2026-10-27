@@ -63,8 +63,8 @@
 | FR-INV-4 | Shared-quantity reconciliation (CAP-4, CAP-16) | INV-2, S-FR-INV-4 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 13 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +10 | 5.1 (done), 5.3 (done), 5.6 (backlog) | red |
 | FR-INV-5 | Release a reservation (CAP-17, CAP-25) | S-FR-INV-5 | AD-INV-2 | 2 — `S-FR-INV-5.f`, `S-FR-INV-5.h` | 5.2 (done) | red |
 | FR-INV-6 | Aborted caller transaction restores quantity (CAP-17, CAP-25) | INV-1 | AD-6, AD-INV-1, AD-INV-2, AD-SYS-5 | 9 — `INV-1.I1`, `INV-1.I3`, `INV-1.MEC` +6 | 5.2 (done), 5.4 (done) | red |
-| FR-INV-7 | Purchasability, verified badge and commission pause (CAP-5, CAP-21) | INV-2, INV-3 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 15 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +12 | 5.1 (done), 5.3 (done), 5.5 (backlog) | red |
-| FR-INV-8 | Withdraw on rejection, restore on approval (CAP-5, CAP-15) | S-FR-INV-8 | AD-INV-3 | 2 — `S-FR-INV-8.f`, `S-FR-INV-8.h` | 5.5 (backlog) | red |
+| FR-INV-7 | Purchasability, verified badge and commission pause (CAP-5, CAP-21) | INV-2, INV-3 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 15 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +12 | 5.1 (done), 5.3 (done), 5.5 (done) | red |
+| FR-INV-8 | Withdraw on rejection, restore on approval (CAP-5, CAP-15) | S-FR-INV-8 | AD-INV-3 | 2 — `S-FR-INV-8.f`, `S-FR-INV-8.h` | 5.5 (done) | red |
 | FR-INV-9 | Edit, restock and deactivate (CAP-4) | S-FR-INV-9 | AD-INV-1, AD-SYS-5 | 2 — `S-FR-INV-9.f`, `S-FR-INV-9.h` | 5.6 (backlog) | red |
 | FR-INV-10 | Listing detail and owner view (CAP-4, CAP-28) | S-FR-INV-10 | AD-12 | 2 — `S-FR-INV-10.f`, `S-FR-INV-10.h` | 5.6 (backlog) | red |
 | FR-DSC-1 | One browse query for both seller kinds (CAP-1, CAP-2) | DSC-3, DSC-1 | AD-DSC-1, AD-5, AD-DSC-2, AD-12 | 11 — `DSC-3.I1`, `DSC-3.Q1`, `DSC-3.QF1` +8 | 6.1 (backlog), 6.2 (backlog), 6.4 (backlog) | red |
@@ -199,7 +199,7 @@
 |---|---|---|---|---|---|
 | AD-1 | Module dependency graph is AD-1's | Each module imports only neighbours' `index.ts`; `catalog` imports no module; admin guard lives in `server/trpc` | `SYS-AD1` | 1.4 (done) | green |
 | AD-2 | Three facts, no custody | Fact CHECKs on `"Order"`; no balance/escrow/payment column | `ORD-2.I2`, `ORD-1.I4` | 7.1 (backlog), 7.2 (backlog) | red |
-| AD-3 | Commission balance is the single source of purchasability | Fail-closed `SellerCommissionState` read `FOR SHARE` at listing insert; projection seq gate | `INV-2.I2`, `INV-3.I2` | 5.1 (done), 5.5 (backlog) | red |
+| AD-3 | Commission balance is the single source of purchasability | Fail-closed `SellerCommissionState` read `FOR SHARE` at listing insert; projection seq gate | `INV-2.I2`, `INV-3.I2` | 5.1 (done), 5.5 (done) | red |
 | AD-4 | Trading is a one-way flow off `listings` | `CHECK (sellerKindAtCreation='individual' OR NOT openToTrade)`; `getTradeability` / `reserveForTrade` ports | `INV-2.I4`, `TRD-1.I1` | 5.3 (done), 10.3 (backlog) | red |
 | AD-5 | One location query path | One SQL builder with no seller-kind branch | `DSC-1.I1` | 6.2 (backlog) | red |
 | AD-6 | `InventoryUnit` is the sole quantity owner | `CHECK (quantity >= 0)`; conditional decrement | `INV-1.I1`, `INV-1.MEC` | 5.2 (done) | red |
@@ -235,7 +235,7 @@
 | AD-CAT-3 | TRM never invented | `EXCLUDE` on validity ranges; no gap row | `S-FR-CAT-8.f` | 4.4 (done) | red |
 | AD-INV-1 | One unit per (seller, item, condition) | `UNIQUE (sellerId, catalogEntryId, condition)` | `INV-2.I1` | 5.1 (done) | red |
 | AD-INV-2 | Reserve and release in the caller's transaction | `tx` parameter; ascending conditional decrement | `INV-1.MEC` | 5.2 (done) | red |
-| AD-INV-3 | Fail-closed purchasability, newer facts only | Seq gate; `AppliedApplicationDecision` | `INV-3.I1`, `S-FR-INV-8.f` | 5.5 (backlog) | red |
+| AD-INV-3 | Fail-closed purchasability, newer facts only | Seq gate; `AppliedApplicationDecision` | `INV-3.I1`, `S-FR-INV-8.f` | 5.5 (done) | red |
 | AD-DSC-1 | SQL distance equals the TS reference | One haversine expression; `+ 1e-6` inclusive bound | `DSC-1.I4`, `DSC-2.MEC` | 6.2 (backlog), 6.3 (backlog) | red |
 | AD-DSC-2 | At most 3 neighbour calls per request | Composition in `listings` | `DSC-2.Q1` | 6.3 (backlog) | red |
 | AD-ORD-1 | Creation serialized per buyer | `orders:buyer` advisory lock + derived count | `ORD-1.I2` | 7.1 (backlog) | red |

@@ -116,6 +116,23 @@ export interface InvRepository {
   exhaustedListingIds(tx: Tx, unitIds: CuidId[]): Promise<CuidId[]>;
   /** P-INV.purchase: the listing's visibility facts, or null. */
   readListingHeader(tx: Tx, listingId: CuidId): Promise<ListingHeader | null>;
+  /**
+   * INV-3 Q1 (AD-INV-3 rule 4): upserts the projection only when no row exists or `seq` is newer
+   * than `lastAppliedSeq`; false when the event is older or already applied.
+   */
+  upsertProjection(tx: Tx, p: { businessId: CuidId; seq: number; paused: boolean; now: IsoInstant }): Promise<boolean>;
+  /** INV-3 Q2: sets (or clears) `pausedAt` on the business's listings that are not already so; the rows changed. */
+  setPausedForSeller(tx: Tx, businessId: CuidId, paused: boolean, now: IsoInstant): Promise<number>;
+  /** S-FR-INV-8: locks the seller's listings `FOR UPDATE` in ascending id order, so two decisions serialize. */
+  lockSellerListings(tx: Tx, sellerId: CuidId): Promise<void>;
+  /** AD-INV-3 rule 5: the latest `decidedAt` among the business's applied, not ignored, decisions. */
+  newestAppliedDecision(tx: Tx, businessId: CuidId): Promise<IsoInstant | null>;
+  /** AD-INV-3 rule 5: `INSERT … ON CONFLICT ("applicationId") DO NOTHING`; false on a redelivery. */
+  insertAppliedDecision(tx: Tx, d: { applicationId: CuidId; businessId: CuidId; decision: 'Approved' | 'Rejected'; decidedAt: IsoInstant; ignored: boolean; now: IsoInstant }): Promise<boolean>;
+  /** FR-INV-8: withdraws the seller's not-withdrawn listings for `ApplicationRejected`; the rows changed. */
+  withdrawForRejection(tx: Tx, sellerId: CuidId, applicationId: CuidId, now: IsoInstant): Promise<number>;
+  /** FR-INV-8: clears only the withdrawals made for `ApplicationRejected`; the rows changed. */
+  restoreFromRejection(tx: Tx, sellerId: CuidId, now: IsoInstant): Promise<number>;
   /** P-INV.units: the unit ids of a single listing or a bundle, in id order; [] for an unknown id. */
   listingUnitIds(tx: Tx, listingId: CuidId): Promise<CuidId[]>;
 }

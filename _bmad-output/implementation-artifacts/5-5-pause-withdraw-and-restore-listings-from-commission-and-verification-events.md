@@ -2,7 +2,7 @@
 title: 'Story 5.5: Pause, withdraw and restore listings from commission and verification events'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'ab3430b'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -75,9 +75,9 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] repository methods and the two subscribers + unit tests
-- [ ] the `listings` handler in `compose()`, with a replay case
-- [ ] `sprint-status.yaml` -- 5.5 `done`, out of `impl2_scope`; `gen:trace:solu2`
+- [x] repository methods and the two subscribers + unit tests
+- [x] the `listings` handler in `compose()`, with a replay case
+- [x] `sprint-status.yaml` -- 5.5 `done`, out of `impl2_scope`; `gen:trace:solu2`
 
 **Acceptance Criteria:**
 - Given 5.5 `done`, when the 6 bound tests run, then they pass.
@@ -90,3 +90,9 @@ context:
 ## Implementation Notes
 
 - Code review is batched with the rest of Epic 5 at its close (decision #22).
+- **The seq gate is one statement.** It is an upsert with `WHERE "lastAppliedSeq" < EXCLUDED."lastAppliedSeq"`. A first event inserts at any seq, including the seq-0 `Exhausted` of account opening. The row lock serializes two concurrent events for one business, so the higher seq decides the final state.
+- **Exhausted pauses only business listings without a pause** (the `listing_individual_never_paused` CHECK); Replenished clears every set `pausedAt` of the seller. Each applied event writes one audit row (`actorKind: 'system'`, `actorId: null`).
+- **Decisions serialize on the seller's `"Listing"` rows**, `FOR UPDATE` in ascending id order (lock position 4, after the delivery row), so no advisory namespace is added. `inv.v2.test.ts` races an older Rejected against a newer Approved 20 times: the newer always wins. "Newest" compares `decidedAt` with the latest applied, non-ignored decision, and a tie is not newer.
+- **A redelivery** returns `{ applied: false, ignored: true, listingsChanged: 0 }`, and its stored row keeps the first delivery's `ignored`.
+- **`compose()` wires the real `listings` handler by default.** `handlers` became a partial override, and `commission` and `collections` stay NotImplemented. The HTTP replay case now checks the projection row and the paused listing, and a type that listings does not subscribe to is recorded `failed` with `Unexpected`.
+- 5.5 leaves `impl2_scope` with a note in `sprint-status.yaml`. Like 5.3 and 5.4, it is `done` early and does not count toward the 43 Impl-1 stories.

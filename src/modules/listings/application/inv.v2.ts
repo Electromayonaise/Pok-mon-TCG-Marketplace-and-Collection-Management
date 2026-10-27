@@ -168,6 +168,50 @@ export class InvServiceV2 implements InvV2UseCases {
     return { releasedUnits };
   }
 
+  /**
+   * INV-3 (AD-INV-3 rule 4), in the handler's `tx`: the projection applies only a newer `ledgerSeq`,
+   * then pauses or resumes every listing of the business. Redelivered and older events are no-ops.
+   */
+  async applyCommissionProjection(tx: Tx, input: ApplyCommissionProjectionRequest): Promise<ApplyCommissionProjectionResponse> {
+    const { repo, clock, audit } = this.deps;
+    const { type, businessId, ledgerSeq, balanceAfter } = input;
+    if (!Number.isSafeInteger(ledgerSeq) || ledgerSeq < 0) throw new UnexpectedError(`Unexpected: ${type} ledgerSeq ${ledgerSeq} is not an integer ≥ 0 (INV-3 P2)`);
+    const now = clock.now().toISOString();
+    const paused = type === 'CommissionBalanceExhausted';
+    if (!(await repo.upsertProjection(tx, { businessId, seq: ledgerSeq, paused, now }))) return { applied: false, listingsChanged: 0 };
+    const listingsChanged = await repo.setPausedForSeller(tx, businessId, paused, now);
+    await audit.record(tx, {
+      actorId: null, actorKind: 'system', module: 'listings', action: 'listings.commissionProjection.applied', aggregateType: 'SellerCommissionState', aggregateId: businessId,
+      decisionCode: paused ? 'ListingPausedBalanceExhausted' : null, data: { type, ledgerSeq, balanceAfter, listingsChanged }, at: now,
+    });
+    return { applied: true, listingsChanged };
+  }
+
+  /**
+   * S-FR-INV-8 (AD-INV-3 rule 5), in the handler's `tx`: a decision applies once, and only when it is
+   * newer than every decision applied for the business. The listing locks serialize two decisions.
+   */
+  async applyApplicationDecision(tx: Tx, input: ApplyApplicationDecisionRequest): Promise<ApplyApplicationDecisionResponse> {
+    const { repo, clock, audit } = this.deps;
+    const { type, applicationId, businessId, decidedAt } = input;
+    if (Number.isNaN(Date.parse(decidedAt))) throw new UnexpectedError(`Unexpected: ${type} decidedAt ${decidedAt} is not an instant`);
+    const now = clock.now().toISOString();
+    await repo.lockSellerListings(tx, businessId);
+    const newest = await repo.newestAppliedDecision(tx, businessId);
+    const isNewest = newest === null || Date.parse(decidedAt) > Date.parse(newest);
+    const decision = type === 'BusinessApplicationApproved' ? 'Approved' : 'Rejected';
+    const inserted = await repo.insertAppliedDecision(tx, { applicationId, businessId, decision, decidedAt, ignored: !isNewest, now });
+    if (!inserted || !isNewest) return { applied: false, ignored: true, listingsChanged: 0 };
+    const listingsChanged = decision === 'Rejected'
+      ? await repo.withdrawForRejection(tx, businessId, applicationId, now)
+      : await repo.restoreFromRejection(tx, businessId, now);
+    await audit.record(tx, {
+      actorId: null, actorKind: 'system', module: 'listings', action: 'listings.applicationDecision.applied', aggregateType: 'AppliedApplicationDecision', aggregateId: applicationId,
+      decisionCode: null, data: { businessId, decision, decidedAt, listingsChanged }, at: now,
+    });
+    return { applied: true, ignored: false, listingsChanged };
+  }
+
   /** P-INV.purchase (ORD-1 P2): a visible listing's seller and kind, read on the ambient transaction. */
   async getListingForPurchase(input: GetListingForPurchaseRequest): Promise<GetListingForPurchaseResponse> {
     const header = await this.reading((tx) => this.deps.repo.readListingHeader(tx, input.listingId));
@@ -233,10 +277,6 @@ export class InvServiceV2 implements InvV2UseCases {
     });
   }
 
-  async applyCommissionProjection(_tx: Tx, _input: ApplyCommissionProjectionRequest): Promise<ApplyCommissionProjectionResponse> {
-    throw new NotImplementedError('listings.applyCommissionProjection');
-  }
-
   async createBundle(_input: CreateBundleRequest): Promise<CreateBundleResponse> {
     throw new NotImplementedError('listings.createBundle');
   }
@@ -247,10 +287,6 @@ export class InvServiceV2 implements InvV2UseCases {
 
   async listMyListings(_input: ListMyListingsRequest): Promise<ListMyListingsResponse> {
     throw new NotImplementedError('listings.listMyListings');
-  }
-
-  async applyApplicationDecision(_tx: Tx, _input: ApplyApplicationDecisionRequest): Promise<ApplyApplicationDecisionResponse> {
-    throw new NotImplementedError('listings.applyApplicationDecision');
   }
 
   async updateListing(_input: UpdateListingRequest): Promise<ListingChangeResponse> {

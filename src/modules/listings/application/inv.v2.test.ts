@@ -75,3 +75,46 @@ describe('releaseReservation and the unit port (S-FR-INV-5, P-INV.units)', () =>
     expect(codeOf(await caught(() => inv.getListingForPurchase({ listingId: id('ghost') })))).toBe('ListingNotFound');
   });
 });
+
+describe('the listings subscribers (INV-3, S-FR-INV-8, AD-INV-3 rules 4–5)', () => {
+  const decide = (inv: InvServiceV2, type: 'BusinessApplicationApproved' | 'BusinessApplicationRejected', applicationId: string, decidedAt: string) =>
+    db.transactions.run((tx) => inv.applyApplicationDecision(tx, { type, applicationId, businessId: id('andres'), decidedAt }));
+
+  it('a negative or fractional ledgerSeq is Unexpected and writes nothing', async () => {
+    for (const ledgerSeq of [-1, 1.5]) {
+      const error = await caught(() => db.transactions.run((tx) => inventory().applyCommissionProjection(tx, { type: 'CommissionBalanceExhausted', businessId: id('andres'), ledgerSeq, balanceAfter: 0 })));
+      expect(codeOf(error)).toBe('Unexpected');
+    }
+    expect(await rows(db, 'SellerCommissionState')).toHaveLength(0);
+  });
+
+  it('Replenished resumes the paused listings and audits once as the system', async () => {
+    await andres(2);
+    await db.query(`UPDATE "Listing" SET "pausedAt" = now()`);
+    const result = await db.transactions.run((tx) => inventory().applyCommissionProjection(tx, { type: 'CommissionBalanceReplenished', businessId: id('andres'), ledgerSeq: 9, balanceAfter: 50_000 }));
+    expect(result).toEqual({ applied: true, listingsChanged: 1 });
+    expect(await rows(db, 'audit_events', `action = 'listings.commissionProjection.applied'`)).toMatchObject([{ actorKind: 'system', actorId: null }]);
+  });
+
+  it('a redelivered decision is ignored and writes no second row', async () => {
+    await andres(2);
+    const inv = inventory();
+    expect(await decide(inv, 'BusinessApplicationRejected', id('a1'), '2026-09-20T00:00:00.000Z')).toEqual({ applied: true, ignored: false, listingsChanged: 1 });
+    expect(await decide(inv, 'BusinessApplicationRejected', id('a1'), '2026-09-20T00:00:00.000Z')).toEqual({ applied: false, ignored: true, listingsChanged: 0 });
+    expect(await rows(db, 'AppliedApplicationDecision')).toHaveLength(1);
+  });
+
+  it('an older Rejected and a newer Approved delivered at once: the newer wins whatever the commit order, 20 times', async () => {
+    await andres(2);
+    for (let rep = 0; rep < 20; rep++) {
+      await db.query(`TRUNCATE "AppliedApplicationDecision"`);
+      await db.query(`UPDATE "Listing" SET "withdrawnAt" = NULL, "withdrawnReason" = NULL, "withdrawnByApplicationId" = NULL`);
+      const inv = inventory();
+      await Promise.all([
+        decide(inv, 'BusinessApplicationRejected', id(`r${rep}`), '2026-09-20T00:00:00.000Z'),
+        decide(inv, 'BusinessApplicationApproved', id(`p${rep}`), '2026-09-25T00:00:00.000Z'),
+      ]);
+      expect(await rows(db, 'Listing', '"withdrawnAt" IS NOT NULL')).toHaveLength(0);
+    }
+  });
+});
