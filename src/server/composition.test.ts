@@ -2,7 +2,7 @@
 // the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2, VER-3, the supporting
 // VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
 // (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2), the seller's inventory (S-FR-INV-2, -9, -10), the discovery reads (DSC-1, DSC-2),
-// the order, its comprobante and its three facts (ORD-1, S-FR-ORD-2, ORD-2, -3, -4) and S-SYS.replay,
+// the order, its comprobante, its three facts and its supporting reads (ORD-1 to ORD-4, S-FR-ORD-2, -6, -7, -10) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -520,6 +520,42 @@ describe('the three order facts over HTTP (ORD-2, ORD-3, ORD-4; Story 7.2)', () 
     expect((await post('orders.confirmPaymentReceived', { orderId: id('o1') }, andres)).json.result?.data).toMatchObject({ status: 'PaymentConfirmed' });
     expect((await post('orders.confirmItemReceived', { orderId: id('o1') }, camila)).json.result?.data).toMatchObject({ status: 'Closed' });
     expect((await rows<{ type: string }>(db, 'OutboxEvent')).map((e) => e.type).sort()).toEqual(['OrderClosed', 'OrderPaymentConfirmedByBusiness']);
+  });
+});
+
+describe('the order reads, cancel, lookup and support contact over HTTP (S-FR-ORD-6, -7, -10; Story 7.5)', () => {
+  it('the buyer reads and cancels; the business sees only paid sales; a foreign reader gets the unknown-id body', async () => {
+    await purchasableListing(db, { businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar'), entryId: id('char'), quantity: 0 });
+    await user(db, { id: id('camila') });
+    await user(db, { id: id('julian') });
+    const base = { buyerId: id('camila'), businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar') };
+    await order(db, { ...base, id: id('unpaid') });
+    await order(db, { ...base, id: id('paid'), paidAt: at(-HOUR) });
+    const camila = await signIn(id('camila'));
+    const mine = (await get('orders.mine', { cursor: null }, camila)).json.result?.data as { items: { orderId: string }[] };
+    expect(mine.items.map((o) => o.orderId).sort()).toEqual([id('paid'), id('unpaid')].sort());
+    const sales = (await get('orders.sales', { cursor: null }, await signIn(id('andres')))).json.result?.data as { items: { orderId: string }[] };
+    expect(sales.items.map((o) => o.orderId)).toEqual([id('paid')]);
+    const foreign = await get('orders.get', { orderId: id('unpaid') }, await signIn(id('julian')));
+    expect([foreign.status, foreign.json.error?.code]).toEqual([403, 'OrderNotVisibleToCaller']);
+    expect((await post('orders.cancel', { orderId: id('unpaid') }, camila)).json.result?.data).toMatchObject({ status: 'Cancelled' });
+    expect(await rows(db, 'InventoryUnit')).toMatchObject([{ quantity: 1 }]);
+    expect((await get('orders.get', { orderId: id('unpaid') }, camila)).json.result?.data).toMatchObject({ status: 'Cancelled' });
+  });
+
+  it('an admin looks an order up and sets the support contact, which anyone then reads; a non-admin is AdminOnly 403', async () => {
+    await admin(db);
+    await business(db, id('andres'), 'Approved');
+    await user(db, { id: id('camila') });
+    await order(db, { id: id('o1'), buyerId: id('camila'), businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar') });
+    const adminCookie = await signIn(id('admin'));
+    const refused = await get('orders.adminLookup', { query: { orderId: id('o1') } }, await signIn(id('camila')));
+    expect([refused.status, refused.json.error?.code]).toEqual([403, 'AdminOnly']);
+    const found = (await get('orders.adminLookup', { query: { orderId: id('o1') } }, adminCookie)).json.result?.data as { orders: { orderId: string }[] };
+    expect(found.orders.map((o) => o.orderId)).toEqual([id('o1')]);
+    expect(await rows(db, 'OrderLookupLog')).toMatchObject([{ adminId: id('admin'), resultOrderIds: [id('o1')] }]);
+    expect((await post('orders.supportContact.set', { contact: { email: 'soporte@tezg.co', whatsappE164: null } }, adminCookie)).status).toBe(200);
+    expect((await get('orders.supportContact.get', undefined, '')).json.result?.data).toEqual({ email: 'soporte@tezg.co', whatsappE164: null });
   });
 });
 

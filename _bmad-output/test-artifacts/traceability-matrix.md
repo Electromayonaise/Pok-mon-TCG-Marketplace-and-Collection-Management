@@ -25,7 +25,7 @@
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
-| NFR evidence status | Green — ATDD: 20; Green — benchmark: 8; Green — gate: 8; Red — ATDD: 21; Deferred — launch: 3; Planned — story DoD: 8 |
+| NFR evidence status | Green — ATDD: 22; Green — benchmark: 8; Green — gate: 8; Red — ATDD: 19; Deferred — launch: 3; Planned — story DoD: 8; the page copy belongs to UI 6.2: 1 |
 | Contract clauses / test ids | 112 / 380 (368 red, 12 green) |
 | Gate problems | 0 |
 
@@ -79,11 +79,11 @@
 | FR-ORD-3 | Buyer confirms "I paid" (CAP-20, CAP-22) | ORD-2 | AD-ORD-3, AD-ORD-2, AD-15, AD-SYS-5 | 7 — `ORD-2.I2`, `ORD-2.MEC`, `ORD-2.P1` +4 | 7.2 (done), 7.4 (done) | red |
 | FR-ORD-4 | Business confirms payment received (CAP-20, CAP-22) | ORD-3 | AD-ORD-2, AD-2, AD-SYS-2, AD-15 | 6 — `ORD-3.I3`, `ORD-3.MEC`, `ORD-3.P2` +3 | 7.2 (done), 7.4 (done) | red |
 | FR-ORD-5 | Buyer confirms item received; the order closes (CAP-22, CAP-27) | ORD-4 | AD-ORD-2, AD-2, AD-ORD-3 | 5 — `ORD-4.MEC`, `ORD-4.P2`, `ORD-4.P3` +2 | 7.2 (done), 7.4 (done) | red |
-| FR-ORD-6 | Visibility and fact queries (CAP-22, CAP-20) | S-FR-ORD-6 | AD-ORD-3, AD-15 | 2 — `S-FR-ORD-6.f`, `S-FR-ORD-6.h` | 7.5 (backlog) | red |
-| FR-ORD-7 | Buyer cancels before paying (CAP-17) | S-FR-ORD-7 | AD-ORD-2, AD-INV-2 | 2 — `S-FR-ORD-7.f`, `S-FR-ORD-7.h` | 7.5 (backlog) | red |
-| FR-ORD-8 | Expire unpaid orders (CAP-17) | S-FR-ORD-8 | AD-ORD-2, AD-SYS-6 | 2 — `S-FR-ORD-8.f`, `S-FR-ORD-8.h` | 7.5 (backlog) | red |
-| FR-ORD-9 | Closed-purchase query (CAP-7) | S-FR-ORD-9 | AD-ORD-3, AD-2 | 2 — `S-FR-ORD-9.f`, `S-FR-ORD-9.h` | 7.5 (backlog) | red |
-| FR-ORD-10 | Admin order lookup and support contact (CAP-22) | S-FR-ORD-10 | AD-ORD-3, AD-SYS-8 | 2 — `S-FR-ORD-10.f`, `S-FR-ORD-10.h` | 7.5 (backlog) | red |
+| FR-ORD-6 | Visibility and fact queries (CAP-22, CAP-20) | S-FR-ORD-6 | AD-ORD-3, AD-15 | 2 — `S-FR-ORD-6.f`, `S-FR-ORD-6.h` | 7.5 (done) | red |
+| FR-ORD-7 | Buyer cancels before paying (CAP-17) | S-FR-ORD-7 | AD-ORD-2, AD-INV-2 | 2 — `S-FR-ORD-7.f`, `S-FR-ORD-7.h` | 7.5 (done) | red |
+| FR-ORD-8 | Expire unpaid orders (CAP-17) | S-FR-ORD-8 | AD-ORD-2, AD-SYS-6 | 2 — `S-FR-ORD-8.f`, `S-FR-ORD-8.h` | 7.5 (done) | red |
+| FR-ORD-9 | Closed-purchase query (CAP-7) | S-FR-ORD-9 | AD-ORD-3, AD-2 | 2 — `S-FR-ORD-9.f`, `S-FR-ORD-9.h` | 7.5 (done) | red |
+| FR-ORD-10 | Admin order lookup and support contact (CAP-22) | S-FR-ORD-10 | AD-ORD-3, AD-SYS-8 | 2 — `S-FR-ORD-10.f`, `S-FR-ORD-10.h` | 7.5 (done) | red |
 | FR-COM-1 | Open an account on approval (CAP-21) | S-FR-COM-1 | AD-COM-1 | 2 — `S-FR-COM-1.f`, `S-FR-COM-1.h` | 8.1 (backlog) | red |
 | FR-COM-2 | Request a top-up (manual V1 behind a port) (CAP-21) | S-FR-COM-2, S-FR-COM-2.mine, S-FR-COM-2.url | AD-COM-3, AD-14 | 5 — `S-FR-COM-2.f`, `S-FR-COM-2.f2`, `S-FR-COM-2.h` +2 | 8.1 (backlog), 8.4 (backlog) | red |
 | FR-COM-3 | Admin confirms or rejects a top-up (CAP-21) | COM-2, COM-2.queue | AD-COM-3, AD-COM-1 | 8 — `COM-2.I1`, `COM-2.P2`, `COM-2.P3` +5 | 8.3 (backlog), 8.4 (backlog) | red |
@@ -154,7 +154,7 @@
 | NFR-VER-1 | (mandatory edge case): | VER-1 | `VER-1.MEC` | 7 | Green — ATDD |
 | NFR-INV-1 | (Annex scenario 3): | INV-1 | `INV-1.I1` | 9 | Green — ATDD |
 | NFR-INV-3 | (mandatory edge case): | INV-1 | `INV-1.MEC` | 9 | Green — ATDD |
-| NFR-ORD-1 | (mandatory edge case): | ORD-2, ORD-3, ORD-4 | `ORD-3.MEC`, `ORD-4.MEC`, `ORD-2.MEC` | 18 | Red — ATDD |
+| NFR-ORD-1 | (mandatory edge case): | ORD-2, ORD-3, ORD-4 | `ORD-3.MEC`, `ORD-4.MEC`, `ORD-2.MEC` | 18 | Green — ATDD |
 | NFR-COM-1 | (mandatory edge case): | COM-1 | `COM-1.MEC`, `COM-1.MEC2` | 8 | Red — ATDD |
 | NFR-TRD-1 | (mandatory edge case): | TRD-1 | `TRD-1.MEC` | 9 | Red — ATDD |
 | NFR-MSG-4 | (mandatory edge case): | MSG-2, MSG-3 | `MSG-2.MEC`, `MSG-3.MEC` | 10 | Red — ATDD |
@@ -177,7 +177,7 @@
 | NFR-DSC-3 | ordering is deterministic | DSC-1 | `DSC-1.R1` | 7 | Green — ATDD |
 | NFR-ORD-2 | order creation (including the reservation) responds in p95 ≤ 800 ms | ORD-1 | `NFR-ORD-2.p95` | 7 | Green — benchmark (creation); Deferred — launch (the upload's transfer time needs the production storage) |
 | NFR-ORD-3 | 0 funds-held states or payment-gateway calls | — | `ORD-1.I4`, `SYS-6.R4` | 2 | Green — gate (`[SYS-6.R4]`); Green — ATDD (`[ORD-1.I4]`) |
-| NFR-ORD-4 | the stalled-order gap is documented in UI copy | — | `S-FR-ORD-10.h` | 1 | Red — ATDD |
+| NFR-ORD-4 | the stalled-order gap is documented in UI copy | — | `S-FR-ORD-10.h` | 1 | Green — ATDD (the support contact and the 7-day notice, `OrderAwaitingBusiness`); the page copy belongs to UI 6.2 |
 | NFR-COM-2 | reconciliation is exact over a randomised sequence of 10,000 top-ups and deducti | COM-1, COM-3 | `COM-3.Q1`, `COM-3.I1` | 14 | Red — ATDD |
 | NFR-COM-3 | the deduction handler runs in p95 ≤ 200 ms | COM-1, COM-2 | — | 16 | Planned — story DoD |
 | NFR-COM-4 | 0 floating-point operations on COP in the commission code path | COM-1 | `COM-1.I3` | 8 | Red — ATDD |

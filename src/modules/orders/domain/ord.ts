@@ -132,3 +132,39 @@ const COMPROBANTE_MAGIC = [
 export function sniffComprobanteType(bytes: Uint8Array): (typeof COMPROBANTE_MAGIC)[number][0] | null {
   return COMPROBANTE_MAGIC.find(([, magic]) => magic.every((b, i) => bytes[i] === b))?.[0] ?? null;
 }
+
+/** NFR-ORD-4: a paid order with no business confirmation after 7 days shows the support contact. */
+export const AWAITING_BUSINESS_SUPPORT_MS = 7 * 86_400_000;
+
+/** S-FR-ORD-6: the stored-only code a derived status reads with, and the fact it cites. */
+export type OrderViewCode = 'OrderAwaitingPayment' | 'OrderPaid' | 'OrderAwaitingBusiness' | 'OrderPaymentConfirmed' | 'OrderCompleted' | 'OrderCancelled' | 'OrderExpired';
+
+export function orderView(facts: OrderFacts, now: Date): { status: OrderStatus; code: OrderViewCode; rule: string; at: Date } {
+  const status = deriveStatus(facts, now);
+  switch (status) {
+    case 'AwaitingPayment': return { status, code: 'OrderAwaitingPayment', rule: 'FR-ORD-1', at: facts.expiresAt };
+    case 'Paid': {
+      const paidAt = facts.buyerPaidConfirmedAt!;
+      return now.getTime() - paidAt.getTime() >= AWAITING_BUSINESS_SUPPORT_MS
+        ? { status, code: 'OrderAwaitingBusiness', rule: 'NFR-ORD-4', at: paidAt }
+        : { status, code: 'OrderPaid', rule: 'FR-ORD-3', at: paidAt };
+    }
+    case 'PaymentConfirmed': return { status, code: 'OrderPaymentConfirmed', rule: 'FR-ORD-4', at: facts.sellerReceivedConfirmedAt! };
+    case 'Closed': return { status, code: 'OrderCompleted', rule: 'FR-ORD-5', at: facts.buyerItemReceivedConfirmedAt! };
+    case 'Cancelled': return { status, code: 'OrderCancelled', rule: 'FR-ORD-7', at: facts.cancelledAt! };
+    case 'Expired': return { status, code: 'OrderExpired', rule: 'FR-ORD-8', at: facts.expiredAt ?? facts.expiresAt };
+  }
+}
+
+/** S-FR-ORD-6.list: the keyset `("createdAt", id)` of the last row, as an opaque cursor. */
+export function encodeOrderCursor(createdAt: string, id: string): string {
+  return Buffer.from(`${createdAt}|${id}`, 'utf8').toString('base64url');
+}
+
+/** The cursor's keyset, or null when it is not one this service issued. */
+export function decodeOrderCursor(cursor: string): { createdAt: string; id: string } | null {
+  const [createdAt, id, ...rest] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
+  if (rest.length > 0 || !createdAt || !id || !/^[a-z][0-9a-z]{23}$/.test(id)) return null;
+  const at = Date.parse(createdAt);
+  return Number.isNaN(at) || new Date(at).toISOString() !== createdAt ? null : { createdAt, id };
+}

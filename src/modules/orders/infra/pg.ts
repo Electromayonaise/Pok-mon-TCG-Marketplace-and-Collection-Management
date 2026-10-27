@@ -6,7 +6,9 @@ import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { ReservationRefDTO } from '../../listings/index.js';
 import type { IOrderRepository } from '../ports/ord.js';
-import type { NewOrderRow, OrderRow, OrdRepository } from '../ports/ord.v2.js';
+import type { SupportContactDTO } from '../dto/ord.v2.dto.js';
+import type { OrderFacts } from '../domain/ord.js';
+import type { NewOrderRow, OrderLookupQuery, OrderRow, OrdTablesRepository } from '../ports/ord.v2.js';
 
 export class PgOrderRepository implements IOrderRepository {
   constructor(protected readonly sql: Sql) {}
@@ -43,7 +45,7 @@ type RawOrder = Omit<OrderRow, 'unitPriceCop' | 'totalCop'> & { unitPriceCop: st
 const order = (r: RawOrder): OrderRow => ({ ...r, unitPriceCop: Number(r.unitPriceCop), totalCop: Number(r.totalCop) });
 
 /** ORD's repository port over `_bmad-output/planning-artifacts/detailed-design/schemas` (AD-8). */
-export class PgOrdRepository implements OrdRepository {
+export class PgOrdRepository implements OrdTablesRepository {
   async lockBuyer(tx: Tx, buyerId: CuidId): Promise<void> {
     await tx.query(`SELECT pg_advisory_xact_lock(hashtextextended('orders:buyer:' || $1, 0))`, [buyerId]);
   }
@@ -130,5 +132,74 @@ export class PgOrdRepository implements OrdRepository {
       [orderId, buyerId, now],
     );
     return rows[0] ? order(rows[0]) : null;
+  }
+
+  async cancelOrder(tx: Tx, orderId: CuidId, buyerId: CuidId, now: IsoInstant): Promise<ReservationRefDTO | null> {
+    const { rows } = await tx.query<{ reservationRef: ReservationRefDTO }>(
+      `UPDATE "Order" SET "cancelledAt" = $3, "cancelReason" = 'BuyerCancelled', "updatedAt" = $3, version = version + 1
+       WHERE id = $1 AND "buyerId" = $2 AND ${OPEN} AND "expiresAt" > $3 RETURNING "reservationRef"`,
+      [orderId, buyerId, now],
+    );
+    return rows[0]?.reservationRef ?? null;
+  }
+
+  async listOrders(tx: Tx, actorId: CuidId, side: 'purchases' | 'sales', after: { createdAt: IsoInstant; id: CuidId } | null, limit: number): Promise<OrderRow[]> {
+    const mine = side === 'purchases' ? `"buyerId" = $1` : `"businessId" = $1 AND "buyerPaidConfirmedAt" IS NOT NULL`;
+    const keyset = after ? `AND ("createdAt" < $3 OR ("createdAt" = $3 AND id COLLATE "C" < $4))` : '';
+    const { rows } = await tx.query<RawOrder>(
+      `SELECT ${ORDER_COLUMNS} FROM "Order" WHERE ${mine} ${keyset} ORDER BY "createdAt" DESC, id COLLATE "C" DESC LIMIT $2`,
+      after ? [actorId, limit, after.createdAt, after.id] : [actorId, limit],
+    );
+    return rows.map(order);
+  }
+
+  async closedPurchase(tx: Tx, buyerId: CuidId, businessId: CuidId): Promise<{ closed: boolean; latest: OrderFacts | null }> {
+    const { rows } = await tx.query<OrderFacts & { closed: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM "Order" WHERE "buyerId" = $1 AND "businessId" = $2 AND "buyerItemReceivedConfirmedAt" IS NOT NULL) AS closed,
+         o."buyerPaidConfirmedAt", o."sellerReceivedConfirmedAt", o."buyerItemReceivedConfirmedAt", o."cancelledAt", o."expiredAt", o."expiresAt",
+         o."comprobanteObjectKey" IS NOT NULL AS "hasComprobante"
+       FROM (SELECT 1) one LEFT JOIN LATERAL (
+         SELECT * FROM "Order" WHERE "buyerId" = $1 AND "businessId" = $2 ORDER BY "createdAt" DESC, id COLLATE "C" DESC LIMIT 1
+       ) o ON TRUE`,
+      [buyerId, businessId],
+    );
+    const { closed, ...latest } = rows[0]!;
+    return { closed, latest: latest.expiresAt === null ? null : latest };
+  }
+
+  async lookupOrders(tx: Tx, query: OrderLookupQuery, limit: number): Promise<OrderRow[]> {
+    const { rows } = await tx.query<RawOrder>(
+      `SELECT ${ORDER_COLUMNS} FROM "Order"
+       WHERE ($1::text IS NULL OR id = $1) AND ($2::text IS NULL OR "buyerId" = $2) AND ($3::text IS NULL OR "businessId" = $3)
+       ORDER BY "createdAt" DESC, id COLLATE "C" DESC LIMIT $4`,
+      [query.orderId ?? null, query.buyerId ?? null, query.businessId ?? null, limit],
+    );
+    return rows.map(order);
+  }
+
+  async insertLookupLog(tx: Tx, log: { id: CuidId; adminId: CuidId; query: OrderLookupQuery; resultOrderIds: CuidId[]; now: IsoInstant }): Promise<void> {
+    await tx.query(
+      `INSERT INTO "OrderLookupLog" (id, "adminId", query, "resultOrderIds", "createdAt") VALUES ($1, $2, $3, $4, $5)`,
+      [log.id, log.adminId, JSON.stringify(log.query), log.resultOrderIds, log.now],
+    );
+  }
+
+  async readSupportContact(tx: Tx, forUpdate: boolean): Promise<SupportContactDTO | null> {
+    const { rows } = await tx.query<SupportContactDTO>(
+      `SELECT email, "whatsappE164" FROM "SupportContactSetting" WHERE id = 'singleton'${forUpdate ? ' FOR UPDATE' : ''}`,
+    );
+    return rows[0] ?? null;
+  }
+
+  async writeSupportContact(tx: Tx, c: { id: CuidId; adminId: CuidId; before: SupportContactDTO | null; after: SupportContactDTO; now: IsoInstant }): Promise<void> {
+    await tx.query(
+      `INSERT INTO "SupportContactSetting" (id, email, "whatsappE164", "createdAt", "updatedAt") VALUES ('singleton', $1, $2, $3, $3)
+       ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, "whatsappE164" = EXCLUDED."whatsappE164", "updatedAt" = EXCLUDED."updatedAt"`,
+      [c.after.email, c.after.whatsappE164, c.now],
+    );
+    await tx.query(
+      `INSERT INTO "SupportContactChange" (id, "adminId", before, after, "createdAt") VALUES ($1, $2, $3, $4, $5)`,
+      [c.id, c.adminId, c.before === null ? null : JSON.stringify(c.before), JSON.stringify(c.after), c.now],
+    );
   }
 }

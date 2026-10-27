@@ -36,6 +36,7 @@ export interface VerV2UseCases {
 
 import type { Citation, Decision } from '../../../shared-kernel/decision.js';
 import { ambientTx } from '../../../shared-kernel/db.js';
+import { requireAdmin } from './admin.js';
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
@@ -87,7 +88,7 @@ export class VerServiceV2 implements VerV2UseCases {
     const { applicationId, decision: choice, adminId } = input;
     const rule = choice.kind === 'approve' ? 'FR-VER-3' : 'FR-VER-4';
     return transactions.run(async (tx) => {
-      await requireAdmin(this.deps, tx, adminId);
+      await requireAdmin(this.deps.repo, tx, adminId);
       const at = clock.now();
       const now = at.toISOString();
       const refuseDecided = async (): Promise<never> => {
@@ -284,7 +285,7 @@ export class VerServiceV2 implements VerV2UseCases {
   async listReviewQueue(input: ListReviewQueueRequest): Promise<ListReviewQueueResponse> {
     const { repo, transactions } = this.deps;
     return transactions.run(async (tx) => {
-      await requireAdmin(this.deps, tx, input.adminId);
+      await requireAdmin(this.deps.repo, tx, input.adminId);
       const after = input.cursor === null ? null : decodeQueueCursor(input.cursor);
       if (input.cursor !== null && after === null) rejectRequest([{ field: 'cursor', issue: 'no corresponde a una página de esta lista' }]);
       const rows = await repo.readReviewQueue(tx, after, QUEUE_PAGE + 1);
@@ -327,7 +328,7 @@ export class VerServiceV2 implements VerV2UseCases {
     const next = { code, textEsCo, barred: policy.barred, cooldownDays: policy.barred ? null : policy.cooldownDays };
     return transactions.run(async (tx) => {
       const now = clock.now().toISOString();
-      await requireAdmin(this.deps, tx, adminId);
+      await requireAdmin(this.deps.repo, tx, adminId);
       let before = await repo.lockRejectionReason(tx, code);
       if (before === null && (await repo.insertRejectionReason(tx, next, now))) {
         await this.recordReasonChange(tx, adminId, null, { ...next, active: true }, now);
@@ -351,7 +352,7 @@ export class VerServiceV2 implements VerV2UseCases {
     const { adminId, code, active } = input;
     return transactions.run(async (tx) => {
       const now = clock.now().toISOString();
-      await requireAdmin(this.deps, tx, adminId);
+      await requireAdmin(this.deps.repo, tx, adminId);
       if (!active) {
         const activeCodes = await repo.lockActiveReasonCodes(tx);
         // AEC-08: an absent or inactive code writes no change row.
@@ -423,7 +424,7 @@ export class VerServiceV2 implements VerV2UseCases {
   async listRejectionReasons(input: ListRejectionReasonsRequest): Promise<ListRejectionReasonsResponse> {
     const { repo, transactions } = this.deps;
     return transactions.run(async (tx) => {
-      await requireAdmin(this.deps, tx, input.adminId);
+      await requireAdmin(this.deps.repo, tx, input.adminId);
       return { reasons: await repo.listRejectionReasons(tx) };
     }, { readOnly: true });
   }
@@ -432,7 +433,7 @@ export class VerServiceV2 implements VerV2UseCases {
   async listLegalIdentityAccess(input: ListLegalIdentityAccessRequest): Promise<ListLegalIdentityAccessResponse> {
     const { repo, transactions } = this.deps;
     return transactions.run(async (tx) => {
-      await requireAdmin(this.deps, tx, input.adminId);
+      await requireAdmin(this.deps.repo, tx, input.adminId);
       const before = input.cursor === null ? null : decodeAccessLogCursor(input.cursor);
       if (input.cursor !== null && before === null) rejectRequest([{ field: 'cursor', issue: 'no corresponde a una página de esta lista' }]);
       const rows = await repo.listAccessLog(tx, before, input.applicationId ?? null, ACCESS_PAGE + 1);
@@ -512,12 +513,6 @@ function checkReasonShape(input: UpsertRejectionReasonRequest): void {
   }
   const [first, ...rest] = issues;
   if (first) rejectRequest([first, ...rest]);
-}
-
-/** AD-16: admin-only operations check the flag in the service too, not only in the procedure builder. */
-async function requireAdmin(deps: VerV2Deps, tx: Tx, adminId: CuidId): Promise<void> {
-  const facts = await deps.repo.readCapabilityFacts(tx, adminId);
-  if (!facts?.isAdmin) raise('AdminOnly', [{ rule: 'AD-16', inputs: { isAdmin: false } }]);
 }
 
 function isHttpsUrl(value: string): boolean {

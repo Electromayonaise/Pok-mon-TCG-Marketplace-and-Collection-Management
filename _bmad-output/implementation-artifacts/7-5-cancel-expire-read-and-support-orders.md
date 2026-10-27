@@ -2,7 +2,7 @@
 title: 'Story 7.5: Cancel, expire, read and support orders'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'f595122'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -67,11 +67,11 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] reads and their decisions; §13 rows and the generator
-- [ ] cancel and `expireDueOrders`
-- [ ] `hasClosedPurchase`, admin lookup, support contact
-- [ ] the seven procedures with HTTP cases; src tests
-- [ ] `sprint-status.yaml` -- 7.5 `done`; `gen:trace:solu2`
+- [x] reads and their decisions; §13 rows and the generator
+- [x] cancel and `expireDueOrders`
+- [x] `hasClosedPurchase`, admin lookup, support contact
+- [x] the seven procedures with HTTP cases; src tests
+- [x] `sprint-status.yaml` -- 7.5 `done`; `gen:trace:solu2`
 
 **Acceptance Criteria:**
 - Given 7.5 `done`, when the 10 bound tests, `[ORD-2.I2]` and `[ORD-2.MEC]` run, then they pass.
@@ -85,3 +85,10 @@ context:
 ## Implementation Notes
 
 - Code review is batched with the rest of Epic 7 at its close (decision #22).
+- **The admin check (decision log Impl-1 #32).** identity's guard moved out of `ver.v2.ts` into `identity/application/admin.ts` and is exported as `requireAdmin(repo, tx, adminId)`. ORD's `repo` type is its own tables plus `AdminFactsReader`, and the one repository (R-14) already carries identity's adapter. So the lookup and the support-contact change check the flag in their own transaction, and identity reads its own table and raises its own `AdminOnly`. No bound test or `operations.json` changed.
+- **An unset support contact (decision #32)** is `Unexpected` (500), because the DTO has no null (`deferred-work.md`).
+- `Resolvers` accepts the procedures with no input schema, so `orders.supportContact.get` (public) is wired. Its resolver gets `undefined`.
+- Each `OrderViewDTO` carries a decision from the pure `orderView`: `OrderAwaitingPayment`, `OrderPaid`, `OrderPaymentConfirmed`, `OrderCompleted`, `OrderCancelled` or `OrderExpired`, citing `{ orderId, at }` with the fact's instant. A paid order with no business confirmation for 7 days reads `OrderAwaitingBusiness` (`allowedWithNotice`, NFR-ORD-4). All 7 are stored-only §13 rows with no placeholders.
+- An admin lookup row reads as its buyer sees it (`role: 'buyer'`), since the DTO has no admin role. The lookup also writes an audit row `orders.lookup.performed`. The `EventDelivery` rows of AD-ORD-3 rule 3 are not in `AdminLookupOrdersResponse`; the admin console reads them through `admin.events.deliveries`.
+- `expireDueOrders('all')` stops on a short batch, on a batch that expired nothing (so it cannot spin on orders a concurrent command already expired), or after 50 s of Clock time. `released` sums the released units.
+- No jobs route calls `expireDueOrders` yet (`deferred-work.md`).

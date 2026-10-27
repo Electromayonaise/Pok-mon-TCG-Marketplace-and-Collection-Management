@@ -40,19 +40,21 @@ export interface OrdV2UseCases {
 
 import type { Citation, Decision } from '../../../shared-kernel/decision.js';
 import { ambientTx } from '../../../shared-kernel/db.js';
-import { DomainError, NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { DomainError, UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import type { OrderClosedLineV1 } from '../../../shared-kernel/events.js';
 import type { Tx } from '../../../shared-kernel/ports.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
-import { rejectRequest } from '../../../shared-kernel/request.js';
+import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import {
-  closedLines, comprobanteUploadPrefix, deriveStatus, expiryUnmaterialized, itemReceivedLoserCode, MAX_COMPROBANTE_BYTES, openOrderOverflow, paidLoserCode,
-  paymentReceivedLoserCode, sniffComprobanteType, UNPAID_ORDER_TTL_MS, type OrderStatus,
+  closedLines, comprobanteUploadPrefix, decodeOrderCursor, deriveStatus, encodeOrderCursor, expiryUnmaterialized, itemReceivedLoserCode, MAX_COMPROBANTE_BYTES,
+  openOrderOverflow, orderView, paidLoserCode, paymentReceivedLoserCode, sniffComprobanteType, UNPAID_ORDER_TTL_MS, type OrderStatus,
 } from '../domain/ord.js';
-import type { OrderRow } from '../ports/ord.v2.js';
+import type { OrderViewDTO } from '../dto/ord.v2.dto.js';
+import type { OrderLookupQuery, OrderRow } from '../ports/ord.v2.js';
+import { requireAdmin } from '../../identity/index.js';
 
 const raise = raiserFor('orders');
 
@@ -60,6 +62,16 @@ const raise = raiserFor('orders');
 const PRE_STEP_LIMIT = 20;
 /** AD-14: a signed comprobante URL lives exactly 600 s. */
 const SIGNED_URL_TTL = 600;
+/** S-FR-ORD-8: the tick and the crons expire batches of 200 for up to 50 s. */
+const JOB_BATCH = 200;
+const JOB_BUDGET_MS = 50_000;
+/** S-FR-ORD-6.list: the page size. */
+const ORDERS_PAGE = 25;
+/** S-FR-ORD-10.lookup: at most 50 orders per lookup. */
+const LOOKUP_LIMIT = 50;
+/** The `"SupportContactSetting"` CHECKs, repeated for in-process callers. */
+const SUPPORT_EMAIL = /^[^@\s]+@[^@\s]+$/;
+const E164 = /^\+[1-9][0-9]{7,14}$/;
 
 /** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
 function explained(code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant, outcome: Decision['outcome'] = 'allowed'): Decision {
@@ -74,7 +86,7 @@ function endedAt(row: OrderRow): Date {
   return row.cancelledAt ?? row.expiredAt ?? row.expiresAt;
 }
 
-/** Every method not yet built throws NotImplementedError until its story is done (red for the right reason). */
+/** ORD's Solu-2 use cases (contracts.md §6, §15). */
 export class OrdServiceV2 implements OrdV2UseCases {
   constructor(protected readonly deps: OrdV2Deps) {}
 
@@ -382,35 +394,161 @@ export class OrdServiceV2 implements OrdV2UseCases {
     return { orderId, buyerItemReceivedConfirmedAt: now, status: 'Closed', decision };
   }
 
-  async getOrder(_input: GetOrderRequest): Promise<GetOrderResponse> {
-    throw new NotImplementedError('orders.getOrder');
+  /** S-FR-ORD-6: an order as `actorId` sees it, with its status derived at read (AD-ORD-2 rule 8) and explained. */
+  private view(row: OrderRow, actorId: CuidId, at: Date): OrderViewDTO {
+    const { status, code, rule, at: factAt } = orderView(row, at);
+    return {
+      orderId: row.id, role: row.buyerId === actorId ? 'buyer' : 'business', status, listingTitle: row.listingSnapshot.title, qty: row.qty, totalCop: row.totalCop,
+      expiresAt: row.expiresAt.toISOString(), buyerPaidConfirmedAt: row.buyerPaidConfirmedAt?.toISOString() ?? null,
+      sellerReceivedConfirmedAt: row.sellerReceivedConfirmedAt?.toISOString() ?? null, buyerItemReceivedConfirmedAt: row.buyerItemReceivedConfirmedAt?.toISOString() ?? null,
+      decision: explained(code, [{ rule, inputs: { orderId: row.id, at: factAt.toISOString() } }], at.toISOString(), code === 'OrderAwaitingBusiness' ? 'allowedWithNotice' : 'allowed'),
+    };
   }
 
-  async listOrders(_input: ListOrdersRequest): Promise<ListOrdersResponse> {
-    throw new NotImplementedError('orders.listOrders');
+  /** S-FR-ORD-6.get (AD-ORD-3 rule 1, AD-15): zero writes. */
+  async getOrder(input: GetOrderRequest): Promise<GetOrderResponse> {
+    const at = this.deps.clock.now();
+    const row = await this.reading((tx) => this.deps.repo.readVisibleOrder(tx, input.orderId, input.actorId));
+    return row === null ? this.notVisible() : this.view(row, input.actorId, at);
   }
 
-  async cancelOrder(_input: CancelOrderRequest): Promise<CancelOrderResponse> {
-    throw new NotImplementedError('orders.cancelOrder');
+  /** S-FR-ORD-6.list: the buyer's purchases, or the business's paid sales, 25 per page newest first. Zero writes. */
+  async listOrders(input: ListOrdersRequest): Promise<ListOrdersResponse> {
+    const { repo, clock } = this.deps;
+    const after = input.cursor === null ? null : decodeOrderCursor(input.cursor);
+    if (input.cursor !== null && after === null) rejectRequest([{ field: 'cursor', issue: 'no es un cursor de esta lista' }]);
+    const at = clock.now();
+    const rows = await this.reading((tx) => repo.listOrders(tx, input.actorId, input.side, after, ORDERS_PAGE + 1));
+    const page = rows.slice(0, ORDERS_PAGE);
+    const last = page.at(-1);
+    return {
+      items: page.map((r) => this.view(r, input.actorId, at)),
+      nextCursor: rows.length > ORDERS_PAGE && last ? encodeOrderCursor(last.createdAt.toISOString(), last.id) : null,
+    };
   }
 
-  async expireDueOrders(_input: ExpireDueOrdersRequest): Promise<ExpireDueOrdersResponse> {
-    throw new NotImplementedError('orders.expireDueOrders');
+  /**
+   * S-FR-ORD-7 (AD-ORD-2 rule 6): the buyer's conditional cancel while active, then the one release
+   * and an audit row. An order past `expiresAt` is materialized as expired first, and that commits.
+   */
+  async cancelOrder(input: CancelOrderRequest): Promise<CancelOrderResponse> {
+    const { repo, transactions, clock, audit, listings } = this.deps;
+    const { orderId, buyerId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    const notCancellable = (status: OrderStatus): never => raise('OrderNotCancellable', [{ rule: 'FR-ORD-7', inputs: { orderId, status } }]);
+    const outcome = await transactions.run(async (tx) => {
+      const reservationRef = await repo.cancelOrder(tx, orderId, buyerId, now);
+      if (reservationRef === null) {
+        const row = await repo.readVisibleOrder(tx, orderId, buyerId);
+        if (row === null) return this.notVisible();
+        if (row.buyerId !== buyerId) return this.notOwned(orderId, 'FR-ORD-7');
+        if (!expiryUnmaterialized(row, at)) return notCancellable(deriveStatus(row, at));
+        await this.expireInTx(tx, orderId, now);
+        return () => notCancellable('Expired');
+      }
+      const { releasedUnits } = await listings.releaseReservation(tx, { reservationRef });
+      await audit.record(tx, {
+        actorId: buyerId, actorKind: 'user', module: 'orders', action: 'orders.order.cancelled',
+        aggregateType: 'Order', aggregateId: orderId, decisionCode: 'OrderCancelled', data: { cancelReason: 'BuyerCancelled', releasedUnits }, at: now,
+      });
+      return null;
+    });
+    if (outcome) return outcome();
+    const decision = explained('OrderCancelled', [{ rule: 'FR-ORD-7', inputs: { orderId, at: now } }], now);
+    return { orderId, status: 'Cancelled', cancelledAt: now, decision };
   }
 
-  async hasClosedPurchase(_input: HasClosedPurchaseRequest): Promise<HasClosedPurchaseResponse> {
-    throw new NotImplementedError('orders.hasClosedPurchase');
+  /**
+   * S-FR-ORD-8 (AD-ORD-2 rules 6–7): materializes due expiries, one transaction per order. A listing's
+   * units take one batch of 20; `'all'` takes batches of 200 until one comes back short, expires
+   * nothing, or 50 s of Clock time have passed. Correct whether or not it ever runs (AD-SYS-6 rule 5).
+   */
+  async expireDueOrders(input: ExpireDueOrdersRequest): Promise<ExpireDueOrdersResponse> {
+    const { clock } = this.deps;
+    const start = clock.now();
+    const now = start.toISOString();
+    if (input.scope !== 'all') {
+      const { expired, released } = await this.expireBatch(input.scope.listingUnitIds, now, PRE_STEP_LIMIT);
+      return { expired, released };
+    }
+    let expired = 0;
+    let released = 0;
+    for (;;) {
+      const batch = await this.expireBatch(null, now, JOB_BATCH);
+      expired += batch.expired;
+      released += batch.released;
+      if (batch.due < JOB_BATCH || batch.expired === 0 || clock.now().getTime() - start.getTime() >= JOB_BUDGET_MS) break;
+    }
+    return { expired, released };
   }
 
-  async adminLookupOrders(_input: AdminLookupOrdersRequest): Promise<AdminLookupOrdersResponse> {
-    throw new NotImplementedError('orders.adminLookupOrders');
+  /** S-FR-ORD-9 (AD-ORD-3 rule 4): "completed" means the item fact, never "paid" (AD-2). Zero writes. */
+  async hasClosedPurchase(input: HasClosedPurchaseRequest): Promise<HasClosedPurchaseResponse> {
+    const at = this.deps.clock.now();
+    const { closed, latest } = await this.reading((tx) => this.deps.repo.closedPurchase(tx, input.buyerId, input.businessId));
+    return { closed, latestState: latest === null ? null : deriveStatus(latest, at) };
   }
 
+  /**
+   * S-FR-ORD-10.lookup (AD-ORD-3 rule 3): identity's admin guard, the read, and one append-only
+   * `"OrderLookupLog"` row in one transaction. No write path to `"Order"`.
+   */
+  async adminLookupOrders(input: AdminLookupOrdersRequest): Promise<AdminLookupOrdersResponse> {
+    const { repo, transactions, clock, ids, audit } = this.deps;
+    const { adminId } = input;
+    const query: OrderLookupQuery = {
+      ...(input.query.orderId ? { orderId: input.query.orderId } : {}),
+      ...(input.query.buyerId ? { buyerId: input.query.buyerId } : {}),
+      ...(input.query.businessId ? { businessId: input.query.businessId } : {}),
+    };
+    const at = clock.now();
+    const now = at.toISOString();
+    return transactions.run(async (tx) => {
+      await requireAdmin(repo, tx, adminId);
+      if (Object.keys(query).length === 0) rejectRequest([{ field: 'query', issue: 'indica un pedido, un comprador o una tienda' }]);
+      const rows = await repo.lookupOrders(tx, query, LOOKUP_LIMIT);
+      const resultOrderIds = rows.map((r) => r.id);
+      await repo.insertLookupLog(tx, { id: ids.next(), adminId, query, resultOrderIds, now });
+      await audit.record(tx, {
+        actorId: adminId, actorKind: 'admin', module: 'orders', action: 'orders.lookup.performed',
+        aggregateType: 'OrderLookupLog', aggregateId: adminId, decisionCode: null, data: { results: resultOrderIds.length }, at: now,
+      });
+      // An admin is neither party: each row reads as its buyer sees it.
+      return { orders: rows.map((r) => this.view(r, r.buyerId, at)) };
+    });
+  }
+
+  /**
+   * S-FR-ORD-10.get: the public support contact. Before any admin sets it there is none, and the
+   * DTO has no null, so the read is `Unexpected` (decision log Impl-1 #32; `deferred-work.md`).
+   */
   async getSupportContact(): Promise<SupportContactDTO> {
-    throw new NotImplementedError('orders.getSupportContact');
+    const contact = await this.reading((tx) => this.deps.repo.readSupportContact(tx, false));
+    if (contact === null) throw new UnexpectedError('Unexpected: no support contact is set (S-FR-ORD-10.set has never run)');
+    return contact;
   }
 
-  async setSupportContact(_input: SetSupportContactRequest): Promise<SetSupportContactResponse> {
-    throw new NotImplementedError('orders.setSupportContact');
+  /** S-FR-ORD-10.set: identity's admin guard, then the singleton, its change row and an audit row, in one transaction. */
+  async setSupportContact(input: SetSupportContactRequest): Promise<SetSupportContactResponse> {
+    const { repo, transactions, clock, ids, audit } = this.deps;
+    const { adminId, contact } = input;
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      await requireAdmin(repo, tx, adminId);
+      const issues: RequestIssue[] = [];
+      if (!SUPPORT_EMAIL.test(contact.email)) issues.push({ field: 'contact.email', issue: 'debe ser un correo electrónico' });
+      if (contact.whatsappE164 !== null && !E164.test(contact.whatsappE164)) issues.push({ field: 'contact.whatsappE164', issue: 'debe ser un número en formato internacional, como +573001234567' });
+      const [first, ...rest] = issues;
+      if (first) rejectRequest([first, ...rest]);
+      const before = await repo.readSupportContact(tx, true);
+      const after = { email: contact.email, whatsappE164: contact.whatsappE164 };
+      await repo.writeSupportContact(tx, { id: ids.next(), adminId, before, after, now });
+      await audit.record(tx, {
+        actorId: adminId, actorKind: 'admin', module: 'orders', action: 'orders.supportContact.set',
+        aggregateType: 'SupportContactSetting', aggregateId: adminId, decisionCode: null, data: { replaced: before !== null }, at: now,
+      });
+      return { updatedAt: now };
+    });
   }
 }

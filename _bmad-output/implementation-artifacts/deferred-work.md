@@ -82,3 +82,9 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 ## Deferred from: code review of Epic 6 (6.1–6.4) (2026-10-27)
 
 - DSC-2 Q4 names a "no active listings" decision for a card with no listing in the area, and excluded rows "counted with `ListingLocationUnusable`", but `GetCardDetailResponse` has no decision field. Martín deferred the DTO change to the card page story (UI 2.2), which renders the empty state from `hasActiveListings` and `excluded.unusableLocation` (decision log Impl-1 #31).
+
+## Deferred from: spec of Epic 7 (7.1–7.5) (2026-10-27)
+
+- No jobs route exists, so `expireDueOrders` (S-FR-ORD-8) has no tick or cron caller: the hourly tick (G-3), `daily-morning` and `daily-night` with the single-flight `job:expiry-materialize`. It belongs with the jobs route, together with `trm-fetch` (Story 4.4) and the catalog's `daily-night` (Story 4.1). Until then expiry is still correct at every read and command (AD-ORD-2 rule 8, AD-SYS-6 rule 5). Stock is reclaimed by the `orders.create` pre-step for the same listing, and by every command that meets an overdue order.
+- `orders.supportContact.get` is `Unexpected` (500) until an admin first sets the contact, because `SupportContactDTO` has no null (decision log Impl-1 #32). Setting it belongs to the launch checklist; revisit with the support page (UI 6.2) if a public read must come before it.
+- The comprobante uses the production `ObjectStorage` and `MalwareScanner`, which are still `UNWIRED_STORAGE` and `UNWIRED_SCANNER` (Story 3.1's item above). In production the ticket, the upload and the URL fail as NotImplemented (500). NFR-ORD-2's upload transfer time (≤ 10 s at 10 Mbps) is measured with them, at launch.

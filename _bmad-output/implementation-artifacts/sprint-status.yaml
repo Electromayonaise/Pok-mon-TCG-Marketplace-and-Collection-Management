@@ -101,7 +101,7 @@ development_status:
   7-2-confirm-paid-and-close-orders-safely-in-any-order: done
   7-3-refuse-self-purchase-open-order-overflow-and-listing-refusals: done
   7-4-refuse-out-of-role-repeated-and-expired-confirmations: done
-  7-5-cancel-expire-read-and-support-orders: backlog
+  7-5-cancel-expire-read-and-support-orders: done
   epic-7-retrospective: optional
   epic-8: backlog
   8-1-open-the-commission-account-and-request-top-ups: backlog

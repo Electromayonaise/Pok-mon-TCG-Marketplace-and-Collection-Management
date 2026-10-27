@@ -82,4 +82,4 @@ context:
 - `OrderAlreadyConfirmedByRole` cites the role's own stored instant: paid, received or item.
 - `OrderClosed` lines come from the pure `closedLines`. A bundle's component lines carry the bundle's title, because `orders` has no catalog port that names each component. The single-listing line's `itemRef` is the snapshot's; INV-1 Q2 always fills it for a single listing.
 - §13: `OrderPaidConfirmed`, `OrderPaymentReceived` and `OrderItemReceived` join as stored-only rows with no placeholders (decision #16).
-- MEC runtime (TG-7, local Postgres 16, real connections): `[ORD-3.MEC]` 201 ms; `[ORD-4.MEC]` 182 ms (a 2-way race plus the out-of-order refusal); `[ORD-2.MEC]` is recorded with Story 7.5, which builds the expiry job it races.
+- MEC runtime (TG-7, local Postgres 16, real connections): `[ORD-3.MEC]` 201 ms; `[ORD-4.MEC]` 182 ms (a 2-way race plus the out-of-order refusal); `[ORD-2.MEC]` 571 ms for its 100 repetitions of paid racing the expiry job at `now = expiresAt`, measured once Story 7.5 built the job.

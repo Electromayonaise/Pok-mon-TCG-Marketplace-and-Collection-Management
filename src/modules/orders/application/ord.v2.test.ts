@@ -5,11 +5,9 @@ import { PgTransactionRunner, useTestDatabase } from '../../../../test-support/d
 import { PG } from '../../../../test-support/env.js';
 import { caught, citedInputs } from '../../../../test-support/errors.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
-import { at, business, catalogEntry, commissionState, fake, HOUR, id, listing, order, purchasableListing, rows, unit, user, wiring } from '../../../../test-support/solu2/fixtures.js';
-import { CatServiceV2 } from '../../catalog/index.js';
-import { IdnServiceV2, VerServiceV2 } from '../../identity/index.js';
-import { InvServiceV2 } from '../../listings/index.js';
-import type { CatalogFeedSource, FxRateSource } from '../../../shared-kernel/external.js';
+import { admin, at, business, catalogEntry, commissionState, HOUR, id, listing, order, purchasableListing, rows, unit, user, wiring } from '../../../../test-support/solu2/fixtures.js';
+import { realInventory } from '../../../../test-support/solu2/services.js';
+import { VerServiceV2 } from '../../identity/index.js';
 import type { TransactionRunner } from '../../../shared-kernel/ports.js';
 import { OrdServiceV2 } from './ord.v2.js';
 
@@ -18,9 +16,7 @@ const db = useTestDatabase();
 /** ORD composed as the composition root binds it: the real listings and identity. */
 function orders(transactions: TransactionRunner = db.transactions) {
   const w = { ...wiring(db), transactions };
-  const catalog = new CatServiceV2({ ...w, feed: fake<CatalogFeedSource>('feed', {}), fx: fake<FxRateSource>('fx', {}) });
-  const inv = new InvServiceV2({ ...w, catalog, identity: new IdnServiceV2(w) });
-  return { w, ord: new OrdServiceV2({ ...w, listings: inv, identity: new VerServiceV2(w) }) };
+  return { w, ord: new OrdServiceV2({ ...w, listings: realInventory(w), identity: new VerServiceV2(w) }) };
 }
 const andres = (quantity: number) => purchasableListing(db, { businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar'), entryId: id('char'), quantity });
 const quantity = async (unitId: string) => (await rows<{ quantity: number }>(db, 'InventoryUnit', 'id = $1', [unitId]))[0]!.quantity;
@@ -138,5 +134,89 @@ describe('the comprobante (S-FR-ORD-2)', () => {
     await user(db, { id: id('camila') });
     await order(db, { ...base, id: id('o1'), comprobante: false });
     expect(await orders().ord.getComprobanteUrl({ orderId: id('o1'), actorId: id('camila') })).toMatchObject({ url: null, expiresAt: null, decision: { reasonCode: 'ComprobanteNotUploaded' } });
+  });
+});
+
+describe('reads, cancel and the expiry job (S-FR-ORD-6, -7, -8, -9)', () => {
+  const base = { buyerId: id('camila'), businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar') };
+
+  it('pages a buyer\'s purchases newest first with a keyset cursor, and refuses a cursor it did not issue', async () => {
+    await business(db, id('andres'), 'Approved');
+    await user(db, { id: id('camila') });
+    for (let k = 0; k < 27; k++) await order(db, { ...base, id: id(`o${k}`), createdAt: at(-(k + 1) * 60_000), cancelledAt: at(-30_000) });
+    const { ord } = orders();
+    const first = await ord.listOrders({ actorId: id('camila'), side: 'purchases', cursor: null });
+    const second = await ord.listOrders({ actorId: id('camila'), side: 'purchases', cursor: first.nextCursor });
+    expect([first.items.length, second.items.length, second.nextCursor]).toEqual([25, 2, null]);
+    expect([first.items[0]!.orderId, second.items[1]!.orderId]).toEqual([id('o0'), id('o26')]);
+    expect(first.items[0]).toMatchObject({ role: 'buyer', status: 'Cancelled', decision: { reasonCode: 'OrderCancelled' } });
+    expect(codeOf(await caught(() => ord.listOrders({ actorId: id('camila'), side: 'purchases', cursor: 'bm90LWEtY3Vyc29y' })))).toBe('RequestValidationFailed');
+  });
+
+  it('a paid order the business has not confirmed for 7 days reads with the support notice (NFR-ORD-4)', async () => {
+    await business(db, id('andres'), 'Approved');
+    await user(db, { id: id('camila') });
+    await order(db, { ...base, id: id('old'), createdAt: at(-8 * 24 * HOUR), expiresAt: at(-6 * 24 * HOUR), paidAt: at(-7 * 24 * HOUR) });
+    await order(db, { ...base, id: id('new'), paidAt: at(-HOUR) });
+    const { ord } = orders();
+    expect((await ord.getOrder({ orderId: id('old'), actorId: id('andres') })).decision).toMatchObject({ outcome: 'allowedWithNotice', reasonCode: 'OrderAwaitingBusiness' });
+    expect((await ord.getOrder({ orderId: id('new'), actorId: id('andres') }))).toMatchObject({ role: 'business', status: 'Paid', decision: { reasonCode: 'OrderPaid' } });
+  });
+
+  it('the business cancelling a paid order is OrderNotOwnedByCaller; the buyer past expiry gets OrderNotCancellable and the expiry is materialized', async () => {
+    await purchasableListing(db, { businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar'), entryId: id('char'), quantity: 0 });
+    await user(db, { id: id('camila') });
+    await order(db, { ...base, id: id('paid'), paidAt: at(-HOUR) });
+    await order(db, { ...base, id: id('late'), createdAt: at(-49 * HOUR), expiresAt: at(-HOUR) });
+    const { ord } = orders();
+    expect(codeOf(await caught(() => ord.cancelOrder({ orderId: id('paid'), buyerId: id('andres') })))).toBe('OrderNotOwnedByCaller');
+    const error = await caught(() => ord.cancelOrder({ orderId: id('late'), buyerId: id('camila') }));
+    expect([codeOf(error), citedInputs(error)]).toEqual(['OrderNotCancellable', { orderId: id('late'), status: 'Expired' }]);
+    expect(await rows(db, 'Order', 'id = $1', [id('late')])).toMatchObject([{ cancelReason: 'Unpaid', cancelledAt: null }]);
+    expect(await quantity(id('uchar'))).toBe(1);
+  });
+
+  it('the expiry job over every order expires each due one once, returns its stock, and leaves the rest', async () => {
+    await purchasableListing(db, { businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar'), entryId: id('char'), quantity: 0 });
+    await user(db, { id: id('camila') });
+    await order(db, { ...base, id: id('due1'), qty: 2, createdAt: at(-49 * HOUR), expiresAt: at(-HOUR) });
+    await order(db, { ...base, id: id('due2'), createdAt: at(-48 * HOUR), expiresAt: at(0) });
+    await order(db, { ...base, id: id('open'), expiresAt: at(HOUR) });
+    const { ord } = orders();
+    expect(await ord.expireDueOrders({ scope: 'all', trigger: 'tick' })).toEqual({ expired: 2, released: 3 });
+    expect(await quantity(id('uchar'))).toBe(3);
+    expect((await rows<{ id: string }>(db, 'Order', `"expiredAt" IS NULL`)).map((r) => r.id)).toEqual([id('open')]);
+  });
+
+  it('a pair with no order is neither closed nor in any state', async () => {
+    expect(await orders().ord.hasClosedPurchase({ buyerId: id('camila'), businessId: id('andres') })).toEqual({ closed: false, latestState: null });
+  });
+});
+
+describe('the admin lookup and the support contact (S-FR-ORD-10)', () => {
+  it('a lookup with no id is RequestValidationFailed and logs nothing; a lookup by buyer finds every order of theirs', async () => {
+    await admin(db);
+    await business(db, id('andres'), 'Approved');
+    await user(db, { id: id('camila') });
+    await order(db, { buyerId: id('camila'), businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar'), id: id('o1') });
+    const { ord } = orders();
+    expect(codeOf(await caught(() => ord.adminLookupOrders({ adminId: id('admin'), query: {} })))).toBe('RequestValidationFailed');
+    expect(await rows(db, 'OrderLookupLog')).toHaveLength(0);
+    const found = await ord.adminLookupOrders({ adminId: id('admin'), query: { buyerId: id('camila') } });
+    expect(found.orders.map((o) => o.orderId)).toEqual([id('o1')]);
+    expect(await rows(db, 'OrderLookupLog')).toMatchObject([{ adminId: id('admin'), query: { buyerId: id('camila') }, resultOrderIds: [id('o1')] }]);
+  });
+
+  it('before any admin sets it the contact is Unexpected; an admin sets it twice and each change keeps its before; a non-admin is AdminOnly', async () => {
+    await admin(db);
+    await user(db, { id: id('camila') });
+    const { ord } = orders();
+    expect(codeOf(await caught(() => ord.getSupportContact()))).toBe('Unexpected');
+    await ord.setSupportContact({ adminId: id('admin'), contact: { email: 'soporte@tezg.co', whatsappE164: null } });
+    await ord.setSupportContact({ adminId: id('admin'), contact: { email: 'ayuda@tezg.co', whatsappE164: '+573001234567' } });
+    expect(await ord.getSupportContact()).toEqual({ email: 'ayuda@tezg.co', whatsappE164: '+573001234567' });
+    expect((await rows<{ before: unknown }>(db, 'SupportContactChange', 'TRUE ORDER BY "createdAt", id')).map((c) => c.before)).toEqual([null, { email: 'soporte@tezg.co', whatsappE164: null }]);
+    expect(codeOf(await caught(() => ord.setSupportContact({ adminId: id('camila'), contact: { email: 'x@y.co', whatsappE164: null } })))).toBe('AdminOnly');
+    expect(codeOf(await caught(() => ord.setSupportContact({ adminId: id('admin'), contact: { email: 'no-es-correo', whatsappE164: '3001234567' } })))).toBe('RequestValidationFailed');
   });
 });
