@@ -162,3 +162,21 @@ export function decodeRunCursor(cursor: string): RunKey | null {
   if (new Date(startedAt).toISOString() !== startedAt || typeof id !== 'string' || !KEY_ID.test(id)) return null;
   return { startedAt, id };
 }
+
+/** CAT-2.quarantine: the run and the last `rowNumber` of a page, so a cursor never crosses runs. */
+export interface QuarantineKey {
+  runId: string;
+  rowNumber: number;
+}
+
+export function encodeQuarantineCursor(key: QuarantineKey): string {
+  return encodeKeyset('feed-quarantine', key.runId, key.rowNumber);
+}
+
+export function decodeQuarantineCursor(cursor: string): QuarantineKey | null {
+  const key = decodeKeyset('feed-quarantine', cursor, 2);
+  if (key === null) return null;
+  const [runId, rowNumber] = key;
+  if (typeof runId !== 'string' || !KEY_ID.test(runId) || !Number.isSafeInteger(rowNumber) || (rowNumber as number) < 1) return null;
+  return { runId, rowNumber: rowNumber as number };
+}

@@ -67,6 +67,12 @@ export interface QuarantineRow {
   rawRow: Record<string, unknown>;
 }
 
+export interface QuarantineListRow {
+  rowNumber: number;
+  externalKey: string | null;
+  reasonCode: string;
+}
+
 export interface ObservationRow {
   id: CuidId;
   catalogEntryId: CuidId;
@@ -115,6 +121,8 @@ export interface CatRepository {
   insertRevision(tx: Tx, row: { id: CuidId; catalogEntryId: CuidId; runId: CuidId; changedFields: string[]; before: object; after: object }, now: IsoInstant): Promise<void>;
   /** AD-CAT-1 rule 3: `ON CONFLICT ("runId", "rowNumber") DO NOTHING`. */
   quarantineRow(tx: Tx, row: QuarantineRow, now: IsoInstant): Promise<void>;
+  /** CAT-2.quarantine: by `rowNumber` after `afterRow`, optionally one reason; never `rawRow`. */
+  listQuarantined(tx: Tx, runId: CuidId, reasonCode: string | null, afterRow: number | null, limit: number): Promise<QuarantineListRow[]>;
   /** AD-CAT-2: `ON CONFLICT DO NOTHING` on `reference_price_once`. */
   insertObservation(tx: Tx, row: ObservationRow, now: IsoInstant): Promise<void>;
 }

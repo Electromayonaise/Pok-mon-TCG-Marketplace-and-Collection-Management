@@ -6,7 +6,7 @@ import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoDate, IsoInstant } from '../../../shared-kernel/types.js';
 import type { RunKey } from '../domain/cat.js';
 import type { FeedRunDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
-import type { BatchCounts, CatRepository, FeedRunStatus, ObservationRow, QuarantineRow, RunState, StoredEntry } from '../ports/cat.v2.js';
+import type { BatchCounts, CatRepository, FeedRunStatus, ObservationRow, QuarantineListRow, QuarantineRow, RunState, StoredEntry } from '../ports/cat.v2.js';
 import type { ReferencePriceDTO } from '../dto/cat.dto.js';
 import type { ICatalogEntryRepository, IFeedRunRepository, IReferencePriceRepository } from '../ports/cat.js';
 
@@ -196,6 +196,19 @@ export class PgCatRepository implements CatRepository {
        VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT ("runId", "rowNumber") DO NOTHING`,
       [r.id, r.runId, r.rowNumber, r.externalKey, r.reasonCode, JSON.stringify(r.rawRow), now],
     );
+  }
+
+  async listQuarantined(tx: Tx, runId: CuidId, reasonCode: string | null, afterRow: number | null, limit: number): Promise<QuarantineListRow[]> {
+    // The filters are appended, never `OR $n IS NULL`, so the (runId, rowNumber) unique index serves each page.
+    const params: unknown[] = [runId];
+    let where = '"runId" = $1';
+    if (reasonCode !== null) where += ` AND "reasonCode" = $${params.push(reasonCode)}`;
+    if (afterRow !== null) where += ` AND "rowNumber" > $${params.push(afterRow)}`;
+    const { rows } = await tx.query<QuarantineListRow>(
+      `SELECT "rowNumber", "externalKey", "reasonCode" FROM "QuarantinedFeedRow" WHERE ${where} ORDER BY "rowNumber" LIMIT $${params.push(limit)}`,
+      params,
+    );
+    return rows;
   }
 
   async insertObservation(tx: Tx, o: ObservationRow, now: IsoInstant): Promise<void> {

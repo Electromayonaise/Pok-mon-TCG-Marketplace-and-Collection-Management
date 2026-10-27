@@ -77,7 +77,7 @@ development_status:
   epic-3-retrospective: optional
   epic-4: in-progress
   4-1-start-and-continue-a-catalog-feed-run: done
-  4-2-keep-a-card-s-id-through-renames-and-reprints: ready-for-dev
+  4-2-keep-a-card-s-id-through-renames-and-reprints: done
   4-3-refuse-a-second-live-run-and-quarantine-changed-kinds: ready-for-dev
   4-4-never-fabricate-a-price: ready-for-dev
   4-5-browse-the-catalog-and-answer-neighbours-catalog-queries: ready-for-dev

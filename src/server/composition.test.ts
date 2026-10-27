@@ -320,6 +320,16 @@ describe('the catalog feed over HTTP (CAT-1, CAT-2.ingress, CAT-1.runs; Story 4.
     expect(await rows(db, 'audit_events', `action = 'catalog.feedRun.started'`)).toMatchObject([{ actorId: id('admin') }]);
   });
 
+  it('an admin lists a run\'s quarantined rows without the raw row (CAT-2.quarantine, Story 4.2); a non-admin is AdminOnly 403', async () => {
+    await admin(db);
+    await user(db, { id: id('camila') });
+    await feedRun(db, id('run1'));
+    await ins(db, 'QuarantinedFeedRow', { id: id('q1'), runId: id('run1'), rowNumber: 7, externalKey: 'sv1-025', reasonCode: 'KindChanged', rawRow: '{"secret":"raw"}' }, 'created');
+    const listed = await get('catalog.feed.quarantine', { runId: id('run1'), cursor: null }, await signIn(id('admin')));
+    expect([listed.status, listed.json.result?.data]).toEqual([200, { rows: [{ rowNumber: 7, externalKey: 'sv1-025', reasonCode: 'KindChanged' }], nextCursor: null }]);
+    expect((await get('catalog.feed.quarantine', { runId: id('run1'), cursor: null }, await signIn(id('camila')))).status).toBe(403);
+  });
+
   it('a second start while a run is live is FeedRunInProgress 409', async () => {
     await admin(db);
     await feedRun(db, id('run1'), { status: 'Running', startedAt: at(-DAY / 2) });

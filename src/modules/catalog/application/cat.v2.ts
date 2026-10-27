@@ -48,7 +48,9 @@ import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest } from '../../../shared-kernel/request.js';
 import type { FeedSourceRow } from '../../../shared-kernel/external.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import { bogotaDate, copFromUsd, decodeRunCursor, diffAttributes, encodeRunCursor, numberSort, observedAtOf, validateRow, type FeedRowPrice } from '../domain/cat.js';
+import {
+  bogotaDate, copFromUsd, decodeQuarantineCursor, decodeRunCursor, diffAttributes, encodeQuarantineCursor, encodeRunCursor, numberSort, observedAtOf, validateRow, type FeedRowPrice,
+} from '../domain/cat.js';
 import type { ValidFeedRow } from '../dto/cat.v2.dto.js';
 import type { BatchCounts, RunState } from '../ports/cat.v2.js';
 
@@ -64,6 +66,8 @@ const CONTINUE_BUDGET_MS = 50_000;
 const ABANDONED_MS = 24 * 3_600_000;
 /** CAT-1.runs: the page size. */
 const RUNS_PAGE = 25;
+/** CAT-2.quarantine: the page size. */
+const QUARANTINE_PAGE = 50;
 
 const plus = (instant: Date, ms: number): IsoInstant => new Date(instant.getTime() + ms).toISOString();
 const NO_COUNTS: BatchCounts = { created: 0, updated: 0, unchanged: 0, quarantined: 0, deferredNoFx: 0 };
@@ -323,7 +327,17 @@ export class CatServiceV2 implements CatV2UseCases {
     throw new NotImplementedError('catalog.getSetSummaries');
   }
 
-  async listQuarantinedRows(_input: ListQuarantinedRowsRequest): Promise<ListQuarantinedRowsResponse> {
-    throw new NotImplementedError('catalog.listQuarantinedRows');
+  /** CAT-2.quarantine: the run's rows by `rowNumber`, 50 per page, never `rawRow` (AD-CAT-1 rule 3). Zero writes. */
+  async listQuarantinedRows(input: ListQuarantinedRowsRequest): Promise<ListQuarantinedRowsResponse> {
+    const { repo, transactions } = this.deps;
+    const after = input.cursor === null ? null : decodeQuarantineCursor(input.cursor);
+    if (input.cursor !== null && after?.runId !== input.runId) rejectRequest([{ field: 'cursor', issue: 'no corresponde a una página de esta lista' }]);
+    return transactions.run(async (tx) => {
+      if ((await repo.readRun(tx, input.runId)) === null) rejectRequest([{ field: 'runId', issue: 'no corresponde a ninguna carga del catálogo' }]);
+      const rows = await repo.listQuarantined(tx, input.runId, input.reasonCode ?? null, after?.rowNumber ?? null, QUARANTINE_PAGE + 1);
+      const page = rows.slice(0, QUARANTINE_PAGE);
+      const last = page.at(-1);
+      return { rows: page, nextCursor: rows.length > QUARANTINE_PAGE && last ? encodeQuarantineCursor({ runId: input.runId, rowNumber: last.rowNumber }) : null };
+    });
   }
 }

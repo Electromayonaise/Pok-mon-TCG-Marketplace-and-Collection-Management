@@ -2,7 +2,7 @@
 title: "Story 4.2: Keep a card's id through renames and reprints"
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'd552afa'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -76,10 +76,10 @@ It also adds `listQuarantinedRows` and wires `catalog.feed.quarantine`.
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] the upsert's contract checks and unit tests (`diffAttributes`, `numberSort`, the `unchanged` path)
-- [ ] `listQuarantinedRows` with its cursor; unit test for the reason filter and the second page
-- [ ] `composition.ts` + test -- `catalog.feed.quarantine`
-- [ ] this file -- the `[CAT-2.MEC]` runtime
+- [x] the upsert's contract checks and unit tests (`diffAttributes`, `numberSort`, the `unchanged` path)
+- [x] `listQuarantinedRows` with its cursor; unit test for the reason filter and the second page
+- [x] `composition.ts` + test -- `catalog.feed.quarantine`
+- [x] this file -- the `[CAT-2.MEC]` runtime
 
 **Acceptance Criteria:**
 - Given the 6 bound tests, when the CAT ATDD file runs, then they pass.
@@ -92,3 +92,18 @@ It also adds `listQuarantinedRows` and wires `catalog.feed.quarantine`.
 - `npm run lint` -- expected: 0 errors
 - `npm run test:unit` -- expected: all pass
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/cat_contracts.test.ts` -- expected: the 11 tests of 4.1 and 4.2 pass
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 4 at its close (decision #22).
+- `[CAT-2.MEC]` runtime (TG-7): 267 ms on the local Postgres 16 (2026-10-27). The bound test runs the reprint once, so there is no repetition count to record. The upsert holds no contended lock: the lease makes one writer per run (CAT-2 concurrency).
+- The upsert is the private `upsert` behind `upsertCatalogEntry`, which `continueFeedRun` shares (built with Story 4.1):
+  - `readEntryByExternalKey` reads the stored row first. It decides `KindChanged` and gives `before`;
+  - `PgCatRepository.upsertEntry` is Q1 word for word. Its `WHERE … IS DISTINCT FROM …` returns no row when nothing changed, which is the `unchanged` outcome;
+  - the revision stores the nine attributes as `before` and `after`. `changedFields` names only the ones that differ (`diffAttributes`).
+- The quarantine list:
+  - `listQuarantined` appends its filters as parameters, never `OR $n IS NULL`;
+  - the cursor carries its `runId`, so a cursor from another run is refused as `RequestValidationFailed`;
+  - an unknown `runId` is refused the same way, as approved with the specs.
+- Unit tests: in `cat.v2.test.ts`, the revision's before and after, a kind change that writes nothing, the reason filter and paging, and another run's cursor or an unknown run. In `cat-domain.test.ts`, the quarantine cursor. One HTTP case in `composition.test.ts`.
+- Early greens until Story 4.3 is committed: `[CAT-1.QF1]`, `[CAT-2.ingress.f]` and `[CAT-2.QF1]`.

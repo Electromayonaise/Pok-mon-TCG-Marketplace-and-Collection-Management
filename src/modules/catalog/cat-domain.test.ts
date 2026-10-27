@@ -1,7 +1,7 @@
 // The pure CAT core: ADD-§8.1 row validation (rules 1–5), the number sort key, the ADD-§2.1 USD →
 // COP conversion, the Bogotá date, the CAT-2 attribute diff and the runs cursor.
 import { describe, expect, it } from 'vitest';
-import { bogotaDate, copFromUsd, decodeRunCursor, diffAttributes, encodeRunCursor, numberSort, validateRow, type RawFeedRow } from './domain/cat.js';
+import { bogotaDate, copFromUsd, decodeQuarantineCursor, decodeRunCursor, encodeQuarantineCursor, diffAttributes, encodeRunCursor, numberSort, validateRow, type RawFeedRow } from './domain/cat.js';
 
 const NOW = '2026-10-01T15:00:00.000Z';
 const row = (o: RawFeedRow = {}): RawFeedRow => ({ externalKey: 'sv1-025', setCode: 'SV1', number: '025', name: 'Pikachu', kind: 'card', eraCode: 'SV', ...o });
@@ -66,5 +66,13 @@ describe('the runs cursor', () => {
     expect(decodeRunCursor(encodeRunCursor(key))).toEqual(key);
     expect(decodeRunCursor(Buffer.from(JSON.stringify(['queue', NOW, key.id])).toString('base64url'))).toBeNull();
     expect(decodeRunCursor('not-a-cursor')).toBeNull();
+  });
+});
+
+describe('the quarantine cursor', () => {
+  it('round-trips and carries its run', () => {
+    const key = { runId: 'r00000000000000000000001', rowNumber: 50 };
+    expect(decodeQuarantineCursor(encodeQuarantineCursor(key))).toEqual(key);
+    expect(decodeQuarantineCursor(encodeRunCursor({ startedAt: NOW, id: key.runId }))).toBeNull();
   });
 });
