@@ -54,7 +54,7 @@
 | FR-CAT-3 | Feed ingestion with idempotent upsert and quarantine (CAP-2, CAP-3) | CAT-1, CAT-1.runs | AD-1, AD-CAT-1 | 5 — `CAT-1.I1`, `CAT-1.Q1`, `CAT-1.Q2` +2 | 4.1 (done), 4.3 (done) | red |
 | FR-CAT-4 | Attribute changes keep the identity (CAP-2) | CAT-2, CAT-2.quarantine | AD-CAT-1, AD-7, AD-8 | 9 — `CAT-2.I1`, `CAT-2.I3`, `CAT-2.MEC` +6 | 4.1 (done), 4.2 (done), 4.3 (done) | red |
 | FR-CAT-5 | Reference prices as a distinct value object (CAP-3) | CAT-3 | AD-CAT-2, AD-SYS-6, AD-SYS-7 | 5 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +2 | 4.4 (done) | red |
-| FR-CAT-6 | Price provenance for the card detail (CAP-3) | CAT-3, DSC-2 | AD-CAT-2, AD-SYS-6, AD-SYS-7, AD-1 | 9 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +6 | 4.4 (done), 6.3 (backlog), 6.4 (backlog) | red |
+| FR-CAT-6 | Price provenance for the card detail (CAP-3) | CAT-3, DSC-2 | AD-CAT-2, AD-SYS-6, AD-SYS-7, AD-1 | 9 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +6 | 4.4 (done), 6.3 (done), 6.4 (backlog) | red |
 | FR-CAT-7 | Freshness and feed outage (CAP-3) | CAT-3 | AD-CAT-2, AD-SYS-6, AD-SYS-7 | 5 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +2 | 4.4 (done) | red |
 | FR-CAT-8 | Official exchange rate (TRM) (CAP-3, CAP-9) | S-FR-CAT-8 | AD-CAT-3 | 2 — `S-FR-CAT-8.f`, `S-FR-CAT-8.h` | 4.4 (done) | red |
 | FR-INV-1 | Create a card or sealed-product listing (CAP-4, CAP-5, CAP-19) | INV-2 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 11 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +8 | 5.1 (done), 5.3 (done) | red |
@@ -73,7 +73,7 @@
 | FR-DSC-4 | Pickup is derived on read (CAP-1) | DSC-1 | AD-DSC-2, AD-5, AD-DSC-1, AD-12 | 7 — `DSC-1.I1`, `DSC-1.I2`, `DSC-1.I4` +4 | 6.2 (done), 6.4 (backlog) | red |
 | FR-DSC-5 | Deterministic ranking with an explanation for each row (CAP-1) | DSC-1 | AD-DSC-2, AD-5, AD-DSC-1, AD-12 | 7 — `DSC-1.I1`, `DSC-1.I2`, `DSC-1.I4` +4 | 6.2 (done), 6.4 (backlog) | red |
 | FR-DSC-6 | Moderation and state exclusion take effect immediately (CAP-28, CAP-1) | DSC-1 | AD-DSC-2, AD-5, AD-DSC-1, AD-12 | 7 — `DSC-1.I1`, `DSC-1.I2`, `DSC-1.I4` +4 | 6.2 (done), 6.4 (backlog) | red |
-| FR-DSC-7 | Card detail composition (CAP-3, CAP-2) | DSC-2 | AD-SYS-7, AD-1, AD-DSC-2, AD-DSC-1 | 4 — `DSC-2.MEC`, `DSC-2.MEC2`, `DSC-2.P1` +1 | 6.3 (backlog), 6.4 (backlog) | red |
+| FR-DSC-7 | Card detail composition (CAP-3, CAP-2) | DSC-2 | AD-SYS-7, AD-1, AD-DSC-2, AD-DSC-1 | 4 — `DSC-2.MEC`, `DSC-2.MEC2`, `DSC-2.P1` +1 | 6.3 (done), 6.4 (backlog) | red |
 | FR-ORD-1 | Purchase and reserve at creation (CAP-17) | ORD-1 | AD-ORD-1, AD-ORD-2, AD-SYS-7, AD-9 | 6 — `ORD-1.I2`, `ORD-1.I4`, `ORD-1.P3` +3 | 7.1 (backlog), 7.3 (backlog) | red |
 | FR-ORD-2 | Upload or replace the comprobante (CAP-20) | S-FR-ORD-2, S-FR-ORD-2.url | AD-SYS-8, AD-ORD-3, AD-17, AD-14 | 3 — `S-FR-ORD-2.f`, `S-FR-ORD-2.h`, `S-FR-ORD-2.url.h` | 7.1 (backlog) | red |
 | FR-ORD-3 | Buyer confirms "I paid" (CAP-20, CAP-22) | ORD-2 | AD-ORD-3, AD-ORD-2, AD-15, AD-SYS-5 | 7 — `ORD-2.I2`, `ORD-2.MEC`, `ORD-2.P1` +4 | 7.2 (backlog), 7.4 (backlog) | red |
@@ -236,8 +236,8 @@
 | AD-INV-1 | One unit per (seller, item, condition) | `UNIQUE (sellerId, catalogEntryId, condition)` | `INV-2.I1` | 5.1 (done) | red |
 | AD-INV-2 | Reserve and release in the caller's transaction | `tx` parameter; ascending conditional decrement | `INV-1.MEC` | 5.2 (done) | red |
 | AD-INV-3 | Fail-closed purchasability, newer facts only | Seq gate; `AppliedApplicationDecision` | `INV-3.I1`, `S-FR-INV-8.f` | 5.5 (done) | red |
-| AD-DSC-1 | SQL distance equals the TS reference | One haversine expression; `+ 1e-6` inclusive bound | `DSC-1.I4`, `DSC-2.MEC` | 6.2 (done), 6.3 (backlog) | red |
-| AD-DSC-2 | At most 3 neighbour calls per request | Composition in `listings` | `DSC-2.Q1` | 6.3 (backlog) | red |
+| AD-DSC-1 | SQL distance equals the TS reference | One haversine expression; `+ 1e-6` inclusive bound | `DSC-1.I4`, `DSC-2.MEC` | 6.2 (done), 6.3 (done) | red |
+| AD-DSC-2 | At most 3 neighbour calls per request | Composition in `listings` | `DSC-2.Q1` | 6.3 (done) | red |
 | AD-ORD-1 | Creation serialized per buyer | `orders:buyer` advisory lock + derived count | `ORD-1.I2` | 7.1 (backlog) | red |
 | AD-ORD-2 | Facts set once; expiry derived and materialized once | `IS NULL` predicates; `expiresAt > now` | `ORD-2.MEC`, `ORD-4.MEC` | 7.2 (backlog) | red |
 | AD-ORD-3 | One visibility predicate; locked comprobante | Visibility SQL; comprobante update predicate | `ORD-3.I3`, `S-FR-ORD-2.f` | 7.1 (backlog), 7.2 (backlog) | red |
@@ -266,7 +266,7 @@
 | R-01 A user completes the individual profile and submits a business appl… | P0 | IDN | Integration (race) | `IDN-1.MEC`, `IDN-1.I1` | 2.2 (done) | red |
 | R-02 Approve and reject race, leaving two decisions, two events or a hal… | P0 | VER | Integration (race) | `VER-1.MEC` | 3.2 (done) | red |
 | R-03 A renamed or reprinted card gets a new id and orphans its listings … | P0 | CAT | Integration | `CAT-2.MEC`, `CAT-2.I1` | 4.2 (done) | red |
-| R-04 Radius boundary, missing coordinates or an entry whose listings are… | P0 | DSC | Integration (boundary) | `DSC-2.MEC`, `DSC-2.MEC2` | 6.3 (backlog) | red |
+| R-04 Radius boundary, missing coordinates or an entry whose listings are… | P0 | DSC | Integration (boundary) | `DSC-2.MEC`, `DSC-2.MEC2` | 6.3 (done) | red |
 | R-05 A caller aborts after a reserve and the stock is not restored; the … | P0 | INV | Integration (race, abort) | `INV-1.MEC`, `INV-1.I1`, `INV-1.I3` | 5.2 (done) | red |
 | R-06 A business confirms payment before the buyer's "paid", or a double … | P0 | ORD | Integration (race) | `ORD-3.MEC`, `ORD-4.MEC`, `ORD-2.MEC` | 7.2 (backlog) | red |
 | R-07 Two orders at one instant against one order's balance, plus a dupli… | P0 | COM | Integration (race, repeat) | `COM-1.MEC`, `COM-1.MEC2` | 8.2 (backlog) | red |

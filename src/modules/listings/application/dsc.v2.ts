@@ -16,7 +16,7 @@ export interface DscV2UseCases {
 
 import type { Citation, Decision } from '../../../shared-kernel/decision.js';
 import { ambientTx } from '../../../shared-kernel/db.js';
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import { UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import type { Tx } from '../../../shared-kernel/ports.js';
@@ -36,6 +36,8 @@ const PAGE_SIZE = 24;
 const MAX_PAGE = 417;
 /** AD-DSC-2 rule 2: the threshold `matchEntryIds` answers `tooBroad` above. */
 const MATCH_THRESHOLD = 20_000;
+/** DSC-2: the most listings a card detail returns, nearest first. */
+const CARD_LISTINGS = 100;
 
 /** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
 function explained(outcome: Decision['outcome'], code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
@@ -59,7 +61,7 @@ export function checkSearchArea(area: SearchArea): void {
   if (validateSearchArea(area) !== 'valid') raise('InvalidSearchArea', [{ rule: 'FR-DSC-1', inputs: { lat, lng, radiusKm } }]);
 }
 
-/** Every method not yet built throws NotImplementedError until its story is done (red for the right reason). */
+/** DSC (contracts.md §4): `listings` composes catalog and identity; it owns no tables (AD-DSC-2). */
 export class DscServiceV2 implements DscV2UseCases {
   constructor(protected readonly deps: DscV2Deps) {}
 
@@ -125,8 +127,28 @@ export class DscServiceV2 implements DscV2UseCases {
       : explained('ranked', 'SearchRanked', [{ rule: 'FR-DSC-5', inputs: { results, unusableLocation } }], now);
   }
 
-  async getCardDetail(_input: GetCardDetailRequest): Promise<GetCardDetailResponse> {
-    throw new NotImplementedError('listings.getCardDetail');
+  /**
+   * DSC-2: `getEntry` first (an unknown id propagates unchanged and nothing else is called), then the
+   * area check, DSC-1's statement restricted to the entry, the provenance and one `getSellerKinds`:
+   * exactly three neighbour calls (AD-DSC-2 rule 1). The three prices stay separate fields (FR-CAT-6).
+   */
+  async getCardDetail(input: GetCardDetailRequest): Promise<GetCardDetailResponse> {
+    const entry = await this.deps.catalog.getEntry({ catalogEntryId: input.catalogEntryId });
+    if (input.area !== null) checkSearchArea(input.area);
+    const now = this.deps.clock.now().toISOString();
+    const query: ListingQuery = {
+      entryIds: [input.catalogEntryId], area: input.area, maxPriceCop: null, conditions: null, purchasableOnly: false, includeSoldOut: false, limit: CARD_LISTINGS, offset: 0,
+    };
+    const { rows, unusableLocation } = await this.reading((tx) => this.deps.repo.searchListings(tx, query));
+    const [{ items }, listings] = await Promise.all([
+      this.deps.catalog.getPriceProvenance({ catalogEntryIds: [input.catalogEntryId], period: 30 }),
+      this.rows(rows, now),
+    ]);
+    const provenance = items.find((p) => p.catalogEntryId === input.catalogEntryId);
+    if (provenance === undefined) throw new UnexpectedError(`listings.getCardDetail: catalog returned no provenance for ${input.catalogEntryId}`);
+    // Missing data is not an error (Q-fail): no listing in the area reads as a null listing price.
+    const listingPriceCop = listings.length === 0 ? null : Math.min(...listings.map((l) => l.priceCop));
+    return { entry, provenance, listingPriceCop, hasActiveListings: listings.length > 0, listings, excluded: { unusableLocation } };
   }
 
   /** DSC-3: no read, no write, no clock (Q2, Q3). */

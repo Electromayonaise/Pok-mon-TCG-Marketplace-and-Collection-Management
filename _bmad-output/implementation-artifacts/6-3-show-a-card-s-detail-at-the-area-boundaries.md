@@ -2,7 +2,7 @@
 title: 'Story 6.3: Show a card''s detail at the area boundaries'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'e143f13'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -53,9 +53,9 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `getCardDetail` over 6.2's builder
-- [ ] `discovery.cardDetail` with HTTP cases
-- [ ] `sprint-status.yaml` -- 6.3 `done`; `gen:trace:solu2`
+- [x] `getCardDetail` over 6.2's builder
+- [x] `discovery.cardDetail` with HTTP cases
+- [x] `sprint-status.yaml` -- 6.3 `done`; `gen:trace:solu2`
 
 **Acceptance Criteria:**
 - Given 6.3 `done`, when `[DSC-2.Q1]`, `[DSC-2.MEC]` and `[DSC-2.MEC2]` run, then they pass; Story 6.4's `[DSC-2.P1]` is an early green, restored by the next commit (decision #23).
@@ -64,3 +64,12 @@ context:
 
 **Commands:**
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/dsc_contracts.test.ts -t "DSC-2"` -- expected: the DSC-2 tests pass
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 6 at its close (decision #22).
+- `getCardDetail` reuses 6.2's builder (`searchListings` with `entryIds = [id]`) and its row mapping, so a card's listings read exactly like search rows, with the same inclusive boundary.
+- `getSellerKinds` is called even for an empty page, so the call count is the contract's fixed three; the provenance and the seller kinds run in parallel after the statement.
+- A provenance answer without the entry's item is an invariant breach (`Unexpected`), not a fabricated block.
+- TG-7: `[DSC-2.MEC]` is one run of both radii over real Postgres connections (the clause has no repetition count): 264 ms; `[DSC-2.MEC2]` 203 ms; `[DSC-2.Q1]` 243 ms (local Postgres 16).
+- `[DSC-2.P1]` (Story 6.4) is an early green at this commit (decision #23); the 6.4 commit restores the gate.

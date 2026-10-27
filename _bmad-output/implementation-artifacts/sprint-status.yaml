@@ -93,7 +93,7 @@ development_status:
   epic-6: in-progress
   6-1-refuse-invalid-search-areas: done
   6-2-search-listings-by-area-with-an-explained-ranking: done
-  6-3-show-a-card-s-detail-at-the-area-boundaries: backlog
+  6-3-show-a-card-s-detail-at-the-area-boundaries: done
   6-4-explain-excluded-listings-too-broad-filters-and-unknown-cards: backlog
   epic-6-retrospective: optional
   epic-7: backlog
