@@ -94,7 +94,7 @@ development_status:
   6-1-refuse-invalid-search-areas: done
   6-2-search-listings-by-area-with-an-explained-ranking: done
   6-3-show-a-card-s-detail-at-the-area-boundaries: done
-  6-4-explain-excluded-listings-too-broad-filters-and-unknown-cards: backlog
+  6-4-explain-excluded-listings-too-broad-filters-and-unknown-cards: done
   epic-6-retrospective: optional
   epic-7: backlog
   7-1-buy-a-listing-and-attach-the-comprobante: backlog
@@ -169,10 +169,12 @@ impl1_delivery:
 # because Stories 4.1 and 4.2 turn its tests green; it is done and has left this list
 # (decision log Impl-1 #29). 5-3, 5-4 and 5-5 are built with the whole of Epic 5, because the
 # checks of Stories 5.1 and 5.2 turn their tests green (5-5's [INV-3.I2] through the fail-closed
-# reserve); they are done and have left this list (decision log Impl-1 #30).
+# reserve); they are done and have left this list (decision log Impl-1 #30). 6-4 is built with the whole of Epic 6, because
+# Stories 6.2 and 6.3 turn its tests green (the excluded count and the decision are required fields of
+# DSC-1's response, P2 runs before its statement, and DSC-2 P1 is its first step); it is done and has left
+# this list (decision log Impl-1 #31).
 impl2_scope:
   - 2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins
-  - 6-4-explain-excluded-listings-too-broad-filters-and-unknown-cards
   - 7-3-refuse-self-purchase-open-order-overflow-and-listing-refusals
   - 7-4-refuse-out-of-role-repeated-and-expired-confirmations
   - 8-4-refuse-invalid-top-ups-and-decided-requests

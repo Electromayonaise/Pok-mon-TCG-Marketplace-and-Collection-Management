@@ -2,7 +2,7 @@
 title: 'Story 6.4: Explain excluded listings, too-broad filters and unknown cards'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'e143f13'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -52,8 +52,15 @@ Once 6.2 and 6.3 are done, the 3 tests turn green and the red gate fails. Built 
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] run the 3 tests on the 6.3 tree; fix any gap in 6.2's and 6.3's files
-- [ ] `sprint-status.yaml` -- 6.4 `done`, out of `impl2_scope`; `gen:trace:solu2`
+- [x] run the 3 tests on the 6.3 tree; fix any gap in 6.2's and 6.3's files
+- [x] `sprint-status.yaml` -- 6.4 `done`, out of `impl2_scope`; `gen:trace:solu2`
 
 **Acceptance Criteria:**
 - Given 6.4 `done`, when the whole `dsc_contracts.test.ts` runs, then its 15 tests pass and `npm run gate:atdd-red:impl1` reports 0 not as expected.
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 6 at its close (decision #22).
+- Martín approved building this story with the epic (decision log Impl-1 #31). It leaves `impl2_scope` and does not count toward the 43 Impl-1 stories.
+- The 3 tests passed on the 6.3 tree with no change: no gap was found in 6.2's or 6.3's files.
+- The NFR-DSC-1 DoD line is met by 6.2's `[NFR-DSC-1.seed]` and `[NFR-DSC-1.scale]`; `nfr-evidence.md` marks the NFR Green — benchmark, so `epics.md` no longer prints it.
