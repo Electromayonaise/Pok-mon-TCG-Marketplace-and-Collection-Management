@@ -25,7 +25,7 @@
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
-| NFR evidence status | Green — ATDD: 12; Green — benchmark: 4; Green — gate: 8; Red — ATDD: 26; Red — benchmark: 3; Deferred — launch: 2; Planned — story DoD: 10 |
+| NFR evidence status | Green — ATDD: 12; Green — benchmark: 4; Green — gate: 8; Red — ATDD: 26; Red — benchmark: 2; Deferred — launch: 2; Planned — story DoD: 10 |
 | Contract clauses / test ids | 112 / 375 (363 red, 12 green) |
 | Gate problems | 0 |
 
@@ -49,7 +49,7 @@
 | FR-VER-7 | Applicant status view (CAP-15) | S-FR-VER-7 | AD-VER-3 | 2 — `S-FR-VER-7.f`, `S-FR-VER-7.h` | 3.5 (done) | red |
 | FR-VER-8 | Rejection-reason policy settings (CAP-15) | S-FR-VER-8, S-FR-VER-8.list | AD-VER-1 | 3 — `S-FR-VER-8.f`, `S-FR-VER-8.h`, `S-FR-VER-8.list.h` | 3.5 (done) | red |
 | FR-VER-9 | Business payment instructions for orders (CAP-20) | S-FR-VER-9 | AD-9 | 2 — `S-FR-VER-9.f`, `S-FR-VER-9.h` | 3.5 (done) | red |
-| FR-CAT-1 | Browse and filter the catalog by collector attributes (CAP-1, CAP-2) | S-FR-CAT-1 | AD-1 | 2 — `S-FR-CAT-1.f`, `S-FR-CAT-1.h` | 4.5 (ready-for-dev) | red |
+| FR-CAT-1 | Browse and filter the catalog by collector attributes (CAP-1, CAP-2) | S-FR-CAT-1 | AD-1 | 2 — `S-FR-CAT-1.f`, `S-FR-CAT-1.h` | 4.5 (done) | red |
 | FR-CAT-2 | One stable identity per card or product (CAP-2, CAP-16) | CAT-2, CAT-2.quarantine | AD-CAT-1, AD-7, AD-8 | 9 — `CAT-2.I1`, `CAT-2.I3`, `CAT-2.MEC` +6 | 4.1 (done), 4.2 (done), 4.3 (done) | red |
 | FR-CAT-3 | Feed ingestion with idempotent upsert and quarantine (CAP-2, CAP-3) | CAT-1, CAT-1.runs | AD-1, AD-CAT-1 | 5 — `CAT-1.I1`, `CAT-1.Q1`, `CAT-1.Q2` +2 | 4.1 (done), 4.3 (done) | red |
 | FR-CAT-4 | Attribute changes keep the identity (CAP-2) | CAT-2, CAT-2.quarantine | AD-CAT-1, AD-7, AD-8 | 9 — `CAT-2.I1`, `CAT-2.I3`, `CAT-2.MEC` +6 | 4.1 (done), 4.2 (done), 4.3 (done) | red |
@@ -166,7 +166,7 @@
 | NFR-VER-2 | 100% of legalIdentity reads and denials are audited | VER-3 | `VER-3.I1`, `VER-3.I2`, `IDN-3.I1` | 7 | Green — ATDD |
 | NFR-VER-3 | the review queue | VER-3 | `NFR-VER-3.queue`, `NFR-VER-3.sign` | 8 | Green — benchmark |
 | NFR-VER-4 | document uploads are ≤ 5 MB per file and at most 3 files | — | `VER-2.P3`, `VER-2.P5` | 2 | Green — ATDD (size); Deferred — launch (transfer) |
-| NFR-CAT-1 | FR-CAT-1 over 10,000 entries in p95 ≤ 1,000 ms | CAT-3 | `NFR-CAT-1.provenance`, `NFR-CAT-1.browse` | 7 | Green — benchmark (provenance); Red — benchmark (browse) |
+| NFR-CAT-1 | FR-CAT-1 over 10,000 entries in p95 ≤ 1,000 ms | CAT-3 | `NFR-CAT-1.provenance`, `NFR-CAT-1.browse` | 7 | Green — benchmark |
 | NFR-CAT-2 | a 10,000-row ingestion run completes in ≤ 120 s | CAT-2 | `CAT-2.I1`, `CAT-2.MEC` | 9 | Green — ATDD |
 | NFR-CAT-3 | 0 fabricated prices | CAT-3 | `CAT-3.I1`, `CAT-3.Q4`, `S-FR-CAT-8.f` | 6 | Green — ATDD |
 | NFR-CAT-4 | The daily TRM job runs outside request paths | — | `S-FR-CAT-8.h`, `S-FR-CAT-8.f` | 2 | Green — ATDD |

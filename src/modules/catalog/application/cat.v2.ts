@@ -42,7 +42,7 @@ export interface CatV2UseCases {
 // </gen-solu2-api>
 
 import type { Citation, Decision } from '../../../shared-kernel/decision.js';
-import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
@@ -75,6 +75,10 @@ const FRESHNESS_HOURS = 36;
 /** P1 of CAT-3 and of the batch ports: at most 500 ids. */
 const MAX_IDS = 500;
 const DAY_MS = 86_400_000;
+/** S-FR-CAT-1: the largest page. */
+const MAX_PAGE_SIZE = 100;
+/** P-CAT.match (AD-DSC-2 rule 2): more matches than this answer `tooBroad`. */
+const MAX_MATCH = 20_000;
 
 const plus = (instant: Date, ms: number): IsoInstant => new Date(instant.getTime() + ms).toISOString();
 /** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
@@ -82,15 +86,20 @@ function explained(outcome: Decision['outcome'], code: MessageCode, rule: string
   return { outcome, reasonCode: code, humanMessage: renderMessage(code, inputs), citations: [{ rule, inputs }], occurredAt: now };
 }
 
-/** P1 of CAT-3 and of the batch ports: 1–500 distinct ids, refused through the kernel otherwise. */
-function boundedIds(field: string, ids: readonly string[]): void {
+/** The batch ports' bound (§15.11): 1–500 ids, refused through the kernel otherwise; returned de-duplicated, in input order. */
+function boundedList(field: string, ids: readonly string[]): string[] {
   if (ids.length < 1 || ids.length > MAX_IDS) rejectRequest([{ field, issue: `debe tener entre 1 y ${MAX_IDS} elementos` }]);
-  if (new Set(ids).size !== ids.length) rejectRequest([{ field, issue: 'no puede repetir elementos' }]);
+  return [...new Set(ids)];
+}
+
+/** CAT-3 P1: 1–500 distinct ids; a duplicate is refused, since the response has one element per input id. */
+function boundedIds(field: string, ids: readonly string[]): void {
+  if (boundedList(field, ids).length !== ids.length) rejectRequest([{ field, issue: 'no puede repetir elementos' }]);
 }
 
 const NO_COUNTS: BatchCounts = { created: 0, updated: 0, unchanged: 0, quarantined: 0, deferredNoFx: 0 };
 
-/** Every method not yet done throws NotImplementedError (red for the right reason). */
+/** CAT (contracts.md §3, §15, §15.11–12): the catalog, its feed and its reference prices. */
 export class CatServiceV2 implements CatV2UseCases {
   constructor(protected readonly deps: CatV2Deps) {}
 
@@ -338,14 +347,14 @@ export class CatServiceV2 implements CatV2UseCases {
     });
   }
 
-  async browseCatalog(_input: BrowseCatalogRequest): Promise<BrowseCatalogResponse> {
-    throw new NotImplementedError('catalog.browseCatalog');
+  /** S-FR-CAT-1: one statement for the page, the total and the facets, in `(setId, numberSort, id)` order. Zero writes. */
+  async browseCatalog(input: BrowseCatalogRequest): Promise<BrowseCatalogResponse> {
+    const { page, pageSize, filters } = input;
+    if (!Number.isSafeInteger(page) || page < 1) rejectRequest([{ field: 'page', issue: 'debe ser un entero desde 1' }]);
+    if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) rejectRequest([{ field: 'pageSize', issue: `debe estar entre 1 y ${MAX_PAGE_SIZE}` }]);
+    return this.deps.transactions.run((tx) => this.deps.repo.browse(tx, filters, pageSize, (page - 1) * pageSize));
   }
 
-  /**
-   * S-FR-CAT-8.fetch, AD-CAT-3 rules 1–4: a no-op on a covered day; otherwise the source's row as
-   * delivered. The source is called outside any transaction, and nothing is written for a gap.
-   */
   async fetchTrm(input: FetchTrmRequest): Promise<FetchTrmResponse> {
     const { repo, transactions, clock, ids, audit, fx } = this.deps;
     const now = clock.now().toISOString();
@@ -403,35 +412,66 @@ export class CatServiceV2 implements CatV2UseCases {
     });
   }
 
-  async getEntry(_input: GetEntryRequest): Promise<GetEntryResponse> {
-    throw new NotImplementedError('catalog.getEntry');
+  /** P-CAT.entry (AD-CAT-1 rule 5): the entry by its stable id, else CatalogEntryNotFound. */
+  async getEntry(input: GetEntryRequest): Promise<GetEntryResponse> {
+    const { catalogEntryId } = input;
+    const [entry] = await this.deps.transactions.run((tx) => this.deps.repo.entriesByIds(tx, [catalogEntryId]));
+    return entry ?? raise('CatalogEntryNotFound', [{ rule: 'AD-CAT-1 rule 5', inputs: { catalogEntryId } }]);
   }
 
-  async getEntries(_input: GetEntriesRequest): Promise<GetEntriesResponse> {
-    throw new NotImplementedError('catalog.getEntries');
+  /** P-CAT.entries (AD-7): 1–500 ids; entries in input order, unknown ids in `missing`, never thrown. */
+  async getEntries(input: GetEntriesRequest): Promise<GetEntriesResponse> {
+    const ids = boundedList('catalogEntryIds', input.catalogEntryIds);
+    const found = new Map((await this.deps.transactions.run((tx) => this.deps.repo.entriesByIds(tx, ids))).map((e) => [e.catalogEntryId, e]));
+    return { entries: ids.flatMap((id) => found.get(id) ?? []), missing: ids.filter((id) => !found.has(id)) };
   }
 
-  async matchEntryIds(_input: MatchEntryIdsRequest): Promise<MatchEntryIdsResponse> {
-    throw new NotImplementedError('catalog.matchEntryIds');
+  /** P-CAT.match (AD-DSC-2 rule 2): at most 20,000 ids in browse order, else `tooBroad`. */
+  async matchEntryIds(input: MatchEntryIdsRequest): Promise<MatchEntryIdsResponse> {
+    const ids = await this.deps.transactions.run((tx) => this.deps.repo.matchIds(tx, input.filters, MAX_MATCH + 1));
+    return ids.length > MAX_MATCH ? { ids: [], tooBroad: true } : { ids, tooBroad: false };
   }
 
-  async resolveItemRefs(_input: ResolveItemRefsRequest): Promise<ResolveItemRefsResponse> {
-    throw new NotImplementedError('catalog.resolveItemRefs');
+  /** P-CAT.refs (AD-1, OQ-6): each ref's kind in input order; unknown refs in `missing`. */
+  async resolveItemRefs(input: ResolveItemRefsRequest): Promise<ResolveItemRefsResponse> {
+    const refs = boundedList('refs', input.refs);
+    const kinds = new Map((await this.deps.transactions.run((tx) => this.deps.repo.entriesByIds(tx, refs))).map((e) => [e.catalogEntryId, e.kind]));
+    return {
+      resolved: refs.flatMap((ref) => { const kind = kinds.get(ref); return kind ? [{ ref, kind }] : []; }),
+      missing: refs.filter((ref) => !kinds.has(ref)),
+    };
   }
 
-  async getReferencePricesAsOf(_input: GetReferencePricesAsOfRequest): Promise<GetReferencePricesAsOfResponse> {
-    throw new NotImplementedError('catalog.getReferencePricesAsOf');
+  /** P-CAT.asOf (AD-CAT-2 rules 3, 5): the latest observation at or before `asOf`, stale relative to `asOf`. */
+  async getReferencePricesAsOf(input: GetReferencePricesAsOfRequest): Promise<GetReferencePricesAsOfResponse> {
+    const ids = boundedList('catalogEntryIds', input.catalogEntryIds);
+    const asOf = new Date(input.asOf).toISOString();
+    const latest = await this.deps.transactions.run((tx) => this.deps.repo.latestObservations(tx, ids, asOf));
+    return {
+      prices: ids.map((catalogEntryId) => {
+        const price = latest.get(catalogEntryId) ?? null;
+        return { catalogEntryId, price, stale: price !== null && isStale(price.observedAt, asOf, FRESHNESS_HOURS) };
+      }),
+    };
   }
 
-  async getPriceHistory(_input: GetPriceHistoryRequest): Promise<GetPriceHistoryResponse> {
-    throw new NotImplementedError('catalog.getPriceHistory');
+  /** P-CAT.history (AD-CAT-2 rule 5): the observations in `[from, to]` plus the carried-in one before `from`. */
+  async getPriceHistory(input: GetPriceHistoryRequest): Promise<GetPriceHistoryResponse> {
+    const ids = boundedList('catalogEntryIds', input.catalogEntryIds);
+    if (!(Date.parse(input.from) <= Date.parse(input.to))) rejectRequest([{ field: 'from', issue: 'debe ser anterior o igual a to' }]);
+    const from = new Date(input.from).toISOString();
+    const to = new Date(input.to).toISOString();
+    const series = await this.deps.transactions.run((tx) => this.deps.repo.priceHistory(tx, ids, from, to));
+    return { series: ids.map((catalogEntryId) => ({ catalogEntryId, observations: series.get(catalogEntryId) ?? [] })) };
   }
 
-  async getSetSummaries(_input: GetSetSummariesRequest): Promise<GetSetSummariesResponse> {
-    throw new NotImplementedError('catalog.getSetSummaries');
+  /** P-CAT.sets (AD-COL-1 rule 5): each known set's name and card count, never sealed products. */
+  async getSetSummaries(input: GetSetSummariesRequest): Promise<GetSetSummariesResponse> {
+    const setIds = boundedList('setIds', input.setIds);
+    const found = new Map((await this.deps.transactions.run((tx) => this.deps.repo.setSummaries(tx, setIds))).map((r) => [r.setId, r]));
+    return { sets: setIds.flatMap((setId) => found.get(setId) ?? []) };
   }
 
-  /** CAT-2.quarantine: the run's rows by `rowNumber`, 50 per page, never `rawRow` (AD-CAT-1 rule 3). Zero writes. */
   async listQuarantinedRows(input: ListQuarantinedRowsRequest): Promise<ListQuarantinedRowsResponse> {
     const { repo, transactions } = this.deps;
     const after = input.cursor === null ? null : decodeQuarantineCursor(input.cursor);

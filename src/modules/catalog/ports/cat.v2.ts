@@ -21,7 +21,7 @@ export interface CatV2Deps {
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoDate, IsoInstant } from '../../../shared-kernel/types.js';
 import type { CatalogKind, CopDerivation, QuarantineReason, RunKey } from '../domain/cat.js';
-import type { FeedRunDTO, ObservedPriceDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
+import type { BrowseCatalogResponse, CatalogEntryDTO, CatalogFilters, FeedRunDTO, ObservedPriceDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
 
 export type FeedRunStatus = 'Running' | 'Completed' | 'Failed';
 
@@ -145,6 +145,16 @@ export interface CatRepository {
   insertFxRate(tx: Tx, row: FxRateRow & { id: CuidId; source: string }, now: IsoInstant): Promise<boolean>;
   /** AD-CAT-3 rule 4: a stored row whose range overlaps `[validFrom, validTo]`. */
   readOverlappingRate(tx: Tx, validFrom: IsoDate, validTo: IsoDate): Promise<FxRateRow | null>;
+  /** S-FR-CAT-1: one statement: the page in `("setId", "numberSort", id)` order, the total and the `setId` and `kind` facets. */
+  browse(tx: Tx, filters: CatalogFilters, limit: number, offset: number): Promise<BrowseCatalogResponse>;
+  /** P-CAT.match: the browse predicate's ids in browse order, at most `limit`. */
+  matchIds(tx: Tx, filters: CatalogFilters, limit: number): Promise<CuidId[]>;
+  /** P-CAT.entry, P-CAT.entries: the entries of `ids` that exist, in no particular order. */
+  entriesByIds(tx: Tx, ids: CuidId[]): Promise<CatalogEntryDTO[]>;
+  /** P-CAT.history: per entry, the observations in `[from, to]` plus the last one before `from`, by `("observedAt", source, id)`. */
+  priceHistory(tx: Tx, ids: CuidId[], from: IsoInstant, to: IsoInstant): Promise<Map<CuidId, ObservedPriceDTO[]>>;
+  /** P-CAT.sets: name and `kind = 'card'` count of the sets of `setIds` that exist. */
+  setSummaries(tx: Tx, setIds: CuidId[]): Promise<{ setId: CuidId; name: string; cardEntryCount: number }[]>;
   /** AD-CAT-2: `ON CONFLICT DO NOTHING` on `reference_price_once`. */
   insertObservation(tx: Tx, row: ObservationRow, now: IsoInstant): Promise<void>;
 }

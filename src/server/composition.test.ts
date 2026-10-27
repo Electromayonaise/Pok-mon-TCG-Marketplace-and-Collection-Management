@@ -1,7 +1,7 @@
 // The production composition over HTTP (decision log Impl-1 #24): a real Better Auth session on
 // the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2, VER-3, the supporting
 // VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
-// (CAT-3, S-FR-CAT-8.fetch) and S-SYS.replay,
+// (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -359,6 +359,16 @@ describe('the reference prices over HTTP (CAT-3, S-FR-CAT-8.fetch; Story 4.4)', 
     expect((await post('catalog.fx.retry', {}, cookie)).json.result?.data).toMatchObject({ outcome: 'stored' });
     expect((await post('catalog.fx.retry', {}, cookie)).json.result?.data).toMatchObject({ outcome: 'alreadyCovered' });
     expect(await rows(db, 'FxRate')).toHaveLength(1);
+  });
+});
+
+describe('catalog.browse over HTTP (S-FR-CAT-1; Story 4.5)', () => {
+  it('anyone browses without a session; pageSize 101 is RequestValidationFailed 400 from the parser', async () => {
+    await catalogEntry(db, id('pika'), { name: 'Pikachu' });
+    const read = await get('catalog.browse', { filters: { nameQuery: 'pika' }, page: 1, pageSize: 24 }, '');
+    expect([read.status, read.json.result?.data]).toEqual([200, expect.objectContaining({ total: 1, entries: [expect.objectContaining({ catalogEntryId: id('pika') })] })]);
+    const refused = await get('catalog.browse', { filters: {}, page: 1, pageSize: 101 }, '');
+    expect([refused.status, refused.json.error?.code]).toEqual([400, 'RequestValidationFailed']);
   });
 });
 

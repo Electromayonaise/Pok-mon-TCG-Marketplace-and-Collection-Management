@@ -5,7 +5,7 @@ import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoDate, IsoInstant } from '../../../shared-kernel/types.js';
 import type { RunKey } from '../domain/cat.js';
-import type { FeedRunDTO, ObservedPriceDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
+import type { BrowseCatalogResponse, CatalogEntryDTO, CatalogFilters, FeedRunDTO, ObservedPriceDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
 import type { BatchCounts, CatRepository, FeedRunStatus, FxRateRow, ObservationRow, QuarantineListRow, QuarantineRow, RunState, StoredEntry } from '../ports/cat.v2.js';
 import type { ReferencePriceDTO } from '../dto/cat.dto.js';
 import type { ICatalogEntryRepository, IFeedRunRepository, IReferencePriceRepository } from '../ports/cat.js';
@@ -56,6 +56,26 @@ const observed = (r: ObservedRow): ObservedPriceDTO => ({
 const FX_COLUMNS = `"copPerUsdCentavos"::text AS "copPerUsdCentavos", "validFrom"::text AS "validFrom", "validTo"::text AS "validTo"`;
 type FxRow = { copPerUsdCentavos: string; validFrom: string; validTo: string };
 const fxRate = (r: FxRow | undefined): FxRateRow | null => (r ? { ...r, copPerUsdCentavos: Number(r.copPerUsdCentavos) } : null);
+
+const ENTRY_COLUMNS = `id AS "catalogEntryId", "setId", kind, name, number, pokemon, colour, style, artist, "imageUrl"`;
+const BROWSE_ORDER = `"setId", "numberSort", id`;
+
+/**
+ * S-FR-CAT-1's filter as a parameterized predicate: only the filters present are appended, never
+ * `OR $n IS NULL`, so each shape keeps its own plan. `nameQuery` is a prefix of the unaccented,
+ * lower-cased name, with LIKE's wildcards escaped.
+ */
+function catalogPredicate(filters: CatalogFilters, params: unknown[]): string {
+  const where = ['TRUE'];
+  if (filters.setIds !== undefined) where.push(`"setId" = ANY($${params.push(filters.setIds)})`);
+  for (const column of ['pokemon', 'colour', 'style', 'artist', 'kind'] as const) {
+    if (filters[column] !== undefined) where.push(`${column} = $${params.push(filters[column])}`);
+  }
+  if (filters.nameQuery !== undefined) {
+    where.push(`"nameKey" LIKE tezg_unaccent_lower($${params.push(filters.nameQuery.replace(/[\\%_]/g, '\\$&'))}) || '%' ESCAPE '\\'`);
+  }
+  return where.join(' AND ');
+}
 
 /** CAT's repository port over `_bmad-output/planning-artifacts/detailed-design/schemas` (AD-8). */
 export class PgCatRepository implements CatRepository {
@@ -269,6 +289,59 @@ export class PgCatRepository implements CatRepository {
       [validFrom, validTo],
     );
     return fxRate(rows[0]);
+  }
+
+  async browse(tx: Tx, filters: CatalogFilters, limit: number, offset: number): Promise<BrowseCatalogResponse> {
+    const params: unknown[] = [];
+    const where = catalogPredicate(filters, params);
+    const page = `SELECT ${ENTRY_COLUMNS}, "numberSort" FROM m ORDER BY ${BROWSE_ORDER} LIMIT $${params.push(limit)} OFFSET $${params.push(offset)}`;
+    const facet = (column: string) =>
+      `(SELECT COALESCE(json_agg(json_build_object('value', v, 'count', c) ORDER BY v), '[]') FROM (SELECT ${column} AS v, count(*)::int AS c FROM m GROUP BY 1) f)`;
+    const { rows } = await tx.query<{ total: number; entries: (CatalogEntryDTO & { numberSort: number })[]; setFacet: BrowseCatalogResponse['facets'][number]['values']; kindFacet: BrowseCatalogResponse['facets'][number]['values'] }>(
+      `WITH m AS (SELECT * FROM "CatalogEntry" WHERE ${where})
+       SELECT (SELECT count(*)::int FROM m) AS total,
+              (SELECT COALESCE(json_agg(p ORDER BY p."setId", p."numberSort", p."catalogEntryId"), '[]') FROM (${page}) p) AS entries,
+              ${facet('"setId"')} AS "setFacet", ${facet('kind')} AS "kindFacet"`,
+      params,
+    );
+    const r = rows[0]!;
+    return { entries: r.entries.map(({ numberSort: _sort, ...entry }) => entry), total: r.total, facets: [{ name: 'setId', values: r.setFacet }, { name: 'kind', values: r.kindFacet }] };
+  }
+
+  async matchIds(tx: Tx, filters: CatalogFilters, limit: number): Promise<CuidId[]> {
+    const params: unknown[] = [];
+    const where = catalogPredicate(filters, params);
+    const { rows } = await tx.query<{ id: CuidId }>(`SELECT id FROM "CatalogEntry" WHERE ${where} ORDER BY ${BROWSE_ORDER} LIMIT $${params.push(limit)}`, params);
+    return rows.map((r) => r.id);
+  }
+
+  async entriesByIds(tx: Tx, ids: CuidId[]): Promise<CatalogEntryDTO[]> {
+    const { rows } = await tx.query<CatalogEntryDTO>(`SELECT ${ENTRY_COLUMNS} FROM "CatalogEntry" WHERE id = ANY($1)`, [ids]);
+    return rows;
+  }
+
+  async priceHistory(tx: Tx, ids: CuidId[], from: IsoInstant, to: IsoInstant): Promise<Map<CuidId, ObservedPriceDTO[]>> {
+    const { rows } = await tx.query<ObservedRow & { catalogEntryId: CuidId }>(
+      `SELECT "catalogEntryId", ${OBSERVED_COLUMNS} FROM (
+         SELECT * FROM "ReferencePriceObservation" WHERE "catalogEntryId" = ANY($1) AND "observedAt" BETWEEN $2 AND $3
+         UNION ALL
+         (SELECT DISTINCT ON ("catalogEntryId") * FROM "ReferencePriceObservation" WHERE "catalogEntryId" = ANY($1) AND "observedAt" < $2
+          ORDER BY "catalogEntryId", "observedAt" DESC, source, id)
+       ) o ORDER BY "catalogEntryId", "observedAt", source, id`,
+      [ids, from, to],
+    );
+    const series = new Map<CuidId, ObservedPriceDTO[]>();
+    for (const r of rows) series.set(r.catalogEntryId, [...(series.get(r.catalogEntryId) ?? []), observed(r)]);
+    return series;
+  }
+
+  async setSummaries(tx: Tx, setIds: CuidId[]): Promise<{ setId: CuidId; name: string; cardEntryCount: number }[]> {
+    const { rows } = await tx.query<{ setId: CuidId; name: string; cardEntryCount: number }>(
+      `SELECT s.id AS "setId", s.name, count(e.id) FILTER (WHERE e.kind = 'card')::int AS "cardEntryCount"
+       FROM "CatalogSet" s LEFT JOIN "CatalogEntry" e ON e."setId" = s.id WHERE s.id = ANY($1) GROUP BY s.id, s.name`,
+      [setIds],
+    );
+    return rows;
   }
 
   async insertObservation(tx: Tx, o: ObservationRow, now: IsoInstant): Promise<void> {

@@ -7,6 +7,8 @@
 // another run and an unknown run. getPriceProvenance (CAT-3): input order, no observation, a zero
 // baseline, duplicate ids. fetchTrm and getFxRate (S-FR-CAT-8, AD-CAT-3): a stored row, an
 // identical and a mismatched re-fetch, a throwing source, and a date with no rate at all.
+// browseCatalog and the §15.11 ports: nameQuery's prefix and escaping, the facets, paging, the
+// bounds, getEntry's 404, input order, asOf staleness and the history's from ≤ to.
 import { describe, expect, it } from 'vitest';
 import type { CatalogFeedSource, FeedSourceRow } from '../../../shared-kernel/external.js';
 import { useTestDatabase } from '../../../../test-support/db.js';
@@ -236,5 +238,68 @@ describe('CatServiceV2.fetchTrm and getFxRate (S-FR-CAT-8, AD-CAT-3)', () => {
     expect(codeOf(await caught(() => cat.getFxRate({ date: '2026-10-01' })))).toBe('Unexpected');
     await yesterday();
     expect(await cat.getFxRate({ date: '2026-10-03' })).toMatchObject({ validFrom: '2026-09-30', stale: true });
+  });
+});
+
+describe('CatServiceV2.browseCatalog (S-FR-CAT-1)', () => {
+  async function catalog(): Promise<void> {
+    await ins(db, 'CatalogSet', { id: id('seta'), code: 'A', name: 'A', era: 'SV' });
+    await ins(db, 'CatalogSet', { id: id('setb'), code: 'B', name: 'B', era: 'SV' });
+    const entry = (key: string, setId: string, name: string, n: number, kind = 'card') =>
+      ins(db, 'CatalogEntry', { id: id(key), externalKey: key, setId, kind, name, number: String(n), numberSort: n });
+    await entry('e1', id('seta'), 'Pikachu', 2);
+    await entry('e2', id('seta'), 'Pikachú ex', 1);
+    await entry('e3', id('setb'), 'Pika_100%', 1);
+    await entry('e4', id('setb'), 'Caja Pikachu', 2, 'sealedProduct');
+  }
+
+  it('nameQuery is an accent-blind prefix whose % and _ are literal; facets count the matched set', async () => {
+    await catalog();
+    const { cat } = setup();
+    const pika = await cat.browseCatalog({ filters: { nameQuery: 'PIKACHU' }, page: 1, pageSize: 24 });
+    expect(pika.entries.map((e) => e.catalogEntryId)).toEqual([id('e2'), id('e1')]);
+    expect(pika.facets).toEqual([{ name: 'setId', values: [{ value: id('seta'), count: 2 }] }, { name: 'kind', values: [{ value: 'card', count: 2 }] }]);
+    expect((await cat.browseCatalog({ filters: { nameQuery: 'pika_' }, page: 1, pageSize: 24 })).entries.map((e) => e.catalogEntryId)).toEqual([id('e3')]);
+    expect((await cat.browseCatalog({ filters: { nameQuery: '%' }, page: 1, pageSize: 24 })).total).toBe(0);
+  });
+
+  it('pages in (setId, numberSort, id) order with the total of every page, and refuses page 0 and pageSize 101', async () => {
+    await catalog();
+    const { cat } = setup();
+    const second = await cat.browseCatalog({ filters: {}, page: 2, pageSize: 3 });
+    expect([second.entries.map((e) => e.catalogEntryId), second.total]).toEqual([[id('e4')], 4]);
+    expect(Object.keys(second.entries[0]!)).not.toContain('numberSort');
+    expect(codeOf(await caught(() => cat.browseCatalog({ filters: {}, page: 0, pageSize: 3 })))).toBe('RequestValidationFailed');
+    expect(codeOf(await caught(() => cat.browseCatalog({ filters: {}, page: 1, pageSize: 101 })))).toBe('RequestValidationFailed');
+  });
+});
+
+describe('CatServiceV2 offered ports (contracts.md §15.11)', () => {
+  it('getEntry raises CatalogEntryNotFound (404); the batch ports keep input order and refuse 0 or 501 ids', async () => {
+    await catalogEntry(db, id('b'));
+    await catalogEntry(db, id('a'));
+    const { cat } = setup();
+    const error = await caught(() => cat.getEntry({ catalogEntryId: id('ghost') }));
+    expect([codeOf(error), httpOf(error)]).toEqual(['CatalogEntryNotFound', 404]);
+    expect((await cat.getEntries({ catalogEntryIds: [id('b'), id('a'), id('b')] })).entries.map((e) => e.catalogEntryId)).toEqual([id('b'), id('a')]);
+    expect(codeOf(await caught(() => cat.getEntries({ catalogEntryIds: [] })))).toBe('RequestValidationFailed');
+    expect(codeOf(await caught(() => cat.resolveItemRefs({ refs: Array.from({ length: 501 }, (_, k) => id(`r${k}`)) })))).toBe('RequestValidationFailed');
+  });
+
+  it('asOf ages a price relative to asOf, and a missing price is null and not stale', async () => {
+    await catalogEntry(db, id('char'));
+    await catalogEntry(db, id('none'));
+    await feedRun(db, id('run1'));
+    await observation(db, { id: id('o1'), catalogEntryId: id('char'), cop: 40_000, observedAt: at(-3 * DAY), runId: id('run1') });
+    const { prices } = await setup().cat.getReferencePricesAsOf({ catalogEntryIds: [id('none'), id('char')], asOf: at(-2 * DAY) });
+    expect(prices).toEqual([{ catalogEntryId: id('none'), price: null, stale: false }, expect.objectContaining({ catalogEntryId: id('char'), stale: false })]);
+    expect((await setup().cat.getReferencePricesAsOf({ catalogEntryIds: [id('char')], asOf: at(0) })).prices[0]?.stale).toBe(true);
+  });
+
+  it('the history refuses from after to, and an entry with no observation has an empty series', async () => {
+    await catalogEntry(db, id('none'));
+    const { cat } = setup();
+    expect(codeOf(await caught(() => cat.getPriceHistory({ catalogEntryIds: [id('none')], from: at(0), to: at(-DAY) })))).toBe('RequestValidationFailed');
+    expect(await cat.getPriceHistory({ catalogEntryIds: [id('none')], from: at(-DAY), to: at(0) })).toEqual({ series: [{ catalogEntryId: id('none'), observations: [] }] });
   });
 });

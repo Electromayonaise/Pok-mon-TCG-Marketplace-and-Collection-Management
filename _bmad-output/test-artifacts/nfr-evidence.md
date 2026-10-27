@@ -77,7 +77,7 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 | NFR-VER-2 | Security (audit) | 100 % of legal-identity reads and denials audited | Access-log count vs instrumented reads | `[VER-3.I1]`, `[VER-3.I2]`, `[IDN-3.I1]` | Green — ATDD |
 | NFR-VER-3 | Performance | Review queue (1,000 pending) p95 ≤ 1,000 ms; signed URL p95 ≤ 300 ms | PRD §7 protocol over the §3 seed topped up to 1,000 Pending applications; the signed-URL figure times the whole `getApplicationForReview` call, with the in-memory storage double until the production adapter lands (a provider's signing latency is not in it) | `[NFR-VER-3.queue]`, `[NFR-VER-3.sign]` | Green — benchmark |
 | NFR-VER-4 | Performance / security | ≤ 5 MB per file, ≤ 3 files; upload + validation p95 ≤ 10 s at 10 Mbps | Quarantine validation tests; the transfer time needs a shaped network | `[VER-2.P3]`, `[VER-2.P5]` | Green — ATDD (size); Deferred — launch (transfer) |
-| NFR-CAT-1 | Performance | Browse over 10,000 entries p95 ≤ 1,000 ms; provenance for 48 p95 ≤ 300 ms | PRD §7 protocol on the §3 catalog | `[NFR-CAT-1.provenance]`, `[NFR-CAT-1.browse]` | Green — benchmark (provenance); Red — benchmark (browse) |
+| NFR-CAT-1 | Performance | Browse over 10,000 entries p95 ≤ 1,000 ms; provenance for 48 p95 ≤ 300 ms | PRD §7 protocol on the §3 catalog | `[NFR-CAT-1.provenance]`, `[NFR-CAT-1.browse]` | Green — benchmark |
 | NFR-CAT-2 | Performance / integrity | 10,000-row run ≤ 120 s; a rerun creates 0 duplicates | Unique `externalKey`; convergent rerun | `[CAT-2.I1]`, `[CAT-2.MEC]` | Green — ATDD |
 | NFR-CAT-3 | Correctness | 0 fabricated prices under `down`, `stale`, `malformedRows` | Fault switches on the fixture feed; byte-equal to stored observations | `[CAT-3.I1]`, `[CAT-3.Q4]`, `[S-FR-CAT-8.f]` | Green — ATDD |
 | NFR-CAT-4 | Reliability | The TRM job runs off request paths and never invents a rate | Job contract with the virtual clock; covered-day no-op | `[S-FR-CAT-8.h]`, `[S-FR-CAT-8.f]` | Green — ATDD |
@@ -117,10 +117,10 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 
 | Status | NFRs |
 |---|---|
-| Green — benchmark (wholly or in part) | 4 (NFR-SYS-2, NFR-SYS-6, NFR-VER-3, NFR-CAT-1 provenance) |
+| Green — benchmark | 4 (NFR-SYS-2, NFR-SYS-6, NFR-VER-3, NFR-CAT-1) |
 | Green — ATDD (wholly or in part) | 14 (NFR-SYS-1, -7, -8, -13, -14, NFR-IDN-2, NFR-VER-1, -2, -4, NFR-CAT-2, -3, -4; NFR-SYS-8 and -14 in part) |
 | Green — gate (wholly or in part) | 8 (NFR-SYS-3, NFR-SYS-4, NFR-SYS-12, NFR-IDN-3, NFR-MSG-3, NFR-COL-3, NFR-REP-3, NFR-ORD-3) |
-| Red — benchmark (wholly or in part) | 3 (NFR-SYS-9, NFR-ORD-2, NFR-CAT-1 browse) |
+| Red — benchmark | 2 (NFR-SYS-9, NFR-ORD-2) |
 | Red — ATDD (wholly or in part) | 26 |
 | Planned — story DoD (wholly or in part) | 10: the latency NFRs without a benchmark yet. Each gets one in its story, with the shared harness |
 | Deferred — launch | 2: NFR-SYS-11 (WCAG audit), and NFR-VER-4's transfer time on a shaped 10 Mbps link |
@@ -136,3 +136,4 @@ Each benchmark writes its figures (milliseconds, n = 500) to `.vitest-results/`.
 | NFR-VER-3 | `[NFR-VER-3.queue]` | `nfr-ver-3-queue.json` | 3.3 | 6.1 | p95 ≤ 1,000 | 2026-10-26, Epic 3 review, local Docker Postgres 16 |
 | NFR-VER-3 | `[NFR-VER-3.sign]` | `nfr-ver-3-sign.json` | 4.9 | 8.2 | p95 ≤ 300 | 2026-10-26, Epic 3 review (signing inside the grant transaction), local Docker Postgres 16, in-memory storage |
 | NFR-CAT-1 | `[NFR-CAT-1.provenance]` | `nfr-cat-1-provenance.json` | 4.9 | 11.9 | p95 ≤ 300 | 2026-10-27, Story 4.4, 48 priced ids over 30 days, local Postgres 16 |
+| NFR-CAT-1 | `[NFR-CAT-1.browse]` | `nfr-cat-1-browse.json` | 2.1 | 9.9 | p95 ≤ 1,000 | 2026-10-27, Story 4.5, the 10,000-entry §3 catalog (no filter, one set, a name prefix), local Postgres 16 |

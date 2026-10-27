@@ -2,7 +2,7 @@
 title: "Story 4.5: Browse the catalog and answer neighbours' catalog queries"
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'd552afa'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -79,10 +79,10 @@ Wire `catalog.browse` (public). It also adds the `[NFR-CAT-1.browse]` benchmark,
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] ports + infra -- the seven reads; the browse predicate shared with `matchIds`
-- [ ] `application/cat.v2.ts` -- the eight operations; unit tests for `nameQuery` escaping, the facets and the bounds
-- [ ] `composition.ts` + test -- `catalog.browse`
-- [ ] `[NFR-CAT-1.browse]` green
+- [x] ports + infra -- the seven reads; the browse predicate shared with `matchIds`
+- [x] `application/cat.v2.ts` -- the eight operations; unit tests for `nameQuery` escaping, the facets and the bounds
+- [x] `composition.ts` + test -- `catalog.browse`
+- [x] `[NFR-CAT-1.browse]` green
 
 **Acceptance Criteria:**
 - Given the 9 bound tests and `[NFR-CAT-1.browse]`, when they run, then they pass.
@@ -95,3 +95,19 @@ Wire `catalog.browse` (public). It also adds the `[NFR-CAT-1.browse]` benchmark,
 - `npm run test:unit` -- expected: all pass
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/cat_contracts.test.ts` -- expected: all 30 CAT tests pass
 - `npm run test:ci` -- expected: exit 0
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 4 at its close (decision #22).
+- **Browse:**
+  - `PgCatRepository.browse` is one statement: a CTE of the matched entries, then the total, the page (`json_agg` in `("setId", "numberSort", id)` order) and the `setId` and `kind` facets;
+  - `catalogPredicate` appends only the filters present, as parameters, and `matchIds` shares it;
+  - `nameQuery` escapes `\`, `%` and `_` and matches as a prefix of `"nameKey"` (`tezg_unaccent_lower`), so it is accent-blind and served by `catalog_entry_name_key`.
+- **Ports:** they read in one transaction each, with no actor:
+  - the batch ports de-duplicate their ids and answer in input order;
+  - `getEntry` raises `CatalogEntryNotFound`, citing `AD-CAT-1 rule 5`;
+  - `getReferencePricesAsOf` reuses Story 4.4's `latestObservations`;
+  - `getPriceHistory` is one `UNION ALL` of the window and the carried-in `DISTINCT ON` row.
+- `catalog.browse` is wired. zod gives an absent optional filter as `undefined`, so the resolver strips those keys (`defined`) under `exactOptionalPropertyTypes`.
+- `[NFR-CAT-1.browse]` measured p50 2.1 ms and p95 9.9 ms (threshold 1,000) on the 10,000-entry §3 catalog, local Postgres 16, 2026-10-27. NFR-CAT-1 is "Green — benchmark" in `nfr-evidence.md`.
+- Unit tests (in `cat.v2.test.ts`): the accent-blind prefix with literal `%` and `_`, the facets, paging and its total, the browse bounds, `getEntry`'s 404, input order and de-duplication, the 1–500 bounds, `asOf` staleness and a missing price, and the history's `from ≤ to` and empty series. One HTTP case for the public browse and the parser's `pageSize` refusal.
