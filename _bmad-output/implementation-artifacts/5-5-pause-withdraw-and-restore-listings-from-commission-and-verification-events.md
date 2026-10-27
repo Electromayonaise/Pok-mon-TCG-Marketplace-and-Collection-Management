@@ -96,3 +96,10 @@ context:
 - **A redelivery** returns `{ applied: false, ignored: true, listingsChanged: 0 }`, and its stored row keeps the first delivery's `ignored`.
 - **`compose()` wires the real `listings` handler by default.** `handlers` became a partial override, and `commission` and `collections` stay NotImplemented. The HTTP replay case now checks the projection row and the paused listing, and a type that listings does not subscribe to is recorded `failed` with `Unexpected`.
 - 5.5 leaves `impl2_scope` with a note in `sprint-status.yaml`. Like 5.3 and 5.4, it is `done` early and does not count toward the 43 Impl-1 stories.
+
+### Review Findings
+
+Epic 5 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `ab3430b..4485962` (code paths). Totals for the epic: 2 decisions, 10 patches, 2 deferrals, 17 dismissed. Martín resolved both decisions with the recommendation and approved every patch (decision log Impl-1 #30).
+
+- [x] [Review][Decision] Two decisions for a business with no listings are not serialized — `lockSellerListings` locks only rows that exist, so both read `newest = null` and both are stored `ignored = false`; a listing created concurrently with a rejection can also escape the withdrawal. Serializing it needs a lock that exists without listings (an advisory namespace, AD-SYS-4 rule 4, Ask First). — Martín: accept and defer. VER decides one application at a time, a business with no listings has nothing to withdraw, and the newest non-ignored decision is still the newest; a listing that escapes a racing rejection is never purchasable, because a reserve reads the verification live (`deferred-work.md`, decision log Impl-1 #30).
+- [x] [Review][Patch] A rejection withdraws, and an approval restores, the seller's individual listings too; both writes must be limited to `"sellerKindAtCreation" = 'business'`, as the pause is [src/modules/listings/infra/pg.ts:withdrawForRejection]

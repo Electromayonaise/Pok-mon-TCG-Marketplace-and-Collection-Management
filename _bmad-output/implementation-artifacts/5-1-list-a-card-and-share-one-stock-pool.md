@@ -104,3 +104,10 @@ It adds `PgInvRepository` to the one repository (R-14), in `wiring()` and in `co
 - The decision's first citation is `FR-INV-7` with `{ verification, projection }`. For an individual seller, `verification` is `none` and `projection` is `null`.
 - `test-support/db.ts`: the per-file pool gets an `error` listener. After `[INV-2.R1]` fills the pool with 50 clients, `DROP DATABASE … WITH (FORCE)` in `afterAll` sometimes reached a client that was still closing. The `57P01` it got surfaced as an uncaught error, intermittently, though every test passed.
 - `[NFR-INV-4.create]`: p95 4.3 ms, p50 2.1 ms (threshold 800 ms), on the §3 seed with the real identity and catalog.
+
+### Review Findings
+
+Epic 5 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `ab3430b..4485962` (code paths). Totals for the epic: 2 decisions, 10 patches, 2 deferrals, 17 dismissed. Martín resolved both decisions with the recommendation and approved every patch (decision log Impl-1 #30).
+
+- [x] [Review][Patch] The test pool's `error` listener swallows every idle-client error, not only the `57P01` of the forced drop [test-support/db.ts:48]
+- [x] [Review][Defer] An Approved business with no projection row has nothing for `FOR SHARE` to lock. A first `Replenished` that commits between the read and the listing insert leaves the new listing paused until the next commission event [src/modules/listings/application/inv.v2.ts:createListing] — deferred, an AD-INV-3 rule 3 design gap (a missing row cannot be locked)

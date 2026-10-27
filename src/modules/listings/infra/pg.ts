@@ -59,11 +59,11 @@ const AVAILABILITY_SQL = `(SELECT COALESCE(MIN(u.quantity / x.per), 0)::int FROM
 const DETAIL_COLUMNS = `l.id, l."sellerId", l."sellerKindAtCreation", l.kind, (l."hiddenAt" IS NULL AND l."withdrawnAt" IS NULL AND l."deactivatedAt" IS NULL) AS visible,
   l.title, u."catalogEntryId" AS "unitEntryId", l."priceCop"::text AS "priceCop", l."openToTrade", l."pausedAt" IS NOT NULL AS paused, l."hiddenReason",
   l."hiddenAt" IS NOT NULL AS hidden, l."withdrawnAt" IS NOT NULL AS withdrawn, l."deactivatedAt" IS NOT NULL AS deactivated, l.version,
-  CASE WHEN c."businessId" IS NULL THEN 'absent' WHEN c.paused THEN 'paused' ELSE 'funded' END AS projection,
+  CASE WHEN c."businessId" IS NULL THEN 'absent' WHEN c.paused THEN 'paused' ELSE 'funded' END AS projection, c."lastAppliedSeq"::text AS "ledgerSeq",
   ${AVAILABILITY_SQL} AS availability, l."createdAt"`;
 const DETAIL_FROM = `"Listing" l LEFT JOIN "InventoryUnit" u ON u.id = l."inventoryUnitId" LEFT JOIN "SellerCommissionState" c ON c."businessId" = l."sellerId"`;
-type DetailRow = Omit<ListingDetailRow, 'priceCop' | 'createdAt'> & { priceCop: string; createdAt: Date };
-const detail = (r: DetailRow): ListingDetailRow => ({ ...r, priceCop: Number(r.priceCop), createdAt: r.createdAt.toISOString() });
+type DetailRow = Omit<ListingDetailRow, 'priceCop' | 'createdAt' | 'ledgerSeq'> & { priceCop: string; createdAt: Date; ledgerSeq: string | null };
+const detail = (r: DetailRow): ListingDetailRow => ({ ...r, priceCop: Number(r.priceCop), ledgerSeq: r.ledgerSeq === null ? null : Number(r.ledgerSeq), createdAt: r.createdAt.toISOString() });
 
 /** INV's repository port over `_bmad-output/planning-artifacts/detailed-design/schemas` (AD-8). */
 export class PgInvRepository implements InvRepository {
@@ -187,7 +187,7 @@ export class PgInvRepository implements InvRepository {
   async withdrawForRejection(tx: Tx, sellerId: CuidId, applicationId: CuidId, now: IsoInstant): Promise<number> {
     const { rowCount } = await tx.query(
       `UPDATE "Listing" SET "withdrawnAt" = $3, "withdrawnReason" = 'ApplicationRejected', "withdrawnByApplicationId" = $2, "updatedAt" = $3
-       WHERE "sellerId" = $1 AND "withdrawnAt" IS NULL`,
+       WHERE "sellerId" = $1 AND "sellerKindAtCreation" = 'business' AND "withdrawnAt" IS NULL`,
       [sellerId, applicationId, now],
     );
     return rowCount;
@@ -196,7 +196,7 @@ export class PgInvRepository implements InvRepository {
   async restoreFromRejection(tx: Tx, sellerId: CuidId, now: IsoInstant): Promise<number> {
     const { rowCount } = await tx.query(
       `UPDATE "Listing" SET "withdrawnAt" = NULL, "withdrawnReason" = NULL, "withdrawnByApplicationId" = NULL, "updatedAt" = $2
-       WHERE "sellerId" = $1 AND "withdrawnReason" = 'ApplicationRejected'`,
+       WHERE "sellerId" = $1 AND "sellerKindAtCreation" = 'business' AND "withdrawnReason" = 'ApplicationRejected'`,
       [sellerId, now],
     );
     return rowCount;

@@ -77,3 +77,9 @@ context:
   - `[INV-2.P3]`: `conditionFitsKind` over `catalog.resolveItemRefs`.
   - `[INV-2.P4]`/`[INV-2.P5]`: `isValidPrice` and `isValidLocation` (the `COLOMBIA_BBOX` of the shared kernel).
 - 5.3 leaves `impl2_scope` with a note in `sprint-status.yaml`. Like 2.4, 3.3, 3.4 and 4.3, it is `done` early and does not count toward the 43 Impl-1 stories.
+
+### Review Findings
+
+Epic 5 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `ab3430b..4485962` (code paths). Totals for the epic: 2 decisions, 10 patches, 2 deferrals, 17 dismissed. Martín resolved both decisions with the recommendation and approved every patch (decision log Impl-1 #30).
+
+- No findings of its own. Its refusals are built in Story 5.1's files.

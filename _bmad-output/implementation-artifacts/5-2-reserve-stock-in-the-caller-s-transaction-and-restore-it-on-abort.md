@@ -107,3 +107,10 @@ The two offered ports read on the ambient transaction (AD-SYS-4 rule 9). It adds
 
   With no NFR-INV-4 "Planned" row left, the regenerated `epics.md` drops its DoD line from Stories 5.1–5.4.
 - **Early greens until their commits (decision #23):** `[INV-1.P2]`–`[INV-1.P5]` until 5.4, and `[INV-3.I2]` until 5.5.
+
+### Review Findings
+
+Epic 5 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `ab3430b..4485962` (code paths). Totals for the epic: 2 decisions, 10 patches, 2 deferrals, 17 dismissed. Martín resolved both decisions with the recommendation and approved every patch (decision log Impl-1 #30).
+
+- [x] [Review][Patch] A listing with no units (a bundle without components) reserves successfully with `units: []` and takes no stock; it must fail as `Unexpected`, an invariant breach [src/modules/listings/application/inv.v2.ts:reserveForPurchase]
+- [x] [Review][Patch] The domain `purchasable` treats an omitted projection as `funded` (fail-open); absent must mean paused (AD-3) [src/modules/listings/domain/inv.ts:31]

@@ -143,3 +143,16 @@ Wire the eight `inventory.*` seller procedures that remain. `inventory.admin.*` 
 - **`inventory.get` is public**, so the HTTP reader is never the owner. The owner reads hidden and deactivated listings through `inventory.mine`.
 - **Fixed with this story:** Story 5.5's unit test set `pausedAt` with SQL `now()`, which the `[SYS-6.R1]` fitness test refuses. It now writes `T0`.
 - **`test:ci` on this tree:** 352 ATDD tests, 144 green for done stories, 0 not as expected; 10 NFR tests, 9 green.
+
+### Review Findings
+
+Epic 5 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `ab3430b..4485962` (code paths). Totals for the epic: 2 decisions, 10 patches, 2 deferrals, 17 dismissed. Martín resolved both decisions with the recommendation and approved every patch (decision log Impl-1 #30).
+
+- [x] [Review][Decision] Restock accepts any safe-integer `delta`; one beyond INT range overflows `quantity` (Postgres 22003) and answers 500 `Unexpected`. A bound is a contract interpretation (AD-INV-1 rule 4 bounds only `delta = 0`). — Martín: `|delta| ≤ 999` per call, the create bound, refused through `rejectRequest` on `delta`; no cap on the total (decision log Impl-1 #30).
+- [x] [Review][Patch] `createBundle` never runs `conditionFitsKind`: an in-process `Sealed` card component inserts a `Sealed` unit, then the `BundleComponent` CHECK refuses it as a 500 [src/modules/listings/application/inv.v2.ts:createBundle]
+- [x] [Review][Patch] `listMyListings` caches the first row's verification for the whole page, so an individual first row makes every business row read `Unverified` [src/modules/listings/application/inv.v2.ts:listMyListings]
+- [x] [Review][Patch] `reserveForTrade` does not check `openToTrade`, so a listing closed to trade after `getTradeability` still loses stock [src/modules/listings/application/inv.v2.ts:reserveForTrade]
+- [x] [Review][Patch] A fractional `expectedVersion` reaches SQL as an invalid integer (500); refuse it through `rejectRequest` [src/modules/listings/application/inv.v2.ts:updateListing]
+- [x] [Review][Patch] The Paused detail cites `{ projection, paused }`, not INV-3 Q4's `{ businessId, ledgerSeq, balanceAfter }`; cite `businessId` and the projection's `lastAppliedSeq` (`balanceAfter` is not stored) [src/modules/listings/application/inv.v2.ts:detailDecision]
+- [x] [Review][Patch] The Unverified detail always cites `verification: 'Pending'`; cite the seller's real status [src/modules/listings/application/inv.v2.ts:detailDecision]
+- [x] [Review][Defer] `getAvailabilitySummary` reads the verification once per distinct business seller (N+1 identity calls over up to 500 entries), and AD-INV-3 rule 2's parity test of the batch and single forms is not written [src/modules/listings/application/inv.v2.ts:getAvailabilitySummary] — deferred, the batch port `getSellerKinds` is not in `IdentityForInv`; the COL wishlist (Epic 11) is the first consumer that needs the batch

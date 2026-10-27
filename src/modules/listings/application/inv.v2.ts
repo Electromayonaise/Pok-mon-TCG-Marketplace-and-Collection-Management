@@ -79,17 +79,19 @@ function explained(outcome: Decision['outcome'], code: MessageCode, citations: [
 const MY_LISTINGS_PAGE = 25;
 /** S-FR-INV-2: 1–20 components (the parser's bound, repeated for in-process callers). */
 const MAX_COMPONENTS = 20;
+/** S-FR-INV-9.restock: at most ±999 per call. */
+const MAX_RESTOCK = 999;
 /** P-INV.availability: at most 500 distinct ids. */
 const MAX_IDS = 500;
 
 /** S-FR-INV-10: the decision a listing's state reads with. */
-function detailDecision(state: ListingDetailState, row: ListingDetailRow, now: IsoInstant): Decision {
+function detailDecision(state: ListingDetailState, row: ListingDetailRow, verification: VerificationStatus | null, now: IsoInstant): Decision {
   switch (state) {
     case 'Hidden': return explained('hidden', 'ListingHidden', [{ rule: 'FR-INV-10', inputs: { reasonCode: row.hiddenReason } }], now);
     case 'Withdrawn': return explained('withdrawn', 'ListingWithdrawn', [{ rule: 'FR-INV-8', inputs: { withdrawnReason: 'ApplicationRejected' } }], now);
     case 'Deactivated': return explained('withdrawn', 'ListingDeactivated', [{ rule: 'FR-INV-9', inputs: { deactivated: true } }], now);
-    case 'Paused': return explained('paused', 'ListingPausedBalanceExhausted', [{ rule: 'FR-INV-7', inputs: { projection: row.projection, paused: row.paused } }], now);
-    case 'Unverified': return explained('unverified', 'ListingUnverified', [{ rule: 'FR-INV-7', inputs: { verification: 'Pending' } }], now);
+    case 'Paused': return explained('paused', 'ListingPausedBalanceExhausted', [{ rule: 'FR-INV-7', inputs: { businessId: row.sellerId, ledgerSeq: row.ledgerSeq, projection: row.projection, paused: row.paused } }], now);
+    case 'Unverified': return explained('unverified', 'ListingUnverified', [{ rule: 'FR-INV-7', inputs: { verification } }], now);
     case 'Active': return explained('allowed', 'ListingActive', [{ rule: 'FR-INV-10', inputs: { availability: row.availability } }], now);
   }
 }
@@ -167,6 +169,7 @@ export class InvServiceV2 implements InvV2UseCases {
     if (verdict === 'ListingUnverified' || verdict === 'ListingPausedBalanceExhausted') {
       raise('ListingNotPurchasable', [{ rule: 'FR-INV-3', inputs: { reasonCode: verdict, verification: status, projection: listing.projection } }]);
     }
+    if (listing.units.length === 0) throw new UnexpectedError(`Unexpected: listing ${listing.id} draws on no unit`);
     const snapshot = await this.snapshotOf(listing);
     const units = await this.decrement(tx, listing.units, input.qty, now);
     const exhaustedListingIds = await repo.exhaustedListingIds(tx, units.map((u) => u.inventoryUnitId));
@@ -246,10 +249,11 @@ export class InvServiceV2 implements InvV2UseCases {
     const now = this.deps.clock.now().toISOString();
     const out: ListingDetailDTO[] = [];
     for (const row of rows) {
-      const state = detailState({ ...row, verification: await verification(row) });
+      const status = await verification(row);
+      const state = detailState({ ...row, verification: status });
       out.push({
         listingId: row.id, sellerId: row.sellerId, kind: row.kind, title: row.title ?? names.get(row.unitEntryId ?? '') ?? '', priceCop: row.priceCop,
-        availability: row.availability, openToTrade: row.openToTrade, state, decision: detailDecision(state, row, now),
+        availability: row.availability, openToTrade: row.openToTrade, state, decision: detailDecision(state, row, status, now),
       });
     }
     return out;
@@ -291,8 +295,9 @@ export class InvServiceV2 implements InvV2UseCases {
     const kinds = new Map(resolved.map((r) => [r.ref, r.kind]));
     for (const c of components) {
       const kind = kinds.get(c.itemRef) ?? null;
-      if (kind === null) raise('InvalidItemRef', [{ rule: 'FR-INV-1', inputs: { itemRef: c.itemRef, kind, condition: c.condition } }]);
+      if (kind === null) return raise('InvalidItemRef', [{ rule: 'FR-INV-1', inputs: { itemRef: c.itemRef, kind, condition: c.condition } }]);
       if (kind === 'sealedProduct') raise('SealedProductInBundle', [{ rule: 'AD-INV-1 rule 5', inputs: { itemRef: c.itemRef } }]);
+      if (!conditionFitsKind(c.condition, kind)) raise('InvalidItemRef', [{ rule: 'FR-INV-1', inputs: { itemRef: c.itemRef, kind, condition: c.condition } }]);
     }
     this.checkPriceAndLocation(input.priceCop, input.location);
     if ([...input.description].length > MAX_DESCRIPTION) rejectRequest([{ field: 'description', issue: `debe tener como máximo ${MAX_DESCRIPTION} caracteres` }]);
@@ -340,8 +345,9 @@ export class InvServiceV2 implements InvV2UseCases {
     if (input.cursor !== null && after === null) rejectRequest([{ field: 'cursor', issue: 'no es un cursor válido' }]);
     const rows = await this.reading((tx) => this.deps.repo.listSellerListings(tx, input.sellerId, after, MY_LISTINGS_PAGE + 1));
     const page = rows.slice(0, MY_LISTINGS_PAGE);
+    // One read for the seller's business rows; an individual row has no verification (decision log Impl-1 #30, review).
     let verification: Promise<VerificationStatus | null> | undefined;
-    const items = await this.details(page, (r) => (verification ??= this.verificationOf(r)));
+    const items = await this.details(page, (r) => (r.sellerKindAtCreation === 'business' ? (verification ??= this.verificationOf(r)) : Promise.resolve(null)));
     const last = page[page.length - 1];
     return { items, nextCursor: rows.length > MY_LISTINGS_PAGE && last ? encodeListingCursor(last.createdAt, last.id) : null };
   }
@@ -351,6 +357,7 @@ export class InvServiceV2 implements InvV2UseCases {
     const { repo, transactions, clock, audit } = this.deps;
     const listing = await this.ownedListing(input.listingId, input.actorId);
     const { changes } = input;
+    if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0) rejectRequest([{ field: 'expectedVersion', issue: 'debe ser un entero mayor o igual a cero' }]);
     if (changes.priceCop === undefined && changes.description === undefined && changes.openToTrade === undefined) rejectRequest([{ field: 'changes', issue: 'no trae ningún cambio' }]);
     if (changes.openToTrade && listing.sellerKindAtCreation === 'business') raise('OpenToTradeNotAllowed', [{ rule: 'AD-4', inputs: { listingKind: 'business', openToTrade: true } }]);
     if (changes.priceCop !== undefined && !isValidPrice(changes.priceCop)) raise('InvalidPrice', [{ rule: 'FR-INV-1', inputs: { priceCop: changes.priceCop } }]);
@@ -373,7 +380,8 @@ export class InvServiceV2 implements InvV2UseCases {
     const { repo, transactions, clock, audit } = this.deps;
     const listing = await this.ownedListing(input.listingId, input.actorId);
     const { delta } = input;
-    if (!Number.isSafeInteger(delta) || delta === 0) rejectRequest([{ field: 'delta', issue: 'debe ser un entero distinto de cero' }]);
+    // AD-INV-1 rule 4 refuses 0; the ±999 bound per call is the create bound (decision log Impl-1 #30), so no delta overflows the INT column.
+    if (!Number.isInteger(delta) || delta === 0 || Math.abs(delta) > MAX_RESTOCK) rejectRequest([{ field: 'delta', issue: `debe ser un entero distinto de cero entre -${MAX_RESTOCK} y ${MAX_RESTOCK}` }]);
     if (listing.kind === 'bundle') rejectRequest([{ field: 'listingId', issue: 'un lote no se reabastece; reabastece cada carta en su publicación' }]);
     const facts = await this.reading((tx) => repo.readReserveFacts(tx, input.listingId));
     const unitId = facts!.units[0]!.inventoryUnitId;
@@ -418,6 +426,8 @@ export class InvServiceV2 implements InvV2UseCases {
     const listing = await repo.readReserveFacts(tx, input.listingId);
     if (listing === null || !listing.visible) return this.notFound('AD-INV-2 rule 2');
     if (listing.sellerKindAtCreation !== 'individual') raise('NotIndividualSellerListing', [{ rule: 'AD-INV-2 rule 2', inputs: { sellerKind: 'business' } }]);
+    if (!listing.openToTrade) raise('ListingNotOpenToTrade', [{ rule: 'AD-4', inputs: { openToTrade: false } }]);
+    if (listing.units.length === 0) throw new UnexpectedError(`Unexpected: listing ${listing.id} draws on no unit`);
     const units = await this.decrement(tx, listing.units, 1, now);
     return { reservationRef: { listingId: listing.id, units }, exhaustedListingIds: await repo.exhaustedListingIds(tx, units.map((u) => u.inventoryUnitId)) };
   }

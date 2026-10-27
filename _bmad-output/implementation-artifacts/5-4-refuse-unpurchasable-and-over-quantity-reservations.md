@@ -76,3 +76,9 @@ Once 5.2 is done, the 4 tests turn green and the red gate fails.
   - `[INV-1.P4]`: the domain `purchasable` predicate, after `getSellerVerification`.
   - `[INV-1.P5]`: the conditional decrement that changes 0 rows, then a read of the unit's quantity. The caller's transaction aborts, which restores any unit decremented before it.
 - 5.4 leaves `impl2_scope` with a note in `sprint-status.yaml`. Like 5.3, it is `done` early and does not count toward the 43 Impl-1 stories.
+
+### Review Findings
+
+Epic 5 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `ab3430b..4485962` (code paths). Totals for the epic: 2 decisions, 10 patches, 2 deferrals, 17 dismissed. Martín resolved both decisions with the recommendation and approved every patch (decision log Impl-1 #30).
+
+- No findings of its own. Its refusals are built in Story 5.2's files.

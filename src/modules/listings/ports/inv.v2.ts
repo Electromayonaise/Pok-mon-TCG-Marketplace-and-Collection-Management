@@ -107,6 +107,8 @@ export interface ListingDetailRow extends ListingHeader {
   hidden: boolean;
   version: number;
   projection: ProjectionState;
+  /** The projection's `lastAppliedSeq`, or null when it is absent (INV-3 Q4). */
+  ledgerSeq: number | null;
   availability: number;
   createdAt: IsoInstant;
 }

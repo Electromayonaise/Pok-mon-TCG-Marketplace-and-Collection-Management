@@ -14,7 +14,7 @@ export interface PurchasabilityFacts {
   withdrawnAt: Date | null;
   deactivatedAt: Date | null;
   availability: number;
-  /** Absent means paused (AD-3); omitted by the Solu-1 port, which predates the projection. */
+  /** Absent means paused (AD-3); the Solu-1 port, which predates the projection, omits it and so fails closed. */
   projection?: ProjectionState;
 }
 
@@ -28,7 +28,7 @@ export function purchasable(
   if (facts.hiddenAt !== null || facts.withdrawnAt !== null || facts.deactivatedAt !== null) return 'NotVisible';
   if (facts.sellerKindAtCreation === 'individual') return 'IndividualListing';
   if (facts.verification !== 'Approved') return 'ListingUnverified';
-  if (facts.pausedAt !== null || (facts.projection ?? 'funded') !== 'funded') return 'ListingPausedBalanceExhausted';
+  if (facts.pausedAt !== null || (facts.projection ?? 'absent') !== 'funded') return 'ListingPausedBalanceExhausted';
   if (facts.availability < 1) return 'SoldOut';
   return 'purchasable';
 }

@@ -45,7 +45,8 @@ export function useTestDatabase(): TestDb {
     const pool = new pg.Pool({ ...PG, database: name, max: 60 });
     // An idle client still closing when afterAll drops the database WITH (FORCE) gets 57P01; without
     // a listener the pool rethrows it as an uncaught error after a large race has filled the pool.
-    pool.on('error', () => undefined);
+    // Any other idle-client error is rethrown, so a real connection failure still surfaces.
+    pool.on('error', (error: Error & { code?: string }) => { if (error.code !== '57P01') throw error; });
     handle.pool = pool;
     handle.sql = asSql(pool);
     handle.transactions = new PgTransactionRunner(pool);

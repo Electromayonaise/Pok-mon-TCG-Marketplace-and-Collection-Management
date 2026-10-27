@@ -5,11 +5,12 @@ import { PgTransactionRunner, useTestDatabase } from '../../../../test-support/d
 import { PG } from '../../../../test-support/env.js';
 import { caught, citedInputs } from '../../../../test-support/errors.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
-import { business, catalogEntry, commissionState, fake, id, listing, purchasableListing, rows, T0, unit, wiring } from '../../../../test-support/solu2/fixtures.js';
+import { business, catalogEntry, commissionState, fake, id, listing, purchasableListing, rows, T0, unit, user, wiring } from '../../../../test-support/solu2/fixtures.js';
 import { CatServiceV2 } from '../../catalog/index.js';
 import { IdnServiceV2 } from '../../identity/index.js';
 import type { CatalogFeedSource, FxRateSource } from '../../../shared-kernel/external.js';
 import type { TransactionRunner } from '../../../shared-kernel/ports.js';
+import type { CatalogForInv, IdentityForInv } from '../ports/inv.v2.js';
 import { InvServiceV2 } from './inv.v2.js';
 
 const db = useTestDatabase();
@@ -180,5 +181,72 @@ describe('managing listings (S-FR-INV-2, -9, -10)', () => {
     });
     expect(codeOf(await caught(() => inv.getAvailabilitySummary({ catalogEntryIds: [id('char'), id('char')], area: null })))).toBe('RequestValidationFailed');
     expect(codeOf(await caught(() => inv.getAvailabilitySummary({ catalogEntryIds: [id('char')], area: { lat: 4.7, lng: -74, radiusKm: 10 } })))).toBe('NotImplementedError');
+  });
+});
+
+describe('Epic 5 close review patches (decision log Impl-1 #30)', () => {
+  it('a listing that draws on no unit is an invariant breach, never a free reservation', async () => {
+    await andres(1);
+    await listing(db, { id: id('lempty'), sellerId: id('andres'), kind: 'bundle', title: 'Vacío' });
+    expect(codeOf(await caught(() => db.transactions.run((tx) => inventory().reserveForPurchase(tx, { listingId: id('lempty'), qty: 1, buyerId: id('camila') }))))).toBe('Unexpected');
+  });
+
+  it('a rejection withdraws only the business listings of a seller who also listed as an individual', async () => {
+    await andres(1);
+    await unit(db, { id: id('uind'), sellerId: id('andres'), catalogEntryId: id('char'), condition: 'LP', quantity: 1 });
+    await listing(db, { id: id('lind'), sellerId: id('andres'), unitId: id('uind'), sellerKind: 'individual' });
+    const result = await db.transactions.run((tx) => inventory().applyApplicationDecision(tx, { type: 'BusinessApplicationRejected', applicationId: id('a1'), businessId: id('andres'), decidedAt: '2026-09-20T00:00:00.000Z' }));
+    expect(result.listingsChanged).toBe(1);
+    expect(await rows(db, 'Listing', '"withdrawnAt" IS NOT NULL')).toMatchObject([{ id: id('lchar') }]);
+  });
+
+  it('a card component in condition Sealed is InvalidItemRef before any write', async () => {
+    await user(db, { id: id('valentina'), sellerTrack: 'individual' });
+    await catalogEntry(db, id('char'));
+    const inv = new InvServiceV2({ ...wiring(db), catalog: fake<CatalogForInv>('catalog', { resolveItemRefs: async ({ refs }) => ({ resolved: refs.map((ref) => ({ ref, kind: 'card' as const })), missing: [] }) }),
+      identity: fake<IdentityForInv>('identity', { requireListingEligibility: async () => ({ listingKind: 'individual', verified: false, decision: { outcome: 'allowed', reasonCode: 'ListingEligible', humanMessage: 'Tu cuenta puede publicar.', citations: [{ rule: 'FR-IDN-3', inputs: {} }], occurredAt: '2026-10-01T15:00:00.000Z' } }) }) });
+    const error = await caught(() => inv.createBundle({ sellerId: id('valentina'), title: 'Lote', priceCop: 60_000, location: null, description: '',
+      components: [{ itemRef: id('char'), condition: 'Sealed' as 'NM', perBundleQty: 1, quantity: 1 }] }));
+    expect(codeOf(error)).toBe('InvalidItemRef');
+    expect(await db.counts(['Listing', 'InventoryUnit', 'BundleComponent'])).toEqual({ Listing: 0, InventoryUnit: 0, BundleComponent: 0 });
+  });
+
+  it('the owner list reads each row by its own seller kind: an individual first row leaves the business rows Active', async () => {
+    await andres(1);
+    await unit(db, { id: id('uind'), sellerId: id('andres'), catalogEntryId: id('char'), condition: 'LP', quantity: 1 });
+    await listing(db, { id: id('lind'), sellerId: id('andres'), unitId: id('uind'), sellerKind: 'individual' });
+    await db.query(`UPDATE "Listing" SET "createdAt" = $1 WHERE id = $2`, ['2026-10-02T00:00:00.000Z', id('lind')]);
+    const { items } = await inventory().listMyListings({ sellerId: id('andres'), cursor: null });
+    expect(items.map((i) => [i.listingId, i.state])).toEqual([[id('lind'), 'Active'], [id('lchar'), 'Active']]);
+  });
+
+  it('a trade reserve on a listing closed to trade is ListingNotOpenToTrade and nothing moves', async () => {
+    await user(db, { id: id('valentina'), sellerTrack: 'individual' });
+    await catalogEntry(db, id('char'));
+    await unit(db, { id: id('uv'), sellerId: id('valentina'), catalogEntryId: id('char'), quantity: 1 });
+    await listing(db, { id: id('lv'), sellerId: id('valentina'), unitId: id('uv'), sellerKind: 'individual', openToTrade: false });
+    expect(codeOf(await caught(() => db.transactions.run((tx) => inventory().reserveForTrade(tx, { listingId: id('lv'), qty: 1 }))))).toBe('ListingNotOpenToTrade');
+    expect((await rows<{ quantity: number }>(db, 'InventoryUnit'))[0]?.quantity).toBe(1);
+  });
+
+  it('a fractional version and a restock beyond ±999 are refused as RequestValidationFailed', async () => {
+    await andres(1);
+    const inv = inventory();
+    expect(codeOf(await caught(() => inv.updateListing({ actorId: id('andres'), listingId: id('lchar'), expectedVersion: 1.5, changes: { priceCop: 50_000 } })))).toBe('RequestValidationFailed');
+    expect(codeOf(await caught(() => inv.restockListing({ actorId: id('andres'), listingId: id('lchar'), delta: 1_000 })))).toBe('RequestValidationFailed');
+    expect((await inv.restockListing({ actorId: id('andres'), listingId: id('lchar'), delta: 999 })).availability).toBe(1_000);
+  });
+
+  it('the Paused detail cites the business and its ledger seq; the Unverified detail cites the real status', async () => {
+    await andres(1);
+    await db.query(`UPDATE "Listing" SET "pausedAt" = $1`, [T0]);
+    const paused = await inventory().getListing({ listingId: id('lchar'), actorId: null });
+    expect(paused.decision.citations[0]).toEqual({ rule: 'FR-INV-7', inputs: { businessId: id('andres'), ledgerSeq: 1, projection: 'funded', paused: true } });
+    await business(db, id('pending'), 'Pending');
+    await commissionState(db, id('pending'));
+    await unit(db, { id: id('upend'), sellerId: id('pending'), catalogEntryId: id('char'), quantity: 1 });
+    await listing(db, { id: id('lpend'), sellerId: id('pending'), unitId: id('upend') });
+    const unverified = await inventory().getListing({ listingId: id('lpend'), actorId: null });
+    expect([unverified.state, unverified.decision.citations[0].inputs]).toEqual(['Unverified', { verification: 'Pending' }]);
   });
 });

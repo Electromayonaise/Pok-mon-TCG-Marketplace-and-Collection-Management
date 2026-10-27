@@ -44,7 +44,7 @@ describe('availability and purchasability (AD-INV-1 rule 2, AD-INV-3 rule 1)', (
     expect(availability('bundle', [])).toBe(0);
   });
 
-  it('purchasable checks visibility, kind, verification, the pause and the projection, then stock', () => {
+  it('purchasable checks visibility, kind, verification, the pause and the projection (absent when omitted), then stock', () => {
     expect(purchasable(facts())).toBe('purchasable');
     expect(purchasable(facts({ hiddenAt: new Date(0) }))).toBe('NotVisible');
     expect(purchasable(facts({ sellerKindAtCreation: 'individual' }))).toBe('IndividualListing');
@@ -52,5 +52,7 @@ describe('availability and purchasability (AD-INV-1 rule 2, AD-INV-3 rule 1)', (
     expect(purchasable(facts({ pausedAt: new Date(0) }))).toBe('ListingPausedBalanceExhausted');
     expect(purchasable(facts({ projection: 'absent' }))).toBe('ListingPausedBalanceExhausted');
     expect(purchasable(facts({ availability: 0 }))).toBe('SoldOut');
+    const { projection: _omitted, ...solu1 } = facts();
+    expect(purchasable(solu1)).toBe('ListingPausedBalanceExhausted');
   });
 });
