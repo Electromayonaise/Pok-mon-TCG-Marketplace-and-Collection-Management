@@ -2,7 +2,7 @@
 title: 'Story 7.3: Refuse self-purchase, open-order overflow and listing refusals'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'f595122'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -52,8 +52,8 @@ Once 7.1 is done, the 3 tests turn green and the red gate fails. Built without t
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] run the 3 tests on the 7.1 tree; fix any gap in 7.1's files
-- [ ] `sprint-status.yaml` -- 7.3 `done`, out of `impl2_scope`; `gen:trace:solu2`
+- [x] run the 3 tests on the 7.1 tree; fix any gap in 7.1's files
+- [x] `sprint-status.yaml` -- 7.3 `done`, out of `impl2_scope`; `gen:trace:solu2`
 
 **Acceptance Criteria:**
 - Given 7.3 `done`, when the ORD-1 tests run, then all 6 pass and `npm run gate:atdd-red:impl1` reports 0 not as expected.
@@ -61,3 +61,5 @@ Once 7.1 is done, the 3 tests turn green and the red gate fails. Built without t
 ## Implementation Notes
 
 - Code review is batched with the rest of Epic 7 at its close (decision #22).
+- Martín approved building this story with the epic (decision log Impl-1 #32). It leaves `impl2_scope` and does not count toward the 43 Impl-1 stories.
+- The 3 tests passed on the 7.1 tree with no change: no gap was found in 7.1's files.

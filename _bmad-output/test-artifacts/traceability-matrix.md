@@ -74,7 +74,7 @@
 | FR-DSC-5 | Deterministic ranking with an explanation for each row (CAP-1) | DSC-1 | AD-DSC-2, AD-5, AD-DSC-1, AD-12 | 7 — `DSC-1.I1`, `DSC-1.I2`, `DSC-1.I4` +4 | 6.2 (done), 6.4 (done) | red |
 | FR-DSC-6 | Moderation and state exclusion take effect immediately (CAP-28, CAP-1) | DSC-1 | AD-DSC-2, AD-5, AD-DSC-1, AD-12 | 7 — `DSC-1.I1`, `DSC-1.I2`, `DSC-1.I4` +4 | 6.2 (done), 6.4 (done) | red |
 | FR-DSC-7 | Card detail composition (CAP-3, CAP-2) | DSC-2 | AD-SYS-7, AD-1, AD-DSC-2, AD-DSC-1 | 4 — `DSC-2.MEC`, `DSC-2.MEC2`, `DSC-2.P1` +1 | 6.3 (done), 6.4 (done) | red |
-| FR-ORD-1 | Purchase and reserve at creation (CAP-17) | ORD-1 | AD-ORD-1, AD-ORD-2, AD-SYS-7, AD-9 | 6 — `ORD-1.I2`, `ORD-1.I4`, `ORD-1.P3` +3 | 7.1 (done), 7.3 (backlog) | red |
+| FR-ORD-1 | Purchase and reserve at creation (CAP-17) | ORD-1 | AD-ORD-1, AD-ORD-2, AD-SYS-7, AD-9 | 6 — `ORD-1.I2`, `ORD-1.I4`, `ORD-1.P3` +3 | 7.1 (done), 7.3 (done) | red |
 | FR-ORD-2 | Upload or replace the comprobante (CAP-20) | S-FR-ORD-2, S-FR-ORD-2.url | AD-SYS-8, AD-ORD-3, AD-17, AD-14 | 3 — `S-FR-ORD-2.f`, `S-FR-ORD-2.h`, `S-FR-ORD-2.url.h` | 7.1 (done) | red |
 | FR-ORD-3 | Buyer confirms "I paid" (CAP-20, CAP-22) | ORD-2 | AD-ORD-3, AD-ORD-2, AD-15, AD-SYS-5 | 7 — `ORD-2.I2`, `ORD-2.MEC`, `ORD-2.P1` +4 | 7.2 (backlog), 7.4 (backlog) | red |
 | FR-ORD-4 | Business confirms payment received (CAP-20, CAP-22) | ORD-3 | AD-ORD-2, AD-2, AD-SYS-2, AD-15 | 6 — `ORD-3.I3`, `ORD-3.MEC`, `ORD-3.P2` +3 | 7.2 (backlog), 7.4 (backlog) | red |

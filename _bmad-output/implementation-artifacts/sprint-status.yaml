@@ -99,7 +99,7 @@ development_status:
   epic-7: in-progress
   7-1-buy-a-listing-and-attach-the-comprobante: done
   7-2-confirm-paid-and-close-orders-safely-in-any-order: backlog
-  7-3-refuse-self-purchase-open-order-overflow-and-listing-refusals: backlog
+  7-3-refuse-self-purchase-open-order-overflow-and-listing-refusals: done
   7-4-refuse-out-of-role-repeated-and-expired-confirmations: backlog
   7-5-cancel-expire-read-and-support-orders: backlog
   epic-7-retrospective: optional
@@ -172,10 +172,11 @@ impl1_delivery:
 # reserve); they are done and have left this list (decision log Impl-1 #30). 6-4 is built with the whole of Epic 6, because
 # Stories 6.2 and 6.3 turn its tests green (the excluded count and the decision are required fields of
 # DSC-1's response, P2 runs before its statement, and DSC-2 P1 is its first step); it is done and has left
-# this list (decision log Impl-1 #31).
+# this list (decision log Impl-1 #31). 7-3 and 7-4 are built with the whole of Epic 7, because Stories 7.1 and 7.2
+# turn their tests green (ORD-1 P3–P5 run before or inside 7.1's transaction, and ORD-2/3/4's 0-row re-read is 7.2's);
+# they are done and have left this list (decision log Impl-1 #32).
 impl2_scope:
   - 2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins
-  - 7-3-refuse-self-purchase-open-order-overflow-and-listing-refusals
   - 7-4-refuse-out-of-role-repeated-and-expired-confirmations
   - 8-4-refuse-invalid-top-ups-and-decided-requests
   - 8-5-reconcile-ledgers-and-report-never-repair-discrepancies
