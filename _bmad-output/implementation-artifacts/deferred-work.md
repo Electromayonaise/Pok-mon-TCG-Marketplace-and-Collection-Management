@@ -57,3 +57,9 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 - The production `FxRateSource` (datos.gov.co dataset `32sa-8pi3`, ADD-§6) is not built. It needs an HTTP client behind `tezg/no-direct-io`, the three transport retries of NFR-CAT-4, and its fields checked against the live dataset (`unidad = 'COP'`, the floating `vigenciadesde`/`vigenciahasta`). `compose()` binds `UNWIRED_FX`, so `catalog.fx.retry` fails as NotImplemented in production.
 - No jobs route exists, so the `jobs/trm-fetch` procedure (`daily-morning` plus the hourly tick, G-3) is not reachable. `fetchTrm` is ready for it. Its single-flight lock (`job:trm-fetch`) belongs with that route; until then, the exclusion constraint makes two concurrent fetches converge on one row.
 - `getFxRate` raises `Unexpected` (500) when no TRM is stored on or before the date, because the DTO has no null. Only an empty `"FxRate"` table reaches it. Revisit if VAL needs an explained answer before the first fetch.
+
+## Deferred from: code review of Epic 4 (4.1–4.5) (2026-10-27)
+
+- `catalog.fx.retry` drops the admin's id: `FetchTrmRequest` carries no actor, so the `catalog.fxRate.*` audit rows are `actorKind: 'system'` with a null actor and `data.trigger = 'admin'`. Recording the admin needs a DTO change (`actorId` on the admin trigger), for the story that wires the jobs route.
+- `getPriceHistory` bounds its ids (≤ 500) but not its window or row count, so a wide `[from, to]` returns every observation of those entries. The contract bounds only the ids; VAL-3 (Epic 12) sets the windows it asks for and should bound them.
+- `catalog.browse` accepts any safe-integer `page`, and its filter strings have no length bound (the registry's zod input bounds only `pageSize`). A deep OFFSET is a slow but correct read. DSC-1 caps its own pages at 417; add the same cap to the registry with a contract change.

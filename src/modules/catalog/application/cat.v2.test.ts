@@ -17,6 +17,7 @@ import { caught, httpOf } from '../../../../test-support/errors.js';
 import { FixtureFeedSource, FixtureFxRateSource } from '../../../../test-support/simulated/index.js';
 import { admin, at, catalogEntry, DAY, explainAssert, feedRun, HOUR, id, ins, observation, rows, wiring } from '../../../../test-support/solu2/fixtures.js';
 import type { ValidFeedRow } from '../dto/cat.v2.dto.js';
+import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import { CatServiceV2 } from './cat.v2.js';
 
 const db = useTestDatabase();
@@ -55,7 +56,8 @@ describe('CatServiceV2.continueFeedRun — the lease (AD-CAT-1 rules 2–4)', ()
     const fixture = feedOf(Array.from({ length: 501 }, (_, k) => card(k + 1)));
     const { w, cat } = setup({ openRun: () => fixture.openRun(), readRows: async (c, l) => { w.clock.advance(50_000); return fixture.readRows(c, l); } });
     expect(await continueRun(cat)).toEqual({ done: false, status: 'Running', cursor: 500 });
-    expect(await rows(db, 'FeedIngestionRun')).toMatchObject([{ status: 'Running', cursor: 500, created: 500, leaseToken: null, leaseUntil: null }]);
+    // The lease is handed back expired, not cleared, so the abandonment rule still sees the last activity.
+    expect(await rows(db, 'FeedIngestionRun')).toMatchObject([{ status: 'Running', cursor: 500, created: 500, leaseUntil: new Date(Date.parse(w.clock.iso()) - 1) }]);
     expect(await continueRun(cat)).toEqual({ done: true, status: 'Completed', cursor: 501 });
     expect(await rows(db, 'audit_events', `action = 'catalog.feedBatch.applied'`)).toHaveLength(2);
   });
@@ -67,7 +69,43 @@ describe('CatServiceV2.continueFeedRun — the lease (AD-CAT-1 rules 2–4)', ()
     const { w, cat } = setup(feed);
     expect(await continueRun(cat)).toEqual({ done: true, status: 'Failed', cursor: 0 });
     expect(await rows(db, 'FeedIngestionRun')).toMatchObject([{ status: 'Failed', endedAt: new Date(w.clock.iso()), leaseToken: null }]);
-    expect(await rows(db, 'audit_events', `action = 'catalog.feedRun.failed'`)).toHaveLength(1);
+    expect(await rows(db, 'audit_events', `action = 'catalog.feedRun.failed'`)).toMatchObject([{ data: { cursor: 0, cause: 'FeedUnavailable' } }]);
+  });
+
+  it('a missing feed adapter propagates as NotImplemented and leaves the run Running', async () => {
+    await given();
+    const unwired: CatalogFeedSource = { openRun: async () => { throw new NotImplementedError('feed.openRun'); }, readRows: async () => ({ rows: [], done: true }) };
+    expect(codeOf(await caught(() => continueRun(setup(unwired).cat)))).toBe('NotImplementedError');
+    expect(await rows(db, 'FeedIngestionRun')).toMatchObject([{ status: 'Running' }]);
+  });
+
+  it('a source with no rows yet but not done hands the run back instead of spinning', async () => {
+    await given();
+    const fixture = feedOf([]);
+    expect(await continueRun(setup({ openRun: () => fixture.openRun(), readRows: async () => ({ rows: [], done: false }) }).cat)).toEqual({ done: false, status: 'Running', cursor: 0 });
+    expect(await rows(db, 'audit_events', `action = 'catalog.feedBatch.applied'`)).toHaveLength(0);
+  });
+
+  it('a run continued in slices for more than 24 h is not failed as abandoned by a start', async () => {
+    await given();
+    await db.query(`UPDATE "FeedIngestionRun" SET "startedAt" = $1`, [at(-25 * HOUR)]);
+    const fixture = feedOf(Array.from({ length: 501 }, (_, k) => card(k + 1)));
+    const { w, cat } = setup({ openRun: () => fixture.openRun(), readRows: async (c, l) => { w.clock.advance(50_000); return fixture.readRows(c, l); } });
+    await continueRun(cat);
+    expect(codeOf(await caught(() => cat.startFeedRun({ actorId: id('admin') })))).toBe('FeedRunInProgress');
+  });
+
+  it('a continue that loses its lease to a run failed meanwhile answers the run as it stands', async () => {
+    await given();
+    const fixture = feedOf([card(1)]);
+    const failer: CatalogFeedSource = {
+      openRun: () => fixture.openRun(),
+      readRows: async (cursor, limit) => {
+        await db.query(`UPDATE "FeedIngestionRun" SET status = 'Failed', "endedAt" = $1, "leaseUntil" = NULL, "leaseToken" = NULL`, [at(0)]);
+        return fixture.readRows(cursor, limit);
+      },
+    };
+    expect(await continueRun(setup(failer).cat)).toEqual({ done: true, status: 'Failed', cursor: 0 });
   });
 
   it('a finished run answers done; an unknown run is RequestValidationFailed on runId', async () => {
@@ -88,11 +126,16 @@ describe('CatServiceV2.continueFeedRun — the batch (AD-CAT-1 rule 3, AD-CAT-2 
       card(3, { usdCents: 500, observedAt: '2026-09-01T12:00:00Z' }),
       card(4, { setCode: 'XX9' }),
       card(5, { number: 'twenty' }),
+      card(1, { kind: 'sealedProduct', cop: 1 }),
     ]);
     await ins(db, 'FxRate', { id: id('fx1'), copPerUsdCentavos: 401_237, validFrom: '2026-09-30', validTo: '2026-09-30', source: 'fixture', fetchedAt: at(-DAY) }, 'created');
-    expect(await continueRun(setup(feed).cat)).toEqual({ done: true, status: 'Completed', cursor: 5 });
-    expect(await rows(db, 'FeedIngestionRun')).toMatchObject([{ created: 3, quarantined: 2, deferredNoFx: 1, cursor: 5 }]);
-    expect(await rows(db, 'QuarantinedFeedRow', 'TRUE ORDER BY "rowNumber"')).toMatchObject([{ rowNumber: 4, reasonCode: 'UnknownSet' }, { rowNumber: 5, reasonCode: 'BadNumberFormat' }]);
+    expect(await continueRun(setup(feed).cat)).toEqual({ done: true, status: 'Completed', cursor: 6 });
+    expect(await rows(db, 'FeedIngestionRun')).toMatchObject([{ created: 3, quarantined: 3, deferredNoFx: 1, cursor: 6 }]);
+    expect(await rows(db, 'QuarantinedFeedRow', 'TRUE ORDER BY "rowNumber"')).toMatchObject([
+      { rowNumber: 4, reasonCode: 'UnknownSet' }, { rowNumber: 5, reasonCode: 'BadNumberFormat' },
+      // A KindChanged row keeps what the feed sent, price included.
+      { rowNumber: 6, reasonCode: 'KindChanged', rawRow: { kind: 'sealedProduct', cop: 1 } },
+    ]);
     const prices = await db.query<{ cop: string; copDerivation: string; fxRateDate: string | null; source: string }>(
       `SELECT cop::text, "copDerivation", "fxRateDate"::text, source FROM "ReferencePriceObservation" ORDER BY "copDerivation" DESC`);
     expect(prices).toEqual([
@@ -167,6 +210,7 @@ describe('CatServiceV2.listQuarantinedRows (CAT-2.quarantine)', () => {
     const { cat } = setup();
     const first = await list(cat);
     expect(codeOf(await caught(() => list(cat, { runId: id('r2'), cursor: first.nextCursor })))).toBe('RequestValidationFailed');
+    expect(codeOf(await caught(() => list(cat, { reasonCode: 'KindChanged', cursor: first.nextCursor })))).toBe('RequestValidationFailed');
     expect(codeOf(await caught(() => list(cat, { runId: id('ghost') })))).toBe('RequestValidationFailed');
   });
 });
@@ -191,7 +235,8 @@ describe('CatServiceV2.getPriceProvenance (CAT-3)', () => {
     const { cat } = setup();
     expect(codeOf(await caught(() => cat.getPriceProvenance({ catalogEntryIds: [id('pika'), id('pika')], period: 30 })))).toBe('RequestValidationFailed');
     const error = await caught(() => cat.getPriceProvenance({ catalogEntryIds: [id('pika'), id('g1'), id('g2')], period: 7 }));
-    explainAssert(error, { code: 'CatalogEntryNotFound', rule: 'FR-CAT-5', inputs: { missingIds: `${id('g1')},${id('g2')}`, missingCount: 2 } });
+    explainAssert(error, { code: 'CatalogEntryNotFound', rule: 'FR-CAT-5', inputs: { missingIds: `${id('g1')},${id('g2')}` } });
+    expect(codeOf(await caught(() => cat.getPriceProvenance({ catalogEntryIds: [id('pika')], period: 14 as 30 })))).toBe('RequestValidationFailed');
   });
 });
 
@@ -212,9 +257,26 @@ describe('CatServiceV2.fetchTrm and getFxRate (S-FR-CAT-8, AD-CAT-3)', () => {
     const { cat } = setup(undefined, new FixtureFxRateSource([{ ...RATE, validFrom: '2026-09-29' }]));
     const result = await cat.fetchTrm({ trigger: 'tick' });
     expect(result.outcome).toBe('mismatchKept');
-    explainAssert(result.decision, { code: 'FxRateSourceMismatch', rule: 'AD-CAT-3 rule 4', inputs: { storedCopPerUsdCentavos: 412_900, storedValidFrom: '2026-09-29' } });
+    explainAssert(result.decision, { code: 'FxRateSourceMismatch', rule: 'FR-CAT-8', inputs: { storedCopPerUsdCentavos: 412_900, storedValidFrom: '2026-09-29' } });
     expect(await rows(db, 'FxRate')).toHaveLength(1);
-    expect(await rows(db, 'audit_events', `action = 'catalog.fxRate.sourceMismatch'`)).toHaveLength(1);
+    expect(await rows(db, 'audit_events', `action = 'catalog.fxRate.sourceMismatch'`)).toMatchObject([{ aggregateId: id('fx1') }]);
+  });
+
+  it('the same value over another range is still a kept mismatch (decision log Impl-1 #29)', async () => {
+    await ins(db, 'FxRate', { id: id('fx1'), copPerUsdCentavos: 413_001, validFrom: '2026-09-30', validTo: '2026-09-30', source: 'fixture', fetchedAt: at(-DAY) }, 'created');
+    const { cat } = setup(undefined, new FixtureFxRateSource([{ ...RATE, validFrom: '2026-09-30', validTo: '2026-10-02' }]));
+    expect((await cat.fetchTrm({ trigger: 'tick' })).outcome).toBe('mismatchKept');
+  });
+
+  it('a delivered row that is unordered or does not cover today is sourceUnavailable; a missing adapter propagates', async () => {
+    for (const bad of [{ ...RATE, validFrom: '2026-10-02', validTo: '2026-10-01' }, { ...RATE, validFrom: '2026-09-30', validTo: '2026-09-30' }]) {
+      const fx = new FixtureFxRateSource([bad]);
+      fx.getRateCovering = async () => ({ ...bad, source: 'fixture' });
+      expect((await setup(undefined, fx).cat.fetchTrm({ trigger: 'tick' })).outcome).toBe('sourceUnavailable');
+    }
+    expect(await rows(db, 'FxRate')).toHaveLength(0);
+    const unwired = { getRateCovering: async () => { throw new NotImplementedError('fx.getRateCovering'); } } as unknown as FixtureFxRateSource;
+    expect(codeOf(await caught(() => setup(undefined, unwired).cat.fetchTrm({ trigger: 'admin' })))).toBe('NotImplementedError');
   });
 
   it('a re-fetch that races a stored identical row is alreadyCovered and writes nothing', async () => {
@@ -236,6 +298,7 @@ describe('CatServiceV2.fetchTrm and getFxRate (S-FR-CAT-8, AD-CAT-3)', () => {
     expect((await cat.fetchTrm({ trigger: 'tick' })).outcome).toBe('sourceUnavailable');
     expect(await rows(db, 'FxRate')).toHaveLength(0);
     expect(codeOf(await caught(() => cat.getFxRate({ date: '2026-10-01' })))).toBe('Unexpected');
+    expect(codeOf(await caught(() => cat.getFxRate({ date: '2026-02-30' })))).toBe('RequestValidationFailed');
     await yesterday();
     expect(await cat.getFxRate({ date: '2026-10-03' })).toMatchObject({ validFrom: '2026-09-30', stale: true });
   });
@@ -294,6 +357,7 @@ describe('CatServiceV2 offered ports (contracts.md §15.11)', () => {
     const { prices } = await setup().cat.getReferencePricesAsOf({ catalogEntryIds: [id('none'), id('char')], asOf: at(-2 * DAY) });
     expect(prices).toEqual([{ catalogEntryId: id('none'), price: null, stale: false }, expect.objectContaining({ catalogEntryId: id('char'), stale: false })]);
     expect((await setup().cat.getReferencePricesAsOf({ catalogEntryIds: [id('char')], asOf: at(0) })).prices[0]?.stale).toBe(true);
+    expect(codeOf(await caught(() => setup().cat.getReferencePricesAsOf({ catalogEntryIds: [id('char')], asOf: 'ayer' })))).toBe('RequestValidationFailed');
   });
 
   it('the history refuses from after to, and an entry with no observation has an empty series', async () => {

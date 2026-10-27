@@ -111,3 +111,12 @@ Wire `catalog.browse` (public). It also adds the `[NFR-CAT-1.browse]` benchmark,
 - `catalog.browse` is wired. zod gives an absent optional filter as `undefined`, so the resolver strips those keys (`defined`) under `exactOptionalPropertyTypes`.
 - `[NFR-CAT-1.browse]` measured p50 2.1 ms and p95 9.9 ms (threshold 1,000) on the 10,000-entry §3 catalog, local Postgres 16, 2026-10-27. NFR-CAT-1 is "Green — benchmark" in `nfr-evidence.md`.
 - Unit tests (in `cat.v2.test.ts`): the accent-blind prefix with literal `%` and `_`, the facets, paging and its total, the browse bounds, `getEntry`'s 404, input order and de-duplication, the 1–500 bounds, `asOf` staleness and a missing price, and the history's `from ≤ to` and empty series. One HTTP case for the public browse and the parser's `pageSize` refusal.
+
+### Review Findings
+
+Epic 4 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `d552afa..3cd2cff` (code paths). Totals for the epic: 2 decisions, 18 patches, 3 deferrals, 14 dismissed.
+
+- [x] [Review][Patch] An `asOf` that does not parse ends in a RangeError (500); `getPriceHistory` already refuses it [src/modules/catalog/application/cat.v2.ts:448]
+- [x] [Review][Patch] `priceHistory` copies the series array on every row, which is quadratic [src/modules/catalog/infra/pg.ts:310]
+- [x] [Review][Defer] `getPriceHistory` bounds the ids (≤ 500) but not the window or the row count, so a wide `[from, to]` returns every observation [src/modules/catalog/infra/pg.ts:298] — deferred, the contract bounds only the ids; VAL-3 (Epic 12) sets its windows
+- [x] [Review][Defer] Browse accepts any safe-integer `page` (OFFSET), and the filter strings have no length bound [src/modules/catalog/application/cat.v2.ts:236] — deferred, the registry's zod input bounds only `pageSize`; DSC-1 caps pages at 417

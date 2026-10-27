@@ -107,3 +107,10 @@ It also adds `listQuarantinedRows` and wires `catalog.feed.quarantine`.
   - an unknown `runId` is refused the same way, as approved with the specs.
 - Unit tests: in `cat.v2.test.ts`, the revision's before and after, a kind change that writes nothing, the reason filter and paging, and another run's cursor or an unknown run. In `cat-domain.test.ts`, the quarantine cursor. One HTTP case in `composition.test.ts`.
 - Early greens until Story 4.3 is committed: `[CAT-1.QF1]`, `[CAT-2.ingress.f]` and `[CAT-2.QF1]`.
+
+### Review Findings
+
+Epic 4 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `d552afa..3cd2cff` (code paths). Totals for the epic: 2 decisions, 18 patches, 3 deferrals, 14 dismissed.
+
+- [x] [Review][Patch] A `KindChanged` quarantine stores the normalised `ValidFeedRow`, not the row the feed sent, so it loses the price fields and the original strings. Pass the raw row through from the batch [src/modules/catalog/application/cat.v2.ts:281]
+- [x] [Review][Patch] The quarantine cursor does not carry the reason filter. A cursor issued for one filter is accepted under another and skips rows [src/modules/catalog/domain/cat.ts:176]

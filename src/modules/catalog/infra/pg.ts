@@ -149,7 +149,7 @@ export class PgCatRepository implements CatRepository {
 
   async releaseLease(tx: Tx, runId: CuidId, token: string, now: IsoInstant): Promise<void> {
     await tx.query(
-      `UPDATE "FeedIngestionRun" SET "leaseUntil" = NULL, "leaseToken" = NULL, "updatedAt" = $3 WHERE id = $1 AND "leaseToken" = $2`,
+      `UPDATE "FeedIngestionRun" SET "leaseUntil" = $3::timestamptz - interval '1 millisecond', "updatedAt" = $3 WHERE id = $1 AND "leaseToken" = $2`,
       [runId, token, now],
     );
   }
@@ -283,12 +283,12 @@ export class PgCatRepository implements CatRepository {
     return true;
   }
 
-  async readOverlappingRate(tx: Tx, validFrom: IsoDate, validTo: IsoDate): Promise<FxRateRow | null> {
-    const { rows } = await tx.query<FxRow>(
-      `SELECT ${FX_COLUMNS} FROM "FxRate" WHERE daterange("validFrom", "validTo", '[]') && daterange($1::date, $2::date, '[]') ORDER BY "validFrom" LIMIT 1`,
+  async readOverlappingRate(tx: Tx, validFrom: IsoDate, validTo: IsoDate): Promise<(FxRateRow & { id: CuidId }) | null> {
+    const { rows } = await tx.query<FxRow & { id: CuidId }>(
+      `SELECT id, ${FX_COLUMNS} FROM "FxRate" WHERE daterange("validFrom", "validTo", '[]') && daterange($1::date, $2::date, '[]') ORDER BY "validFrom" LIMIT 1`,
       [validFrom, validTo],
     );
-    return fxRate(rows[0]);
+    return rows[0] ? { ...rows[0], copPerUsdCentavos: Number(rows[0].copPerUsdCentavos) } : null;
   }
 
   async browse(tx: Tx, filters: CatalogFilters, limit: number, offset: number): Promise<BrowseCatalogResponse> {
@@ -331,7 +331,11 @@ export class PgCatRepository implements CatRepository {
       [ids, from, to],
     );
     const series = new Map<CuidId, ObservedPriceDTO[]>();
-    for (const r of rows) series.set(r.catalogEntryId, [...(series.get(r.catalogEntryId) ?? []), observed(r)]);
+    for (const r of rows) {
+      const list = series.get(r.catalogEntryId) ?? [];
+      list.push(observed(r));
+      series.set(r.catalogEntryId, list);
+    }
     return series;
   }
 

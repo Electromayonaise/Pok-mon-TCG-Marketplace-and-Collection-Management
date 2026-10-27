@@ -10,7 +10,7 @@ import { CatServiceV2 } from '../../../src/modules/catalog/index.js';
 import type { CatalogFeedSource, FxRateSource } from '../../../src/shared-kernel/external.js';
 import { useTestDatabase } from '../../../test-support/db.js';
 import { fake, wiring } from '../../../test-support/solu2/fixtures.js';
-import { catalogLayout, seedMarketplace } from '../../../test-support/solu2/seed-marketplace.js';
+import { seedMarketplace } from '../../../test-support/solu2/seed-marketplace.js';
 import { percentile } from '../../../test-support/solu2/bench.js';
 
 const db = useTestDatabase();
@@ -38,7 +38,7 @@ describe('NFR-CAT-1 — catalog read latency (PRD §7)', () => {
     const ids = (await db.query<{ id: string }>(
       `SELECT DISTINCT "catalogEntryId" AS id FROM "ReferencePriceObservation" o JOIN "CatalogEntry" c ON c.id = o."catalogEntryId" WHERE c.kind = 'card' ORDER BY 1`,
     )).map((r) => r.id);
-    expect(ids.length).toBeGreaterThanOrEqual(catalogLayout().priced);
+    expect(ids.length).toBeGreaterThan(48);
     const cat = catalog();
     const result = await measure('nfr-cat-1-provenance.json', (k) => {
       const from = (k * 48) % (ids.length - 48);

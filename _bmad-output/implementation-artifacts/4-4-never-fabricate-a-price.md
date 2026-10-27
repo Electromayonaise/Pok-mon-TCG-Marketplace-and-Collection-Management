@@ -137,3 +137,16 @@ context:
   - `cat-domain.test.ts`: the ADD-§2.2 vectors and the rounding on both signs, the 36 h boundary, the `parseTrm` vectors and refusals;
   - `cat.v2.test.ts`: input order, no observation, a zero baseline, duplicate ids, every missing id cited, a stored rate, a mismatched weekend range, a racing identical row, a throwing source, and a date with no rate at all;
   - two HTTP cases: the public provenance and the admin retry.
+
+### Review Findings
+
+Epic 4 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `d552afa..3cd2cff` (code paths). Totals for the epic: 2 decisions, 18 patches, 3 deferrals, 14 dismissed.
+
+- [x] [Review][Decision] The source re-delivers the stored value with a different range (for example a weekend range over a stored day). AD-CAT-3 rule 4 names only "identical" (already stored) and "a different value" (a mismatch). The current code audits it as `FxRateSourceMismatch` on every tick, and today stays uncovered. **Resolved (decision #29):** it stays a kept, audited mismatch, now citing `FR-CAT-8`.
+- [x] [Review][Patch] The `mismatchKept` decision cites `AD-CAT-3 rule 4`; spec 4.4 says every outcome cites `FR-CAT-8`. Its audit row names the id of the refused insert, not the stored row that was kept [src/modules/catalog/application/cat.v2.ts:394]
+- [x] [Review][Patch] A delivered range with `validTo < validFrom`, a malformed date, or a range that does not cover today becomes a 500 (23514 or 22007), or is stored without covering today. Refuse it as `sourceUnavailable` [src/modules/catalog/application/cat.v2.ts:376]
+- [x] [Review][Patch] The bare `catch` around `fx.getRateCovering` turns `UNWIRED_FX`'s NotImplemented into `sourceUnavailable` [src/modules/catalog/application/cat.v2.ts:371]
+- [x] [Review][Patch] An in-process `period` outside {7, 30, 90}, or a `getFxRate` date that is not `YYYY-MM-DD`, ends in a RangeError or a cast error (500). Refuse both through `rejectRequest` [src/modules/catalog/application/cat.v2.ts:316]
+- [x] [Review][Patch] The P2 citation adds `missingCount` to the frozen `{missingIds}` [src/modules/catalog/application/cat.v2.ts:322]
+- [x] [Review][Patch] `cat1_latency.test.ts` divides by zero when exactly 48 priced ids exist [_bmad-output/test-artifacts/nfr/cat1_latency.test.ts:44]
+- [x] [Review][Defer] `catalog.fx.retry` drops the admin's id: `FetchTrmRequest` has no actor, so the audit row is `system` [src/server/composition.ts:98] — deferred, needs a DTO change

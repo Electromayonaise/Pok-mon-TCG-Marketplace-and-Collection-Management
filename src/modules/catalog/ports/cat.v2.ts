@@ -110,7 +110,10 @@ export interface CatRepository {
   renewLease(tx: Tx, runId: CuidId, token: string, now: IsoInstant, until: IsoInstant): Promise<boolean>;
   /** AD-CAT-1 rule 3: advances the cursor and counters; `done` completes the run and clears the lease. */
   advanceRun(tx: Tx, runId: CuidId, token: string, cursor: number, counts: BatchCounts, done: boolean, now: IsoInstant): Promise<void>;
-  /** AD-CAT-1 rule 4: hands the run back so the next `continue` can claim it at once. */
+  /**
+   * AD-CAT-1 rule 4: hands the run back so the next `continue` can claim it at once. The lease is left
+   * expired at `now − 1 ms`, not cleared, so the 24 h abandonment rule still sees the last activity.
+   */
   releaseLease(tx: Tx, runId: CuidId, token: string, now: IsoInstant): Promise<void>;
   /** AD-CAT-1 rule 7: a source failure fails the run under the token check; false when the lease was lost. */
   failRun(tx: Tx, runId: CuidId, token: string, now: IsoInstant): Promise<boolean>;
@@ -144,7 +147,7 @@ export interface CatRepository {
   /** AD-CAT-3 rule 4: false when `fx_rate_no_overlap` refused it (23P01); the savepoint keeps `tx` usable. */
   insertFxRate(tx: Tx, row: FxRateRow & { id: CuidId; source: string }, now: IsoInstant): Promise<boolean>;
   /** AD-CAT-3 rule 4: a stored row whose range overlaps `[validFrom, validTo]`. */
-  readOverlappingRate(tx: Tx, validFrom: IsoDate, validTo: IsoDate): Promise<FxRateRow | null>;
+  readOverlappingRate(tx: Tx, validFrom: IsoDate, validTo: IsoDate): Promise<(FxRateRow & { id: CuidId }) | null>;
   /** S-FR-CAT-1: one statement: the page in `("setId", "numberSort", id)` order, the total and the `setId` and `kind` facets. */
   browse(tx: Tx, filters: CatalogFilters, limit: number, offset: number): Promise<BrowseCatalogResponse>;
   /** P-CAT.match: the browse predicate's ids in browse order, at most `limit`. */

@@ -23,8 +23,17 @@ describe('validateRow (ADD-§8.1)', () => {
     ['InvalidPrice', row({ cop: '9.000' })],
     ['InvalidPrice', row({ cop: 9000, observedAt: 'ayer' })],
     ['CurrencyPairInconsistent', row({ usdCents: 1000, cop: 90_000 })],
+    ['MissingRequiredField', row({ name: 'x'.repeat(201) })],
+    ['BadNumberFormat', row({ number: '1234567890' })],
+    ['InvalidPrice', row({ cop: 9000, observedAt: '10/01/2026' })],
+    ['InvalidPrice', row({ cop: 9000, observedAt: '2026-10-01 10:00' })],
+    ['InvalidPrice', row({ cop: 9000, observedAt: '2026-10-01T15:00:00.001Z' })],
   ] as const)('refuses %s', (reason, raw) => {
     expect(check(raw)).toEqual({ ok: false, reason });
+  });
+
+  it('trims every value and counts a 200-character name, in code points, as valid', () => {
+    expect(check(row({ externalKey: ' sv1-025 ', setCode: ' SV1', name: `${'é'.repeat(200)} ` }))).toMatchObject({ ok: true, row: { externalKey: 'sv1-025', setCode: 'SV1', name: 'é'.repeat(200) } });
   });
 
   it('accepts the numbering patterns of rule 3', () => {
@@ -72,8 +81,9 @@ describe('the runs cursor', () => {
 
 describe('the quarantine cursor', () => {
   it('round-trips and carries its run', () => {
-    const key = { runId: 'r00000000000000000000001', rowNumber: 50 };
+    const key = { runId: 'r00000000000000000000001', reasonCode: null, rowNumber: 50 };
     expect(decodeQuarantineCursor(encodeQuarantineCursor(key))).toEqual(key);
+    expect(decodeQuarantineCursor(encodeQuarantineCursor({ ...key, reasonCode: 'KindChanged' }))).toEqual({ ...key, reasonCode: 'KindChanged' });
     expect(decodeQuarantineCursor(encodeRunCursor({ startedAt: NOW, id: key.runId }))).toBeNull();
   });
 });

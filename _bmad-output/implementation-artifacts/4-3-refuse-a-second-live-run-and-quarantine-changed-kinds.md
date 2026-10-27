@@ -79,3 +79,9 @@ context:
   - `[CAT-2.ingress.f]`: the lease claim in `continueFeedRun` matches 0 rows, so the holder's lease and token are never written. The re-read raises `FeedRunInProgress` (Story 4.1).
   - `[CAT-2.QF1]`: the kind check before the upsert in `upsert` (Stories 4.1 and 4.2). The unit test "a kind change with new attributes writes neither the attributes nor a revision" covers the attributes and the revision.
 - 4.3 leaves `impl2_scope` with a note in `sprint-status.yaml`. Like 2.4, 3.3 and 3.4, it is `done` early and does not count toward the 43 Impl-1 stories.
+
+### Review Findings
+
+Epic 4 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `d552afa..3cd2cff` (code paths). Totals for the epic: 2 decisions, 18 patches, 3 deferrals, 14 dismissed.
+
+- No findings of its own. The three refusals it proves are covered by the Story 4.1 and 4.2 findings: the lease release and the rule-2 citation for the continue refusal, and the raw row for `KindChanged`.

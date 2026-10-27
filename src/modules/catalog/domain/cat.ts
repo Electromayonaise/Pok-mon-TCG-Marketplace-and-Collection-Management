@@ -45,11 +45,22 @@ export type RowVerdict =
 
 const REQUIRED = ['externalKey', 'setCode', 'number', 'name', 'kind', 'eraCode'] as const;
 const OPTIONAL = ['pokemon', 'colour', 'style', 'artist', 'imageUrl'] as const;
-/** ADD-§8.1 rule 3: digits, optionally with a letter prefix or suffix, or a slash total ("025/165"). */
-const NUMBER = /^[A-Za-z]{0,5}\d+[A-Za-z]{0,3}(?:\/\d+)?$/;
+/**
+ * ADD-§8.1 rule 3: digits, optionally with a letter prefix or suffix, or a slash total ("025/165").
+ * At most 9 digits per run, so the sort key fits `"numberSort" INT` (Epic 4 review).
+ */
+const NUMBER = /^[A-Za-z]{0,5}\d{1,9}[A-Za-z]{0,3}(?:\/\d{1,9})?$/;
 const MINOR_UNITS = /^\d+$/;
+/** The schema's `char_length(name) BETWEEN 1 AND 200`, counted in code points as Postgres counts. */
+const MAX_NAME = 200;
+/** An ISO 8601 instant with its offset; anything looser would be read in the server's time zone. */
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 
-const text = (v: RawFeedRow[string]): string | null => (v === null || v === undefined || String(v).trim() === '' ? null : String(v));
+/** A feed value, trimmed; null when absent or blank. */
+const text = (v: RawFeedRow[string]): string | null => {
+  const t = v === null || v === undefined ? '' : String(v).trim();
+  return t === '' ? null : t;
+};
 
 /** ADD-§8.1 rule 4: absent, or a non-negative integer in its minor unit; `undefined` when invalid. */
 function minorUnits(v: RawFeedRow[string]): number | null | undefined {
@@ -68,11 +79,14 @@ export function validateRow(
   context: { knownSetCodes: ReadonlySet<string>; now: string; copPerUsdCentavos: (observedAt: string) => number | null },
 ): RowVerdict {
   for (const field of REQUIRED) if (text(raw[field]) === null) return { ok: false, reason: 'MissingRequiredField' };
-  const kind = String(raw.kind);
+  const kind = text(raw.kind)!;
   if (kind !== 'card' && kind !== 'sealedProduct') return { ok: false, reason: 'MissingRequiredField' };
-  const setCode = String(raw.setCode);
+  // A name outside 1–200 has no valid value: MissingRequiredField (decision log Impl-1 #29), never a refused insert.
+  const name = text(raw.name)!;
+  if ([...name].length > MAX_NAME) return { ok: false, reason: 'MissingRequiredField' };
+  const setCode = text(raw.setCode)!;
   if (!context.knownSetCodes.has(setCode)) return { ok: false, reason: 'UnknownSet' };
-  const number = String(raw.number).trim();
+  const number = text(raw.number)!;
   if (!NUMBER.test(number)) return { ok: false, reason: 'BadNumberFormat' };
   const usdCents = minorUnits(raw.usdCents);
   const cop = minorUnits(raw.cop);
@@ -84,19 +98,22 @@ export function validateRow(
     if (rate !== null && Math.abs(copFromUsd(usdCents, rate) - cop) > 1) return { ok: false, reason: 'CurrencyPairInconsistent' };
   }
   const row: FeedRowFields = {
-    externalKey: String(raw.externalKey), setCode, number, name: String(raw.name), kind, eraCode: String(raw.eraCode),
+    externalKey: text(raw.externalKey)!, setCode, number, name, kind, eraCode: text(raw.eraCode)!,
     pokemon: null, colour: null, style: null, artist: null, imageUrl: null,
   };
   for (const field of OPTIONAL) row[field] = text(raw[field]);
   return { ok: true, row, price: usdCents === null && cop === null ? null : { usdCents, cop, observedAt } };
 }
 
-/** A row's observation instant: its own `observedAt`, else `now`; null when the field is no instant. */
+/**
+ * A row's observation instant: its own `observedAt`, else `now`. Null when the field is no ISO 8601
+ * instant with an offset, or lies after `now`: a price is never observed in the future.
+ */
 export function observedAtOf(raw: RawFeedRow, now: string): string | null {
   const observed = text(raw.observedAt);
   if (observed === null) return now;
-  const ms = Date.parse(observed);
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+  const ms = ISO_INSTANT.test(observed) ? Date.parse(observed) : Number.NaN;
+  return Number.isNaN(ms) || ms > Date.parse(now) ? null : new Date(ms).toISOString();
 }
 
 /** The sort value of a card number: its first run of digits ("025/165" → 25, "TG05" → 5). */
@@ -193,20 +210,22 @@ export function decodeRunCursor(cursor: string): RunKey | null {
   return { startedAt, id };
 }
 
-/** CAT-2.quarantine: the run and the last `rowNumber` of a page, so a cursor never crosses runs. */
+/** CAT-2.quarantine: the run, the reason filter and the last `rowNumber` of a page, so a cursor never crosses runs or filters. */
 export interface QuarantineKey {
   runId: string;
+  reasonCode: string | null;
   rowNumber: number;
 }
 
 export function encodeQuarantineCursor(key: QuarantineKey): string {
-  return encodeKeyset('feed-quarantine', key.runId, key.rowNumber);
+  return encodeKeyset('feed-quarantine', key.runId, key.reasonCode ?? '', key.rowNumber);
 }
 
 export function decodeQuarantineCursor(cursor: string): QuarantineKey | null {
-  const key = decodeKeyset('feed-quarantine', cursor, 2);
+  const key = decodeKeyset('feed-quarantine', cursor, 3);
   if (key === null) return null;
-  const [runId, rowNumber] = key;
-  if (typeof runId !== 'string' || !KEY_ID.test(runId) || !Number.isSafeInteger(rowNumber) || (rowNumber as number) < 1) return null;
-  return { runId, rowNumber: rowNumber as number };
+  const [runId, reasonCode, rowNumber] = key;
+  if (typeof runId !== 'string' || !KEY_ID.test(runId) || typeof reasonCode !== 'string') return null;
+  if (!Number.isSafeInteger(rowNumber) || (rowNumber as number) < 1) return null;
+  return { runId, reasonCode: reasonCode === '' ? null : reasonCode, rowNumber: rowNumber as number };
 }

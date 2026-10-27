@@ -439,3 +439,43 @@
   - Story 3.5's notes say `updatePaymentInstructions` refuses a non-null `qrUploadKey`.
 - **Artifact changed:** `src/modules/identity/application/ver.v2.ts` (+ test), `src/server/composition.test.ts`, `_bmad-output/test-artifacts/nfr/ver3_latency.test.ts`, `_bmad-output/test-artifacts/nfr-evidence.md`, `deferred-work.md` (the Epic 3 section), the Review Findings of Stories 3.1, 3.2, 3.4 and 3.5, `sprint-status.yaml` (`epic-3: done`).
 - **Decided by:** Martín.
+
+### 29. Epic 4 is built whole, its close review keeps the schema and the AD-CAT-3 mismatch, and the epic is signed (Governance)
+
+- **Phase:** 3 (Epic 4 planning at `d552afa`, then the close review over `d552afa..3cd2cff`).
+- **Persona/Skill:** `bmad-quick-dev`, epic-batched (#22), then `bmad-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor).
+- **Prompt (summary):** Two rounds.
+  - **The specs.** Martín approved the five Epic 4 specs together. With them came three choices:
+    - Story 4.3 is in `impl2_scope`, but its three bound tests turn green with 4.1 and 4.2, because `[CAT-1.I1]` requires every losing start to be `FeedRunInProgress`;
+    - NFR-CAT-1 has two halves owned by two stories: provenance (4.4) and browse (4.5);
+    - no catalog code names an unknown `runId`.
+  - **The close review.** It left 2 decisions, 18 patches, 3 deferrals and 14 dismissed findings. The two decisions:
+    - a feed `name` over 200 characters stalls the run, because the schema's CHECK refuses the insert, and no `"QuarantinedFeedRow"` reason code fits it;
+    - the TRM source re-delivers a stored value over a different range. AD-CAT-3 rule 4 names only an identical row and a different value.
+- **AI output (summary):** The agent recommended:
+  - **(recommended)** Build the whole epic, as 2.4, 3.3 and 3.4 were (#26, #27). 4.3 is proof-only and is committed right after 4.2 (#23). It leaves `impl2_scope` and does not count toward the 43 Impl-1 stories. The alternatives were a gate exception or postponing CAT to Impl-2.
+  - **(recommended)** Bind `[NFR-CAT-1.provenance]` to 4.4 and `[NFR-CAT-1.browse]` to 4.5 in `epics.source.mjs`, as #28 did for NFR-VER-3. The alternatives were the provenance half only, or an unbound benchmark.
+  - **(recommended)** An unknown `runId` is `RequestValidationFailed` on `runId`, through `rejectRequest` (the #27 pattern). The alternatives were a new `FeedRunNotFound` code, or an empty answer.
+  - **(recommended)** Quarantine a name outside 1–200 as `MissingRequiredField`. Migration 001 is applied, and `db-migrate` refuses an edited one. The alternatives were a new code through a migration 002, or truncating the name.
+  - **(recommended)** Keep a same-value, different-range TRM as an audited mismatch. It is a validity conflict the admin sees on 2.3; nothing is invented, and today's rate is carried forward with its stale label. The alternatives were to treat it as already stored, or to insert the uncovered remainder.
+  - Apply all 18 patches.
+- **Human decision:** ACCEPT every recommendation, and sign the Epic 4 gate (#5).
+- **Reason:** `done` keeps meaning what the bound tests prove, and the gate needs no exception. Each decision keeps the applied schema and the AD-CAT rules as written. The patches close real defects without changing a DTO or a bound test.
+- **Also decided (the patches):**
+  - `validateRow` trims every value. It quarantines a name over 200 code points, a number whose digit run exceeds 9 digits (`"numberSort" INT`), and an `observedAt` that is not ISO 8601 with an offset or lies in the future. A database refusal can no longer stall a run.
+  - The continue's lease is handed back expired at `now − 1 ms`, not cleared, so a long run continued in slices is never failed as abandoned.
+  - A source answering no rows and not done hands the run back instead of spinning.
+  - A missing adapter (`NotImplementedError`) propagates instead of failing the run or reading as `sourceUnavailable`, so `UNWIRED_FEED` and `UNWIRED_FX` fail as their comment says.
+  - A failed run's audit row records the error's code.
+  - A continue that loses its lease answers the run as it now stands.
+  - The continue refusal cites `AD-CAT-1 rule 2`.
+  - A `KindChanged` quarantine stores the row the feed sent.
+  - The quarantine cursor carries its reason filter.
+  - `fetchTrm` refuses a delivered row that is unordered, malformed, or does not cover today. The mismatch cites `FR-CAT-8`, and its audit row names the stored row.
+  - `period`, `getFxRate`'s date and `asOf` are refused through `rejectRequest` instead of a 500.
+  - The P2 citation is the frozen `{missingIds}`.
+  - The price history builds its series in linear time.
+  - The benchmark needs more than 48 priced ids.
+- **Environment note:** the local Postgres must run with `max_connections=200`, as `docker-compose.yml` sets it. With the default 100, `[CAT-1.I1]`'s 50-way race once failed with `53300` while other files ran in parallel. The CI service container runs with the default.
+- **Artifact changed:** `src/modules/catalog/**`, `src/server/composition.ts` (+ test), `test-support/solu2/fixtures.ts`, `_bmad-output/planning-artifacts/detailed-design/contracts.md` (§13), `_bmad-output/planning-artifacts/epics.source.mjs` and `epics.md`, `_bmad-output/test-artifacts/nfr/cat1_latency.test.ts`, `_bmad-output/test-artifacts/nfr-evidence.md`, `deferred-work.md`, the five Epic 4 story files, and `sprint-status.yaml` (4.3 out of `impl2_scope`; `epic-4: done`).
+- **Decided by:** Martín.

@@ -122,3 +122,19 @@ context:
   - `src/modules/catalog/application/cat.v2.test.ts`: a lease lost between batches, the 50 s budget, a source failure, an unknown or finished run, the batch's quarantine and price rules, and runs paging;
   - three HTTP cases in `src/server/composition.test.ts`.
 - Early greens until Stories 4.2 and 4.3 are committed: `[CAT-2.Q1]`, `[CAT-2.Q2]`, `[CAT-2.I1]`, `[CAT-2.I3]`/`[CAT-2.MEC]` (the upsert, built here because the continue runs it), `[CAT-1.QF1]`, `[CAT-2.ingress.f]` and `[CAT-2.QF1]`.
+
+### Review Findings
+
+Epic 4 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `d552afa..3cd2cff` (code paths). Totals for the epic: 2 decisions, 18 patches, 3 deferrals, 14 dismissed.
+
+- [x] [Review][Decision] A feed `name` over 200 characters has no fitting reason code. The schema's `char_length(name) BETWEEN 1 AND 200` CHECK refuses the insert, but `"QuarantinedFeedRow"."reasonCode"` allows only the ADD-§8.2 kinds plus `KindChanged`. Quarantine it under an existing code, or add a new one through a new migration. **Resolved (decision #29):** `MissingRequiredField`, with no schema change; applied with the stall patch below.
+- [x] [Review][Patch] A row the database refuses stalls the run for 24 h. A name over 200 characters (23514), or a number whose digit run overflows `"numberSort" INT` (22003), rolls back the whole batch, and every later `continue` replays it. `validateRow` must quarantine both [src/modules/catalog/domain/cat.ts:69]
+- [x] [Review][Patch] Releasing the lease sets `leaseUntil` to NULL, so `COALESCE("leaseUntil","startedAt")` falls back to `startedAt`. A run started more than 24 h ago that is still being continued is then failed as abandoned by the next start. The release must leave an expired lease (`now − 1 ms`) that records the last activity [src/modules/catalog/infra/pg.ts:152]
+- [x] [Review][Patch] The bare `catch` around the feed source swallows `NotImplementedError`. In production, with `UNWIRED_FEED`, every continue reports a 200 `Failed` instead of failing as NotImplemented, and the cause is never recorded. Rethrow NotImplemented, and record the error's `code` in the `catalog.feedRun.failed` audit row [src/modules/catalog/application/cat.v2.ts:164]
+- [x] [Review][Patch] A source that answers `{rows: [], done: false}` spins for 50 s, committing an empty batch and an audit row on each turn. Stop, hand the lease back, and return `done: false` [src/modules/catalog/application/cat.v2.ts:169]
+- [x] [Review][Patch] A continue refused on a held lease cites `AD-CAT-1 rule 1`; the continue refusal is rule 2 [src/modules/catalog/application/cat.v2.ts:107]
+- [x] [Review][Patch] `observedAt` accepts loose strings that `Date.parse` reads in the server's time zone, and instants in the future. Require ISO 8601 with an offset and `≤ now`, else `InvalidPrice` [src/modules/catalog/domain/cat.ts:95]
+- [x] [Review][Patch] Feed text values are not trimmed, so `"sv1-025 "` and `"sv1-025"` become two entries, and `" SV1"` is quarantined as `UnknownSet` [src/modules/catalog/domain/cat.ts:56]
+- [x] [Review][Patch] A lease lost between batches answers `status: 'Running'` even when the run was failed meanwhile. Re-read the run's status [src/modules/catalog/application/cat.v2.ts:183]
+
+Review notes: the 50 s budget and the empty-batch stop now leave the lease expired at `now − 1 ms` instead of clearing it (Boundaries said "clears its own lease"). The next claim still succeeds at once, and the 24 h rule measures the last activity. A source error is recorded as `data.cause` (its `code`, else `SourceError`). A missing adapter (`NotImplementedError`) propagates and leaves the run `Running` until its lease expires.
