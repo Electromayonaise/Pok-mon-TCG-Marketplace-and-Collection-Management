@@ -46,6 +46,7 @@ export const MESSAGES = {
   VerificationBarred: 'No pudimos verificar tu tienda (motivo {reasonCode}). Esta decisión es definitiva para esta cuenta.',
   CatalogEntryNotFound: 'No encontramos esa carta o producto.',
   FeedRunInProgress: 'Ya hay una carga en curso desde las {startedAt}.',
+  FeedRunStarted: 'La carga del catálogo empezó; sigue llamando a continuar hasta que termine.',
   InvalidItemRef: 'La carta {itemRef} no existe o no corresponde al tipo elegido.',
   InvalidPrice: 'El precio debe estar entre $1.000 y $100.000.000 COP.',
   InvalidLocation: 'El punto de encuentro debe estar en Colombia.',
@@ -109,6 +110,6 @@ export const MESSAGES = {
   DuplicateReview: 'Ya reseñaste a este vendedor; puedes editar tu reseña.',
   ReviewNotFound: 'No encontramos esa reseña.',
   Unexpected: 'Algo falló de nuestro lado; no se aplicó ningún cambio.',
-} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected' | 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred', string>;
+} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected' | 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred' | 'FeedRunStarted', string>;
 
 export type MessageCode = keyof typeof MESSAGES;

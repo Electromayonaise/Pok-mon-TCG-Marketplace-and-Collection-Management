@@ -46,3 +46,8 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 - A non-admin can flood `"LegalIdentityAccessLog"` with denied rows. Needs the throttle tables (NFR-SYS-14).
 - `legal-identity-confined` misses the table name built from concatenation or reached through an accessor. The same literal-style limit Story 1.4 recorded.
 - `nfr-evidence.md` leaves every row at "Red — ATDD" after its story is done (NFR-VER-2, NFR-IDN-2). Refresh the whole table once.
+
+## Deferred from: 4-1-start-and-continue-a-catalog-feed-run (2026-10-27)
+
+- No production `CatalogFeedSource` exists: OQ-9 names a fixture file, and no story builds its production reader. `compose()` binds `UNWIRED_FEED`, so a production `catalog.feed.continue` fails the run as NotImplemented, never silently. Tests bind `FixtureFeedSource`.
+- The scheduled run of AD-CAT-1 rule 4 (`daily-night`, looping in-process for up to 240 s) has no jobs route to run from. It belongs with the jobs route, together with `jobs/trm-fetch` (Story 4.4).

@@ -18,9 +18,103 @@ export interface CatV2Deps {
 }
 // </gen-solu2-api>
 
+import type { Tx } from '../../../shared-kernel/ports.js';
+import type { CuidId, IsoDate, IsoInstant } from '../../../shared-kernel/types.js';
+import type { CatalogKind, CopDerivation, QuarantineReason, RunKey } from '../domain/cat.js';
+import type { FeedRunDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
+
+export type FeedRunStatus = 'Running' | 'Completed' | 'Failed';
+
+/** AD-CAT-1: what a refusal or a claim reads back about a run. */
+export interface RunState {
+  runId: CuidId;
+  status: FeedRunStatus;
+  cursor: number;
+  startedAt: IsoInstant;
+  leaseUntil: IsoInstant | null;
+}
+
+/** AD-CAT-1 rule 3: the counter deltas one batch adds. */
+export interface BatchCounts {
+  created: number;
+  updated: number;
+  unchanged: number;
+  quarantined: number;
+  deferredNoFx: number;
+}
+
+/** CAT-2 Q1: one `"CatalogEntry"` row's identity and the nine updatable attributes. */
+export interface StoredEntry {
+  id: CuidId;
+  kind: CatalogKind;
+  setId: CuidId;
+  name: string;
+  number: string;
+  numberSort: number;
+  pokemon: string | null;
+  colour: string | null;
+  style: string | null;
+  artist: string | null;
+  imageUrl: string | null;
+}
+
+export interface QuarantineRow {
+  id: CuidId;
+  runId: CuidId;
+  rowNumber: number;
+  externalKey: string | null;
+  reasonCode: QuarantineReason;
+  rawRow: Record<string, unknown>;
+}
+
+export interface ObservationRow {
+  id: CuidId;
+  catalogEntryId: CuidId;
+  source: string;
+  observedAt: IsoInstant;
+  usdCents: number | null;
+  cop: number;
+  copDerivation: CopDerivation;
+  fxRateDate: IsoDate | null;
+  runId: CuidId;
+}
+
 /**
  * Repository port of CAT (review A-4): the only way its application service reads or writes
- * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * its own tables (AD-8). `infra/pg.ts` implements it as `PgCatRepository`.
  */
-export interface CatRepository {}
+export interface CatRepository {
+  /** CAT-1 Q2.1 (AD-CAT-1 rule 7): fails every run abandoned before `cutoff`; returns their ids. */
+  failAbandonedRuns(tx: Tx, cutoff: IsoInstant, now: IsoInstant): Promise<CuidId[]>;
+  /** CAT-1 Q2.2: false when `feed_run_single_running` refused it (23505); the savepoint keeps `tx` usable. */
+  insertRunningRun(tx: Tx, runId: CuidId, now: IsoInstant): Promise<boolean>;
+  /** The live run, if any. */
+  readRunningRun(tx: Tx): Promise<RunState | null>;
+  readRun(tx: Tx, runId: CuidId): Promise<RunState | null>;
+  /** AD-CAT-1 rule 2: claims an unleased or expired run with a fresh token; false on 0 rows. */
+  claimLease(tx: Tx, runId: CuidId, token: string, now: IsoInstant, until: IsoInstant): Promise<boolean>;
+  /** AD-CAT-1 rule 3: renews the lease under the token check; false when another caller took it. */
+  renewLease(tx: Tx, runId: CuidId, token: string, now: IsoInstant, until: IsoInstant): Promise<boolean>;
+  /** AD-CAT-1 rule 3: advances the cursor and counters; `done` completes the run and clears the lease. */
+  advanceRun(tx: Tx, runId: CuidId, token: string, cursor: number, counts: BatchCounts, done: boolean, now: IsoInstant): Promise<void>;
+  /** AD-CAT-1 rule 4: hands the run back so the next `continue` can claim it at once. */
+  releaseLease(tx: Tx, runId: CuidId, token: string, now: IsoInstant): Promise<void>;
+  /** AD-CAT-1 rule 7: a source failure fails the run under the token check; false when the lease was lost. */
+  failRun(tx: Tx, runId: CuidId, token: string, now: IsoInstant): Promise<boolean>;
+  /** CAT-1.runs: newest first by `("startedAt" DESC, id DESC)`, after `after`. */
+  listRuns(tx: Tx, after: RunKey | null, limit: number): Promise<FeedRunDTO[]>;
+  /** ADD-§8.1 rule 2: every set code with its id. */
+  readSetIds(tx: Tx): Promise<Map<string, CuidId>>;
+  /** AD-CAT-2 rule 1: the TRM covering `date`, else the latest earlier one. */
+  readRateOnOrBefore(tx: Tx, date: IsoDate): Promise<{ copPerUsdCentavos: number; validFrom: IsoDate } | null>;
+  /** CAT-2 Q-fail: the stored entry of an `externalKey` (a plain read; the lease is the one writer). */
+  readEntryByExternalKey(tx: Tx, externalKey: string): Promise<StoredEntry | null>;
+  /** CAT-2 Q1: the upsert; `inserted` for a new row, null when nothing changed (the `WHERE` blocked it). */
+  upsertEntry(tx: Tx, newId: CuidId, row: ValidFeedRow, setId: CuidId, numberSort: number, now: IsoInstant): Promise<{ id: CuidId; inserted: boolean } | null>;
+  /** CAT-2 Q3: the identity-preserving change's explanation. */
+  insertRevision(tx: Tx, row: { id: CuidId; catalogEntryId: CuidId; runId: CuidId; changedFields: string[]; before: object; after: object }, now: IsoInstant): Promise<void>;
+  /** AD-CAT-1 rule 3: `ON CONFLICT ("runId", "rowNumber") DO NOTHING`. */
+  quarantineRow(tx: Tx, row: QuarantineRow, now: IsoInstant): Promise<void>;
+  /** AD-CAT-2: `ON CONFLICT DO NOTHING` on `reference_price_once`. */
+  insertObservation(tx: Tx, row: ObservationRow, now: IsoInstant): Promise<void>;
+}

@@ -41,22 +41,242 @@ export interface CatV2UseCases {
 }
 // </gen-solu2-api>
 
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import type { Decision } from '../../../shared-kernel/decision.js';
+import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest } from '../../../shared-kernel/request.js';
+import type { FeedSourceRow } from '../../../shared-kernel/external.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import { bogotaDate, copFromUsd, decodeRunCursor, diffAttributes, encodeRunCursor, numberSort, observedAtOf, validateRow, type FeedRowPrice } from '../domain/cat.js';
+import type { ValidFeedRow } from '../dto/cat.v2.dto.js';
+import type { BatchCounts, RunState } from '../ports/cat.v2.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('catalog');
+
+/** AD-CAT-1 rule 3: rows per batch transaction. */
+const BATCH_ROWS = 500;
+/** AD-CAT-1 rules 2–3: a lease lives 90 s from each renewal. */
+const LEASE_MS = 90_000;
+/** AD-CAT-1 rule 4: no new batch starts after 50 s of one `continue`. */
+const CONTINUE_BUDGET_MS = 50_000;
+/** AD-CAT-1 rule 7: a run whose lease (or start) is older than 24 h no longer blocks. */
+const ABANDONED_MS = 24 * 3_600_000;
+/** CAT-1.runs: the page size. */
+const RUNS_PAGE = 25;
+
+const plus = (instant: Date, ms: number): IsoInstant => new Date(instant.getTime() + ms).toISOString();
+const NO_COUNTS: BatchCounts = { created: 0, updated: 0, unchanged: 0, quarantined: 0, deferredNoFx: 0 };
+
+/** Every method not yet done throws NotImplementedError (red for the right reason). */
 export class CatServiceV2 implements CatV2UseCases {
   constructor(protected readonly deps: CatV2Deps) {}
 
-  async startFeedRun(_input: StartFeedRunRequest): Promise<StartFeedRunResponse> {
-    throw new NotImplementedError('catalog.startFeedRun');
+  /** The refusal of a start or a continue while `run` is live (AD-CAT-1 rules 1–2). */
+  private refuseLiveRun(run: Pick<RunState, 'runId' | 'startedAt'>): never {
+    return raise('FeedRunInProgress', [{ rule: 'AD-CAT-1 rule 1', inputs: { runId: run.runId, startedAt: run.startedAt } }]);
   }
 
-  async continueFeedRun(_input: ContinueFeedRunRequest): Promise<ContinueFeedRunResponse> {
-    throw new NotImplementedError('catalog.continueFeedRun');
+  /**
+   * CAT-1, AD-CAT-1 rules 1 and 7: fail the abandoned run, then insert the Running row. The
+   * partial unique index is the lock; a 23505 cites the live run and rolls everything back.
+   */
+  async startFeedRun(input: StartFeedRunRequest): Promise<StartFeedRunResponse> {
+    const { repo, transactions, clock, ids, audit } = this.deps;
+    return transactions.run(async (tx) => {
+      const at = clock.now();
+      const now = at.toISOString();
+      const failed = await repo.failAbandonedRuns(tx, plus(at, -ABANDONED_MS), now);
+      const runId = ids.next();
+      if (!(await repo.insertRunningRun(tx, runId, now))) {
+        const live = await repo.readRunningRun(tx);
+        if (live === null) throw new UnexpectedError('feed_run_single_running refused the insert, but no run is Running');
+        return this.refuseLiveRun(live);
+      }
+      for (const abandoned of failed) {
+        await audit.record(tx, {
+          actorId: input.actorId, actorKind: 'admin', module: 'catalog', action: 'catalog.feedRun.failedAbandoned',
+          aggregateType: 'FeedIngestionRun', aggregateId: abandoned, decisionCode: null, data: { runId: abandoned }, at: now,
+        });
+      }
+      await audit.record(tx, {
+        actorId: input.actorId, actorKind: 'admin', module: 'catalog', action: 'catalog.feedRun.started',
+        aggregateType: 'FeedIngestionRun', aggregateId: runId, decisionCode: 'FeedRunStarted', data: { runId }, at: now,
+      });
+      const inputs = { runId };
+      const decision: Decision = {
+        outcome: 'allowed', reasonCode: 'FeedRunStarted', humanMessage: renderMessage('FeedRunStarted', inputs),
+        citations: [{ rule: 'AD-CAT-1 rule 1', inputs }], occurredAt: now,
+      };
+      return { runId, startedAt: now, decision };
+    });
   }
 
-  async upsertCatalogEntry(_tx: Tx, _input: UpsertCatalogEntryRequest): Promise<UpsertCatalogEntryResponse> {
-    throw new NotImplementedError('catalog.upsertCatalogEntry');
+  /**
+   * CAT-2.ingress, AD-CAT-1 rules 2–4 and 7: claim the lease with a fresh token, then run batches
+   * of 500 rows, each one transaction that renews the lease first. Stops after 50 s and hands
+   * the lease back, so the console's next call resumes from `cursor`.
+   */
+  async continueFeedRun(input: ContinueFeedRunRequest): Promise<ContinueFeedRunResponse> {
+    const { repo, transactions, clock, ids, feed } = this.deps;
+    const { runId } = input;
+    const token = ids.next();
+    const started = clock.now();
+    const claimed = await transactions.run(async (tx) => {
+      if (await repo.claimLease(tx, runId, token, started.toISOString(), plus(started, LEASE_MS))) return null;
+      const run = await repo.readRun(tx, runId);
+      if (run === null) return rejectRequest([{ field: 'runId', issue: 'no corresponde a ninguna carga del catálogo' }]);
+      if (run.status !== 'Running') return { done: true, status: run.status, cursor: run.cursor };
+      return this.refuseLiveRun(run);
+    });
+    if (claimed !== null) return claimed;
+
+    let cursor = (await transactions.run((tx) => repo.readRun(tx, runId)))!.cursor;
+    let source: string;
+    try {
+      source = (await feed.openRun()).sourceName;
+    } catch {
+      return this.failRun(input, token, cursor);
+    }
+    for (;;) {
+      let batch: { rows: { rowNumber: number; row: FeedSourceRow }[]; done: boolean };
+      try {
+        batch = await feed.readRows(cursor, BATCH_ROWS);
+      } catch {
+        return this.failRun(input, token, cursor);
+      }
+      const outcome = await transactions.run(async (tx) => {
+        const at = clock.now();
+        const now = at.toISOString();
+        if (!(await repo.renewLease(tx, runId, token, now, plus(at, LEASE_MS)))) return 'lost' as const;
+        const counts = await this.applyBatch(tx, runId, source, batch.rows, now);
+        const next = cursor + batch.rows.length;
+        await repo.advanceRun(tx, runId, token, next, counts, batch.done, now);
+        await this.deps.audit.record(tx, {
+          actorId: input.actorId, actorKind: 'admin', module: 'catalog', action: 'catalog.feedBatch.applied',
+          aggregateType: 'FeedIngestionRun', aggregateId: runId, decisionCode: null, data: { cursor: next, ...counts }, at: now,
+        });
+        return next;
+      });
+      if (outcome === 'lost') return { done: false, status: 'Running', cursor };
+      cursor = outcome;
+      if (batch.done) return { done: true, status: 'Completed', cursor };
+      if (clock.now().getTime() - started.getTime() >= CONTINUE_BUDGET_MS) {
+        await transactions.run((tx) => repo.releaseLease(tx, runId, token, clock.now().toISOString()));
+        return { done: false, status: 'Running', cursor };
+      }
+    }
+  }
+
+  /** AD-CAT-1 rule 7: a source error fails the run under the token check. */
+  private async failRun(input: ContinueFeedRunRequest, token: string, cursor: number): Promise<ContinueFeedRunResponse> {
+    const { repo, transactions, clock, audit } = this.deps;
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      if (!(await repo.failRun(tx, input.runId, token, now))) return { done: false, status: 'Running', cursor };
+      await audit.record(tx, {
+        actorId: input.actorId, actorKind: 'admin', module: 'catalog', action: 'catalog.feedRun.failed',
+        aggregateType: 'FeedIngestionRun', aggregateId: input.runId, decisionCode: null, data: { cursor }, at: now,
+      });
+      return { done: true, status: 'Failed', cursor };
+    });
+  }
+
+  /** AD-CAT-1 rule 3 for one batch: validate, quarantine or upsert, and store each price once (AD-CAT-2 rules 1–2). */
+  private async applyBatch(tx: Tx, runId: CuidId, source: string, rows: { rowNumber: number; row: FeedSourceRow }[], now: IsoInstant): Promise<BatchCounts> {
+    const { repo, ids } = this.deps;
+    const counts = { ...NO_COUNTS };
+    const sets = await repo.readSetIds(tx);
+    const rates = new Map<string, { copPerUsdCentavos: number; validFrom: string } | null>();
+    const rateAt = async (observedAt: string) => {
+      const date = bogotaDate(observedAt);
+      if (!rates.has(date)) rates.set(date, await repo.readRateOnOrBefore(tx, date));
+      return rates.get(date)!;
+    };
+    const knownSetCodes = new Set(sets.keys());
+    for (const { rowNumber, row: raw } of rows) {
+      // Loads the TRM of the row's date first, so the pure validateRow reads it synchronously.
+      const observedAt = observedAtOf(raw, now);
+      if (observedAt !== null) await rateAt(observedAt);
+      const verdict = validateRow(raw, {
+        knownSetCodes, now,
+        copPerUsdCentavos: (observedAt) => rates.get(bogotaDate(observedAt))?.copPerUsdCentavos ?? null,
+      });
+      if (!verdict.ok) {
+        const externalKey = typeof raw.externalKey === 'string' && raw.externalKey !== '' ? raw.externalKey : null;
+        await repo.quarantineRow(tx, { id: ids.next(), runId, rowNumber, externalKey, reasonCode: verdict.reason, rawRow: raw }, now);
+        counts.quarantined++;
+        continue;
+      }
+      const result = await this.upsert(tx, verdict.row, runId, rowNumber, now, sets);
+      if (result.outcome === 'quarantinedKindChanged') counts.quarantined++;
+      else counts[result.outcome]++;
+      if (verdict.price !== null && result.outcome !== 'quarantinedKindChanged') {
+        if (!(await this.storePrice(tx, result.catalogEntryId, verdict.price, source, runId, now, rateAt))) counts.deferredNoFx++;
+      }
+    }
+    return counts;
+  }
+
+  /** AD-CAT-2 rules 1–2: a COP price is stored as delivered; a USD-only one is converted once, or deferred without a TRM. */
+  private async storePrice(
+    tx: Tx, catalogEntryId: CuidId, price: FeedRowPrice, source: string, runId: CuidId, now: IsoInstant,
+    rateAt: (observedAt: string) => Promise<{ copPerUsdCentavos: number; validFrom: string } | null>,
+  ): Promise<boolean> {
+    let cop = price.cop;
+    let fxRateDate: string | null = null;
+    if (cop === null) {
+      const rate = await rateAt(price.observedAt);
+      if (rate === null) return false;
+      cop = copFromUsd(price.usdCents!, rate.copPerUsdCentavos);
+      fxRateDate = rate.validFrom;
+    }
+    await this.deps.repo.insertObservation(tx, {
+      id: this.deps.ids.next(), catalogEntryId, source, observedAt: price.observedAt, usdCents: price.usdCents, cop,
+      copDerivation: fxRateDate === null ? 'sourceNative' : 'fxDerived', fxRateDate, runId,
+    }, now);
+    return true;
+  }
+
+  /**
+   * CAT-2, AD-CAT-1 rule 5 and AD-7: the upsert by `externalKey` keeps the id; a changed row writes
+   * one revision; a row whose kind differs is quarantined and the entry is not written.
+   */
+  async upsertCatalogEntry(tx: Tx, input: UpsertCatalogEntryRequest): Promise<UpsertCatalogEntryResponse> {
+    return this.upsert(tx, input.row, input.runId, input.rowNumber, this.deps.clock.now().toISOString(), await this.deps.repo.readSetIds(tx));
+  }
+
+  private async upsert(tx: Tx, row: ValidFeedRow, runId: CuidId, rowNumber: number, now: IsoInstant, sets: Map<string, CuidId>): Promise<UpsertCatalogEntryResponse> {
+    const { repo, ids } = this.deps;
+    const setId = sets.get(row.setCode);
+    if (setId === undefined) throw new UnexpectedError(`CAT-2 P3: no CatalogSet with the code of row ${rowNumber}`);
+    const stored = await repo.readEntryByExternalKey(tx, row.externalKey);
+    if (stored !== null && stored.kind !== row.kind) {
+      await repo.quarantineRow(tx, { id: ids.next(), runId, rowNumber, externalKey: row.externalKey, reasonCode: 'KindChanged', rawRow: { ...row } }, now);
+      return { catalogEntryId: stored.id, outcome: 'quarantinedKindChanged', changedFields: ['kind'] };
+    }
+    const sort = numberSort(row.number);
+    const written = await repo.upsertEntry(tx, ids.next(), row, setId, sort, now);
+    if (written === null) return { catalogEntryId: stored!.id, outcome: 'unchanged', changedFields: [] };
+    if (written.inserted) return { catalogEntryId: written.id, outcome: 'created', changedFields: [] };
+    const { id: _id, kind: _kind, ...before } = stored!;
+    const after = { setId, name: row.name, number: row.number, numberSort: sort, pokemon: row.pokemon, colour: row.colour, style: row.style, artist: row.artist, imageUrl: row.imageUrl };
+    const changedFields = diffAttributes(before, after);
+    await repo.insertRevision(tx, { id: ids.next(), catalogEntryId: written.id, runId, changedFields, before, after }, now);
+    return { catalogEntryId: written.id, outcome: 'updated', changedFields };
+  }
+
+  /** CAT-1.runs: newest first, 25 per page, behind an opaque keyset cursor. Zero writes. */
+  async listFeedRuns(input: ListFeedRunsRequest): Promise<ListFeedRunsResponse> {
+    const { repo, transactions } = this.deps;
+    const after = input.cursor === null ? null : decodeRunCursor(input.cursor);
+    if (input.cursor !== null && after === null) rejectRequest([{ field: 'cursor', issue: 'no corresponde a una página de esta lista' }]);
+    return transactions.run(async (tx) => {
+      const runs = await repo.listRuns(tx, after, RUNS_PAGE + 1);
+      const page = runs.slice(0, RUNS_PAGE);
+      const last = page.at(-1);
+      return { runs: page, nextCursor: runs.length > RUNS_PAGE && last ? encodeRunCursor({ startedAt: last.startedAt, id: last.runId }) : null };
+    });
   }
 
   async getPriceProvenance(_input: GetPriceProvenanceRequest): Promise<GetPriceProvenanceResponse> {
@@ -101,10 +321,6 @@ export class CatServiceV2 implements CatV2UseCases {
 
   async getSetSummaries(_input: GetSetSummariesRequest): Promise<GetSetSummariesResponse> {
     throw new NotImplementedError('catalog.getSetSummaries');
-  }
-
-  async listFeedRuns(_input: ListFeedRunsRequest): Promise<ListFeedRunsResponse> {
-    throw new NotImplementedError('catalog.listFeedRuns');
   }
 
   async listQuarantinedRows(_input: ListQuarantinedRowsRequest): Promise<ListQuarantinedRowsResponse> {

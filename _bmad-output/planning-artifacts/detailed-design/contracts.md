@@ -1298,6 +1298,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `VerificationBarred` | — (stored only) | identity | `verification.myStatus`, latest `Rejected` and barred (S-FR-VER-7; ADD-§1.3) | "No pudimos verificar tu tienda (motivo {reasonCode}). Esta decisión es definitiva para esta cuenta." | no |
 | `CatalogEntryNotFound` | 404 | catalog | CAT-3 P2; DSC-2 P1 | "No encontramos esa carta o producto." | no |
 | `FeedRunInProgress` | 409 | catalog | CAT-1 Q-fail; `catalog.feed.continue` | "Ya hay una carga en curso desde las {startedAt}." | yes |
+| `FeedRunStarted` | — (stored only) | catalog | `catalog.feed.start` succeeded (CAT-1 Q4; the rule of decision log Impl-1 #16) | "La carga del catálogo empezó; sigue llamando a continuar hasta que termine." | no |
 | `InvalidItemRef` | 400 | listings | INV-2 P3; TRD-2 P3 | "La carta {itemRef} no existe o no corresponde al tipo elegido." | no |
 | `InvalidPrice` | 400 | listings | INV-2 P4 | "El precio debe estar entre $1.000 y $100.000.000 COP." | no |
 | `InvalidLocation` | 400 | listings | INV-2 P5 | "El punto de encuentro debe estar en Colombia." | no |

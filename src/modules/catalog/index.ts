@@ -6,6 +6,7 @@ import { PgCatalogEntryRepository, PgFeedRunRepository, PgReferencePriceReposito
 export type * from './dto/cat.dto.js';
 export type * from './dto/cat.v2.dto.js';
 export type { CatUseCases } from './application/cat.js';
+export { PgCatRepository } from './infra/pg.js';
 
 export interface CatalogWiring {
   sql: Sql;

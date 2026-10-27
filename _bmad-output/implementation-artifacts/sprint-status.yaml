@@ -1,5 +1,5 @@
 # generated: 2026-10-24
-# last_updated: 2026-10-26
+# last_updated: 2026-10-27
 # project: Pok-mon-TCG-Marketplace-and-Collection-Management
 # project_key: NOKEY
 # tracking_system: file-system
@@ -47,7 +47,7 @@
 # - An epic is 'done' when its Impl-1 stories are done and Martín signed its gate; its impl2_scope stories stay backlog
 
 generated: 2026-10-24
-last_updated: 2026-10-26
+last_updated: 2026-10-27
 project: Pok-mon-TCG-Marketplace-and-Collection-Management
 project_key: NOKEY
 tracking_system: file-system
@@ -75,12 +75,12 @@ development_status:
   3-4-guard-and-audit-every-legal-identity-read: done
   3-5-run-the-review-queue-the-rejection-policy-and-payment-instructions: done
   epic-3-retrospective: optional
-  epic-4: backlog
-  4-1-start-and-continue-a-catalog-feed-run: backlog
-  4-2-keep-a-card-s-id-through-renames-and-reprints: backlog
-  4-3-refuse-a-second-live-run-and-quarantine-changed-kinds: backlog
-  4-4-never-fabricate-a-price: backlog
-  4-5-browse-the-catalog-and-answer-neighbours-catalog-queries: backlog
+  epic-4: in-progress
+  4-1-start-and-continue-a-catalog-feed-run: done
+  4-2-keep-a-card-s-id-through-renames-and-reprints: ready-for-dev
+  4-3-refuse-a-second-live-run-and-quarantine-changed-kinds: ready-for-dev
+  4-4-never-fabricate-a-price: ready-for-dev
+  4-5-browse-the-catalog-and-answer-neighbours-catalog-queries: ready-for-dev
   epic-4-retrospective: optional
   epic-5: backlog
   5-1-list-a-card-and-share-one-stock-pool: backlog
