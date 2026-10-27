@@ -2,7 +2,7 @@
 title: 'Story 7.4: Refuse out-of-role, repeated and expired confirmations'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'f595122'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -55,8 +55,8 @@ Once 7.2 is done, the 7 tests turn green and the red gate fails. Built without t
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] run the 7 tests on the 7.2 tree; fix any gap in 7.2's files
-- [ ] `sprint-status.yaml` -- 7.4 `done`, out of `impl2_scope`; `gen:trace:solu2`
+- [x] run the 7 tests on the 7.2 tree; fix any gap in 7.2's files
+- [x] `sprint-status.yaml` -- 7.4 `done`, out of `impl2_scope`; `gen:trace:solu2`
 
 **Acceptance Criteria:**
 - Given 7.4 `done`, when the 7 tests run, then they pass.
@@ -64,3 +64,5 @@ Once 7.2 is done, the 7 tests turn green and the red gate fails. Built without t
 ## Implementation Notes
 
 - Code review is batched with the rest of Epic 7 at its close (decision #22).
+- Martín approved building this story with the epic (decision log Impl-1 #32). It leaves `impl2_scope` and does not count toward the 43 Impl-1 stories.
+- The 7 tests passed on the 7.2 tree with no change: no gap was found in 7.2's files.
