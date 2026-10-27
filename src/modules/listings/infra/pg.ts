@@ -3,7 +3,9 @@
 // PgInvRepository at the end is bound to _bmad-output/planning-artifacts/detailed-design/schemas.
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
-import type { Condition, CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import { COLOMBIA_BBOX, type Condition, type CuidId, type IsoInstant } from '../../../shared-kernel/types.js';
+import { boundingBox, EARTH_RADIUS_KM, RADIUS_EPSILON_KM, type Area } from '../domain/dsc.js';
+import type { DscRepository, ListingPage, ListingQuery, RankedListingRow } from '../ports/dsc.v2.js';
 import type { AvailabilityCandidate, InvRepository, ListingDetailRow, ListingHeader, ListingUnit, NewListingRow, ReserveFacts, ResolvedUnit } from '../ports/inv.v2.js';
 import type { IDiscoveryQuery, IInventoryUnitRepository, IListingRepository } from '../ports/listings.js';
 
@@ -247,14 +249,17 @@ export class PgInvRepository implements InvRepository {
     return rows[0]?.version ?? null;
   }
 
-  async availabilityCandidates(tx: Tx, entryIds: CuidId[]): Promise<AvailabilityCandidate[]> {
+  async availabilityCandidates(tx: Tx, entryIds: CuidId[], area: Area | null): Promise<AvailabilityCandidate[]> {
+    // P-INV.availability's area (Story 6.2): DSC-1's own location predicates (AD-DSC-1).
+    const params: unknown[] = [entryIds];
+    const inArea = area === null ? '' : ` AND ${availabilityAreaSql(area, params)}`;
     const { rows } = await tx.query<Omit<AvailabilityCandidate, 'priceCop'> & { priceCop: string }>(
       `SELECT u."catalogEntryId", l."sellerId", l."sellerKindAtCreation", l."priceCop"::text AS "priceCop"
        FROM "Listing" l JOIN "InventoryUnit" u ON u.id = l."inventoryUnitId" LEFT JOIN "SellerCommissionState" c ON c."businessId" = l."sellerId"
        WHERE l.kind = 'single' AND u."catalogEntryId" = ANY($1) AND u.quantity >= 1
          AND l."hiddenAt" IS NULL AND l."withdrawnAt" IS NULL AND l."deactivatedAt" IS NULL
-         AND (l."sellerKindAtCreation" = 'individual' OR (l."pausedAt" IS NULL AND c.paused = false))`,
-      [entryIds],
+         AND (l."sellerKindAtCreation" = 'individual' OR (l."pausedAt" IS NULL AND c.paused = false))${inArea}`,
+      params,
     );
     return rows.map((r) => ({ ...r, priceCop: Number(r.priceCop) }));
   }
@@ -263,4 +268,84 @@ export class PgInvRepository implements InvRepository {
     const { rows } = await tx.query<{ unit: CuidId }>(`SELECT x.unit FROM (SELECT $1::text AS id) l, LATERAL (${LISTING_UNITS}) x ORDER BY x.unit`, [listingId]);
     return rows.map((r) => r.unit);
   }
+}
+
+// ---------------------------------------------------------------- Solu-2 DSC (AD-DSC-1, AD-DSC-2)
+
+/** AD-DSC-1 rule 4 for listing `l`: null, the (0, 0) sentinel, or outside the one ADD-§2.4 box. */
+const UNUSABLE_SQL = `(l.lat IS NULL OR l.lng IS NULL OR (l.lat = 0 AND l.lng = 0)
+  OR l.lat NOT BETWEEN ${COLOMBIA_BBOX.minLat} AND ${COLOMBIA_BBOX.maxLat} OR l.lng NOT BETWEEN ${COLOMBIA_BBOX.minLng} AND ${COLOMBIA_BBOX.maxLng})`;
+
+/** AD-DSC-1 rule 2: the one haversine expression, double precision, from the centre `($lat, $lng)` to listing `l`. */
+export const distanceSql = (lat: string, lng: string) =>
+  `(2 * ${EARTH_RADIUS_KM}::float8 * asin(LEAST(1::float8, sqrt(power(sin(radians(l.lat - ${lat}) / 2), 2) + cos(radians(${lat})) * cos(radians(l.lat)) * power(sin(radians(l.lng - ${lng}) / 2), 2)))))`;
+
+/**
+ * AD-DSC-1 rule 2 as predicates over listing `l`: a usable location inside the bbox prefilter, then
+ * `d ≤ radiusKm + 1e-6`. Appends its parameters to `params`; returns the predicate and the distance.
+ */
+function areaSql(area: Area, params: unknown[]): { where: string; distance: string } {
+  const box = boundingBox(area);
+  const lat = `$${params.push(area.lat)}::float8`;
+  const lng = `$${params.push(area.lng)}::float8`;
+  const distance = distanceSql(lat, lng);
+  const where = `NOT ${UNUSABLE_SQL}
+    AND l.lat BETWEEN $${params.push(box.minLat)}::float8 AND $${params.push(box.maxLat)}::float8
+    AND l.lng BETWEEN $${params.push(box.minLng)}::float8 AND $${params.push(box.maxLng)}::float8
+    AND ${distance} <= $${params.push(area.radiusKm + RADIUS_EPSILON_KM)}::float8`;
+  return { where, distance };
+}
+
+/** The units of listing `l` joined to their rows, for the entry and condition filters. */
+const UNITS_OF_L = `(${LISTING_UNITS}) x JOIN "InventoryUnit" u ON u.id = x.unit`;
+
+/**
+ * AD-DSC-1 rule 1: the one builder for every location query, both seller kinds, with no branch on
+ * seller kind. Each filter adds its clause only when present, so no clause reads `OR $n IS NULL`.
+ */
+function listingSearchSql(q: ListingQuery): { text: string; params: unknown[] } {
+  const params: unknown[] = [];
+  const where = ['l."hiddenAt" IS NULL', 'l."withdrawnAt" IS NULL', 'l."deactivatedAt" IS NULL'];
+  if (q.entryIds !== null) where.push(`EXISTS (SELECT 1 FROM ${UNITS_OF_L} WHERE u."catalogEntryId" = ANY($${params.push(q.entryIds)}::text[]))`);
+  if (q.maxPriceCop !== null) where.push(`l."priceCop" <= $${params.push(q.maxPriceCop)}`);
+  if (q.conditions !== null) where.push(`EXISTS (SELECT 1 FROM ${UNITS_OF_L} WHERE u.condition = ANY($${params.push(q.conditions)}::text[]))`);
+  if (q.purchasableOnly) where.push(`l."sellerKindAtCreation" = 'business'`, 'l."pausedAt" IS NULL', 'c.paused = false');
+  if (!q.includeSoldOut) where.push(`${AVAILABILITY_SQL} >= 1`);
+  const filters = where.join(' AND ');
+  const area = q.area === null ? null : areaSql(q.area, params);
+  const order = area === null ? `(${AVAILABILITY_SQL} < 1), l."priceCop", l.id COLLATE "C"` : `(${AVAILABILITY_SQL} < 1), ${area.distance}, l."priceCop", l.id COLLATE "C"`;
+  const from = `"Listing" l LEFT JOIN "SellerCommissionState" c ON c."businessId" = l."sellerId"`;
+  const text = `
+    WITH page AS (
+      SELECT l.id AS "listingId", l."sellerId", l."sellerKindAtCreation", l."priceCop",
+             ${area === null ? 'NULL::float8' : area.distance} AS "distanceKm",
+             ${AVAILABILITY_SQL} AS availability, l."pausedAt" IS NOT NULL AS paused,
+             CASE WHEN c."businessId" IS NULL THEN 'absent' WHEN c.paused THEN 'paused' ELSE 'funded' END AS projection,
+             ARRAY(SELECT DISTINCT u."catalogEntryId" FROM ${UNITS_OF_L} ORDER BY 1) AS "catalogEntryIds",
+             row_number() OVER (ORDER BY ${order}) AS rank
+      FROM ${from} WHERE ${filters}${area === null ? '' : ` AND ${area.where}`}
+      ORDER BY rank LIMIT $${params.push(q.limit)} OFFSET $${params.push(q.offset)}
+    )
+    SELECT ${area === null ? '0' : `(SELECT count(*) FROM ${from} WHERE ${UNUSABLE_SQL} AND ${filters})`}::int AS "unusableLocation",
+           ${q.withMinPrice ? `(SELECT min(l."priceCop") FROM ${from} WHERE ${filters}${area === null ? '' : ` AND ${area.where}`})::text` : 'NULL::text'} AS "minPriceCop",
+           COALESCE((SELECT json_agg(p ORDER BY p.rank) FROM page p), '[]'::json) AS rows`;
+  return { text, params };
+}
+
+/** DSC's repository port over INV's tables, inside `listings` (AD-8; DSC owns no tables). */
+export class PgDscRepository implements DscRepository {
+  async searchListings(tx: Tx, q: ListingQuery): Promise<ListingPage> {
+    const { text, params } = listingSearchSql(q);
+    const { rows } = await tx.query<{ unusableLocation: number; minPriceCop: string | null; rows: (Omit<RankedListingRow, 'priceCop' | 'rank'> & { priceCop: number | string; rank: number | string })[] }>(text, params);
+    const row = rows[0]!;
+    return {
+      unusableLocation: row.unusableLocation, minPriceCop: row.minPriceCop === null ? null : Number(row.minPriceCop),
+      rows: row.rows.map((r) => ({ ...r, priceCop: Number(r.priceCop), rank: Number(r.rank) })),
+    };
+  }
+}
+
+/** P-INV.availability's area filter (Story 6.2): the same predicates DSC-1 uses, over listing `l`. */
+export function availabilityAreaSql(area: Area, params: unknown[]): string {
+  return areaSql(area, params).where;
 }

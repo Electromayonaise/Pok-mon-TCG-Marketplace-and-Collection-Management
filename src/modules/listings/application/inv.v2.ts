@@ -60,6 +60,7 @@ import {
   type ListingDetailState, type ProjectionState, type VerificationStatus,
 } from '../domain/inv.js';
 import type { ListingDetailDTO, ListingSnapshotDTO } from '../dto/inv.v2.dto.js';
+import { checkSearchArea } from './dsc.v2.js';
 import type { ListingDetailRow, ReserveFacts } from '../ports/inv.v2.js';
 
 const raise = raiserFor('listings');
@@ -73,6 +74,15 @@ const MAX_DESCRIPTION = 1_000;
 /** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
 function explained(outcome: Decision['outcome'], code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
   return { outcome, reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
+}
+
+/**
+ * INV-2 P5 (FR-INV-1): a null location defaults to the individual seller's meeting point, copied at
+ * create (decision log Impl-1 #31); a business with a null location stores no coordinates.
+ */
+function locationOf(location: { lat: number; lng: number } | null, eligibility: { listingKind: 'business' | 'individual'; meetingPoint?: { lat: number; lng: number } | null }): { lat: number; lng: number } | null {
+  if (location !== null) return location;
+  return eligibility.listingKind === 'individual' ? eligibility.meetingPoint ?? null : null;
 }
 
 /** S-FR-INV-10.mine: the page size. */
@@ -280,7 +290,9 @@ export class InvServiceV2 implements InvV2UseCases {
    */
   async createBundle(input: CreateBundleRequest): Promise<CreateBundleResponse> {
     const { repo, transactions, clock, ids, audit, identity, catalog } = this.deps;
-    const { listingKind, verified } = await identity.requireListingEligibility({ userId: input.sellerId });
+    const eligibility = await identity.requireListingEligibility({ userId: input.sellerId });
+    const { listingKind, verified } = eligibility;
+    const location = locationOf(input.location, eligibility);
     const { components } = input;
     if (components.length === 0) raise('EmptyComponentList', [{ rule: 'FR-INV-2', inputs: { components: 0 } }]);
     if (components.length > MAX_COMPONENTS) rejectRequest([{ field: 'components', issue: `debe tener como máximo ${MAX_COMPONENTS} cartas` }]);
@@ -299,7 +311,7 @@ export class InvServiceV2 implements InvV2UseCases {
       if (kind === 'sealedProduct') raise('SealedProductInBundle', [{ rule: 'AD-INV-1 rule 5', inputs: { itemRef: c.itemRef } }]);
       if (!conditionFitsKind(c.condition, kind)) raise('InvalidItemRef', [{ rule: 'FR-INV-1', inputs: { itemRef: c.itemRef, kind, condition: c.condition } }]);
     }
-    this.checkPriceAndLocation(input.priceCop, input.location);
+    this.checkPriceAndLocation(input.priceCop, location);
     if ([...input.description].length > MAX_DESCRIPTION) rejectRequest([{ field: 'description', issue: `debe tener como máximo ${MAX_DESCRIPTION} caracteres` }]);
     const ordered = [...components].sort((a, b) => (a.itemRef === b.itemRef ? (a.condition < b.condition ? -1 : 1) : a.itemRef < b.itemRef ? -1 : 1));
     return transactions.run(async (tx) => {
@@ -314,7 +326,7 @@ export class InvServiceV2 implements InvV2UseCases {
       const listingId = ids.next();
       await repo.insertListing(tx, {
         id: listingId, sellerId: input.sellerId, sellerKindAtCreation: listingKind, kind: 'bundle', inventoryUnitId: null, title,
-        priceCop: input.priceCop, location: input.location, description: input.description, openToTrade: false, pausedAt: paused ? now : null, now,
+        priceCop: input.priceCop, location, description: input.description, openToTrade: false, pausedAt: paused ? now : null, now,
       });
       await repo.insertBundleComponents(tx, listingId, input.sellerId, units.map((u) => ({ inventoryUnitId: u.id, catalogEntryId: u.component.itemRef, condition: u.component.condition, perBundleQty: u.component.perBundleQty })), now);
       const state = createdState({ paused, listingKind, verified });
@@ -449,9 +461,9 @@ export class InvServiceV2 implements InvV2UseCases {
     const ids = input.catalogEntryIds;
     if (ids.length < 1 || ids.length > MAX_IDS) rejectRequest([{ field: 'catalogEntryIds', issue: `debe tener entre 1 y ${MAX_IDS} elementos` }]);
     if (new Set(ids).size !== ids.length) rejectRequest([{ field: 'catalogEntryIds', issue: 'no puede repetir elementos' }]);
-    if (input.area !== null) throw new NotImplementedError('listings.getAvailabilitySummary.area (DSC-3, Story 6.1)');
+    if (input.area !== null) checkSearchArea(input.area);
     return this.reading(async (tx) => {
-      const candidates = await this.deps.repo.availabilityCandidates(tx, ids);
+      const candidates = await this.deps.repo.availabilityCandidates(tx, ids, input.area);
       const sellers = [...new Set(candidates.filter((c) => c.sellerKindAtCreation === 'business').map((c) => c.sellerId))];
       const approved = new Set<CuidId>();
       for (const sellerId of sellers) if ((await this.deps.identity.getSellerVerification({ sellerId })).status === 'Approved') approved.add(sellerId);
@@ -483,7 +495,7 @@ export class InvServiceV2 implements InvV2UseCases {
   }
 
   /** INV-2 P2–P5 for one item: the checks after eligibility, first-fail, before any write. */
-  private async checkListingInput(input: CreateListingRequest, listingKind: 'business' | 'individual'): Promise<void> {
+  private async checkListingInput(input: CreateListingRequest, listingKind: 'business' | 'individual', location: { lat: number; lng: number } | null): Promise<void> {
     if (input.openToTrade && listingKind === 'business') {
       raise('OpenToTradeNotAllowed', [{ rule: 'AD-4', inputs: { listingKind, openToTrade: true } }]);
     }
@@ -492,12 +504,12 @@ export class InvServiceV2 implements InvV2UseCases {
     if (kind === null || !conditionFitsKind(input.condition, kind)) {
       raise('InvalidItemRef', [{ rule: 'FR-INV-1', inputs: { itemRef: input.itemRef, kind, condition: input.condition } }]);
     }
-    this.checkPriceAndLocation(input.priceCop, input.location);
+    this.checkPriceAndLocation(input.priceCop, location);
     if (!Number.isInteger(input.quantity) || input.quantity < 1 || input.quantity > 999) rejectRequest([{ field: 'quantity', issue: 'debe ser un entero entre 1 y 999' }]);
     if ([...input.description].length > MAX_DESCRIPTION) rejectRequest([{ field: 'description', issue: `debe tener como máximo ${MAX_DESCRIPTION} caracteres` }]);
   }
 
-  /** INV-2 P4 and P5, shared with bundles and edits. A null location stores no coordinates (decision log Impl-1 #30). */
+  /** INV-2 P4 and P5, shared with bundles and edits; `location` is the one `locationOf` chose. */
   private checkPriceAndLocation(priceCop: number, location: { lat: number; lng: number } | null): void {
     if (!isValidPrice(priceCop)) raise('InvalidPrice', [{ rule: 'FR-INV-1', inputs: { priceCop } }]);
     if (location !== null && !isValidLocation(location)) raise('InvalidLocation', [{ rule: 'FR-INV-1', inputs: { lat: location.lat, lng: location.lng } }]);
@@ -511,7 +523,8 @@ export class InvServiceV2 implements InvV2UseCases {
     const { repo, transactions, clock, ids, audit, identity } = this.deps;
     const eligibility = await identity.requireListingEligibility({ userId: input.sellerId });
     const { listingKind, verified } = eligibility;
-    await this.checkListingInput(input, listingKind);
+    const location = locationOf(input.location, eligibility);
+    await this.checkListingInput(input, listingKind, location);
     return transactions.run(async (tx) => {
       const now = clock.now().toISOString();
       const unit = await repo.resolveUnit(tx, { id: ids.next(), sellerId: input.sellerId, catalogEntryId: input.itemRef, condition: input.condition, quantity: input.quantity, now });
@@ -520,7 +533,7 @@ export class InvServiceV2 implements InvV2UseCases {
       const listingId = ids.next();
       await repo.insertListing(tx, {
         id: listingId, sellerId: input.sellerId, sellerKindAtCreation: listingKind, kind: 'single', inventoryUnitId: unit.id, title: null,
-        priceCop: input.priceCop, location: input.location, description: input.description, openToTrade: input.openToTrade, pausedAt: paused ? now : null, now,
+        priceCop: input.priceCop, location, description: input.description, openToTrade: input.openToTrade, pausedAt: paused ? now : null, now,
       });
       const state = createdState({ paused, listingKind, verified });
       const verification = listingKind === 'business' ? (verified ? 'Approved' : 'Pending') : 'none';

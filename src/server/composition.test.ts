@@ -1,7 +1,7 @@
 // The production composition over HTTP (decision log Impl-1 #24): a real Better Auth session on
 // the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2, VER-3, the supporting
 // VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
-// (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2), the seller's inventory (S-FR-INV-2, -9, -10) and S-SYS.replay,
+// (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2), the seller's inventory (S-FR-INV-2, -9, -10), the discovery reads (DSC-1, DSC-2) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -398,7 +398,8 @@ describe('inventory.create over HTTP (INV-2; Story 5.1)', () => {
     await catalogEntry(db, id('char'));
     const { status, json } = await post('inventory.create', listingInput, await signIn(id('valentina')));
     expect([status, json.result?.data]).toEqual([200, expect.objectContaining({ state: 'Active', availability: 3 })]);
-    expect(await rows(db, 'Listing')).toMatchObject([{ sellerId: id('valentina'), sellerKindAtCreation: 'individual', lat: null }]);
+    // A null location defaults to the meeting point (decision log Impl-1 #31).
+    expect(await rows(db, 'Listing')).toMatchObject([{ sellerId: id('valentina'), sellerKindAtCreation: 'individual', lat: 4.711, lng: -74.0721 }]);
   });
 
   it('an Approved business with no projection lists Paused; open to trade it is OpenToTradeNotAllowed 409', async () => {
@@ -443,6 +444,36 @@ describe('the seller\'s inventory procedures over HTTP (S-FR-INV-2, -9, -10; Sto
     const refused = await post('inventory.restock', { listingId, delta: 2 }, await signIn(id('mateo')));
     expect([refused.status, refused.json.error?.code]).toEqual([403, 'ListingNotOwnedByCaller']);
     expect(await rows(db, 'InventoryUnit')).toMatchObject([{ quantity: 3 }]);
+  });
+});
+
+describe('discovery.search over HTTP (DSC-1; Story 6.2)', () => {
+  it('a listing created with no location is found at its seller\'s meeting point, ranked and explained; a 301 km radius is refused', async () => {
+    await individualSeller(db, id('valentina'));
+    await catalogEntry(db, id('char'));
+    const created = await post('inventory.create', { itemRef: id('char'), condition: 'NM', priceCop: 45_000, quantity: 3, location: null, description: '', openToTrade: false }, await signIn(id('valentina')));
+    const area = { lat: 4.711, lng: -74.0721, radiusKm: 15 };
+    const found = (await get('discovery.search', { view: 'listings', area, page: 1, pageSize: 24 }, '')).json.result?.data as { results: Record<string, unknown>[]; excluded: { unusableLocation: number } };
+    expect(found.results).toMatchObject([{ listingId: created.json.result?.data.listingId, distanceKm: 0, sellerKind: 'individual', pickupAvailable: true, purchasable: false, explanation: { outcome: 'ranked', reasonCode: 'ListingRanked' } }]);
+    expect(found.excluded.unusableLocation).toBe(0);
+    const refused = await get('discovery.search', { view: 'listings', area: { ...area, radiusKm: 301 }, page: 1, pageSize: 24 }, '');
+    expect([refused.status, refused.json.error?.code]).toEqual([400, 'InvalidSearchArea']);
+  });
+});
+
+describe('discovery.cardDetail over HTTP (DSC-2; Story 6.3)', () => {
+  it('anyone reads a card with its nearby listings and its separate reference price; an unknown card is CatalogEntryNotFound 404', async () => {
+    await individualSeller(db, id('valentina'));
+    await catalogEntry(db, id('char'));
+    await feedRun(db, id('run1'));
+    await observation(db, { id: id('o1'), catalogEntryId: id('char'), cop: 52_000, observedAt: at(-HOUR), runId: id('run1') });
+    await post('inventory.create', { itemRef: id('char'), condition: 'NM', priceCop: 45_000, quantity: 1, location: null, description: '', openToTrade: false }, await signIn(id('valentina')));
+    const area = { lat: 4.711, lng: -74.0721, radiusKm: 5 };
+    const read = (await get('discovery.cardDetail', { catalogEntryId: id('char'), area }, '')).json.result?.data;
+    expect(read).toMatchObject({ entry: { catalogEntryId: id('char') }, listingPriceCop: 45_000, hasActiveListings: true, excluded: { unusableLocation: 0 },
+      provenance: { lastTransactionReference: { cop: 52_000 } }, listings: [{ sellerKind: 'individual', pickupAvailable: true }] });
+    const missing = await get('discovery.cardDetail', { catalogEntryId: id('ghost'), area: null }, '');
+    expect([missing.status, missing.json.error?.code]).toEqual([404, 'CatalogEntryNotFound']);
   });
 });
 

@@ -109,7 +109,8 @@ export class IdnServiceV2 implements IdnV2UseCases {
    * audit. Eligibility does not depend on time; the clock dates the decision only.
    */
   async requireListingEligibility({ userId }: RequireListingEligibilityRequest): Promise<RequireListingEligibilityResponse> {
-    const facts = await this.factsOf(userId);
+    // One snapshot for the facts and the meeting point (decision log Impl-1 #31).
+    const [facts, meetingPoint] = await this.reading(async (tx) => [await this.deps.repo.readCapabilityFacts(tx, userId), await this.deps.repo.readMeetingPoint(tx, userId)] as const);
     if (facts === null) throw new UnexpectedError(`identity.requireListingEligibility: no "User" row for ${userId} (IDN-2 P1)`);
     const { listing, sellerKind } = deriveCapabilities(facts);
     const app = facts.latestApplication;
@@ -131,7 +132,7 @@ export class IdnServiceV2 implements IdnV2UseCases {
       citations: [{ rule: 'FR-IDN-3', inputs }],
       occurredAt: this.deps.clock.now().toISOString(),
     };
-    return { listingKind: listing.listingKind, verified: listing.verified, decision };
+    return { listingKind: listing.listingKind, verified: listing.verified, decision, meetingPoint: listing.listingKind === 'individual' ? meetingPoint : null };
   }
 
   /**

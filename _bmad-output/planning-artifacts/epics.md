@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 378 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 380 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -816,11 +816,11 @@ Let buyers find listings by area through one query path. Ranking is deterministi
 - **Binding invariants:** AD-5 — One location query path (One SQL builder with no seller-kind branch); AD-12 — Hide, never delete (`DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate); AD-DSC-1 — SQL distance equals the TS reference (One haversine expression; `+ 1e-6` inclusive bound); also cited by its clauses: AD-DSC-2
 - **Files:** `src/modules/listings/application/dsc.v2.ts` (`DscServiceV2.search`), `src/modules/listings/ports/dsc.v2.ts` (`DscRepository`), `src/modules/listings/domain/dsc.ts`, `src/modules/listings/infra/pg.ts`
 - **Schema/DTO:** DTOs `SearchRequest` → `SearchResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/dsc_contracts.test.ts` › `[DSC-1.Q1]`, `[DSC-1.I1]`, `[DSC-1.I2]`, `[DSC-1.I4]`, `[DSC-1.R1]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/dsc_contracts.test.ts` › `[DSC-1.Q1]`, `[DSC-1.I1]`, `[DSC-1.I2]`, `[DSC-1.I4]`, `[DSC-1.R1]`; `_bmad-output/test-artifacts/nfr/dsc1_latency.test.ts` › `[NFR-DSC-1.seed]`, `[NFR-DSC-1.scale]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** business and individual listings around Bogotá. **When:** Camila searches 15 km. **Then:** both seller kinds come back together, ranked by distance, then price, then id, each citing FR-DSC-5 with its distance; the SQL distance matches haversine within 1 m.
   - **Scenario (failure) — Given:** one listing is hidden, and 10 identical searches run concurrently. **When:** the searches run. **Then:** the hidden listing never appears, and the 10 results are byte-identical.
-- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-DSC-1: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 7 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 6.3: Show a card's detail at the area boundaries
 
@@ -852,7 +852,7 @@ Let buyers find listings by area through one query path. Ranking is deterministi
 - **Gherkin:**
   - **Scenario (happy) — Given:** most listings have usable coordinates. **When:** Camila searches. **Then:** the results come back with the excluded count reported.
   - **Scenario (failure) — Given:** listings with no usable coordinates, catalog filters that match more than 20,000 entries, and an unknown card id. **When:** search or card detail runs. **Then:** the listings are counted and explained with `ListingLocationUnusable`; `SearchFilterTooBroad` (400); `CatalogEntryNotFound` (404) with no further call.
-- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-DSC-1: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ## Epic 7: Orders and comprobante confirmation (ORD)
 

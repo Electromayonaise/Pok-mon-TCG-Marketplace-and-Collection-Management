@@ -141,6 +141,14 @@ export class PgIdnRepository implements IdnRepository {
     return rows[0] ?? null;
   }
 
+  async readMeetingPoint(tx: Tx, userId: CuidId): Promise<{ lat: number; lng: number } | null> {
+    const { rows } = await tx.query<{ lat: number; lng: number }>(
+      `SELECT "meetingLat" AS lat, "meetingLng" AS lng FROM "IndividualSellerProfile" WHERE "userId" = $1`,
+      [userId],
+    );
+    return rows[0] ?? null;
+  }
+
   async readDisplayNames(tx: Tx, userIds: readonly CuidId[]): Promise<Map<CuidId, string>> {
     const { rows } = await tx.query<{ id: CuidId; displayName: string }>(
       `SELECT u.id, COALESCE(p."displayName", u.name) AS "displayName"

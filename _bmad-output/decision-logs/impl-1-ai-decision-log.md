@@ -528,3 +528,50 @@
     - `[INV-1.MEC]`, 100 repetitions, in 479 ms.
 - **Artifact changed:** `src/modules/listings/**`, `src/modules/catalog/application/cat.v2.ts`, `src/server/composition.ts` (+ test), `test-support/db.ts`, `test-support/solu2/fixtures.ts`, `_bmad-output/planning-artifacts/detailed-design/contracts.md` (§13, eight stored-only rows), `_bmad-output/planning-artifacts/epics.source.mjs` and `epics.md`, `_bmad-output/test-artifacts/nfr/inv4_latency.test.ts`, `_bmad-output/test-artifacts/nfr-evidence.md`, `deferred-work.md`, the six Epic 5 story files, and `sprint-status.yaml` (5.3, 5.4 and 5.5 out of `impl2_scope`; `epic-5: done`).
 - **Decided by:** Martín.
+
+### 31. Epic 6 is built whole, a null location copies the meeting point, its close review counts only real exclusions, and the epic is signed (Governance)
+
+- **Phase:** 3 (Epic 6 planning at `e143f13`, then the close review over `e143f13..ced24e1`).
+- **Persona/Skill:** `bmad-quick-dev`, epic-batched (#22), then `bmad-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor).
+- **Prompt (summary):** Two rounds.
+  - **The specs.** Martín approved the four Epic 6 specs together. With them came four choices:
+    - **Scope.** Story 6.4 is in `impl2_scope`, but its three bound tests check clauses that 6.2 and 6.3 must build:
+      - `[DSC-1.Q4]` checks `excluded` and `decision`, two required fields of DSC-1's response;
+      - `[DSC-1.P2]` checks the refusal that runs before DSC-1's statement;
+      - `[DSC-2.P1]` checks DSC-2's first step.
+
+      Built without them, they would fail for a reason other than NotImplemented, which the gate also refuses.
+    - **A `null` location** (deferred by #30): FR-INV-1 defaults it to the individual seller's meeting point.
+    - **NFR-DSC-1** has two thresholds: the §3 seed and 50,000 listings.
+    - **`purchasableOnly`:** the seller's verification comes from identity after the one statement.
+  - **The close review.** It left 2 decisions, 6 patches, 2 deferrals and 9 dismissed findings. The two decisions:
+    - without an area, listings with no usable location were returned and also counted as excluded, under an `excluded` decision that speaks of an area search;
+    - DSC-2 Q4 names a "no active listings" decision, but `GetCardDetailResponse` has no decision field.
+- **AI output (summary):** The agent recommended:
+  - **(recommended)** Build the whole epic, as 2.4, 3.3, 3.4, 4.3, 5.3, 5.4 and 5.5 were (#26, #27, #29, #30), committing in the order 6.1, 6.2, 6.3, 6.4. 6.4 is proof-only, committed right after 6.3 (#23). It leaves `impl2_scope` and does not count toward the 43 Impl-1 stories. The alternative was a gate exception.
+  - **(recommended)** Copy the meeting point at create: IDN-2's response gains an optional `meetingPoint`, read by identity's own repository, and `createListing` and `createBundle` store it when `location` is null. DSC-1 stays one statement over `"Listing".lat/lng`, and `listings` reads no identity table. A business with a null location still stores none (INV-2 P5). The alternatives were resolving it at read, which breaks the one statement and paging, or keeping it deferred.
+  - **(recommended)** Bind both halves, `[NFR-DSC-1.seed]` and `[NFR-DSC-1.scale]`, to 6.2, the owner of DSC-1, as #29 and #30 did. 6.4's DoD line is met once the NFR is Green — benchmark. The alternatives were the seed half only, or the scale half on 6.4.
+  - **(recommended)** For `purchasableOnly`, filter the listing's own facts in SQL and drop unverified sellers' rows from the page, so a page can hold fewer than 24. This goes to `deferred-work.md` for the search UI. The alternatives were two statements (losing the one snapshot of NFR-DSC-3), or ignoring the flag.
+  - **(recommended)** Count only real exclusions: without an area `excluded.unusableLocation` is 0 and the decision is `SearchRanked`. The no-area order stays `(soldOut, priceCop, id)`, as contracts.md DSC-1 Q1 states. The alternatives were also ranking them after the located rows (AD-DSC-1 rule 4 to the letter), or counting them with another template.
+  - **(recommended)** Defer DSC-2's decision field to the card page story (UI 2.2), which renders the empty state from `hasActiveListings` and `excluded`. The alternative was a DTO change now.
+  - Apply all 6 patches.
+- **Human decision:** ACCEPT every recommendation, and sign the Epic 6 gate (#5).
+- **Reason:** `done` keeps meaning what the bound tests prove, and the gate needs no exception. The meeting point closes an Epic 5 deferral without a cross-module read. The review decisions keep the response honest (a returned row is never "excluded") without changing a DTO or a bound test.
+- **Also decided (the patches):**
+  - A card's `listingPriceCop` is the lowest price over every matching listing in the area, read by the same statement (`withMinPrice`), not only over the first 100 rows returned (AD-DSC-2 rule 4).
+  - IDN-2 reads the eligibility facts and the meeting point in one snapshot.
+  - A bad `maxPriceCop`, and a card detail with no `area`, are refused through `rejectRequest` for in-process callers, before any neighbour call.
+  - A test pins the SQL order to the domain's `compareRank`.
+  - The benchmark's header no longer says its tests stay red.
+- **Also dismissed, with evidence:** a `count(*) FILTER (…)` form of the unusable count was tried. It evaluates the correlated availability for every visible listing, and the 50,000-listing benchmark went from 24 s to over 10 minutes. The scalar subquery with the location test first stays, in the same statement and snapshot.
+- **Also in this epic:**
+  - `getAvailabilitySummary` filters by area with DSC-1's own predicates (deferred by #30), and refuses a bad area as `InvalidSearchArea`.
+  - §13 gains three stored-only rows, with no placeholders: `ListingRanked`, `SearchRanked` and `ListingLocationUnusable`.
+  - `discovery.search` and `discovery.cardDetail` are wired as public procedures.
+  - The measured figures (local Postgres 16):
+    - `[NFR-DSC-1.seed]` p95 19.0 ms;
+    - `[NFR-DSC-1.scale]` p95 97.2 ms at 50,000 listings;
+    - `[DSC-2.MEC]` one run of both radii in 264 ms.
+- **Environment note:** Docker did not run in this session either. The preinstalled `postgresql-16` cluster on port 55432 with `max_connections=200`, `fsync=off` and `full_page_writes=off` ran `npm run test:ci` in about 2 minutes.
+- **Artifact changed:** `src/modules/listings/**`, `src/modules/identity/{dto,application,ports,infra}/` (`meetingPoint`), `src/server/composition.ts` (+ test), `test-support/solu2/fixtures.ts`, `_bmad-output/planning-artifacts/detailed-design/contracts.md` (§13, three stored-only rows), `_bmad-output/planning-artifacts/epics.source.mjs` and `epics.md`, `_bmad-output/test-artifacts/nfr/dsc1_latency.test.ts`, `_bmad-output/test-artifacts/nfr-evidence.md`, `deferred-work.md`, the four Epic 6 story files, and `sprint-status.yaml` (6.4 out of `impl2_scope`; `epic-6: done`).
+- **Decided by:** Martín.

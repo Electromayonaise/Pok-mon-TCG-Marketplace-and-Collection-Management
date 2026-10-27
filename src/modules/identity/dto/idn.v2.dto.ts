@@ -14,6 +14,8 @@ export interface RequireListingEligibilityResponse {
   listingKind: 'business' | 'individual';
   verified: boolean;
   decision: ExplanationDTO;
+  /** The individual seller's meeting point, which INV-2 P5 uses when `location` is null (decision log Impl-1 #31); null for a business. */
+  meetingPoint?: { lat: number; lng: number } | null;
 }
 
 // IDN-3 traceCapabilities

@@ -301,7 +301,7 @@ export default {
         {
           title: 'Search listings by area with an explained ranking', kind: 'Core',
           as: 'As Camila, I want listings within my area ranked by distance, price and id, each explained, so that I can trust the order.',
-          ops: ['DSC-1'], tests: ['DSC-1.Q1', 'DSC-1.I1', 'DSC-1.I2', 'DSC-1.I4', 'DSC-1.R1'], depends: ['6.1', '5.1', '4.5', '2.5'],
+          ops: ['DSC-1'], tests: ['DSC-1.Q1', 'DSC-1.I1', 'DSC-1.I2', 'DSC-1.I4', 'DSC-1.R1', 'NFR-DSC-1.seed', 'NFR-DSC-1.scale'], depends: ['6.1', '5.1', '4.5', '2.5'],
           happy: ['business and individual listings around Bogotá.', 'Camila searches 15 km.', 'both seller kinds come back together, ranked by distance, then price, then id, each citing FR-DSC-5 with its distance; the SQL distance matches haversine within 1 m.'],
           failure: ['one listing is hidden, and 10 identical searches run concurrently.', 'the searches run.', 'the hidden listing never appears, and the 10 results are byte-identical.'],
         },

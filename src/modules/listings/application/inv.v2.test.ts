@@ -5,7 +5,7 @@ import { PgTransactionRunner, useTestDatabase } from '../../../../test-support/d
 import { PG } from '../../../../test-support/env.js';
 import { caught, citedInputs } from '../../../../test-support/errors.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
-import { business, catalogEntry, commissionState, fake, id, listing, purchasableListing, rows, T0, unit, user, wiring } from '../../../../test-support/solu2/fixtures.js';
+import { business, catalogEntry, commissionState, fake, id, individualSeller, listing, purchasableListing, rows, T0, unit, user, wiring } from '../../../../test-support/solu2/fixtures.js';
 import { CatServiceV2 } from '../../catalog/index.js';
 import { IdnServiceV2 } from '../../identity/index.js';
 import type { CatalogFeedSource, FxRateSource } from '../../../shared-kernel/external.js';
@@ -173,14 +173,19 @@ describe('managing listings (S-FR-INV-2, -9, -10)', () => {
     expect((await rows<{ quantity: number }>(db, 'InventoryUnit'))[0]?.quantity).toBe(2);
   });
 
-  it('the availability summary counts a funded Approved business, keeps input order, and refuses duplicates and an area until DSC-3', async () => {
+  it('the availability summary counts a funded Approved business, keeps input order, refuses duplicates and filters by area (DSC-3, AD-DSC-1)', async () => {
     await andres(2);
     const inv = inventory();
     expect(await inv.getAvailabilitySummary({ catalogEntryIds: [id('ghost'), id('char')], area: null })).toEqual({
       items: [{ catalogEntryId: id('ghost'), lowestPriceCop: null, availableCount: 0 }, { catalogEntryId: id('char'), lowestPriceCop: 45_000, availableCount: 1 }],
     });
     expect(codeOf(await caught(() => inv.getAvailabilitySummary({ catalogEntryIds: [id('char'), id('char')], area: null })))).toBe('RequestValidationFailed');
-    expect(codeOf(await caught(() => inv.getAvailabilitySummary({ catalogEntryIds: [id('char')], area: { lat: 4.7, lng: -74, radiusKm: 10 } })))).toBe('NotImplementedError');
+    const near = await inv.getAvailabilitySummary({ catalogEntryIds: [id('char')], area: { lat: 4.7, lng: -74, radiusKm: 10 } });
+    const far = await inv.getAvailabilitySummary({ catalogEntryIds: [id('char')], area: { lat: 6.2442, lng: -75.5812, radiusKm: 10 } });
+    expect([near.items[0]?.availableCount, far.items[0]?.availableCount]).toEqual([1, 0]);
+    await db.query(`UPDATE "Listing" SET lat = NULL, lng = NULL`);
+    expect((await inv.getAvailabilitySummary({ catalogEntryIds: [id('char')], area: { lat: 4.7, lng: -74, radiusKm: 300 } })).items[0]?.availableCount).toBe(0);
+    expect(codeOf(await caught(() => inv.getAvailabilitySummary({ catalogEntryIds: [id('char')], area: { lat: 4.7, lng: -74, radiusKm: 301 } })))).toBe('InvalidSearchArea');
   });
 });
 
@@ -248,5 +253,20 @@ describe('Epic 5 close review patches (decision log Impl-1 #30)', () => {
     await listing(db, { id: id('lpend'), sellerId: id('pending'), unitId: id('upend') });
     const unverified = await inventory().getListing({ listingId: id('lpend'), actorId: null });
     expect([unverified.state, unverified.decision.citations[0].inputs]).toEqual(['Unverified', { verification: 'Pending' }]);
+  });
+});
+
+describe('Epic 6: a null location defaults to the meeting point (decision log Impl-1 #31)', () => {
+  it('an individual listing with a null location stores the seller\'s meeting point; a business one stores none', async () => {
+    await individualSeller(db, id('valentina'), { lat: 6.2442, lng: -75.5812, city: 'Medellín' });
+    await business(db, id('andres'), 'Approved');
+    await commissionState(db, id('andres'));
+    await catalogEntry(db, id('char'));
+    const inv = inventory();
+    const input = { itemRef: id('char'), condition: 'NM' as const, priceCop: 45_000, quantity: 1, location: null, description: '', openToTrade: false };
+    const mine = await inv.createListing({ ...input, sellerId: id('valentina') });
+    const theirs = await inv.createListing({ ...input, sellerId: id('andres') });
+    const located = await rows<{ id: string; lat: number | null; lng: number | null }>(db, 'Listing');
+    expect(Object.fromEntries(located.map((l) => [l.id, [l.lat, l.lng]]))).toEqual({ [mine.listingId]: [6.2442, -75.5812], [theirs.listingId]: [null, null] });
   });
 });

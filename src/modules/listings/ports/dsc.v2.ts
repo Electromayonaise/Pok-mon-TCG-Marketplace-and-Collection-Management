@@ -39,9 +39,56 @@ export interface DscV2Deps {
 }
 // </gen-solu2-api>
 
+import type { Tx } from '../../../shared-kernel/ports.js';
+import type { Condition, CuidId } from '../../../shared-kernel/types.js';
+import type { Area } from '../domain/dsc.js';
+import type { ProjectionState } from '../domain/inv.js';
+
+/** The filters DSC-1's one statement applies (AD-DSC-1 rules 1, 2, 4–6), shared with DSC-2. */
+export interface ListingQuery {
+  /** `itemRef = ANY(ids)` over a listing's units; null applies no entry filter. */
+  entryIds: CuidId[] | null;
+  area: Area | null;
+  maxPriceCop: number | null;
+  conditions: Condition[] | null;
+  /** The listing-side half of purchasability; the verification is read after the statement. */
+  purchasableOnly: boolean;
+  includeSoldOut: boolean;
+  limit: number;
+  offset: number;
+  /** DSC-2 (AD-DSC-2 rule 4): also read the lowest price over every matching row, not only the page's. */
+  withMinPrice: boolean;
+}
+
 /**
- * Repository port of DSC (review A-4): the only way its application service reads or writes
- * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * The statement's answer. `unusableLocation` counts the rows an area left out for their location
+ * (0 without an area, where they are returned; decision log Impl-1 #31); `minPriceCop` is null unless asked.
  */
-export interface DscRepository {}
+export interface ListingPage {
+  rows: RankedListingRow[];
+  unusableLocation: number;
+  minPriceCop: number | null;
+}
+
+/** One ranked row as the statement reads it; `rank` is its 1-based position in the whole result. */
+export interface RankedListingRow {
+  listingId: CuidId;
+  sellerId: CuidId;
+  sellerKindAtCreation: 'business' | 'individual';
+  catalogEntryIds: CuidId[];
+  priceCop: number;
+  distanceKm: number | null;
+  availability: number;
+  paused: boolean;
+  projection: ProjectionState;
+  rank: number;
+}
+
+/**
+ * Repository port of DSC (review A-4). DSC owns no tables: it reads INV's `"Listing"`,
+ * `"InventoryUnit"`, `"BundleComponent"` and `"SellerCommissionState"` inside the `listings` module.
+ */
+export interface DscRepository {
+  /** DSC-1 Q1: one statement, one snapshot: the page and the unusable-location count. */
+  searchListings(tx: Tx, q: ListingQuery): Promise<ListingPage>;
+}

@@ -1,0 +1,114 @@
+---
+title: 'Story 6.2: Search listings by area with an explained ranking'
+type: 'feature'
+created: '2026-10-27'
+status: 'done'
+baseline_commit: 'e143f13'
+review_loop_iteration: 0
+flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
+context:
+  - '{project-root}/_bmad-output/planning-artifacts/epics.md'
+  - '{project-root}/_bmad-output/planning-artifacts/detailed-design/contracts.md'
+  - '{project-root}/_bmad-output/planning-artifacts/ARCHITECTURE.md'
+---
+
+<frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
+
+## Intent
+
+**Problem:** `search` throws `NotImplementedError`, so the 5 bound tests are red and no buyer can find a listing by area. Two Epic 5 deferrals wait on it: a listing created with `location = null` has no coordinates, and `getAvailabilitySummary` refuses a non-null `area`.
+
+**Approach:** DSC-1 as written in contracts.md §4 and AD-DSC-1/2: the checks P1–P3, **one** SQL statement over `"Listing"`, `"InventoryUnit"`, `"BundleComponent"` and `"SellerCommissionState"`, then one `identity.getSellerKinds` for the page's sellers. A new `PgDscRepository` joins the one repository (R-14), in `wiring()` and `compose()`, and `discovery.search` is wired.
+
+## Boundaries & Constraints
+
+**Always:**
+- **Checks (first-fail, before the statement):** P1 `assertSearchArea(area)` when present; P3 `page` an integer 1–417 and `pageSize` 24, through `rejectRequest`; P2 non-empty `catalogFilters` → `catalog.matchEntryIds`, and `tooBroad` → `SearchFilterTooBroad` (400) citing `{ rule: 'FR-DSC-1', inputs: { threshold: 20000 } }`. Empty filters make no call.
+- **The statement (one, so one snapshot):**
+  - visible (`hiddenAt`, `withdrawnAt`, `deactivatedAt` null), availability ≥ 1 unless `includeSoldOut` (the read-time `AVAILABILITY_SQL`, bundles included);
+  - a listing's entries are its unit's entry, or its components' (`catalogEntryIds`); `itemRef = ANY(ids)`, `maxPriceCop`, and `condition` (any of its units) filter;
+  - unusable = null, (0, 0) or outside `COLOMBIA_BBOX`, counted over the filtered set with `FILTER`; with an area they are excluded, and the rest pass a bbox prefilter, then `d ≤ radiusKm + 1e-6` with the one haversine expression in double precision;
+  - order: sold-out last, then `(d, "priceCop", id)` with an area or `("priceCop", id)` without; `LIMIT 24 OFFSET (page − 1) × 24`.
+  - No seller-kind branch in the builder (AD-5). The statement builder is shared with DSC-2 and with `getAvailabilitySummary`'s area filter.
+- **Composition:** at most 3 neighbour calls; `getSellerKinds` once, only for a non-empty page. `sellerKind` comes from it (falling back to `sellerKindAtCreation`), `pickupAvailable = sellerKind = 'individual'`, `verified` from it, never stored. `purchasable` is INV's `purchasable()` over the row's facts, with the verification read as `Approved` when `verified`.
+- **Explanations (Clock read once):** each row `ranked` with `ListingRanked`, citing `{ rule: 'FR-DSC-5', inputs: { distanceKm, priceCop, rankKey } }` (`rankKey` = the row's 1-based position in the whole result). The response decision: `excluded` with `ListingLocationUnusable` citing `{ rule: 'FR-DSC-3', inputs: { unusableLocation } }` when the count is > 0, else `ranked` with `SearchRanked` citing `FR-DSC-5`. Both new codes and `ListingLocationUnusable` get §13 stored-only rows; then `node scripts/gen-solu2-api.mjs`.
+- **Null location (Epic 5 deferral):** IDN-2's response gains an optional `meetingPoint: { lat, lng } | null`, filled for an individual seller. `createListing` stores it when `location` is null, checked by P5 as before; a business with `location = null` still stores none (contracts.md INV-2 P5).
+- **Area in `getAvailabilitySummary` (Epic 5 deferral):** `assertSearchArea`, then the same unusable and distance predicates; the `NotImplementedError` and its `inv.v2.test.ts` assertion go.
+- **NFR-DSC-1:** `_bmad-output/test-artifacts/nfr/dsc1_latency.test.ts`, with `inv4_latency`'s `measure` and the real identity and catalog. `[NFR-DSC-1.seed]`: 15 km around Bogotá on the §3 seed, p95 ≤ 1,000 ms. `[NFR-DSC-1.scale]`: the §3 seed plus generated listings to 50,000, p95 ≤ 1,500 ms. Both bound to this story in `epics.source.mjs`; refresh the DSC rows of `nfr-evidence.md`.
+- A src test: 1,000 deterministic Colombian pairs, SQL distance vs `haversineKm` within 1e-6 km (AD-DSC-1 rule 3); HTTP cases for `discovery.search` in `composition.test.ts`.
+
+**Ask First:** any other DTO or bound-test change; a second statement.
+
+**Never:** a read of a `catalog` or `identity` table (AD-1, AD-8); a cache across requests; a stored `pickupAvailable` or badge; any write, event or audit.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| Ranked | 2 km, 10 km, 40 km | `[2 km, 10 km]`, each `ranked` FR-DSC-5 | N/A |
+| Both kinds | business 1 km, individual 3 km | together; `pickupAvailable` false / true | N/A |
+| Hidden | one `hiddenAt` set | absent | N/A |
+| No coordinates | one null | `excluded.unusableLocation: 1`, `ListingLocationUnusable` | N/A |
+| Too broad | filters → `tooBroad` | — | `SearchFilterTooBroad` 400 |
+| 10 concurrent | equal input | byte-identical `results` | N/A |
+
+</frozen-after-approval>
+
+## Code Map
+
+- `src/modules/listings/ports/dsc.v2.ts` + `infra/pg.ts` -- `DscRepository` / `PgDscRepository`: the one statement builder
+- `src/modules/listings/application/dsc.v2.ts` -- `search`
+- `src/modules/listings/application/inv.v2.ts` + `infra/pg.ts` -- the meeting point at create; the area in `getAvailabilitySummary`
+- `src/modules/identity/dto/idn.v2.dto.ts`, `application/idn.v2.ts`, `infra/pg.ts` -- `meetingPoint` on IDN-2
+- `test-support/solu2/fixtures.ts`, `src/server/composition.ts` (+ test) -- `PgDscRepository`, `DscServiceV2`, `discovery.search`
+- `contracts.md` §13 -- three stored-only rows
+- `_bmad-output/test-artifacts/nfr/dsc1_latency.test.ts`, `epics.source.mjs`, `nfr-evidence.md`
+
+## Tasks & Acceptance
+
+**Execution:**
+- [x] repository + `search` + §13 rows + generator
+- [x] `meetingPoint` on IDN-2 and in `createListing`, with a src test
+- [x] the area in `getAvailabilitySummary`, with a src test
+- [x] `wiring()`, `compose()`, `discovery.search` with HTTP cases; the parity test
+- [x] the benchmark, its binding, `gen:epics:solu2`, `nfr-evidence.md`
+- [x] `sprint-status.yaml` -- 6.2 `done`; `gen:trace:solu2`
+
+**Acceptance Criteria:**
+- Given 6.2 `done`, when the 5 bound tests and the two benchmarks run, then they pass; Story 6.4's `[DSC-1.Q4]` and `[DSC-1.P2]` are early greens, restored by the 6.4 commit (decision #23).
+
+## Verification
+
+**Commands:**
+- `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/dsc_contracts.test.ts -t "DSC-1"` -- expected: the DSC-1 tests pass
+- `npx tsc --noEmit` -- expected: clean
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 6 at its close (decision #22).
+- Martín approved the four Epic 6 specs together, with these choices (decision log Impl-1 #31):
+  - **A null location copies the meeting point at create.** IDN-2's response gains an optional `meetingPoint`, read from `"IndividualSellerProfile"` by identity's own repository (`readMeetingPoint`) for an individual seller only. `createListing` and `createBundle` use it when `location` is null (`locationOf`), and P5 checks it like any location. The Story 5.1 HTTP case that pinned `lat: null` now expects the meeting point.
+  - **NFR-DSC-1:** `[NFR-DSC-1.seed]` and `[NFR-DSC-1.scale]` are both bound to this story.
+  - **`purchasableOnly`:** the statement filters the listing's own facts (business, unpaused, funded, available), and the page drops the rows of unverified sellers after `getSellerKinds`, so such a page can hold fewer than 24 rows (`deferred-work.md`).
+- The statement is one `WITH page AS (…) SELECT (count of unusable), json_agg(page)`: the count and the page read one snapshot (NFR-DSC-3), the bbox prefilter sits in the page's `WHERE` (the `(lat, lng)` index), and `row_number()` over the full order gives each row its `rankKey`. Ids order with `COLLATE "C"`, the same order as `compareRank`.
+- Without an area the order is `(soldOut, priceCop, id)` as contracts.md DSC-1 Q1 and `compareRank` state; unusable rows are then included with `distanceKm: null`, and after the close review they are not counted as excluded (`unusableLocation: 0`, decision #31). AD-DSC-1 rule 4's "rank after the located rows" is not applied, since without a centre no row has a distance.
+- `getAvailabilitySummary` checks the area with `checkSearchArea` and filters with the same predicates (`availabilityAreaSql`).
+- §13: `ListingRanked`, `SearchRanked` and `ListingLocationUnusable` join as stored-only rows with no placeholders (decision #16).
+- `src/modules/listings/application/dsc.v2.test.ts`: the AD-DSC-1 rule 3 parity over 1,000 deterministic Colombian pairs (max error ≤ 1e-6 km), the order without an area, sold-out rows, `purchasableOnly`, the `matchEntryIds` budget and an empty page.
+- Measured (local Postgres 16): `[NFR-DSC-1.seed]` p95 18.6 ms (p50 12.1), `[NFR-DSC-1.scale]` p95 89.9 ms (p50 51.6) at 50,000 listings; after the close review's patches, p95 19.0 ms and 97.2 ms.
+
+### Review Findings
+
+Epic 6 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `e143f13..ced24e1` (code paths). Totals for the epic: 2 decisions, 6 patches, 2 deferrals, 9 dismissed. Martín resolved both decisions with the recommendation and approved every patch (decision log Impl-1 #31).
+
+- [x] [Review][Decision → Patch] Without an area, listings with no usable location were returned and also counted as excluded, with an `excluded` decision whose text speaks of an area search [src/modules/listings/infra/pg.ts:listingSearchSql] — Martín: count only real exclusions; without an area `unusableLocation` is 0 and the decision is `SearchRanked`, the order stays `(soldOut, priceCop, id)` (contracts.md DSC-1 Q1)
+- [x] [Review][Patch] The meeting point was read in a second snapshot after the eligibility facts [src/modules/identity/application/idn.v2.ts:requireListingEligibility] — both reads now share one `reading()`
+- [x] [Review][Patch] `maxPriceCop` was not checked for in-process callers; a negative or fractional value reached the bigint cast as a 500 [src/modules/listings/application/dsc.v2.ts:search] — refused through `rejectRequest`
+- [x] [Review][Patch] No test pinned the SQL order to the domain's `compareRank` [src/modules/listings/application/dsc.v2.test.ts] — a 30-listing page is re-sorted with `compareRank` and must not move
+- [x] [Review][Patch] The benchmark header still said its tests stay red until the story is done [_bmad-output/test-artifacts/nfr/dsc1_latency.test.ts:1]
+- [x] [Review][Defer] `purchasableOnly` drops unverified sellers' rows after `LIMIT/OFFSET`: short pages, gaps in `rankKey`, and `SearchRanked.results` counting the filtered page [src/modules/listings/application/dsc.v2.ts:search] — deferred, already decided at the spec (decision log Impl-1 #31); `deferred-work.md` now names the `rankKey` gaps too
+- [x] [Review][Dismiss] The count is a scalar subquery, not `count(*) FILTER (…)` — dismissed: the `FILTER` form was tried and evaluates the correlated availability for every visible listing (the 50,000-listing benchmark went from 24 s to over 10 min); the `WHERE` form lets the planner test the location first, in the same statement and snapshot
+- [x] [Review][Dismiss] A window sort over every matching row on each search — dismissed: measured, p95 97 ms at 50,000 listings against 1,500 ms
+- [x] [Review][Dismiss] `InvalidLocation` could cite a meeting point the seller never typed — dismissed: the `"IndividualSellerProfile"` CHECK is the same ADD-§2.4 box, so a stored point always passes P5
+- [x] [Review][Dismiss] `hasFilters` would treat a boolean `false` as a filter — dismissed: `CatalogFilters` has no boolean field
+- [x] [Review][Dismiss] The benchmark times the service call, not the HTTP handler, and its scale seed shares units — dismissed: the same in-process protocol as every other NFR benchmark; the seed is test-only
