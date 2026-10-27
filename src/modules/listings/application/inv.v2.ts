@@ -47,18 +47,94 @@ export interface InvV2UseCases {
 }
 // </gen-solu2-api>
 
+import type { Citation, Decision } from '../../../shared-kernel/decision.js';
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest } from '../../../shared-kernel/request.js';
+import type { IsoInstant } from '../../../shared-kernel/types.js';
+import { conditionFitsKind, createdState, isValidLocation, isValidPrice, pausedAtInsert, type ProjectionState } from '../domain/inv.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('listings');
+
+/** AD-INV-3 rule 3: the projection row as a listing reads it; an absent row means paused. */
+const projectionOf = (row: { paused: boolean } | null): ProjectionState => (row === null ? 'absent' : row.paused ? 'paused' : 'funded');
+
+/** INV-2: `description` is at most 1,000 code points, as the schema's `char_length` CHECK counts them. */
+const MAX_DESCRIPTION = 1_000;
+
+/** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
+function explained(outcome: Decision['outcome'], code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
+  return { outcome, reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
+}
+
+/** INV-2 Q4: the decision that matches a new listing's state. */
+function creationDecision(state: 'Active' | 'Unverified' | 'Paused', citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
+  if (state === 'Paused') return explained('paused', 'ListingPausedBalanceExhausted', citations, now);
+  if (state === 'Unverified') return explained('allowedWithNotice', 'ListingUnverified', citations, now);
+  return explained('allowed', 'ListingActive', citations, now);
+}
+
+/** Every method not yet built throws NotImplementedError until its story is done (red for the right reason). */
 export class InvServiceV2 implements InvV2UseCases {
   constructor(protected readonly deps: InvV2Deps) {}
 
-  async reserveForPurchase(_tx: Tx, _input: ReserveForPurchaseRequest): Promise<ReserveForPurchaseResponse> {
-    throw new NotImplementedError('listings.reserveForPurchase');
+  /** INV-2 P2–P5 for one item: the checks after eligibility, first-fail, before any write. */
+  private async checkListingInput(input: CreateListingRequest, listingKind: 'business' | 'individual'): Promise<void> {
+    if (input.openToTrade && listingKind === 'business') {
+      raise('OpenToTradeNotAllowed', [{ rule: 'AD-4', inputs: { listingKind, openToTrade: true } }]);
+    }
+    const { resolved } = await this.deps.catalog.resolveItemRefs({ refs: [input.itemRef] });
+    const kind = resolved.find((r) => r.ref === input.itemRef)?.kind ?? null;
+    if (kind === null || !conditionFitsKind(input.condition, kind)) {
+      raise('InvalidItemRef', [{ rule: 'FR-INV-1', inputs: { itemRef: input.itemRef, kind, condition: input.condition } }]);
+    }
+    this.checkPriceAndLocation(input.priceCop, input.location);
+    if (!Number.isInteger(input.quantity) || input.quantity < 1 || input.quantity > 999) rejectRequest([{ field: 'quantity', issue: 'debe ser un entero entre 1 y 999' }]);
+    if ([...input.description].length > MAX_DESCRIPTION) rejectRequest([{ field: 'description', issue: `debe tener como máximo ${MAX_DESCRIPTION} caracteres` }]);
   }
 
-  async createListing(_input: CreateListingRequest): Promise<CreateListingResponse> {
-    throw new NotImplementedError('listings.createListing');
+  /** INV-2 P4 and P5, shared with bundles and edits. A null location stores no coordinates (decision log Impl-1 #30). */
+  private checkPriceAndLocation(priceCop: number, location: { lat: number; lng: number } | null): void {
+    if (!isValidPrice(priceCop)) raise('InvalidPrice', [{ rule: 'FR-INV-1', inputs: { priceCop } }]);
+    if (location !== null && !isValidLocation(location)) raise('InvalidLocation', [{ rule: 'FR-INV-1', inputs: { lat: location.lat, lng: location.lng } }]);
+  }
+
+  /**
+   * INV-2: eligibility and the input checks first, then one transaction that links or creates the
+   * unit, reads the projection `FOR SHARE` for a business, and inserts the listing (fail-closed).
+   */
+  async createListing(input: CreateListingRequest): Promise<CreateListingResponse> {
+    const { repo, transactions, clock, ids, audit, identity } = this.deps;
+    const eligibility = await identity.requireListingEligibility({ userId: input.sellerId });
+    const { listingKind, verified } = eligibility;
+    await this.checkListingInput(input, listingKind);
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      const unit = await repo.resolveUnit(tx, { id: ids.next(), sellerId: input.sellerId, catalogEntryId: input.itemRef, condition: input.condition, quantity: input.quantity, now });
+      const projection = listingKind === 'business' ? projectionOf(await repo.readProjectionForShare(tx, input.sellerId)) : null;
+      const paused = pausedAtInsert(listingKind, projection);
+      const listingId = ids.next();
+      await repo.insertListing(tx, {
+        id: listingId, sellerId: input.sellerId, sellerKindAtCreation: listingKind, kind: 'single', inventoryUnitId: unit.id, title: null,
+        priceCop: input.priceCop, location: input.location, description: input.description, openToTrade: input.openToTrade, pausedAt: paused ? now : null, now,
+      });
+      const state = createdState({ paused, listingKind, verified });
+      const verification = listingKind === 'business' ? (verified ? 'Approved' : 'Pending') : 'none';
+      const citations: [Citation, ...Citation[]] = [{ rule: 'FR-INV-7', inputs: { verification, projection } }];
+      if (!unit.created) citations.push({ rule: 'FR-INV-1', inputs: { inventoryUnitId: unit.id, existingQuantity: unit.quantity, ignoredQuantity: input.quantity } });
+      const decision = creationDecision(state, citations, now);
+      await audit.record(tx, {
+        actorId: input.sellerId, actorKind: 'user', module: 'listings', action: 'listings.listing.created', aggregateType: 'Listing', aggregateId: listingId,
+        decisionCode: decision.reasonCode, data: { listingId, inventoryUnitId: unit.id, state, unitCreated: unit.created }, at: now,
+      });
+      return { listingId, inventoryUnitId: unit.id, state, availability: unit.quantity, decision };
+    });
+  }
+
+  async reserveForPurchase(_tx: Tx, _input: ReserveForPurchaseRequest): Promise<ReserveForPurchaseResponse> {
+    throw new NotImplementedError('listings.reserveForPurchase');
   }
 
   async applyCommissionProjection(_tx: Tx, _input: ApplyCommissionProjectionRequest): Promise<ApplyCommissionProjectionResponse> {

@@ -137,3 +137,4 @@ Each benchmark writes its figures (milliseconds, n = 500) to `.vitest-results/`.
 | NFR-VER-3 | `[NFR-VER-3.sign]` | `nfr-ver-3-sign.json` | 4.9 | 8.2 | p95 ≤ 300 | 2026-10-26, Epic 3 review (signing inside the grant transaction), local Docker Postgres 16, in-memory storage |
 | NFR-CAT-1 | `[NFR-CAT-1.provenance]` | `nfr-cat-1-provenance.json` | 4.9 | 11.9 | p95 ≤ 300 | 2026-10-27, Story 4.4, 48 priced ids over 30 days, local Postgres 16 |
 | NFR-CAT-1 | `[NFR-CAT-1.browse]` | `nfr-cat-1-browse.json` | 2.1 | 9.9 | p95 ≤ 1,000 | 2026-10-27, Story 4.5, the 10,000-entry §3 catalog (no filter, one set, a name prefix), local Postgres 16 |
+| NFR-INV-4 | `[NFR-INV-4.create]` | `nfr-inv-4-create.json` | 2.1 | 4.3 | p95 ≤ 800 | 2026-10-27, Story 5.1, individual sellers and funded businesses on the §3 seed, half new units and half links, local Postgres 16 |

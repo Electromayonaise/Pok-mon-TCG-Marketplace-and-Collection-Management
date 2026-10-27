@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 375 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 376 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -700,11 +700,11 @@ Let sellers list from one stock pool per (seller, item, condition). Reserve that
 - **Binding invariants:** AD-3 — Commission balance is the single source of purchasability (Fail-closed `SellerCommissionState` read `FOR SHARE` at listing insert; projection seq gate); AD-INV-1 — One unit per (seller, item, condition) (`UNIQUE (sellerId, catalogEntryId, condition)`); also cited by its clauses: AD-4, AD-6, AD-INV-3
 - **Files:** `src/modules/listings/application/inv.v2.ts` (`InvServiceV2.createListing`), `src/modules/listings/ports/inv.v2.ts` (`InvRepository`), `src/modules/listings/domain/inv.ts`, `src/modules/listings/infra/pg.ts`
 - **Schema/DTO:** tables `"InventoryUnit"`, `"Listing"`, `"SellerCommissionState"`; DTOs `CreateListingRequest` → `CreateListingResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_contracts.test.ts` › `[INV-2.Q1]`, `[INV-2.I1]`, `[INV-2.Q2]`, `[INV-2.I2]`, `[INV-2.R1]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_contracts.test.ts` › `[INV-2.Q1]`, `[INV-2.I1]`, `[INV-2.Q2]`, `[INV-2.I2]`, `[INV-2.R1]`; `_bmad-output/test-artifacts/nfr/inv4_latency.test.ts` › `[NFR-INV-4.create]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Valentina is an individual seller with no unit for the card. **When:** she lists 3 copies, then lists the same copy again. **Then:** a unit of 3 and an Active listing; the second listing links the unit unchanged and explains the ignored quantity.
   - **Scenario (failure) — Given:** an Approved business has no commission projection yet, a Pending business lists, and two listings of one copy are created at once. **When:** the listings are created. **Then:** the first is Paused (fail-closed), the second Unverified with the `ListingUnverified` notice, and the concurrent pair shares one unit.
-- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-INV-4: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-INV-4: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
 
 ### Story 5.2: Reserve stock in the caller's transaction and restore it on abort
 

@@ -63,3 +63,7 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 - `catalog.fx.retry` drops the admin's id: `FetchTrmRequest` carries no actor, so the `catalog.fxRate.*` audit rows are `actorKind: 'system'` with a null actor and `data.trigger = 'admin'`. Recording the admin needs a DTO change (`actorId` on the admin trigger), for the story that wires the jobs route.
 - `getPriceHistory` bounds its ids (≤ 500) but not its window or row count, so a wide `[from, to]` returns every observation of those entries. The contract bounds only the ids; VAL-3 (Epic 12) sets the windows it asks for and should bound them.
 - `catalog.browse` accepts any safe-integer `page`, and its filter strings have no length bound (the registry's zod input bounds only `pageSize`). A deep OFFSET is a slow but correct read. DSC-1 caps its own pages at 417; add the same cap to the registry with a contract change.
+
+## Deferred from: spec of Epic 5 (5.1–5.6) (2026-10-27)
+
+- A listing created with `location = null` stores no coordinates. FR-INV-1 says the location defaults to the individual seller's meeting point, but INV has no identity port that reads it (`IdentityForInv` offers `requireListingEligibility` and `getSellerVerification`), and the ATDD fakes provide only those two. DSC-1 (Epic 6) searches on `"Listing".lat/lng`, so until then such a listing counts as an unusable location. Epic 6 decides between copying the point at create (an optional `meetingPoint` on IDN-2) and resolving it at read through `getSellerKinds` (decision log Impl-1 #30).

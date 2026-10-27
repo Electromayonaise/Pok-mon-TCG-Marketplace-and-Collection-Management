@@ -243,7 +243,7 @@ export default {
         {
           title: 'List a card and share one stock pool', kind: 'Core',
           as: 'As Valentina, I want to list 3 copies of a card and have a second listing of the same copy share the stock, so that I never oversell.',
-          ops: ['INV-2'], tests: ['INV-2.Q1', 'INV-2.I1', 'INV-2.Q2', 'INV-2.I2', 'INV-2.R1'], depends: ['2.3', '4.5'],
+          ops: ['INV-2'], tests: ['INV-2.Q1', 'INV-2.I1', 'INV-2.Q2', 'INV-2.I2', 'INV-2.R1', 'NFR-INV-4.create'], depends: ['2.3', '4.5'],
           happy: ['Valentina is an individual seller with no unit for the card.', 'she lists 3 copies, then lists the same copy again.', 'a unit of 3 and an Active listing; the second listing links the unit unchanged and explains the ignored quantity.'],
           failure: ['an Approved business has no commission projection yet, a Pending business lists, and two listings of one copy are created at once.', 'the listings are created.', 'the first is Paused (fail-closed), the second Unverified with the `ListingUnverified` notice, and the concurrent pair shares one unit.'],
         },

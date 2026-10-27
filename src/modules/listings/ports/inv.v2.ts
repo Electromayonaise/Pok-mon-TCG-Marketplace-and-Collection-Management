@@ -37,9 +37,42 @@ export interface InvV2Deps {
 }
 // </gen-solu2-api>
 
+import type { Tx } from '../../../shared-kernel/ports.js';
+import type { Condition, CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+
+/** INV-2 Q1.1: the one unit of `(sellerId, catalogEntryId, condition)` after the insert-or-link. */
+export interface ResolvedUnit {
+  id: CuidId;
+  quantity: number;
+  /** false when the unit already existed and was linked unchanged (FR-INV-1 rule 3). */
+  created: boolean;
+}
+
+/** One `"Listing"` row as INV-2 Q1.3 and S-FR-INV-2 insert it. */
+export interface NewListingRow {
+  id: CuidId;
+  sellerId: CuidId;
+  sellerKindAtCreation: 'business' | 'individual';
+  kind: 'single' | 'bundle';
+  inventoryUnitId: CuidId | null;
+  title: string | null;
+  priceCop: number;
+  location: { lat: number; lng: number } | null;
+  description: string;
+  openToTrade: boolean;
+  pausedAt: IsoInstant | null;
+  now: IsoInstant;
+}
+
 /**
  * Repository port of INV (review A-4): the only way its application service reads or writes
- * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * its own tables (AD-8). Every method takes the transaction it runs in; `infra/pg.ts` implements them.
  */
-export interface InvRepository {}
+export interface InvRepository {
+  /** INV-2 Q1.1, AD-INV-1 rule 1: `INSERT … ON CONFLICT DO NOTHING`, then the unit as it now stands. */
+  resolveUnit(tx: Tx, unit: { id: CuidId; sellerId: CuidId; catalogEntryId: CuidId; condition: Condition; quantity: number; now: IsoInstant }): Promise<ResolvedUnit>;
+  /** INV-2 Q1.2, AD-INV-3 rule 3: the projection row read `FOR SHARE`, or null when absent. */
+  readProjectionForShare(tx: Tx, businessId: CuidId): Promise<{ paused: boolean } | null>;
+  /** INV-2 Q1.3. */
+  insertListing(tx: Tx, row: NewListingRow): Promise<void>;
+}

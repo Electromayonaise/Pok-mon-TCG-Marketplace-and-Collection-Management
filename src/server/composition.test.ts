@@ -1,7 +1,7 @@
 // The production composition over HTTP (decision log Impl-1 #24): a real Better Auth session on
 // the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2, VER-3, the supporting
 // VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
-// (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1) and S-SYS.replay,
+// (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -10,7 +10,7 @@ import { PrismaClient } from '../../generated/prisma/client.js';
 import { VirtualClock } from '../../test-support/clock.js';
 import { useTestDatabase } from '../../test-support/db.js';
 import { FixtureFeedSource, FixtureFxRateSource, InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
-import { admin, at, business, catalogEntry, DAY, feedRun, HOUR, id, ins, observation, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
+import { admin, at, business, catalogEntry, DAY, feedRun, HOUR, id, individualSeller, ins, observation, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
 import { createAuth } from './auth.js';
 import { compose } from './composition.js';
 import { betterAuthSessions } from './sessions.js';
@@ -369,6 +369,33 @@ describe('catalog.browse over HTTP (S-FR-CAT-1; Story 4.5)', () => {
     expect([read.status, read.json.result?.data]).toEqual([200, expect.objectContaining({ total: 1, entries: [expect.objectContaining({ catalogEntryId: id('pika') })] })]);
     const refused = await get('catalog.browse', { filters: {}, page: 1, pageSize: 101 }, '');
     expect([refused.status, refused.json.error?.code]).toEqual([400, 'RequestValidationFailed']);
+  });
+});
+
+describe('inventory.create over HTTP (INV-2; Story 5.1)', () => {
+  const listingInput = { itemRef: id('char'), condition: 'NM', priceCop: 45_000, quantity: 3, location: null, description: '', openToTrade: false };
+
+  it('without a session it is NotAuthenticated 401 and nothing is written', async () => {
+    const { status, json } = await post('inventory.create', listingInput);
+    expect([status, json.error?.code]).toEqual([401, 'NotAuthenticated']);
+    expect(await db.counts(['Listing', 'InventoryUnit'])).toEqual({ Listing: 0, InventoryUnit: 0 });
+  });
+
+  it('an individual seller lists through the real identity and catalog: 200 Active, and the listing is the session user\'s', async () => {
+    await individualSeller(db, id('valentina'));
+    await catalogEntry(db, id('char'));
+    const { status, json } = await post('inventory.create', listingInput, await signIn(id('valentina')));
+    expect([status, json.result?.data]).toEqual([200, expect.objectContaining({ state: 'Active', availability: 3 })]);
+    expect(await rows(db, 'Listing')).toMatchObject([{ sellerId: id('valentina'), sellerKindAtCreation: 'individual', lat: null }]);
+  });
+
+  it('an Approved business with no projection lists Paused; open to trade it is OpenToTradeNotAllowed 409', async () => {
+    await business(db, id('andres'), 'Approved');
+    await catalogEntry(db, id('char'));
+    const cookie = await signIn(id('andres'));
+    expect((await post('inventory.create', listingInput, cookie)).json.result?.data).toMatchObject({ state: 'Paused' });
+    const refused = await post('inventory.create', { ...listingInput, openToTrade: true }, cookie);
+    expect([refused.status, refused.json.error?.code]).toEqual([409, 'OpenToTradeNotAllowed']);
   });
 });
 

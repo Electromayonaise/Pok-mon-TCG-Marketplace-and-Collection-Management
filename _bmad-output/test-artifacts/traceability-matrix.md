@@ -26,7 +26,7 @@
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
 | NFR evidence status | Green — ATDD: 12; Green — benchmark: 4; Green — gate: 8; Red — ATDD: 26; Red — benchmark: 2; Deferred — launch: 2; Planned — story DoD: 10 |
-| Contract clauses / test ids | 112 / 375 (363 red, 12 green) |
+| Contract clauses / test ids | 112 / 376 (364 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -57,13 +57,13 @@
 | FR-CAT-6 | Price provenance for the card detail (CAP-3) | CAT-3, DSC-2 | AD-CAT-2, AD-SYS-6, AD-SYS-7, AD-1 | 9 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +6 | 4.4 (done), 6.3 (backlog), 6.4 (backlog) | red |
 | FR-CAT-7 | Freshness and feed outage (CAP-3) | CAT-3 | AD-CAT-2, AD-SYS-6, AD-SYS-7 | 5 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +2 | 4.4 (done) | red |
 | FR-CAT-8 | Official exchange rate (TRM) (CAP-3, CAP-9) | S-FR-CAT-8 | AD-CAT-3 | 2 — `S-FR-CAT-8.f`, `S-FR-CAT-8.h` | 4.4 (done) | red |
-| FR-INV-1 | Create a card or sealed-product listing (CAP-4, CAP-5, CAP-19) | INV-2 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 11 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +8 | 5.1 (backlog), 5.3 (backlog) | red |
+| FR-INV-1 | Create a card or sealed-product listing (CAP-4, CAP-5, CAP-19) | INV-2 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 11 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +8 | 5.1 (done), 5.3 (backlog) | red |
 | FR-INV-2 | Create a bundle (CAP-4, CAP-16) | S-FR-INV-2 | AD-INV-1 | 2 — `S-FR-INV-2.f`, `S-FR-INV-2.h` | 5.6 (backlog) | red |
 | FR-INV-3 | Reserve inventory atomically in the caller's transaction (CAP-17, CAP-25) | INV-1 | AD-6, AD-INV-1, AD-INV-2, AD-SYS-5 | 9 — `INV-1.I1`, `INV-1.I3`, `INV-1.MEC` +6 | 5.2 (backlog), 5.4 (backlog) | red |
-| FR-INV-4 | Shared-quantity reconciliation (CAP-4, CAP-16) | INV-2, S-FR-INV-4 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 13 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +10 | 5.1 (backlog), 5.3 (backlog), 5.6 (backlog) | red |
+| FR-INV-4 | Shared-quantity reconciliation (CAP-4, CAP-16) | INV-2, S-FR-INV-4 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 13 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +10 | 5.1 (done), 5.3 (backlog), 5.6 (backlog) | red |
 | FR-INV-5 | Release a reservation (CAP-17, CAP-25) | S-FR-INV-5 | AD-INV-2 | 2 — `S-FR-INV-5.f`, `S-FR-INV-5.h` | 5.2 (backlog) | red |
 | FR-INV-6 | Aborted caller transaction restores quantity (CAP-17, CAP-25) | INV-1 | AD-6, AD-INV-1, AD-INV-2, AD-SYS-5 | 9 — `INV-1.I1`, `INV-1.I3`, `INV-1.MEC` +6 | 5.2 (backlog), 5.4 (backlog) | red |
-| FR-INV-7 | Purchasability, verified badge and commission pause (CAP-5, CAP-21) | INV-2, INV-3 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 15 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +12 | 5.1 (backlog), 5.3 (backlog), 5.5 (backlog) | red |
+| FR-INV-7 | Purchasability, verified badge and commission pause (CAP-5, CAP-21) | INV-2, INV-3 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 15 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +12 | 5.1 (done), 5.3 (backlog), 5.5 (backlog) | red |
 | FR-INV-8 | Withdraw on rejection, restore on approval (CAP-5, CAP-15) | S-FR-INV-8 | AD-INV-3 | 2 — `S-FR-INV-8.f`, `S-FR-INV-8.h` | 5.5 (backlog) | red |
 | FR-INV-9 | Edit, restock and deactivate (CAP-4) | S-FR-INV-9 | AD-INV-1, AD-SYS-5 | 2 — `S-FR-INV-9.f`, `S-FR-INV-9.h` | 5.6 (backlog) | red |
 | FR-INV-10 | Listing detail and owner view (CAP-4, CAP-28) | S-FR-INV-10 | AD-12 | 2 — `S-FR-INV-10.f`, `S-FR-INV-10.h` | 5.6 (backlog) | red |
@@ -171,7 +171,7 @@
 | NFR-CAT-3 | 0 fabricated prices | CAT-3 | `CAT-3.I1`, `CAT-3.Q4`, `S-FR-CAT-8.f` | 6 | Green — ATDD |
 | NFR-CAT-4 | The daily TRM job runs outside request paths | — | `S-FR-CAT-8.h`, `S-FR-CAT-8.f` | 2 | Green — ATDD |
 | NFR-INV-2 | a mixed race of purchases and trades gives the same result as NFR-INV-1. | INV-1 | `INV-1.I3`, `TRD-1.MEC` | 10 | Red — ATDD |
-| NFR-INV-4 | a single reservation completes in p95 ≤ 150 ms (a bundle of 20 components in p95 | INV-1, INV-2 | — | 20 | Planned — story DoD |
+| NFR-INV-4 | a single reservation completes in p95 ≤ 150 ms (a bundle of 20 components in p95 | INV-1, INV-2 | — | 21 | Planned — story DoD |
 | NFR-DSC-1 | view=listings with a 15 km area responds in p95 ≤ 1,000 ms on the §3 seed and in | DSC-1 | — | 7 | Planned — story DoD |
 | NFR-DSC-2 | distance error is ≤ 1 m against the haversine reference for 1,000 random Colombi | DSC-1 | `DSC-1.I4` | 7 | Red — ATDD |
 | NFR-DSC-3 | ordering is deterministic | DSC-1 | `DSC-1.R1` | 7 | Red — ATDD |
@@ -199,7 +199,7 @@
 |---|---|---|---|---|---|
 | AD-1 | Module dependency graph is AD-1's | Each module imports only neighbours' `index.ts`; `catalog` imports no module; admin guard lives in `server/trpc` | `SYS-AD1` | 1.4 (done) | green |
 | AD-2 | Three facts, no custody | Fact CHECKs on `"Order"`; no balance/escrow/payment column | `ORD-2.I2`, `ORD-1.I4` | 7.1 (backlog), 7.2 (backlog) | red |
-| AD-3 | Commission balance is the single source of purchasability | Fail-closed `SellerCommissionState` read `FOR SHARE` at listing insert; projection seq gate | `INV-2.I2`, `INV-3.I2` | 5.1 (backlog), 5.5 (backlog) | red |
+| AD-3 | Commission balance is the single source of purchasability | Fail-closed `SellerCommissionState` read `FOR SHARE` at listing insert; projection seq gate | `INV-2.I2`, `INV-3.I2` | 5.1 (done), 5.5 (backlog) | red |
 | AD-4 | Trading is a one-way flow off `listings` | `CHECK (sellerKindAtCreation='individual' OR NOT openToTrade)`; `getTradeability` / `reserveForTrade` ports | `INV-2.I4`, `TRD-1.I1` | 5.3 (backlog), 10.3 (backlog) | red |
 | AD-5 | One location query path | One SQL builder with no seller-kind branch | `DSC-1.I1` | 6.2 (backlog) | red |
 | AD-6 | `InventoryUnit` is the sole quantity owner | `CHECK (quantity >= 0)`; conditional decrement | `INV-1.I1`, `INV-1.MEC` | 5.2 (backlog) | red |
@@ -233,7 +233,7 @@
 | AD-CAT-1 | Resumable leased ingestion | Partial unique `Running`; lease token | `CAT-1.I1`, `CAT-2.I1` | 4.1 (done), 4.2 (done) | red |
 | AD-CAT-2 | Observations immutable, aged at read | Append-only observations; `stale` computed | `CAT-3.I1` | 4.4 (done) | red |
 | AD-CAT-3 | TRM never invented | `EXCLUDE` on validity ranges; no gap row | `S-FR-CAT-8.f` | 4.4 (done) | red |
-| AD-INV-1 | One unit per (seller, item, condition) | `UNIQUE (sellerId, catalogEntryId, condition)` | `INV-2.I1` | 5.1 (backlog) | red |
+| AD-INV-1 | One unit per (seller, item, condition) | `UNIQUE (sellerId, catalogEntryId, condition)` | `INV-2.I1` | 5.1 (done) | red |
 | AD-INV-2 | Reserve and release in the caller's transaction | `tx` parameter; ascending conditional decrement | `INV-1.MEC` | 5.2 (backlog) | red |
 | AD-INV-3 | Fail-closed purchasability, newer facts only | Seq gate; `AppliedApplicationDecision` | `INV-3.I1`, `S-FR-INV-8.f` | 5.5 (backlog) | red |
 | AD-DSC-1 | SQL distance equals the TS reference | One haversine expression; `+ 1e-6` inclusive bound | `DSC-1.I4`, `DSC-2.MEC` | 6.2 (backlog), 6.3 (backlog) | red |

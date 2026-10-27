@@ -43,6 +43,9 @@ export function useTestDatabase(): TestDb {
     await admin.end();
 
     const pool = new pg.Pool({ ...PG, database: name, max: 60 });
+    // An idle client still closing when afterAll drops the database WITH (FORCE) gets 57P01; without
+    // a listener the pool rethrows it as an uncaught error after a large race has filled the pool.
+    pool.on('error', () => undefined);
     handle.pool = pool;
     handle.sql = asSql(pool);
     handle.transactions = new PgTransactionRunner(pool);
