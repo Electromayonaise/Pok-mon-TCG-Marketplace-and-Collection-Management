@@ -2,7 +2,7 @@
 title: 'Story 5.3: Refuse invalid listings'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'ab3430b'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -56,8 +56,8 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] run the 6 tests on the 5.1 tree; fix any gap in 5.1's files
-- [ ] `sprint-status.yaml` -- 5.3 `done`, out of `impl2_scope`; `gen:trace:solu2`
+- [x] run the 6 tests on the 5.1 tree; fix any gap in 5.1's files
+- [x] `sprint-status.yaml` -- 5.3 `done`, out of `impl2_scope`; `gen:trace:solu2`
 
 **Acceptance Criteria:**
 - Given 5.1 and 5.3 `done`, when `npm run gate:atdd-red:impl1` runs, then the INV-2 tests are green and nothing is unexpected.
@@ -70,3 +70,10 @@ context:
 ## Implementation Notes
 
 - Code review is batched with the rest of Epic 5 at its close (decision #22).
+- The 6 bound tests passed on the Story 5.1 tree (commit `75b2be6`) with no change. No gap needed a fix in 5.1's files.
+- Where each refusal is built, all in `createListing` before its transaction (Story 5.1):
+  - `[INV-2.P1]`: the eligibility call is the first statement, and its `DomainError` propagates.
+  - `[INV-2.P2]`/`[INV-2.I4]`: `OpenToTradeNotAllowed` is raised before the catalog call, so the schema's `listing_trade_individual_only` CHECK is never the refusal.
+  - `[INV-2.P3]`: `conditionFitsKind` over `catalog.resolveItemRefs`.
+  - `[INV-2.P4]`/`[INV-2.P5]`: `isValidPrice` and `isValidLocation` (the `COLOMBIA_BBOX` of the shared kernel).
+- 5.3 leaves `impl2_scope` with a note in `sprint-status.yaml`. Like 2.4, 3.3, 3.4 and 4.3, it is `done` early and does not count toward the 43 Impl-1 stories.

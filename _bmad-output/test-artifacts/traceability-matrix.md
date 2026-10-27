@@ -57,13 +57,13 @@
 | FR-CAT-6 | Price provenance for the card detail (CAP-3) | CAT-3, DSC-2 | AD-CAT-2, AD-SYS-6, AD-SYS-7, AD-1 | 9 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +6 | 4.4 (done), 6.3 (backlog), 6.4 (backlog) | red |
 | FR-CAT-7 | Freshness and feed outage (CAP-3) | CAT-3 | AD-CAT-2, AD-SYS-6, AD-SYS-7 | 5 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +2 | 4.4 (done) | red |
 | FR-CAT-8 | Official exchange rate (TRM) (CAP-3, CAP-9) | S-FR-CAT-8 | AD-CAT-3 | 2 — `S-FR-CAT-8.f`, `S-FR-CAT-8.h` | 4.4 (done) | red |
-| FR-INV-1 | Create a card or sealed-product listing (CAP-4, CAP-5, CAP-19) | INV-2 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 11 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +8 | 5.1 (done), 5.3 (backlog) | red |
+| FR-INV-1 | Create a card or sealed-product listing (CAP-4, CAP-5, CAP-19) | INV-2 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 11 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +8 | 5.1 (done), 5.3 (done) | red |
 | FR-INV-2 | Create a bundle (CAP-4, CAP-16) | S-FR-INV-2 | AD-INV-1 | 2 — `S-FR-INV-2.f`, `S-FR-INV-2.h` | 5.6 (backlog) | red |
 | FR-INV-3 | Reserve inventory atomically in the caller's transaction (CAP-17, CAP-25) | INV-1 | AD-6, AD-INV-1, AD-INV-2, AD-SYS-5 | 9 — `INV-1.I1`, `INV-1.I3`, `INV-1.MEC` +6 | 5.2 (backlog), 5.4 (backlog) | red |
-| FR-INV-4 | Shared-quantity reconciliation (CAP-4, CAP-16) | INV-2, S-FR-INV-4 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 13 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +10 | 5.1 (done), 5.3 (backlog), 5.6 (backlog) | red |
+| FR-INV-4 | Shared-quantity reconciliation (CAP-4, CAP-16) | INV-2, S-FR-INV-4 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 13 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +10 | 5.1 (done), 5.3 (done), 5.6 (backlog) | red |
 | FR-INV-5 | Release a reservation (CAP-17, CAP-25) | S-FR-INV-5 | AD-INV-2 | 2 — `S-FR-INV-5.f`, `S-FR-INV-5.h` | 5.2 (backlog) | red |
 | FR-INV-6 | Aborted caller transaction restores quantity (CAP-17, CAP-25) | INV-1 | AD-6, AD-INV-1, AD-INV-2, AD-SYS-5 | 9 — `INV-1.I1`, `INV-1.I3`, `INV-1.MEC` +6 | 5.2 (backlog), 5.4 (backlog) | red |
-| FR-INV-7 | Purchasability, verified badge and commission pause (CAP-5, CAP-21) | INV-2, INV-3 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 15 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +12 | 5.1 (done), 5.3 (backlog), 5.5 (backlog) | red |
+| FR-INV-7 | Purchasability, verified badge and commission pause (CAP-5, CAP-21) | INV-2, INV-3 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 15 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +12 | 5.1 (done), 5.3 (done), 5.5 (backlog) | red |
 | FR-INV-8 | Withdraw on rejection, restore on approval (CAP-5, CAP-15) | S-FR-INV-8 | AD-INV-3 | 2 — `S-FR-INV-8.f`, `S-FR-INV-8.h` | 5.5 (backlog) | red |
 | FR-INV-9 | Edit, restock and deactivate (CAP-4) | S-FR-INV-9 | AD-INV-1, AD-SYS-5 | 2 — `S-FR-INV-9.f`, `S-FR-INV-9.h` | 5.6 (backlog) | red |
 | FR-INV-10 | Listing detail and owner view (CAP-4, CAP-28) | S-FR-INV-10 | AD-12 | 2 — `S-FR-INV-10.f`, `S-FR-INV-10.h` | 5.6 (backlog) | red |
@@ -200,7 +200,7 @@
 | AD-1 | Module dependency graph is AD-1's | Each module imports only neighbours' `index.ts`; `catalog` imports no module; admin guard lives in `server/trpc` | `SYS-AD1` | 1.4 (done) | green |
 | AD-2 | Three facts, no custody | Fact CHECKs on `"Order"`; no balance/escrow/payment column | `ORD-2.I2`, `ORD-1.I4` | 7.1 (backlog), 7.2 (backlog) | red |
 | AD-3 | Commission balance is the single source of purchasability | Fail-closed `SellerCommissionState` read `FOR SHARE` at listing insert; projection seq gate | `INV-2.I2`, `INV-3.I2` | 5.1 (done), 5.5 (backlog) | red |
-| AD-4 | Trading is a one-way flow off `listings` | `CHECK (sellerKindAtCreation='individual' OR NOT openToTrade)`; `getTradeability` / `reserveForTrade` ports | `INV-2.I4`, `TRD-1.I1` | 5.3 (backlog), 10.3 (backlog) | red |
+| AD-4 | Trading is a one-way flow off `listings` | `CHECK (sellerKindAtCreation='individual' OR NOT openToTrade)`; `getTradeability` / `reserveForTrade` ports | `INV-2.I4`, `TRD-1.I1` | 5.3 (done), 10.3 (backlog) | red |
 | AD-5 | One location query path | One SQL builder with no seller-kind branch | `DSC-1.I1` | 6.2 (backlog) | red |
 | AD-6 | `InventoryUnit` is the sole quantity owner | `CHECK (quantity >= 0)`; conditional decrement | `INV-1.I1`, `INV-1.MEC` | 5.2 (backlog) | red |
 | AD-7 | Catalog, listing and binder records are independent | Upsert `SET` list without `id`/`kind`; tagged-union CHECKs | `CAT-2.I3`, `COL-3.I2` | 4.2 (done), 11.2 (backlog) | red |

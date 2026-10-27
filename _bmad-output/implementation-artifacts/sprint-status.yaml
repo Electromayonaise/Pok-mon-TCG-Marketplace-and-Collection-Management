@@ -85,7 +85,7 @@ development_status:
   epic-5: in-progress
   5-1-list-a-card-and-share-one-stock-pool: done
   5-2-reserve-stock-in-the-caller-s-transaction-and-restore-it-on-abort: backlog
-  5-3-refuse-invalid-listings: backlog
+  5-3-refuse-invalid-listings: done
   5-4-refuse-unpurchasable-and-over-quantity-reservations: backlog
   5-5-pause-withdraw-and-restore-listings-from-commission-and-verification-events: backlog
   5-6-manage-my-listings-bundles-and-stock: backlog
@@ -167,10 +167,10 @@ impl1_delivery:
 # 3-4 are built with the whole of Epic 3 (decision log Impl-1 #27). 3-3 and 3-4 are done
 # and have left this list (decision log Impl-1 #27). 4-3 is built with the whole of Epic 4,
 # because Stories 4.1 and 4.2 turn its tests green; it is done and has left this list
-# (decision log Impl-1 #29).
+# (decision log Impl-1 #29). 5-3 is built with the whole of Epic 5, because Story 5.1's checks
+# turn its tests green; it is done and has left this list (decision log Impl-1 #30).
 impl2_scope:
   - 2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins
-  - 5-3-refuse-invalid-listings
   - 5-4-refuse-unpurchasable-and-over-quantity-reservations
   - 5-5-pause-withdraw-and-restore-listings-from-commission-and-verification-events
   - 6-4-explain-excluded-listings-too-broad-filters-and-unknown-cards
