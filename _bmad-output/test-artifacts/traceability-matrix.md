@@ -25,8 +25,8 @@
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
-| NFR evidence status | Green — ATDD: 12; Green — benchmark: 4; Green — gate: 8; Red — ATDD: 26; Red — benchmark: 2; Deferred — launch: 2; Planned — story DoD: 10 |
-| Contract clauses / test ids | 112 / 376 (364 red, 12 green) |
+| NFR evidence status | Green — ATDD: 17; Green — benchmark: 5; Green — gate: 8; Red — ATDD: 24; Red — benchmark: 2; Deferred — launch: 2; Planned — story DoD: 9 |
+| Contract clauses / test ids | 112 / 378 (366 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -59,10 +59,10 @@
 | FR-CAT-8 | Official exchange rate (TRM) (CAP-3, CAP-9) | S-FR-CAT-8 | AD-CAT-3 | 2 — `S-FR-CAT-8.f`, `S-FR-CAT-8.h` | 4.4 (done) | red |
 | FR-INV-1 | Create a card or sealed-product listing (CAP-4, CAP-5, CAP-19) | INV-2 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 11 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +8 | 5.1 (done), 5.3 (done) | red |
 | FR-INV-2 | Create a bundle (CAP-4, CAP-16) | S-FR-INV-2 | AD-INV-1 | 2 — `S-FR-INV-2.f`, `S-FR-INV-2.h` | 5.6 (backlog) | red |
-| FR-INV-3 | Reserve inventory atomically in the caller's transaction (CAP-17, CAP-25) | INV-1 | AD-6, AD-INV-1, AD-INV-2, AD-SYS-5 | 9 — `INV-1.I1`, `INV-1.I3`, `INV-1.MEC` +6 | 5.2 (backlog), 5.4 (backlog) | red |
+| FR-INV-3 | Reserve inventory atomically in the caller's transaction (CAP-17, CAP-25) | INV-1 | AD-6, AD-INV-1, AD-INV-2, AD-SYS-5 | 9 — `INV-1.I1`, `INV-1.I3`, `INV-1.MEC` +6 | 5.2 (done), 5.4 (backlog) | red |
 | FR-INV-4 | Shared-quantity reconciliation (CAP-4, CAP-16) | INV-2, S-FR-INV-4 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 13 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +10 | 5.1 (done), 5.3 (done), 5.6 (backlog) | red |
-| FR-INV-5 | Release a reservation (CAP-17, CAP-25) | S-FR-INV-5 | AD-INV-2 | 2 — `S-FR-INV-5.f`, `S-FR-INV-5.h` | 5.2 (backlog) | red |
-| FR-INV-6 | Aborted caller transaction restores quantity (CAP-17, CAP-25) | INV-1 | AD-6, AD-INV-1, AD-INV-2, AD-SYS-5 | 9 — `INV-1.I1`, `INV-1.I3`, `INV-1.MEC` +6 | 5.2 (backlog), 5.4 (backlog) | red |
+| FR-INV-5 | Release a reservation (CAP-17, CAP-25) | S-FR-INV-5 | AD-INV-2 | 2 — `S-FR-INV-5.f`, `S-FR-INV-5.h` | 5.2 (done) | red |
+| FR-INV-6 | Aborted caller transaction restores quantity (CAP-17, CAP-25) | INV-1 | AD-6, AD-INV-1, AD-INV-2, AD-SYS-5 | 9 — `INV-1.I1`, `INV-1.I3`, `INV-1.MEC` +6 | 5.2 (done), 5.4 (backlog) | red |
 | FR-INV-7 | Purchasability, verified badge and commission pause (CAP-5, CAP-21) | INV-2, INV-3 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 15 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +12 | 5.1 (done), 5.3 (done), 5.5 (backlog) | red |
 | FR-INV-8 | Withdraw on rejection, restore on approval (CAP-5, CAP-15) | S-FR-INV-8 | AD-INV-3 | 2 — `S-FR-INV-8.f`, `S-FR-INV-8.h` | 5.5 (backlog) | red |
 | FR-INV-9 | Edit, restock and deactivate (CAP-4) | S-FR-INV-9 | AD-INV-1, AD-SYS-5 | 2 — `S-FR-INV-9.f`, `S-FR-INV-9.h` | 5.6 (backlog) | red |
@@ -145,15 +145,15 @@
 | NFR-SYS-7 | Server-side authorization | — | `SYS-8.R2`, `SYS-8.R2.static` | 2 | Green — ATDD |
 | NFR-SYS-8 | Admin audit trail | IDN-3 | `IDN-3.Q1`, `REP-2.Q1`, `SYS-R2` +1 | 9 | Green — ATDD (identity, VER, the grants); Red — ATDD (`[REP-2.Q1]`) |
 | NFR-SYS-9 | Latency baseline | — | `NFR-ORD-2.p95` | 1 | Red — benchmark |
-| NFR-SYS-10 | Concurrency proofs run on PostgreSQL | — | `INV-1.I1`, `TRD-1.MEC`, `REP-3.MEC` | 3 | Red — ATDD |
+| NFR-SYS-10 | Concurrency proofs run on PostgreSQL | — | `INV-1.I1`, `TRD-1.MEC`, `REP-3.MEC` | 3 | Green — ATDD (`[INV-1.I1]`); Red — ATDD (`[TRD-1.MEC]`, `[REP-3.MEC]`) |
 | NFR-SYS-11 | Accessibility | — | — | 0 | Deferred — launch |
 | NFR-SYS-12 | Platform personal-data consent | — | — | 0 | Green — gate |
 | NFR-SYS-13 | Error-code integrity | — | `SYS-1.R2`, `SYS-1.R6` | 2 | Green — ATDD |
 | NFR-SYS-14 | Abuse baseline | — | `S-FR-IDN-7.f`, `MSG-2.R1` | 2 | Green — ATDD (`[S-FR-IDN-7.f]`, the count only: no sign-in records a failure yet, decision log Impl-1 #26); Red — ATDD (`[MSG-2.R1]`) |
 | NFR-IDN-2 | (mandatory edge case): | IDN-1 | `IDN-1.MEC`, `IDN-1.I1` | 7 | Green — ATDD |
 | NFR-VER-1 | (mandatory edge case): | VER-1 | `VER-1.MEC` | 7 | Green — ATDD |
-| NFR-INV-1 | (Annex scenario 3): | INV-1 | `INV-1.I1` | 9 | Red — ATDD |
-| NFR-INV-3 | (mandatory edge case): | INV-1 | `INV-1.MEC` | 9 | Red — ATDD |
+| NFR-INV-1 | (Annex scenario 3): | INV-1 | `INV-1.I1` | 9 | Green — ATDD |
+| NFR-INV-3 | (mandatory edge case): | INV-1 | `INV-1.MEC` | 9 | Green — ATDD |
 | NFR-ORD-1 | (mandatory edge case): | ORD-2, ORD-3, ORD-4 | `ORD-3.MEC`, `ORD-4.MEC`, `ORD-2.MEC` | 18 | Red — ATDD |
 | NFR-COM-1 | (mandatory edge case): | COM-1 | `COM-1.MEC`, `COM-1.MEC2` | 8 | Red — ATDD |
 | NFR-TRD-1 | (mandatory edge case): | TRD-1 | `TRD-1.MEC` | 9 | Red — ATDD |
@@ -170,8 +170,8 @@
 | NFR-CAT-2 | a 10,000-row ingestion run completes in ≤ 120 s | CAT-2 | `CAT-2.I1`, `CAT-2.MEC` | 9 | Green — ATDD |
 | NFR-CAT-3 | 0 fabricated prices | CAT-3 | `CAT-3.I1`, `CAT-3.Q4`, `S-FR-CAT-8.f` | 6 | Green — ATDD |
 | NFR-CAT-4 | The daily TRM job runs outside request paths | — | `S-FR-CAT-8.h`, `S-FR-CAT-8.f` | 2 | Green — ATDD |
-| NFR-INV-2 | a mixed race of purchases and trades gives the same result as NFR-INV-1. | INV-1 | `INV-1.I3`, `TRD-1.MEC` | 10 | Red — ATDD |
-| NFR-INV-4 | a single reservation completes in p95 ≤ 150 ms (a bundle of 20 components in p95 | INV-1, INV-2 | — | 21 | Planned — story DoD |
+| NFR-INV-2 | a mixed race of purchases and trades gives the same result as NFR-INV-1. | INV-1 | `INV-1.I3`, `TRD-1.MEC` | 10 | Green — ATDD (`[INV-1.I3]`); Red — ATDD (`[TRD-1.MEC]`) |
+| NFR-INV-4 | a single reservation completes in p95 ≤ 150 ms (a bundle of 20 components in p95 | INV-1, INV-2 | `NFR-INV-4.reserve`, `NFR-INV-4.bundle`, `NFR-INV-4.create` | 23 | Green — benchmark |
 | NFR-DSC-1 | view=listings with a 15 km area responds in p95 ≤ 1,000 ms on the §3 seed and in | DSC-1 | — | 7 | Planned — story DoD |
 | NFR-DSC-2 | distance error is ≤ 1 m against the haversine reference for 1,000 random Colombi | DSC-1 | `DSC-1.I4` | 7 | Red — ATDD |
 | NFR-DSC-3 | ordering is deterministic | DSC-1 | `DSC-1.R1` | 7 | Red — ATDD |
@@ -182,7 +182,7 @@
 | NFR-COM-3 | the deduction handler runs in p95 ≤ 200 ms | COM-1, COM-2 | — | 16 | Planned — story DoD |
 | NFR-COM-4 | 0 floating-point operations on COP in the commission code path | COM-1 | `COM-1.I3` | 8 | Red — ATDD |
 | NFR-TRD-2 | accept responds in p95 ≤ 800 ms and other actions in p95 ≤ 500 ms. | TRD-1 | — | 9 | Planned — story DoD |
-| NFR-TRD-3 | a trade-versus-purchase race on a shared unit never oversells (NFR-INV-2). | TRD-1 | `INV-1.I3`, `TRD-1.I1` | 10 | Red — ATDD |
+| NFR-TRD-3 | a trade-versus-purchase race on a shared unit never oversells (NFR-INV-2). | TRD-1 | `INV-1.I3`, `TRD-1.I1` | 10 | Green — ATDD (`[INV-1.I3]`); Red — ATDD (`[TRD-1.I1]`) |
 | NFR-MSG-1 | contact-message generation takes p95 ≤ 200 ms | MSG-2 | `MSG-2.I1` | 7 | Red — ATDD (determinism); Planned — story DoD (latency) |
 | NFR-MSG-2 | in-app freshness through polling | MSG-1 | `MSG-1.R1` | 7 | Red — ATDD (ordering); Planned — story DoD (latency) |
 | NFR-MSG-3 | 0 outbound calls to external messaging services (NFR-SYS-3 guard). | MSG-2 | `SYS-6.R4` | 8 | Green — gate |
@@ -202,7 +202,7 @@
 | AD-3 | Commission balance is the single source of purchasability | Fail-closed `SellerCommissionState` read `FOR SHARE` at listing insert; projection seq gate | `INV-2.I2`, `INV-3.I2` | 5.1 (done), 5.5 (backlog) | red |
 | AD-4 | Trading is a one-way flow off `listings` | `CHECK (sellerKindAtCreation='individual' OR NOT openToTrade)`; `getTradeability` / `reserveForTrade` ports | `INV-2.I4`, `TRD-1.I1` | 5.3 (done), 10.3 (backlog) | red |
 | AD-5 | One location query path | One SQL builder with no seller-kind branch | `DSC-1.I1` | 6.2 (backlog) | red |
-| AD-6 | `InventoryUnit` is the sole quantity owner | `CHECK (quantity >= 0)`; conditional decrement | `INV-1.I1`, `INV-1.MEC` | 5.2 (backlog) | red |
+| AD-6 | `InventoryUnit` is the sole quantity owner | `CHECK (quantity >= 0)`; conditional decrement | `INV-1.I1`, `INV-1.MEC` | 5.2 (done) | red |
 | AD-7 | Catalog, listing and binder records are independent | Upsert `SET` list without `id`/`kind`; tagged-union CHECKs | `CAT-2.I3`, `COL-3.I2` | 4.2 (done), 11.2 (backlog) | red |
 | AD-8 | Table ownership | No module writes another's tables; static scan of `infra/` SQL; shared-kernel owns only infra tables (+ `audit_events`, R-2) | `SYS-AD8`, `S-FR-COL-3.h` | 1.4 (done), 11.5 (backlog) | green + red |
 | AD-9 | Snapshot payloads | Payload = ADD-§5 exactly; subscribers read only the payload | `SYS-AD9`, `COL-2.I2` | 1.3 (done), 11.3 (backlog) | green + red |
@@ -219,7 +219,7 @@
 | AD-SYS-1 | One Decision shape and one code registry | `codes.ts`; error formatter; `explain_assert` | `SYS-1.R6` | 1.1 (done) | red |
 | AD-SYS-2 | Transactional outbox; at most 3 automatic attempts | `EventDelivery` attempt procedure | `SYS-2.R4` | 1.3 (done) | red |
 | AD-SYS-3 | Commission triggered by the first of two order events | `commissionTrigger(facts)`; partial unique on deductions | `COM-1.I4` | 8.2 (backlog) | red |
-| AD-SYS-4 | Transaction handles, pooler-safe state, global lock order | `tx` first; `db()` ambient client; ascending unit locks | `INV-1.I3`, `SYS-4.R9` | 2.3 (done), 5.2 (backlog) | red |
+| AD-SYS-4 | Transaction handles, pooler-safe state, global lock order | `tx` first; `db()` ambient client; ascending unit locks | `INV-1.I3`, `SYS-4.R9` | 2.3 (done), 5.2 (done) | red |
 | AD-SYS-5 | Every transition is one conditional UPDATE | `WHERE <from-state>` + loser re-read | `VER-1.MEC`, `TRD-2.I3` | 3.2 (done), 10.2 (backlog) | red |
 | AD-SYS-6 | Determinism boundary (Clock, IdGenerator, no network) | `Clock` port; network guard; no SQL `now()` | `SYS-6.R1`, `SYS-6.R4` | 1.4 (done) | green |
 | AD-SYS-7 | Branded money, one set of formulas | BigInt helpers; rounding CHECK on deductions | `COM-1.I3`, `VAL-2.I3` | 8.2 (backlog), 12.5 (backlog) | red |
@@ -234,7 +234,7 @@
 | AD-CAT-2 | Observations immutable, aged at read | Append-only observations; `stale` computed | `CAT-3.I1` | 4.4 (done) | red |
 | AD-CAT-3 | TRM never invented | `EXCLUDE` on validity ranges; no gap row | `S-FR-CAT-8.f` | 4.4 (done) | red |
 | AD-INV-1 | One unit per (seller, item, condition) | `UNIQUE (sellerId, catalogEntryId, condition)` | `INV-2.I1` | 5.1 (done) | red |
-| AD-INV-2 | Reserve and release in the caller's transaction | `tx` parameter; ascending conditional decrement | `INV-1.MEC` | 5.2 (backlog) | red |
+| AD-INV-2 | Reserve and release in the caller's transaction | `tx` parameter; ascending conditional decrement | `INV-1.MEC` | 5.2 (done) | red |
 | AD-INV-3 | Fail-closed purchasability, newer facts only | Seq gate; `AppliedApplicationDecision` | `INV-3.I1`, `S-FR-INV-8.f` | 5.5 (backlog) | red |
 | AD-DSC-1 | SQL distance equals the TS reference | One haversine expression; `+ 1e-6` inclusive bound | `DSC-1.I4`, `DSC-2.MEC` | 6.2 (backlog), 6.3 (backlog) | red |
 | AD-DSC-2 | At most 3 neighbour calls per request | Composition in `listings` | `DSC-2.Q1` | 6.3 (backlog) | red |
@@ -267,7 +267,7 @@
 | R-02 Approve and reject race, leaving two decisions, two events or a hal… | P0 | VER | Integration (race) | `VER-1.MEC` | 3.2 (done) | red |
 | R-03 A renamed or reprinted card gets a new id and orphans its listings … | P0 | CAT | Integration | `CAT-2.MEC`, `CAT-2.I1` | 4.2 (done) | red |
 | R-04 Radius boundary, missing coordinates or an entry whose listings are… | P0 | DSC | Integration (boundary) | `DSC-2.MEC`, `DSC-2.MEC2` | 6.3 (backlog) | red |
-| R-05 A caller aborts after a reserve and the stock is not restored; the … | P0 | INV | Integration (race, abort) | `INV-1.MEC`, `INV-1.I1`, `INV-1.I3` | 5.2 (backlog) | red |
+| R-05 A caller aborts after a reserve and the stock is not restored; the … | P0 | INV | Integration (race, abort) | `INV-1.MEC`, `INV-1.I1`, `INV-1.I3` | 5.2 (done) | red |
 | R-06 A business confirms payment before the buyer's "paid", or a double … | P0 | ORD | Integration (race) | `ORD-3.MEC`, `ORD-4.MEC`, `ORD-2.MEC` | 7.2 (backlog) | red |
 | R-07 Two orders at one instant against one order's balance, plus a dupli… | P0 | COM | Integration (race, repeat) | `COM-1.MEC`, `COM-1.MEC2` | 8.2 (backlog) | red |
 | R-08 Two offers for the last unit are accepted from two tabs, and both h… | P0 | TRD | Integration (race, 100 ×) | `TRD-1.MEC` | 10.3 (backlog) | red |

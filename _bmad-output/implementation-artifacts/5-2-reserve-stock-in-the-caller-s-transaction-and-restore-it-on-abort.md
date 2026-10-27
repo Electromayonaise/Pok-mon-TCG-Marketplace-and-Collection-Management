@@ -2,7 +2,7 @@
 title: "Story 5.2: Reserve stock in the caller's transaction and restore it on abort"
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'ab3430b'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -75,11 +75,11 @@ The two offered ports read on the ambient transaction (AD-SYS-4 rule 9). It adds
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] domain predicates and the reserve plan + unit tests
-- [ ] the repository methods and the four operations
-- [ ] CAT ambient reads
-- [ ] the two benchmarks, their bindings, `gen:epics:solu2`
-- [ ] `sprint-status.yaml` -- 5.2 `done`; `gen:trace:solu2`
+- [x] domain predicates and the reserve plan + unit tests
+- [x] the repository methods and the four operations
+- [x] CAT ambient reads
+- [x] the two benchmarks, their bindings, `gen:epics:solu2`
+- [x] `sprint-status.yaml` -- 5.2 `done`; `gen:trace:solu2`
 
 **Acceptance Criteria:**
 - Given 5.2 `done`, when the 9 bound tests run, then they pass. The early greens of 5.4 (`[INV-1.P2]`–`[INV-1.P5]`) and of 5.5 (`[INV-3.I2]`) are restored by the 5.4 and 5.5 commits (decision #23).
@@ -93,3 +93,17 @@ The two offered ports read on the ambient transaction (AD-SYS-4 rule 9). It adds
 ## Implementation Notes
 
 - Code review is batched with the rest of Epic 5 at its close (decision #22).
+- **MEC runtime (TG-7):** `[INV-1.MEC]` runs its 100 reserve-then-abort repetitions against local Postgres 16 in 479 ms. `[INV-1.I1]`, the 50-connection last-unit race, takes 344 ms.
+- **Purchasability:** `purchasable` (domain) carries the projection term. A reserve reads `"SellerCommissionState"` unlocked, in the same statement as the listing; reserves never lock the projection (AD-SYS-4 rule 5). P4 checks the verification first (`ListingUnverified`), then the pause and the projection (`ListingPausedBalanceExhausted`). The P4 citation adds `verification` and `projection` after `reasonCode`.
+- **The read:** one statement reads the listing and its projection (`LEFT JOIN`). A second reads its units in ascending id order (the single unit with `perBundleQty` 1, or the bundle components), and that order is the decrement order.
+- **Availability in SQL:** the subquery behind `exhaustedListingIds` is `MIN(quantity / perBundleQty)`, where integer division floors. Story 5.6's reads reuse it.
+- **Release:** `releaseReservation` merges a unit named twice before the increments, so each unit is locked once, in ascending order.
+- **CAT ambient reads:** all seven §15.11 CAT ports (`getEntry`, `getEntries`, `matchEntryIds`, `resolveItemRefs`, `getReferencePricesAsOf`, `getPriceHistory`, `getSetSummaries`) now read on the ambient transaction, not just the two INV calls. `inv.v2.test.ts` proves it with a reserve on a pool of 1.
+- **Benchmarks:** `[NFR-INV-4.reserve]` p95 4.3 ms (threshold 150 ms) and `[NFR-INV-4.bundle]` p95 10.4 ms (threshold 300 ms). Both time the reserve call alone, inside a transaction that is rolled back.
+- **`nfr-evidence.md`:**
+  - NFR-INV-1, -3 → Green — ATDD;
+  - NFR-INV-2, NFR-SYS-10 and NFR-TRD-3 → green in part;
+  - NFR-INV-4 → Green — benchmark.
+
+  With no NFR-INV-4 "Planned" row left, the regenerated `epics.md` drops its DoD line from Stories 5.1–5.4.
+- **Early greens until their commits (decision #23):** `[INV-1.P2]`–`[INV-1.P5]` until 5.4, and `[INV-3.I2]` until 5.5.

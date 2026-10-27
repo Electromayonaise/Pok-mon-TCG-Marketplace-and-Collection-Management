@@ -84,7 +84,7 @@ development_status:
   epic-4-retrospective: optional
   epic-5: in-progress
   5-1-list-a-card-and-share-one-stock-pool: done
-  5-2-reserve-stock-in-the-caller-s-transaction-and-restore-it-on-abort: backlog
+  5-2-reserve-stock-in-the-caller-s-transaction-and-restore-it-on-abort: done
   5-3-refuse-invalid-listings: done
   5-4-refuse-unpurchasable-and-over-quantity-reservations: backlog
   5-5-pause-withdraw-and-restore-listings-from-commission-and-verification-events: backlog

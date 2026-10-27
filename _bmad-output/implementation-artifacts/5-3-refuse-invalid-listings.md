@@ -65,7 +65,7 @@ context:
 ## Verification
 
 **Commands:**
-- `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/inv_contracts.test.ts -t "INV-2"` -- expected: the 11 INV-2 tests pass
+- `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/inv_contracts.test.ts -t "INV-2"` -- expected: the 10 INV-2 tests pass
 
 ## Implementation Notes
 

@@ -250,7 +250,7 @@ export default {
         {
           title: 'Reserve stock in the caller\'s transaction and restore it on abort', kind: 'MEC',
           as: 'As a buyer\'s order, I want stock reserved inside my transaction and restored if I abort, so that the last unit is never sold twice (Annex A MEC, R-05).',
-          ops: ['INV-1', 'S-FR-INV-5', 'P-INV.purchase', 'P-INV.units'], tests: ['INV-1.Q1', 'INV-1.Q3', 'INV-1.I1', 'INV-1.I3', 'INV-1.MEC', 'S-FR-INV-5.h', 'S-FR-INV-5.f', 'P-INV.purchase.h', 'P-INV.units.h'], depends: ['5.1'],
+          ops: ['INV-1', 'S-FR-INV-5', 'P-INV.purchase', 'P-INV.units'], tests: ['INV-1.Q1', 'INV-1.Q3', 'INV-1.I1', 'INV-1.I3', 'INV-1.MEC', 'S-FR-INV-5.h', 'S-FR-INV-5.f', 'P-INV.purchase.h', 'P-INV.units.h', 'NFR-INV-4.reserve', 'NFR-INV-4.bundle'], depends: ['5.1'],
           happy: ['a unit of 5.', '`orders` reserves 2 inside its transaction.', 'the unit drops to 3, the reservation and price snapshot are returned, and nothing but `InventoryUnit` is written.'],
           failure: ['the caller aborts after a successful reserve, 100 times; 50 buyers race for the last unit; a bundle and a single listing race on a shared unit.', 'the transactions end.', 'the stock is fully restored with no compensating write; exactly 1 reservation and 49 `InsufficientQuantity`; one winner, no deadlock, never negative stock.'],
         },

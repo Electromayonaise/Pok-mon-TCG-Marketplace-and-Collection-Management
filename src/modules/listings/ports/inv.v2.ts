@@ -39,6 +39,7 @@ export interface InvV2Deps {
 
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { Condition, CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import type { ProjectionState } from '../domain/inv.js';
 
 /** INV-2 Q1.1: the one unit of `(sellerId, catalogEntryId, condition)` after the insert-or-link. */
 export interface ResolvedUnit {
@@ -64,6 +65,34 @@ export interface NewListingRow {
   now: IsoInstant;
 }
 
+/** A listing's visibility facts: hidden, withdrawn and deactivated listings are not visible (AD-12). */
+export interface ListingHeader {
+  id: CuidId;
+  sellerId: CuidId;
+  sellerKindAtCreation: 'business' | 'individual';
+  kind: 'single' | 'bundle';
+  visible: boolean;
+}
+
+/** One unit a listing draws on: a single listing's unit (`perBundleQty` 1), or a bundle component. */
+export interface ListingUnit {
+  inventoryUnitId: CuidId;
+  catalogEntryId: CuidId;
+  condition: Condition;
+  quantity: number;
+  perBundleQty: number;
+}
+
+/** INV-1's one read in the caller's `tx`: the listing, its units and the seller's projection, unlocked. */
+export interface ReserveFacts extends ListingHeader {
+  title: string | null;
+  priceCop: number;
+  pausedAt: IsoInstant | null;
+  openToTrade: boolean;
+  projection: ProjectionState;
+  units: ListingUnit[];
+}
+
 /**
  * Repository port of INV (review A-4): the only way its application service reads or writes
  * its own tables (AD-8). Every method takes the transaction it runs in; `infra/pg.ts` implements them.
@@ -75,4 +104,18 @@ export interface InvRepository {
   readProjectionForShare(tx: Tx, businessId: CuidId): Promise<{ paused: boolean } | null>;
   /** INV-2 Q1.3. */
   insertListing(tx: Tx, row: NewListingRow): Promise<void>;
+  /** INV-1, P-INV.trade: the listing, its units in ascending id order, and the projection; null when unknown. */
+  readReserveFacts(tx: Tx, listingId: CuidId): Promise<ReserveFacts | null>;
+  /** AD-INV-2 rule 3: `quantity − req` when `quantity >= req`; false when 0 rows changed. */
+  decrementUnit(tx: Tx, unitId: CuidId, req: number, now: IsoInstant): Promise<boolean>;
+  /** S-FR-INV-5: `quantity + qty`; false when the unit does not exist. */
+  incrementUnit(tx: Tx, unitId: CuidId, qty: number, now: IsoInstant): Promise<boolean>;
+  /** The unit's quantity as `tx` now sees it, or null. */
+  unitQuantity(tx: Tx, unitId: CuidId): Promise<number | null>;
+  /** INV-1 Q2: every listing on one of `unitIds` whose availability is now 0, in id order. */
+  exhaustedListingIds(tx: Tx, unitIds: CuidId[]): Promise<CuidId[]>;
+  /** P-INV.purchase: the listing's visibility facts, or null. */
+  readListingHeader(tx: Tx, listingId: CuidId): Promise<ListingHeader | null>;
+  /** P-INV.units: the unit ids of a single listing or a bundle, in id order; [] for an unknown id. */
+  listingUnitIds(tx: Tx, listingId: CuidId): Promise<CuidId[]>;
 }
