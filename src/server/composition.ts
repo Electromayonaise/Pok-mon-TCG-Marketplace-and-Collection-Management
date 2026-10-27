@@ -3,7 +3,7 @@
 // from app/ (AD-SYS-6) and the session reader from Better Auth, so a test binds both.
 import type pg from 'pg';
 import { CatServiceV2, PgCatRepository } from '../modules/catalog/index.js';
-import { InvServiceV2, PgInvRepository } from '../modules/listings/index.js';
+import { DscServiceV2, InvServiceV2, PgDscRepository, PgInvRepository } from '../modules/listings/index.js';
 import { IdentityGateV2, IdnServiceV2, PgIdnRepository, PgLegalIdentityRepository, PgVerRepository, VerServiceV2, type SessionReader } from '../modules/identity/index.js';
 import { AdminEventsServiceV2 } from '../shared-kernel/admin-events.js';
 import { OutboxDispatcherV2, type DeliveryHandler, type SubscriberName } from '../shared-kernel/dispatcher.js';
@@ -105,9 +105,9 @@ export interface AppDeps {
  * The procedures whose contracts the done stories implement: IDN-1.ingress (Story 2.1),
  * IDN-3 (Story 2.5), S-SYS.replay (Story 1.3), S-SYS.tick, .deliveries, .health
  * (Story 1.5), VER-2 (Story 3.1), VER-1 (Story 3.2), VER-3 and S-FR-VER-5.audit (Story 3.4) and
- * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), CAT-3 and S-FR-CAT-8.fetch (Story 4.4), S-FR-CAT-1 (Story 4.5), INV-2 (Story 5.1), and S-FR-INV-2, -9 and -10 (Story 5.6). Every other procedure stays NotImplemented until its story wires it.
+ * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), CAT-3 and S-FR-CAT-8.fetch (Story 4.4), S-FR-CAT-1 (Story 4.5), INV-2 (Story 5.1), S-FR-INV-2, -9 and -10 (Story 5.6), and DSC-1 (Story 6.2). Every other procedure stays NotImplemented until its story wires it.
  */
-function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2; inv: InvServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
+function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2; inv: InvServiceV2; dsc: DscServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
   return {
     'access.completeIndividualProfile': (input, userId) => s.idn.completeIndividualProfile({ ...input, userId }),
     'access.traceCapabilities': (input, adminId) => s.idn.traceCapabilities({ ...input, adminId }),
@@ -141,6 +141,7 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
     'inventory.restock': ({ listingId, delta }, actorId) => s.inv.restockListing({ actorId, listingId, delta }),
     'inventory.deactivate': ({ listingId }, actorId) => s.inv.setListingActive({ actorId, listingId, active: false }),
     'inventory.reactivate': ({ listingId }, actorId) => s.inv.setListingActive({ actorId, listingId, active: true }),
+    'discovery.search': ({ catalogFilters, area, ...rest }) => s.dsc.search({ ...defined(rest), ...(catalogFilters ? { catalogFilters: defined(catalogFilters) } : {}), ...(area ? { area } : {}) }),
     'admin.events.replay': (input, adminId) => s.adminEvents.replayEventDelivery({ ...input, adminId }),
     'admin.jobs.tickHealth': (_input, adminId) => s.adminEvents.getTickHealth({ adminId }),
     'admin.events.deliveries': (input, adminId) => s.adminEvents.listDeliveries({ ...input, adminId }),
@@ -156,15 +157,16 @@ export function compose({
   const outbox = new PgOutboxV2(ids, clock);
   const audit = new PgAuditLog(ids, clock);
   // The one repository object every service receives (R-14).
-  const repo = oneRepository(new PgAdminEventsRepository(), new PgIdnRepository(), new PgVerRepository(), new PgLegalIdentityRepository(), new PgCatRepository(), new PgInvRepository());
+  const repo = oneRepository(new PgAdminEventsRepository(), new PgIdnRepository(), new PgVerRepository(), new PgLegalIdentityRepository(), new PgCatRepository(), new PgInvRepository(), new PgDscRepository());
   const idn = new IdnServiceV2({ repo, transactions, clock, ids, outbox, audit });
   const ver = new VerServiceV2({ repo, transactions, clock, ids, outbox, audit, storage, scanner });
   const cat = new CatServiceV2({ repo, transactions, clock, ids, outbox, audit, feed, fx });
   const inv = new InvServiceV2({ repo, transactions, clock, ids, outbox, audit, catalog: cat, identity: idn });
+  const dsc = new DscServiceV2({ repo, transactions, clock, ids, outbox, audit, catalog: cat, identity: idn });
   const dispatcher = new OutboxDispatcherV2({ transactions, clock }, { ...UNWIRED_HANDLERS, listings: listingsHandler(inv), ...handlers });
   const adminEvents = new AdminEventsServiceV2({ repo, transactions, clock, ids, outbox, audit, dispatcher });
   return {
     identity: new IdentityGateV2({ sessions, repo, transactions, idn }),
-    router: buildAppRouter(resolvers({ idn, ver, cat, inv, adminEvents })),
+    router: buildAppRouter(resolvers({ idn, ver, cat, inv, dsc, adminEvents })),
   };
 }

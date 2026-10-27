@@ -66,6 +66,9 @@ export const MESSAGES = {
   ListingUpdated: 'Guardamos los cambios de la publicación.',
   ListingRestocked: 'Actualizamos el stock; todas las publicaciones de esta copia muestran la nueva cantidad.',
   ListingOpenToTrade: 'Esta publicación acepta ofertas de intercambio.',
+  ListingRanked: 'Ordenamos esta publicación por distancia cuando eliges una zona, luego por precio y luego por su identificador.',
+  SearchRanked: 'Ordenamos los resultados por distancia cuando eliges una zona, luego por precio y luego por identificador.',
+  ListingLocationUnusable: 'Algunas publicaciones no tienen una ubicación utilizable; no entran en la búsqueda por zona y las contamos aparte.',
   InvalidItemRef: 'La carta {itemRef} no existe o no corresponde al tipo elegido.',
   InvalidPrice: 'El precio debe estar entre $1.000 y $100.000.000 COP.',
   InvalidLocation: 'El punto de encuentro debe estar en Colombia.',
@@ -129,6 +132,6 @@ export const MESSAGES = {
   DuplicateReview: 'Ya reseñaste a este vendedor; puedes editar tu reseña.',
   ReviewNotFound: 'No encontramos esa reseña.',
   Unexpected: 'Algo falló de nuestro lado; no se aplicó ningún cambio.',
-} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected' | 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred' | 'FeedRunStarted' | 'ReferencePriceFresh' | 'ReferencePriceStale' | 'ReferencePriceMissing' | 'TrendComputed' | 'TrendNoBaseline' | 'FxRateCovered' | 'FxRateCarriedForward' | 'FxRateStored' | 'FxRateAlreadyCovered' | 'FxRateSourceUnavailable' | 'FxRateSourceMismatch' | 'ListingActive' | 'ListingPausedBalanceExhausted' | 'ListingHidden' | 'ListingWithdrawn' | 'ListingDeactivated' | 'ListingUpdated' | 'ListingRestocked' | 'ListingOpenToTrade', string>;
+} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected' | 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred' | 'FeedRunStarted' | 'ReferencePriceFresh' | 'ReferencePriceStale' | 'ReferencePriceMissing' | 'TrendComputed' | 'TrendNoBaseline' | 'FxRateCovered' | 'FxRateCarriedForward' | 'FxRateStored' | 'FxRateAlreadyCovered' | 'FxRateSourceUnavailable' | 'FxRateSourceMismatch' | 'ListingActive' | 'ListingPausedBalanceExhausted' | 'ListingHidden' | 'ListingWithdrawn' | 'ListingDeactivated' | 'ListingUpdated' | 'ListingRestocked' | 'ListingOpenToTrade' | 'ListingRanked' | 'SearchRanked' | 'ListingLocationUnusable', string>;
 
 export type MessageCode = keyof typeof MESSAGES;

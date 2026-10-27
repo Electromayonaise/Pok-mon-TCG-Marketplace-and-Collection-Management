@@ -2,7 +2,7 @@
 title: 'Story 6.2: Search listings by area with an explained ranking'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'e143f13'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -67,12 +67,12 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] repository + `search` + §13 rows + generator
-- [ ] `meetingPoint` on IDN-2 and in `createListing`, with a src test
-- [ ] the area in `getAvailabilitySummary`, with a src test
-- [ ] `wiring()`, `compose()`, `discovery.search` with HTTP cases; the parity test
-- [ ] the benchmark, its binding, `gen:epics:solu2`, `nfr-evidence.md`
-- [ ] `sprint-status.yaml` -- 6.2 `done`; `gen:trace:solu2`
+- [x] repository + `search` + §13 rows + generator
+- [x] `meetingPoint` on IDN-2 and in `createListing`, with a src test
+- [x] the area in `getAvailabilitySummary`, with a src test
+- [x] `wiring()`, `compose()`, `discovery.search` with HTTP cases; the parity test
+- [x] the benchmark, its binding, `gen:epics:solu2`, `nfr-evidence.md`
+- [x] `sprint-status.yaml` -- 6.2 `done`; `gen:trace:solu2`
 
 **Acceptance Criteria:**
 - Given 6.2 `done`, when the 5 bound tests and the two benchmarks run, then they pass; Story 6.4's `[DSC-1.Q4]` and `[DSC-1.P2]` are early greens, restored by the 6.4 commit (decision #23).
@@ -82,3 +82,17 @@ context:
 **Commands:**
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/dsc_contracts.test.ts -t "DSC-1"` -- expected: the DSC-1 tests pass
 - `npx tsc --noEmit` -- expected: clean
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 6 at its close (decision #22).
+- Martín approved the four Epic 6 specs together, with these choices (decision log Impl-1 #31):
+  - **A null location copies the meeting point at create.** IDN-2's response gains an optional `meetingPoint`, read from `"IndividualSellerProfile"` by identity's own repository (`readMeetingPoint`) for an individual seller only. `createListing` and `createBundle` use it when `location` is null (`locationOf`), and P5 checks it like any location. The Story 5.1 HTTP case that pinned `lat: null` now expects the meeting point.
+  - **NFR-DSC-1:** `[NFR-DSC-1.seed]` and `[NFR-DSC-1.scale]` are both bound to this story.
+  - **`purchasableOnly`:** the statement filters the listing's own facts (business, unpaused, funded, available), and the page drops the rows of unverified sellers after `getSellerKinds`, so such a page can hold fewer than 24 rows (`deferred-work.md`).
+- The statement is one `WITH page AS (…) SELECT (count of unusable), json_agg(page)`: the count and the page read one snapshot (NFR-DSC-3), the bbox prefilter sits in the page's `WHERE` (the `(lat, lng)` index), and `row_number()` over the full order gives each row its `rankKey`. Ids order with `COLLATE "C"`, the same order as `compareRank`.
+- Without an area the order is `(soldOut, priceCop, id)` as contracts.md DSC-1 Q1 and `compareRank` state; unusable rows are then included with `distanceKm: null` and counted. AD-DSC-1 rule 4's "rank after the located rows" is not applied, since without a centre no row has a distance.
+- `getAvailabilitySummary` checks the area with `checkSearchArea` and filters with the same predicates (`availabilityAreaSql`).
+- §13: `ListingRanked`, `SearchRanked` and `ListingLocationUnusable` join as stored-only rows with no placeholders (decision #16).
+- `src/modules/listings/application/dsc.v2.test.ts`: the AD-DSC-1 rule 3 parity over 1,000 deterministic Colombian pairs (max error ≤ 1e-6 km), the order without an area, sold-out rows, `purchasableOnly`, the `matchEntryIds` budget and an empty page.
+- Measured (local Postgres 16): `[NFR-DSC-1.seed]` p95 18.6 ms (p50 12.1), `[NFR-DSC-1.scale]` p95 89.9 ms (p50 51.6) at 50,000 listings.

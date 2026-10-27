@@ -14,13 +14,38 @@ export interface DscV2UseCases {
 }
 // </gen-solu2-api>
 
+import type { Citation, Decision } from '../../../shared-kernel/decision.js';
+import { ambientTx } from '../../../shared-kernel/db.js';
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
+import type { Tx } from '../../../shared-kernel/ports.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest } from '../../../shared-kernel/request.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import type { CatalogFilters } from '../../catalog/index.js';
 import { validateSearchArea } from '../domain/dsc.js';
-import type { SearchArea } from '../dto/dsc.v2.dto.js';
+import { purchasable } from '../domain/inv.js';
+import type { SearchArea, SearchRow } from '../dto/dsc.v2.dto.js';
+import type { ListingQuery, RankedListingRow } from '../ports/dsc.v2.js';
 
 const raise = raiserFor('listings');
+
+/** DSC-1: the fixed page size, and P3's page bound (Solu-1 review E-19). */
+const PAGE_SIZE = 24;
+const MAX_PAGE = 417;
+/** AD-DSC-2 rule 2: the threshold `matchEntryIds` answers `tooBroad` above. */
+const MATCH_THRESHOLD = 20_000;
+
+/** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
+function explained(outcome: Decision['outcome'], code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
+  return { outcome, reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
+}
+
+/** AD-DSC-2 rule 2: filters with no value make no `matchEntryIds` call. */
+function hasFilters(filters: CatalogFilters | undefined): filters is CatalogFilters {
+  return filters !== undefined && Object.values(filters).some((v) => v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0));
+}
 
 /**
  * DSC-3: the area guard shared by DSC-1, DSC-2 and INV's availability port. Pure: a non-finite
@@ -38,8 +63,66 @@ export function checkSearchArea(area: SearchArea): void {
 export class DscServiceV2 implements DscV2UseCases {
   constructor(protected readonly deps: DscV2Deps) {}
 
-  async search(_input: SearchRequest): Promise<SearchResponse> {
-    throw new NotImplementedError('listings.search');
+  /**
+   * AD-SYS-4 rule 9: reads on the caller's open transaction when there is one; otherwise in one
+   * read-only transaction of its own, so the statement sees one snapshot.
+   */
+  private async reading<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+    const tx = ambientTx();
+    return tx ? fn(tx) : this.deps.transactions.run(fn, { readOnly: true });
+  }
+
+  /**
+   * AD-DSC-2 rule 3: one `getSellerKinds` for the page's distinct sellers; `pickupAvailable` and the
+   * badge are derived per request and never stored (DSC-1 I3).
+   */
+  private async rows(page: RankedListingRow[], now: IsoInstant): Promise<SearchRow[]> {
+    const sellerIds = [...new Set(page.map((r) => r.sellerId))];
+    const kinds = new Map((await this.deps.identity.getSellerKinds({ userIds: sellerIds })).sellers.map((s) => [s.userId, s]));
+    return page.map((r) => {
+      const seller = kinds.get(r.sellerId);
+      const sellerKind = seller?.sellerKind === 'business' || seller?.sellerKind === 'individual' ? seller.sellerKind : r.sellerKindAtCreation;
+      const verified = seller?.verified ?? false;
+      const state = purchasable({
+        sellerKindAtCreation: r.sellerKindAtCreation, verification: verified ? 'Approved' : 'none', pausedAt: r.paused ? new Date(0) : null,
+        hiddenAt: null, withdrawnAt: null, deactivatedAt: null, availability: r.availability, projection: r.projection,
+      });
+      return {
+        listingId: r.listingId, catalogEntryIds: r.catalogEntryIds, priceCop: r.priceCop, distanceKm: r.distanceKm,
+        sellerKind, verified, pickupAvailable: sellerKind === 'individual', purchasable: state === 'purchasable',
+        explanation: explained('ranked', 'ListingRanked', [{ rule: 'FR-DSC-5', inputs: { distanceKm: r.distanceKm, priceCop: r.priceCop, rankKey: r.rank } }], now),
+      };
+    });
+  }
+
+  /** DSC-1: P1–P3 before the one statement, then one identity call (AD-DSC-2 rule 1). */
+  async search(input: SearchRequest): Promise<SearchResponse> {
+    if (input.area !== undefined) checkSearchArea(input.area);
+    if (!Number.isInteger(input.page) || input.page < 1 || input.page > MAX_PAGE) rejectRequest([{ field: 'page', issue: `debe ser un entero entre 1 y ${MAX_PAGE}` }]);
+    if (input.pageSize !== PAGE_SIZE) rejectRequest([{ field: 'pageSize', issue: `debe ser ${PAGE_SIZE}` }]);
+    let entryIds: CuidId[] | null = null;
+    if (hasFilters(input.catalogFilters)) {
+      const match = await this.deps.catalog.matchEntryIds({ filters: input.catalogFilters });
+      if (match.tooBroad) return raise('SearchFilterTooBroad', [{ rule: 'FR-DSC-1', inputs: { threshold: MATCH_THRESHOLD } }]);
+      entryIds = match.ids;
+    }
+    const now = this.deps.clock.now().toISOString();
+    const query: ListingQuery = {
+      entryIds, area: input.area ?? null, maxPriceCop: input.maxPriceCop ?? null, conditions: input.condition?.length ? input.condition : null,
+      purchasableOnly: input.purchasableOnly ?? false, includeSoldOut: input.includeSoldOut ?? false, limit: PAGE_SIZE, offset: (input.page - 1) * PAGE_SIZE,
+    };
+    const { rows, unusableLocation } = await this.reading((tx) => this.deps.repo.searchListings(tx, query));
+    const ranked = rows.length === 0 ? [] : await this.rows(rows, now);
+    // purchasableOnly: the statement applied the listing's own facts; the verification is the seller's, read after it.
+    const results = query.purchasableOnly ? ranked.filter((r) => r.purchasable) : ranked;
+    return { results, excluded: { unusableLocation }, decision: this.searchDecision(unusableLocation, results.length, now) };
+  }
+
+  /** DSC-1 Q4: the response decision reports the excluded count (FR-DSC-3). */
+  private searchDecision(unusableLocation: number, results: number, now: IsoInstant): Decision {
+    return unusableLocation > 0
+      ? explained('excluded', 'ListingLocationUnusable', [{ rule: 'FR-DSC-3', inputs: { unusableLocation } }], now)
+      : explained('ranked', 'SearchRanked', [{ rule: 'FR-DSC-5', inputs: { results, unusableLocation } }], now);
   }
 
   async getCardDetail(_input: GetCardDetailRequest): Promise<GetCardDetailResponse> {

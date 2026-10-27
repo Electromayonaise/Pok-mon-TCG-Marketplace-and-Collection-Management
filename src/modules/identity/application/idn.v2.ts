@@ -131,7 +131,8 @@ export class IdnServiceV2 implements IdnV2UseCases {
       citations: [{ rule: 'FR-IDN-3', inputs }],
       occurredAt: this.deps.clock.now().toISOString(),
     };
-    return { listingKind: listing.listingKind, verified: listing.verified, decision };
+    const meetingPoint = listing.listingKind === 'individual' ? await this.reading((tx) => this.deps.repo.readMeetingPoint(tx, userId)) : null;
+    return { listingKind: listing.listingKind, verified: listing.verified, decision, meetingPoint };
   }
 
   /**

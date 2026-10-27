@@ -172,7 +172,7 @@ export interface InvRepository {
   /** S-FR-INV-9.active: sets or clears `deactivatedAt` when it is not already so; the new version, or null for a no-op. */
   setDeactivated(tx: Tx, listingId: CuidId, deactivated: boolean, now: IsoInstant): Promise<number | null>;
   /** P-INV.availability: the candidates of `entryIds` (the SQL twin of AD-INV-3 rule 2, without the verification term). */
-  availabilityCandidates(tx: Tx, entryIds: CuidId[]): Promise<AvailabilityCandidate[]>;
+  availabilityCandidates(tx: Tx, entryIds: CuidId[], area: { lat: number; lng: number; radiusKm: number } | null): Promise<AvailabilityCandidate[]>;
   /** P-INV.units: the unit ids of a single listing or a bundle, in id order; [] for an unknown id. */
   listingUnitIds(tx: Tx, listingId: CuidId): Promise<CuidId[]>;
 }

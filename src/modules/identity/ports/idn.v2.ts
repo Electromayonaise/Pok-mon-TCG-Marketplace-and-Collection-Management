@@ -52,6 +52,8 @@ export interface IdnRepository {
   insertCapabilityAuditRead(tx: Tx, row: { id: CuidId; adminId: CuidId; targetUserId: CuidId; createdAt: IsoInstant }): Promise<void>;
   /** P-IDN.contact: the profile's name and regulated phone, or null with no profile (AD-SYS-8). */
   readContactCard(tx: Tx, userId: CuidId): Promise<{ displayName: string; contactPhoneE164: string } | null>;
+  /** IDN-2 (Story 6.2): the individual profile's meeting point, or null with no profile. */
+  readMeetingPoint(tx: Tx, userId: CuidId): Promise<{ lat: number; lng: number } | null>;
   /** P-IDN.names: the profile's display name, else `"User".name`, per known id; never the email or the phone. */
   readDisplayNames(tx: Tx, userIds: readonly CuidId[]): Promise<Map<CuidId, string>>;
   /** AD-IDN-3 rule 3: `"createdAt"` of the limit-th newest `"AuthThrottleEvent"` on `key` in `(since, until]`, or null. */

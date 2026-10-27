@@ -85,9 +85,9 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 | NFR-INV-2 | Reliability | A mixed purchase/trade race gives the NFR-INV-1 result | Shared-unit race, bundle vs single | `[INV-1.I3]`, `[TRD-1.MEC]` | Green — ATDD (`[INV-1.I3]`); Red — ATDD (`[TRD-1.MEC]`) |
 | NFR-INV-3 | Reliability (MEC) | 100 repetitions of reserve-then-abort restore the quantity | Abort inside the caller's transaction | `[INV-1.MEC]` | Green — ATDD |
 | NFR-INV-4 | Performance | Reservation p95 ≤ 150 ms (bundle of 20 ≤ 300 ms); listing creation ≤ 800 ms | PRD §7 protocol | `[NFR-INV-4.reserve]`, `[NFR-INV-4.bundle]`, `[NFR-INV-4.create]` | Green — benchmark |
-| NFR-DSC-1 | Performance | `view=listings`, 15 km, p95 ≤ 1,000 ms (§3 seed), ≤ 1,500 ms at 50,000 listings | PRD §7 protocol; `seedMarketplace({ scale })` for the larger seed | — | Planned — story DoD |
-| NFR-DSC-2 | Correctness | Distance error ≤ 1 m vs haversine | SQL vs TypeScript reference | `[DSC-1.I4]` | Red — ATDD |
-| NFR-DSC-3 | Determinism | 10 identical runs, 0 ordering differences | Repeated and concurrent equal searches | `[DSC-1.R1]` | Red — ATDD |
+| NFR-DSC-1 | Performance | `view=listings`, 15 km, p95 ≤ 1,000 ms (§3 seed), ≤ 1,500 ms at 50,000 listings | PRD §7 protocol on the §3 seed, and on the §3 seed grown to 50,000 listings (`view=listings`; the DTO has no `view=entries`) | `[NFR-DSC-1.seed]`, `[NFR-DSC-1.scale]` | Green — benchmark |
+| NFR-DSC-2 | Correctness | Distance error ≤ 1 m vs haversine | SQL vs TypeScript reference | `[DSC-1.I4]` | Green — ATDD |
+| NFR-DSC-3 | Determinism | 10 identical runs, 0 ordering differences | Repeated and concurrent equal searches | `[DSC-1.R1]` | Green — ATDD |
 | NFR-ORD-1 | Reliability (MEC) | Out-of-order and duplicate confirmations safe, 100 repetitions | Confirmation sequences and races | `[ORD-3.MEC]`, `[ORD-4.MEC]`, `[ORD-2.MEC]` | Red — ATDD |
 | NFR-ORD-2 | Performance | `createOrder` incl. reservation p95 ≤ 800 ms; comprobante upload ≤ 10 s at 10 Mbps | PRD §7 protocol on composed services over the §3 seed | `[NFR-ORD-2.p95]` | Red — benchmark |
 | NFR-ORD-3 | Security / scope | 0 funds-held states or gateway calls | Schema check; network guard | `[ORD-1.I4]`, `[SYS-6.R4]` | Green — gate (`[SYS-6.R4]`); Red — ATDD (`[ORD-1.I4]`) |
@@ -117,12 +117,12 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 
 | Status | NFRs |
 |---|---|
-| Green — benchmark | 5 (NFR-SYS-2, NFR-SYS-6, NFR-VER-3, NFR-CAT-1, NFR-INV-4) |
-| Green — ATDD (wholly or in part) | 19 (NFR-SYS-1, -7, -8, -10, -13, -14, NFR-IDN-2, NFR-VER-1, -2, -4, NFR-CAT-2, -3, -4, NFR-INV-1, -2, -3, NFR-TRD-3; NFR-SYS-8, -10, -14, NFR-INV-2 and NFR-TRD-3 in part) |
+| Green — benchmark | 6 (NFR-SYS-2, NFR-SYS-6, NFR-VER-3, NFR-CAT-1, NFR-INV-4, NFR-DSC-1) |
+| Green — ATDD (wholly or in part) | 21 (NFR-SYS-1, -7, -8, -10, -13, -14, NFR-IDN-2, NFR-VER-1, -2, -4, NFR-CAT-2, -3, -4, NFR-INV-1, -2, -3, NFR-DSC-2, -3, NFR-TRD-3; NFR-SYS-8, -10, -14, NFR-INV-2 and NFR-TRD-3 in part) |
 | Green — gate (wholly or in part) | 8 (NFR-SYS-3, NFR-SYS-4, NFR-SYS-12, NFR-IDN-3, NFR-MSG-3, NFR-COL-3, NFR-REP-3, NFR-ORD-3) |
 | Red — benchmark | 2 (NFR-SYS-9, NFR-ORD-2) |
-| Red — ATDD (wholly or in part) | 24 |
-| Planned — story DoD (wholly or in part) | 9: the latency NFRs without a benchmark yet. Each gets one in its story, with the shared harness |
+| Red — ATDD (wholly or in part) | 22 |
+| Planned — story DoD (wholly or in part) | 8: the latency NFRs without a benchmark yet. Each gets one in its story, with the shared harness |
 | Deferred — launch | 2: NFR-SYS-11 (WCAG audit), and NFR-VER-4's transfer time on a shaped 10 Mbps link |
 
 Rows marked "in part" are counted under each of their statuses, so the summary adds up to more than 56. No NFR is left without a named artifact or an owner phase.
@@ -140,3 +140,5 @@ Each benchmark writes its figures (milliseconds, n = 500) to `.vitest-results/`.
 | NFR-INV-4 | `[NFR-INV-4.reserve]` | `nfr-inv-4-reserve.json` | 2.9 | 4.3 | p95 ≤ 150 | 2026-10-27, Story 5.2, funded single listings of the §3 seed, each reserve in a transaction rolled back after the call, local Postgres 16 |
 | NFR-INV-4 | `[NFR-INV-4.bundle]` | `nfr-inv-4-bundle.json` | 5.8 | 10.4 | p95 ≤ 300 | 2026-10-27, Story 5.2, a 20-component bundle on the §3 seed, rolled back after each call, local Postgres 16 |
 | NFR-INV-4 | `[NFR-INV-4.create]` | `nfr-inv-4-create.json` | 2.1 | 4.3 | p95 ≤ 800 | 2026-10-27, Story 5.1, individual sellers and funded businesses on the §3 seed, half new units and half links, local Postgres 16 |
+| NFR-DSC-1 | `[NFR-DSC-1.seed]` | `nfr-dsc-1-seed.json` | 12.1 | 18.6 | p95 ≤ 1,000 | 2026-10-27, Story 6.2, 15 km around Bogotá, pages 1–3, the §3 seed, local Postgres 16 |
+| NFR-DSC-1 | `[NFR-DSC-1.scale]` | `nfr-dsc-1-scale.json` | 51.6 | 89.9 | p95 ≤ 1,500 | 2026-10-27, Story 6.2, the same searches on the §3 seed grown to 50,000 listings around the four cities, local Postgres 16 |
