@@ -220,3 +220,44 @@ describe('the admin lookup and the support contact (S-FR-ORD-10)', () => {
     expect(codeOf(await caught(() => ord.setSupportContact({ adminId: id('admin'), contact: { email: 'no-es-correo', whatsappE164: '3001234567' } })))).toBe('RequestValidationFailed');
   });
 });
+
+describe('the review patches of Epic 7 (decision log Impl-1 #32)', () => {
+  const base = { buyerId: id('camila'), businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar') };
+  const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 1, 0xff, 0xd9]);
+
+  it('a key with the buyer\'s prefix but more segments is refused as missing and never read', async () => {
+    await business(db, id('andres'), 'Approved');
+    await user(db, { id: id('camila') });
+    await order(db, { ...base, id: id('o1'), comprobante: false });
+    const { w, ord } = orders();
+    const sneaky = `comprobante/${id('camila')}/../${id('julian')}/c1`;
+    w.storage.simulateDirectUpload(sneaky, JPEG_BYTES, 'image/jpeg');
+    const error = await caught(() => ord.uploadComprobante({ orderId: id('o1'), buyerId: id('camila'), uploadKey: sneaky }));
+    expect([codeOf(error), citedInputs(error)]).toEqual(['ComprobanteInvalidFile', { cause: 'missing' }]);
+    expect(await w.storage.get('upload-quarantine', sneaky)).not.toBeNull();
+  });
+
+  it('an upload refused by the first check (already paid) deletes the buyer\'s quarantine object, as the re-read refusal does', async () => {
+    await business(db, id('andres'), 'Approved');
+    await user(db, { id: id('camila') });
+    await order(db, { ...base, id: id('o1'), paidAt: at(-HOUR) });
+    const { w, ord } = orders();
+    const key = `comprobante/${id('camila')}/late`;
+    w.storage.simulateDirectUpload(key, JPEG_BYTES, 'image/jpeg');
+    expect(codeOf(await caught(() => ord.uploadComprobante({ orderId: id('o1'), buyerId: id('camila'), uploadKey: key })))).toBe('ComprobanteLocked');
+    expect(await w.storage.get('upload-quarantine', key)).toBeNull();
+  });
+
+  it('two first support-contact changes at once serialize: the second records the first as its before', async () => {
+    await admin(db);
+    const { ord } = orders();
+    await Promise.all([
+      ord.setSupportContact({ adminId: id('admin'), contact: { email: 'a@tezg.co', whatsappE164: null } }),
+      ord.setSupportContact({ adminId: id('admin'), contact: { email: 'b@tezg.co', whatsappE164: null } }),
+    ]);
+    const changes = await rows<{ before: { email: string } | null; after: { email: string } }>(db, 'SupportContactChange', 'TRUE ORDER BY "createdAt", id');
+    expect(changes.map((c) => c.before === null).sort()).toEqual([false, true]);
+    expect(changes.filter((c) => c.before !== null).map((c) => c.before!.email)).toEqual(changes.filter((c) => c.before === null).map((c) => c.after.email));
+    expect(await rows(db, 'audit_events', `action = 'orders.supportContact.set' AND "aggregateType" = 'SupportContactChange'`)).toHaveLength(2);
+  });
+});

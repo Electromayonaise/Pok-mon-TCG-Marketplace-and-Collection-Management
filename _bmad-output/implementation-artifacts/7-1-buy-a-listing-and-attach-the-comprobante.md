@@ -103,8 +103,23 @@ context:
 - **The benchmark's Given (decision #32).** `[NFR-ORD-2.p95]` as written spread 550 purchases over `buyerId(5 + k % 218)` and every funded listing, without regard to the business, and used buyers the seed leaves with an open order. ORD-1 P4 (1 open order per business, 3 per buyer) refused part of them as `TooManyOpenOrders`. Martín approved a change to the Given only: buyers with an open seed order are set aside, and a buyer's k-th call goes to its k-th business. What is measured and the threshold are unchanged.
 - `getBusinessPaymentInstructions` now reads on the ambient transaction (AD-SYS-4 rule 9). The pool-of-1 test in `ord.v2.test.ts` would wait on a second connection otherwise.
 - `OrderFacts` carries `hasComprobante` instead of the key: the key is read only by `comprobanteKeyOf`, for the storage calls (AD-17).
-- `TooManyOpenOrders` cites every open order at the overall limit (3), and only the orders with this business at the per-business limit (1), comma-joined in id order.
+- `TooManyOpenOrders` cites every open order, comma-joined in id order, at either limit (ORD-1 P4; the close review made the per-business case cite all of them too).
 - A refused upload (`ComprobanteLocked`, `OrderNoLongerActive`, an ownership refusal) deletes the promoted copy and the quarantine object. Any other failure deletes only the promoted copy, so the same key can be retried. After the commit the previous comprobante and the quarantine object are deleted, best effort.
 - The production `ObjectStorage` and `MalwareScanner` are still `UNWIRED_STORAGE` and `UNWIRED_SCANNER`, so in production the ticket, the upload and the URL fail as NotImplemented (500) (`deferred-work.md`, Story 3.1). The tests bind `InMemoryObjectStorage` and `SimulatedScanner`.
 - §13: `OrderCreated`, `ComprobanteAttached`, `ComprobanteUrlIssued` and `ComprobanteNotUploaded` join as stored-only rows with no placeholders (decision #16).
-- Measured (local Postgres 16): `[NFR-ORD-2.p95]` p95 11.9 ms (p50 5.4).
+- Measured (local Postgres 16): `[NFR-ORD-2.p95]` p95 11.9 ms (p50 5.4); after the close review's patches, p95 11.0 ms (p50 6.5).
+
+### Review Findings
+
+Epic 7 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `f595122..e1018fb` (code paths). Totals for the epic: 1 decision, 12 patches, 5 deferrals, 10 dismissed. Martín resolved the decision with the recommendation and approved every patch (decision log Impl-1 #32).
+
+- [x] [Review][Patch] `uploadKey` is checked by prefix only: the bare prefix, `..` or extra segments reach `storage.get` and `storage.delete` [src/modules/orders/application/ord.v2.ts:promoteComprobante] — `isComprobanteUploadKey`: the buyer's prefix and one `[a-z0-9]{1,64}` segment
+- [x] [Review][Patch] A refusal from the first check of an upload leaves the quarantine object, while the same refusal on the 0-row re-read deletes it [src/modules/orders/application/ord.v2.ts:uploadComprobante] — the first check's refusal now deletes the buyer's own quarantine object too
+- [x] [Review][Patch] `previousKey !== key` is always true (the key is always new) [src/modules/orders/application/ord.v2.ts:uploadComprobante] — removed
+- [x] [Review][Patch] The HTTP case for `orders.create` on a pool of 1 is missing; the pool-of-1 proof exists only at the service level [src/server/composition.test.ts] — added: the gate, the reserve and the payment instructions on one connection
+- [x] [Review][Patch] The benchmark's Given does not assert that enough buyers are free (`buyers.length × 3 ≥ 550`) or that each business pool is non-empty, so a seed change would fail it for a confusing reason [_bmad-output/test-artifacts/nfr/ord1_latency.test.ts] — both asserts added to the Given approved in #32
+- [x] [Review][Defer] A promoted copy whose cleanup delete fails stays in `order-comprobantes` with no order pointing at it, and the failure is dropped [src/modules/orders/application/ord.v2.ts:uploadComprobante] — deferred: the same best-effort cleanup as VER (Epic 3), for the reconciliation sweep of the production storage
+- [x] [Review][Defer] Unlimited upload tickets per order, and the size is checked after the whole object is read [src/modules/orders/application/ord.v2.ts:createComprobanteUpload] — deferred: the Epic 3 upload-ticket item (a size cap at upload time) covers it
+- [x] [Review][Dismiss] The attach uses the `now` read before the scan — dismissed: "Clock, once" (contracts.md §6); an order that expires during the scan still reads Expired and cannot be paid
+- [x] [Review][Dismiss] The pre-step adds 1 + N transactions to a purchase — dismissed: AD-ORD-2 rule 7 prescribes one short transaction per order, at most 20
+- [x] [Review][Dismiss] Payment instructions that vanish between the reserve and the read are `Unexpected` — dismissed: a rejection committing between two statements of one purchase; the transaction rolls back whole, and `orders` cannot raise `listings`' refusal

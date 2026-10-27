@@ -185,6 +185,8 @@ export class PgOrdRepository implements OrdTablesRepository {
   }
 
   async readSupportContact(tx: Tx, forUpdate: boolean): Promise<SupportContactDTO | null> {
+    // A missing singleton has no row to lock, so two first changes serialize on a key instead.
+    if (forUpdate) await tx.query(`SELECT pg_advisory_xact_lock(hashtextextended('orders:supportContact', 0))`);
     const { rows } = await tx.query<SupportContactDTO>(
       `SELECT email, "whatsappE164" FROM "SupportContactSetting" WHERE id = 'singleton'${forUpdate ? ' FOR UPDATE' : ''}`,
     );

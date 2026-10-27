@@ -49,7 +49,7 @@ import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import {
-  closedLines, comprobanteUploadPrefix, decodeOrderCursor, deriveStatus, encodeOrderCursor, expiryUnmaterialized, itemReceivedLoserCode, MAX_COMPROBANTE_BYTES,
+  closedLines, comprobanteUploadPrefix, decodeOrderCursor, isComprobanteUploadKey, deriveStatus, encodeOrderCursor, expiryUnmaterialized, itemReceivedLoserCode, MAX_COMPROBANTE_BYTES,
   openOrderOverflow, orderView, paidLoserCode, paymentReceivedLoserCode, sniffComprobanteType, UNPAID_ORDER_TTL_MS, type OrderStatus,
 } from '../domain/ord.js';
 import type { OrderViewDTO } from '../dto/ord.v2.dto.js';
@@ -81,6 +81,14 @@ function explained(code: MessageCode, citations: [Citation, ...Citation[]], now:
 /** Every refusal a 0-row fact update can map to (AD-ORD-2 rule 3). */
 type LoserCode = NonNullable<ReturnType<typeof paidLoserCode> | ReturnType<typeof paymentReceivedLoserCode> | ReturnType<typeof itemReceivedLoserCode>>;
 
+/** The three facts (AD-2): the rule each cites, its stored instant, and the mapping of its 0-row update. */
+type Fact = 'buyerPaid' | 'sellerReceived' | 'itemReceived';
+const FACTS: Record<Fact, { rule: string; at: (row: OrderRow) => Date | null; loser: (row: OrderRow, actorId: CuidId, now: Date) => LoserCode | null }> = {
+  buyerPaid: { rule: 'FR-ORD-3', at: (r) => r.buyerPaidConfirmedAt, loser: (r, actor, now) => paidLoserCode(r, r.buyerId === actor, now) },
+  sellerReceived: { rule: 'FR-ORD-4', at: (r) => r.sellerReceivedConfirmedAt, loser: (r, actor, now) => paymentReceivedLoserCode(r, r.businessId === actor, now) },
+  itemReceived: { rule: 'FR-ORD-5', at: (r) => r.buyerItemReceivedConfirmedAt, loser: (r, actor, now) => itemReceivedLoserCode(r, r.buyerId === actor, now) },
+};
+
 /** The instant a terminated order ended, for `OrderNoLongerActive` (AD-ORD-2 rule 3). */
 function endedAt(row: OrderRow): Date {
   return row.cancelledAt ?? row.expiredAt ?? row.expiresAt;
@@ -101,7 +109,7 @@ export class OrdServiceV2 implements OrdV2UseCases {
 
   /** AD-ORD-3 rule 1: a miss cites nothing about the order, so a foreign id and an unknown id give one body (S-2). */
   private notVisible(): never {
-    return raise('OrderNotVisibleToCaller', [{ rule: 'AD-ORD-3 rule 1', inputs: { visible: false } }]);
+    return raise('OrderNotVisibleToCaller', [{ rule: 'AD-15', inputs: { visible: false } }]);
   }
 
   private notOwned(orderId: CuidId, rule: string): never {
@@ -214,7 +222,7 @@ export class OrdServiceV2 implements OrdV2UseCases {
   private async promoteComprobante(buyerId: CuidId, uploadKey: string): Promise<string> {
     const { storage, scanner, ids } = this.deps;
     const refuse = (cause: 'missing' | 'size' | 'magic' | 'scanner'): never => raise('ComprobanteInvalidFile', [{ rule: 'AD-SYS-8', inputs: { cause } }]);
-    const bytes = uploadKey.startsWith(comprobanteUploadPrefix(buyerId)) ? await storage.get('upload-quarantine', uploadKey) : null;
+    const bytes = isComprobanteUploadKey(uploadKey, buyerId) ? await storage.get('upload-quarantine', uploadKey) : null;
     if (bytes === null) return refuse('missing');
     if (bytes.length > MAX_COMPROBANTE_BYTES) return refuse('size');
     const declared = sniffComprobanteType(bytes);
@@ -235,7 +243,14 @@ export class OrdServiceV2 implements OrdV2UseCases {
     const { orderId, buyerId, uploadKey } = input;
     const at = clock.now();
     const now = at.toISOString();
-    await this.reading((tx) => this.comprobanteTarget(tx, orderId, buyerId, at));
+    // A refusal deletes the buyer's own quarantine object, as on the 0-row re-read below; a key outside the buyer's prefix is never touched.
+    const discardUpload = () => (isComprobanteUploadKey(uploadKey, buyerId) ? storage.delete('upload-quarantine', uploadKey) : Promise.resolve());
+    try {
+      await this.reading((tx) => this.comprobanteTarget(tx, orderId, buyerId, at));
+    } catch (error) {
+      if (error instanceof DomainError) await Promise.allSettled([discardUpload()]);
+      throw error;
+    }
     const key = await this.promoteComprobante(buyerId, uploadKey);
     let previousKey: string | null;
     try {
@@ -254,14 +269,14 @@ export class OrdServiceV2 implements OrdV2UseCases {
       });
     } catch (error) {
       const cleanup = [storage.delete('order-comprobantes', key)];
-      if (error instanceof DomainError) cleanup.push(storage.delete('upload-quarantine', uploadKey));
+      if (error instanceof DomainError) cleanup.push(discardUpload());
       await Promise.allSettled(cleanup);
       throw error;
     }
     // Best effort: the attach has committed, so a failed delete must not fail it.
     await Promise.allSettled([
       storage.delete('upload-quarantine', uploadKey),
-      ...(previousKey !== null && previousKey !== key ? [storage.delete('order-comprobantes', previousKey)] : []),
+      ...(previousKey !== null ? [storage.delete('order-comprobantes', previousKey)] : []),
     ]);
     const decision = explained('ComprobanteAttached', [{ rule: 'FR-ORD-2', inputs: { orderId } }], now);
     return { orderId, comprobanteUploadedAt: now, replacedPrevious: previousKey !== null, decision };
@@ -287,24 +302,37 @@ export class OrdServiceV2 implements OrdV2UseCases {
    * expired in `tx`; that refusal is returned, not thrown, so the caller commits the expiry before
    * raising it. Every other refusal is thrown and writes nothing.
    */
-  private async refuseFact(tx: Tx, row: OrderRow | null, code: LoserCode | null, rule: string, at: Date): Promise<() => never> {
+  private async refuseFact(tx: Tx, row: OrderRow | null, code: LoserCode | null, fact: Fact, at: Date): Promise<() => never> {
     if (row === null) return this.notVisible();
     const orderId = row.id;
+    const { rule } = FACTS[fact];
     switch (code) {
-      case null: throw new UnexpectedError(`Unexpected: a fact update on order ${orderId} changed 0 rows, yet nothing refuses it`);
+      case null: throw new UnexpectedError(`Unexpected: a ${fact} update on order ${orderId} changed 0 rows twice, yet nothing refuses it`);
       case 'OrderNotOwnedByCaller': return this.notOwned(orderId, rule);
       case 'ComprobanteNotYetUploaded': return raise(code, [{ rule, inputs: { orderId } }]);
       case 'ComprobanteMissingOnConfirm': return raise(code, [{ rule, inputs: { orderId } }]);
       case 'OrderConfirmationOutOfOrder': return raise(code, [{ rule, inputs: { orderId, buyerPaidConfirmedAt: null } }]);
-      case 'OrderAlreadyConfirmedByRole': {
-        const confirmedAt = rule === 'FR-ORD-3' ? row.buyerPaidConfirmedAt : rule === 'FR-ORD-4' ? row.sellerReceivedConfirmedAt : row.buyerItemReceivedConfirmedAt;
-        return raise(code, [{ rule, inputs: { orderId, confirmedAt: confirmedAt?.toISOString() ?? null } }]);
-      }
+      case 'OrderAlreadyConfirmedByRole': return raise(code, [{ rule, inputs: { orderId, confirmedAt: FACTS[fact].at(row)?.toISOString() ?? null } }]);
       case 'OrderNoLongerActive': {
         const status = deriveStatus(row, at);
         if (expiryUnmaterialized(row, at)) await this.expireInTx(tx, orderId, at.toISOString());
         return () => this.noLongerActive(row, status, rule);
       }
+    }
+  }
+
+  /**
+   * AD-ORD-2 rule 3: the conditional update, and on 0 rows the re-read and its mapping. A re-read that
+   * finds nothing to refuse means a transaction committed between the two statements (a comprobante
+   * attached as "paid" ran), so the update runs once more before the refusal is final.
+   */
+  private async settleFact<T>(tx: Tx, fact: Fact, actorId: CuidId, orderId: CuidId, at: Date, update: () => Promise<T | null>): Promise<T | (() => never)> {
+    for (let attempt = 0; ; attempt++) {
+      const done = await update();
+      if (done !== null) return done;
+      const row = await this.deps.repo.readVisibleOrder(tx, orderId, actorId);
+      const code = row && FACTS[fact].loser(row, actorId, at);
+      if (code !== null || attempt === 1) return this.refuseFact(tx, row, code, fact, at);
     }
   }
 
@@ -315,10 +343,8 @@ export class OrdServiceV2 implements OrdV2UseCases {
     const at = clock.now();
     const now = at.toISOString();
     const outcome = await transactions.run(async (tx) => {
-      if (!(await repo.setBuyerPaid(tx, orderId, buyerId, now))) {
-        const row = await repo.readVisibleOrder(tx, orderId, buyerId);
-        return this.refuseFact(tx, row, row && paidLoserCode(row, row.buyerId === buyerId, at), 'FR-ORD-3', at);
-      }
+      const paid = await this.settleFact(tx, 'buyerPaid', buyerId, orderId, at, async () => ((await repo.setBuyerPaid(tx, orderId, buyerId, now)) ? true : null));
+      if (paid !== true) return paid;
       await audit.record(tx, {
         actorId: buyerId, actorKind: 'user', module: 'orders', action: 'orders.fact.buyerPaid',
         aggregateType: 'Order', aggregateId: orderId, decisionCode: 'OrderPaidConfirmed', data: { orderId }, at: now,
@@ -340,11 +366,8 @@ export class OrdServiceV2 implements OrdV2UseCases {
     const at = clock.now();
     const now = at.toISOString();
     const outcome = await transactions.run(async (tx) => {
-      const row = await repo.setSellerReceived(tx, orderId, businessId, now);
-      if (row === null) {
-        const seen = await repo.readVisibleOrder(tx, orderId, businessId);
-        return this.refuseFact(tx, seen, seen && paymentReceivedLoserCode(seen, seen.businessId === businessId, at), 'FR-ORD-4', at);
-      }
+      const row = await this.settleFact(tx, 'sellerReceived', businessId, orderId, at, () => repo.setSellerReceived(tx, orderId, businessId, now));
+      if (typeof row === 'function') return row;
       const snapshot = row.listingSnapshot;
       await outbox.enqueue(tx, 'OrderPaymentConfirmedByBusiness', orderId, {
         orderId, businessId, buyerId: row.buyerId, totalCop: row.totalCop,
@@ -372,11 +395,8 @@ export class OrdServiceV2 implements OrdV2UseCases {
     const at = clock.now();
     const now = at.toISOString();
     const outcome = await transactions.run(async (tx) => {
-      const row = await repo.setItemReceived(tx, orderId, buyerId, now);
-      if (row === null) {
-        const seen = await repo.readVisibleOrder(tx, orderId, buyerId);
-        return this.refuseFact(tx, seen, seen && itemReceivedLoserCode(seen, seen.buyerId === buyerId, at), 'FR-ORD-5', at);
-      }
+      const row = await this.settleFact(tx, 'itemReceived', buyerId, orderId, at, () => repo.setItemReceived(tx, orderId, buyerId, now));
+      if (typeof row === 'function') return row;
       // A single listing's snapshot always names its catalog entry (INV-1 Q2), so every line has an item.
       const lines = closedLines(row.listingSnapshot, row.qty) as OrderClosedLineV1[];
       await outbox.enqueue(tx, 'OrderClosed', orderId, {
@@ -438,14 +458,19 @@ export class OrdServiceV2 implements OrdV2UseCases {
     const now = at.toISOString();
     const notCancellable = (status: OrderStatus): never => raise('OrderNotCancellable', [{ rule: 'FR-ORD-7', inputs: { orderId, status } }]);
     const outcome = await transactions.run(async (tx) => {
-      const reservationRef = await repo.cancelOrder(tx, orderId, buyerId, now);
-      if (reservationRef === null) {
+      let reservationRef = await repo.cancelOrder(tx, orderId, buyerId, now);
+      for (let attempt = 0; reservationRef === null; attempt++) {
         const row = await repo.readVisibleOrder(tx, orderId, buyerId);
         if (row === null) return this.notVisible();
         if (row.buyerId !== buyerId) return this.notOwned(orderId, 'FR-ORD-7');
-        if (!expiryUnmaterialized(row, at)) return notCancellable(deriveStatus(row, at));
-        await this.expireInTx(tx, orderId, now);
-        return () => notCancellable('Expired');
+        if (expiryUnmaterialized(row, at)) {
+          await this.expireInTx(tx, orderId, now);
+          return () => notCancellable('Expired');
+        }
+        const status = deriveStatus(row, at);
+        // Still cancellable on the re-read: a commit landed between the two statements, so try once more.
+        if (status !== 'AwaitingPayment' || attempt === 1) return notCancellable(status);
+        reservationRef = await repo.cancelOrder(tx, orderId, buyerId, now);
       }
       const { releasedUnits } = await listings.releaseReservation(tx, { reservationRef });
       await audit.record(tx, {
@@ -461,8 +486,9 @@ export class OrdServiceV2 implements OrdV2UseCases {
 
   /**
    * S-FR-ORD-8 (AD-ORD-2 rules 6–7): materializes due expiries, one transaction per order. A listing's
-   * units take one batch of 20; `'all'` takes batches of 200 until one comes back short, expires
-   * nothing, or 50 s of Clock time have passed. Correct whether or not it ever runs (AD-SYS-6 rule 5).
+   * units take one batch of 20; `'all'` takes batches of 200 until one comes back short or 50 s of
+   * Clock time have passed. The due query and the expiry share one predicate, so a batch others
+   * expired first is followed by orders still due. Correct whether or not it ever runs (AD-SYS-6 rule 5).
    */
   async expireDueOrders(input: ExpireDueOrdersRequest): Promise<ExpireDueOrdersResponse> {
     const { clock } = this.deps;
@@ -478,7 +504,7 @@ export class OrdServiceV2 implements OrdV2UseCases {
       const batch = await this.expireBatch(null, now, JOB_BATCH);
       expired += batch.expired;
       released += batch.released;
-      if (batch.due < JOB_BATCH || batch.expired === 0 || clock.now().getTime() - start.getTime() >= JOB_BUDGET_MS) break;
+      if (batch.due < JOB_BATCH || clock.now().getTime() - start.getTime() >= JOB_BUDGET_MS) break;
     }
     return { expired, released };
   }
@@ -509,10 +535,11 @@ export class OrdServiceV2 implements OrdV2UseCases {
       if (Object.keys(query).length === 0) rejectRequest([{ field: 'query', issue: 'indica un pedido, un comprador o una tienda' }]);
       const rows = await repo.lookupOrders(tx, query, LOOKUP_LIMIT);
       const resultOrderIds = rows.map((r) => r.id);
-      await repo.insertLookupLog(tx, { id: ids.next(), adminId, query, resultOrderIds, now });
+      const logId = ids.next();
+      await repo.insertLookupLog(tx, { id: logId, adminId, query, resultOrderIds, now });
       await audit.record(tx, {
         actorId: adminId, actorKind: 'admin', module: 'orders', action: 'orders.lookup.performed',
-        aggregateType: 'OrderLookupLog', aggregateId: adminId, decisionCode: null, data: { results: resultOrderIds.length }, at: now,
+        aggregateType: 'OrderLookupLog', aggregateId: logId, decisionCode: null, data: { results: resultOrderIds.length }, at: now,
       });
       // An admin is neither party: each row reads as its buyer sees it.
       return { orders: rows.map((r) => this.view(r, r.buyerId, at)) };
@@ -543,10 +570,11 @@ export class OrdServiceV2 implements OrdV2UseCases {
       if (first) rejectRequest([first, ...rest]);
       const before = await repo.readSupportContact(tx, true);
       const after = { email: contact.email, whatsappE164: contact.whatsappE164 };
-      await repo.writeSupportContact(tx, { id: ids.next(), adminId, before, after, now });
+      const changeId = ids.next();
+      await repo.writeSupportContact(tx, { id: changeId, adminId, before, after, now });
       await audit.record(tx, {
         actorId: adminId, actorKind: 'admin', module: 'orders', action: 'orders.supportContact.set',
-        aggregateType: 'SupportContactSetting', aggregateId: adminId, decisionCode: null, data: { replaced: before !== null }, at: now,
+        aggregateType: 'SupportContactChange', aggregateId: changeId, decisionCode: null, data: { replaced: before !== null }, at: now,
       });
       return { updatedAt: now };
     });

@@ -92,3 +92,21 @@ context:
 - An admin lookup row reads as its buyer sees it (`role: 'buyer'`), since the DTO has no admin role. The lookup also writes an audit row `orders.lookup.performed`. The `EventDelivery` rows of AD-ORD-3 rule 3 are not in `AdminLookupOrdersResponse`; the admin console reads them through `admin.events.deliveries`.
 - `expireDueOrders('all')` stops on a short batch, on a batch that expired nothing (so it cannot spin on orders a concurrent command already expired), or after 50 s of Clock time. `released` sums the released units.
 - No jobs route calls `expireDueOrders` yet (`deferred-work.md`).
+
+### Review Findings
+
+Epic 7 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `f595122..e1018fb` (code paths). Totals for the epic: 1 decision, 12 patches, 5 deferrals, 10 dismissed. Martín resolved the decision with the recommendation and approved every patch (decision log Impl-1 #32).
+
+- [x] [Review][Decision → Defer] The admin lookup returns neither the `EventDelivery` rows of AD-ORD-3 rule 3 nor a flag when it truncates at 50, and `AdminLookupOrdersResponse` has neither field — a DTO change now, or defer to the admin console story — Martín: defer to the admin console story; the admin reads the deliveries through `admin.events.deliveries` (decision log Impl-1 #32)
+- [x] [Review][Patch] Two first-time `setSupportContact` calls both read `before = null`: `FOR UPDATE` on a missing row locks nothing [src/modules/orders/application/ord.v2.ts:setSupportContact] — the change takes `pg_advisory_xact_lock(orders:supportContact)` before the read
+- [x] [Review][Patch] The lookup and support-contact audit rows use the admin's id as `aggregateId` instead of the log or change row [src/modules/orders/application/ord.v2.ts:adminLookupOrders, setSupportContact] — `aggregateId` is the `"OrderLookupLog"` row and the `"SupportContactChange"` row
+- [x] [Review][Patch] `expireDueOrders('all')` stops on a batch that expired nothing, a condition the frozen spec does not list; since the due query and the expiry share one predicate, a full batch expired by others is followed by new due orders [src/modules/orders/application/ord.v2.ts:expireDueOrders] — removed; the job stops on a short batch or after 50 s
+- [x] [Review][Defer] One order whose release throws stops the pre-step and the job [src/modules/orders/application/ord.v2.ts:expireBatch] — deferred: only corrupt data reaches it (an unknown unit); isolating it needs a logger port, for the jobs route
+- [x] [Review][Defer] The job's single-flight `job:expiry-materialize` and `JOBS_SECRET` are not built [src/modules/orders/application/ord.v2.ts:expireDueOrders] — deferred: with the jobs route
+- [x] [Review][Defer] `OrderNoLongerActive`, `OrderNotCancellable` and `ComprobanteInvalidFile` render raw enum tokens (`Expired`, `magic`) in Spanish text [src/modules/orders/application/ord.v2.ts] — deferred: the repo-wide convention (`ApplicationNotPending`, `TradeOfferNotOpen`); the order pages' copy (UI 6.2, 6.3)
+- [x] [Review][Dismiss] Nothing runs the expiry job — dismissed: deferred at the spec (`deferred-work.md`); expiry is correct at read and in every command
+- [x] [Review][Dismiss] `getSupportContact` is 500 before an admin sets it — dismissed: decided at the spec (decision log Impl-1 #32)
+- [x] [Review][Dismiss] ORD's repository type carries identity's admin reader — dismissed: decided at the spec (decision log Impl-1 #32)
+- [x] [Review][Dismiss] The keyset cursor truncates `createdAt` to milliseconds — dismissed: every `"Order"` writer stamps the Clock's millisecond instant, and no SQL reads `now()` ([SYS-6.R1])
+- [x] [Review][Dismiss] The pool-of-1 test could hang on `pool.end()` — dismissed: the test timeout fails it, the same pattern as `inv.v2.test.ts`
+- [x] [Review][Dismiss] §13 names (`OrderCompleted` for `Closed`, "48 horas") — dismissed: `OrderClosed` is an event type, and 48 h is OQ-11's fixed TTL

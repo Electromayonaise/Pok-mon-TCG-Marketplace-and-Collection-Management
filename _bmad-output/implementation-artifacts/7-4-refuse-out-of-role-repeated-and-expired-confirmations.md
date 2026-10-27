@@ -66,3 +66,9 @@ Once 7.2 is done, the 7 tests turn green and the red gate fails. Built without t
 - Code review is batched with the rest of Epic 7 at its close (decision #22).
 - Martín approved building this story with the epic (decision log Impl-1 #32). It leaves `impl2_scope` and does not count toward the 43 Impl-1 stories.
 - The 7 tests passed on the 7.2 tree with no change: no gap was found in 7.2's files.
+
+### Review Findings
+
+Epic 7 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `f595122..e1018fb` (code paths). Totals for the epic: 1 decision, 12 patches, 5 deferrals, 10 dismissed. Martín resolved the decision with the recommendation and approved every patch (decision log Impl-1 #32).
+
+- No finding is specific to this story; its seven tests pass after the patches.

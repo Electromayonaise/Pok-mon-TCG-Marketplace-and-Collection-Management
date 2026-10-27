@@ -63,3 +63,9 @@ Once 7.1 is done, the 3 tests turn green and the red gate fails. Built without t
 - Code review is batched with the rest of Epic 7 at its close (decision #22).
 - Martín approved building this story with the epic (decision log Impl-1 #32). It leaves `impl2_scope` and does not count toward the 43 Impl-1 stories.
 - The 3 tests passed on the 7.1 tree with no change: no gap was found in 7.1's files.
+
+### Review Findings
+
+Epic 7 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `f595122..e1018fb` (code paths). Totals for the epic: 1 decision, 12 patches, 5 deferrals, 10 dismissed. Martín resolved the decision with the recommendation and approved every patch (decision log Impl-1 #32).
+
+- [x] [Review][Patch] At the per-business limit `TooManyOpenOrders` cites only the orders with that business; the frozen spec and ORD-1 P4 cite every open order [src/modules/orders/domain/ord.ts:openOrderOverflow] — every open order is cited at either limit

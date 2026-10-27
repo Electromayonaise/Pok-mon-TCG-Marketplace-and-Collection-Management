@@ -134,7 +134,7 @@ export interface OrdTablesRepository {
   lookupOrders(tx: Tx, query: OrderLookupQuery, limit: number): Promise<OrderRow[]>;
   /** S-FR-ORD-10.lookup (AD-ORD-3 rule 3): the append-only lookup row. */
   insertLookupLog(tx: Tx, log: { id: CuidId; adminId: CuidId; query: OrderLookupQuery; resultOrderIds: CuidId[]; now: IsoInstant }): Promise<void>;
-  /** S-FR-ORD-10.get: the singleton, or null before any admin set it; with `forUpdate`, locked for the change. */
+  /** S-FR-ORD-10.get: the singleton, or null before any admin set it; with `forUpdate`, under the `orders:supportContact` lock for the change. */
   readSupportContact(tx: Tx, forUpdate: boolean): Promise<SupportContactDTO | null>;
   /** S-FR-ORD-10.set: upserts the singleton and appends the change row. */
   writeSupportContact(tx: Tx, change: { id: CuidId; adminId: CuidId; before: SupportContactDTO | null; after: SupportContactDTO; now: IsoInstant }): Promise<void>;

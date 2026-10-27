@@ -6,10 +6,12 @@
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
+import pg from 'pg';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '../../generated/prisma/client.js';
 import { VirtualClock } from '../../test-support/clock.js';
 import { useTestDatabase } from '../../test-support/db.js';
+import { PG } from '../../test-support/env.js';
 import { FixtureFeedSource, FixtureFxRateSource, InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
 import { admin, at, business, catalogEntry, DAY, feedRun, HOUR, id, individualSeller, ins, listing, observation, order, purchasableListing, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
 import { createAuth } from './auth.js';
@@ -502,6 +504,27 @@ describe('orders.create and the comprobante over HTTP (ORD-1, S-FR-ORD-2; Story 
     expect((await get('orders.comprobanteUrl', { orderId }, cookie)).json.result?.data).toMatchObject({ expiresAt: at(600_000) });
     const own = await post('orders.create', { listingId: id('lchar'), qty: 1 }, await signIn(id('andres')));
     expect([own.status, own.json.error?.code]).toEqual([409, 'SelfPurchaseNotAllowed']);
+  });
+});
+
+describe('orders.create over HTTP on a pool of 1 (ORD-1, AD-SYS-4 rule 9)', () => {
+  it('the gate, the reserve and the payment instructions share the one connection: the order is created, not deadlocked', async () => {
+    await purchasableListing(db, { businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar'), entryId: id('char'), quantity: 1 });
+    await user(db, { id: id('camila') });
+    const cookie = await signIn(id('camila'));
+    const pool = new pg.Pool({ ...PG, database: (db.pool.options as { database: string }).database, max: 1 });
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000' });
+      const small = compose({ pool, clock, sessions: betterAuthSessions(auth), storage, scanner: new SimulatedScanner() });
+      const request = new Request('http://localhost/api/trpc/orders.create', { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ listingId: id('lchar'), qty: 1 }) });
+      const deadlock = new Promise<never>((_, reject) => { watchdog = setTimeout(() => reject(new Error('deadlock: a second connection was requested')), 5_000); });
+      const res = await Promise.race([serveTrpc(request, small.router, clock, { identity: small.identity }), deadlock]);
+      expect([res.status, ((await res.json()) as { result?: { data: { status: string } } }).result?.data.status]).toEqual([200, 'AwaitingPayment']);
+    } finally {
+      clearTimeout(watchdog);
+      await pool.end();
+    }
   });
 });
 

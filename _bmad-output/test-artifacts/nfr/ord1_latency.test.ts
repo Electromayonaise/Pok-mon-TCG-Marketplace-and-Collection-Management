@@ -30,6 +30,8 @@ describe('NFR-ORD-2 — createOrder latency (PRD §7)', () => {
     const busy = new Set((await db.query<{ buyerId: string }>(
       `SELECT DISTINCT "buyerId" FROM "Order" WHERE "buyerPaidConfirmedAt" IS NULL AND "cancelledAt" IS NULL AND "expiredAt" IS NULL AND "expiresAt" > $1`, [T0])).map((r) => r.buyerId));
     const buyers = Array.from({ length: 218 }, (_, i) => buyerId(5 + i)).filter((b) => !busy.has(b));
+    expect(buyers.length * 3).toBeGreaterThanOrEqual(550);
+    expect(byBusiness.every((pool) => pool.length > 0)).toBe(true);
 
     const w = wiring(db);
     const idn = new IdnServiceV2(w);

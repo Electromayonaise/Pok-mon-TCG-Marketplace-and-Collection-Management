@@ -83,3 +83,12 @@ context:
 - `OrderClosed` lines come from the pure `closedLines`. A bundle's component lines carry the bundle's title, because `orders` has no catalog port that names each component. The single-listing line's `itemRef` is the snapshot's; INV-1 Q2 always fills it for a single listing.
 - §13: `OrderPaidConfirmed`, `OrderPaymentReceived` and `OrderItemReceived` join as stored-only rows with no placeholders (decision #16).
 - MEC runtime (TG-7, local Postgres 16, real connections): `[ORD-3.MEC]` 201 ms; `[ORD-4.MEC]` 182 ms (a 2-way race plus the out-of-order refusal); `[ORD-2.MEC]` 571 ms for its 100 repetitions of paid racing the expiry job at `now = expiresAt`, measured once Story 7.5 built the job.
+
+### Review Findings
+
+Epic 7 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `f595122..e1018fb` (code paths). Totals for the epic: 1 decision, 12 patches, 5 deferrals, 10 dismissed. Martín resolved the decision with the recommendation and approved every patch (decision log Impl-1 #32).
+
+- [x] [Review][Patch] A fact update or cancel that misses under its snapshot while a concurrent commit makes the re-read eligible (an upload and "paid" at once) answers 500, or `OrderNotCancellable` naming an active status [src/modules/orders/application/ord.v2.ts:refuseFact, cancelOrder] — `settleFact` (and the cancel) run the conditional update once more when the re-read finds nothing to refuse
+- [x] [Review][Patch] `refuseFact` picks the cited instant by comparing rule strings [src/modules/orders/application/ord.v2.ts:refuseFact] — a `FACTS` table names each fact's rule, instant and mapping
+- [x] [Review][Patch] `OrderNotVisibleToCaller` cites `AD-ORD-3 rule 1`; the frozen spec names `AD-15` [src/modules/orders/application/ord.v2.ts:notVisible] — cites `AD-15`
+- [x] [Review][Dismiss] The two events build their lines differently, behind a cast — dismissed: by design: `OrderPaymentConfirmedByBusiness` has one line per listing (`itemRef` nullable in its V1 type), `OrderClosed` one per component (AD-ORD-2 rule 5); a single listing's snapshot always names its entry

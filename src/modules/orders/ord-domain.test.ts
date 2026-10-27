@@ -33,8 +33,8 @@ describe('openOrderOverflow (AD-ORD-1 rule 2, OQ-11)', () => {
   it('fits under 3 overall and 0 with this business', () => {
     expect(openOrderOverflow(open('b1', 'b2'), 'b3')).toBeNull();
   });
-  it('one open order with this business blocks, naming only it; at 3 every open order blocks', () => {
-    expect(openOrderOverflow(open('b1', 'b2'), 'b2')).toEqual(['o1']);
+  it('one open order with this business blocks, and so do 3 overall; either way every open order is cited (ORD-1 P4)', () => {
+    expect(openOrderOverflow(open('b1', 'b2'), 'b2')).toEqual(['o0', 'o1']);
     expect(openOrderOverflow(open('b1', 'b2', 'b3'), 'b4')).toEqual(['o0', 'o1', 'o2']);
   });
 });

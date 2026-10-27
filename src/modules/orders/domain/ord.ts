@@ -31,19 +31,23 @@ export function deriveStatus(facts: OrderFacts, now: Date): OrderStatus {
 }
 
 /**
- * AD-ORD-1 rule 2: the open orders that refuse one more purchase from `businessId`, or null when it
- * fits. `open` is the buyer's open orders by the derived predicate. At the overall limit every open
- * order blocks; under it, only those with this business.
+ * AD-ORD-1 rule 2: the buyer's open orders (by the derived predicate) when one more purchase from
+ * `businessId` breaks a limit, every one of them cited (ORD-1 P4); null when it fits.
  */
 export function openOrderOverflow(open: readonly { id: CuidId; businessId: CuidId }[], businessId: CuidId): CuidId[] | null {
-  if (open.length >= MAX_OPEN_ORDERS) return open.map((o) => o.id);
-  const withBusiness = open.filter((o) => o.businessId === businessId);
-  return withBusiness.length >= MAX_OPEN_ORDERS_PER_BUSINESS ? withBusiness.map((o) => o.id) : null;
+  const withBusiness = open.filter((o) => o.businessId === businessId).length;
+  return open.length >= MAX_OPEN_ORDERS || withBusiness >= MAX_OPEN_ORDERS_PER_BUSINESS ? open.map((o) => o.id) : null;
 }
 
 /** AD-SYS-8 rule 5.1: the quarantine key of a buyer's comprobante upload. */
 export function comprobanteUploadPrefix(buyerId: CuidId): string {
   return `comprobante/${buyerId}/`;
+}
+
+/** AD-SYS-8 rule 5.3: exactly the buyer's prefix and one id segment, so no other object is named. */
+export function isComprobanteUploadKey(key: string, buyerId: CuidId): boolean {
+  const prefix = comprobanteUploadPrefix(buyerId);
+  return key.startsWith(prefix) && /^[a-z0-9]{1,64}$/.test(key.slice(prefix.length));
 }
 
 /** The listing snapshot an order stores (INV-1 Q2), as the domain reads it. */
