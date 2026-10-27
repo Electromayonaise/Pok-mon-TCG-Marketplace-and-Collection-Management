@@ -1,7 +1,7 @@
 // The production composition over HTTP (decision log Impl-1 #24): a real Better Auth session on
 // the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2, VER-3, the supporting
 // VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
-// (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1) and S-SYS.replay,
+// (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2), the seller's inventory (S-FR-INV-2, -9, -10) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -10,7 +10,7 @@ import { PrismaClient } from '../../generated/prisma/client.js';
 import { VirtualClock } from '../../test-support/clock.js';
 import { useTestDatabase } from '../../test-support/db.js';
 import { FixtureFeedSource, FixtureFxRateSource, InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
-import { admin, at, business, catalogEntry, DAY, feedRun, HOUR, id, ins, observation, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
+import { admin, at, business, catalogEntry, DAY, feedRun, HOUR, id, individualSeller, ins, listing, observation, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
 import { createAuth } from './auth.js';
 import { compose } from './composition.js';
 import { betterAuthSessions } from './sessions.js';
@@ -29,7 +29,7 @@ let sessions = 0;
 beforeAll(() => {
   const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000' });
   const ok = async () => undefined;
-  app = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { commission: ok, listings: ok, collections: ok }, storage, scanner: new SimulatedScanner(), feed,
+  app = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { commission: ok, collections: ok }, storage, scanner: new SimulatedScanner(), feed,
     fx: new FixtureFxRateSource([{ valor: '4130.00', validFrom: '2026-10-01', validTo: '2026-10-01' }]) });
 });
 
@@ -118,13 +118,25 @@ describe('admin.events.replay over HTTP (S-SYS.replay, S-FR-IDN-7)', () => {
     expect(await rows(db, 'EventDelivery')).toMatchObject([{ status: 'failed' }]);
   });
 
-  it('an admin replays a failed delivery: 200 delivered, and the log row names the session admin', async () => {
+  it('an admin replays a failed delivery: 200 delivered, the log row names the session admin, and the real listings handler applied it (INV-3, Story 5.5)', async () => {
     await failedDelivery();
     await admin(db);
+    await listing(db, { id: id('ltienda'), sellerId: id('tienda'), unitId: null, kind: 'bundle' });
     const { status, json } = await post('admin.events.replay', replay, await signIn(id('admin')));
     expect(status).toBe(200);
     expect(json.result?.data).toMatchObject({ status: 'delivered', replayed: true, decision: { reasonCode: 'EventDeliveryReplayed' } });
     expect(await rows(db, 'EventReplayLog')).toMatchObject([{ adminId: id('admin'), outcome: 'delivered' }]);
+    expect(await rows(db, 'SellerCommissionState')).toMatchObject([{ businessId: id('tienda'), lastAppliedSeq: '1', paused: true }]);
+    expect(await rows(db, 'Listing', '"pausedAt" IS NOT NULL')).toHaveLength(1);
+  });
+
+  it('a delivery of a type listings does not subscribe to fails as Unexpected, and the replay records failed', async () => {
+    await ins(db, 'OutboxEvent', { id: id('ev2'), type: 'OrderClosed', aggregateId: id('tienda'), schemaVersion: 1, payload: JSON.stringify({}) }, 'created');
+    await ins(db, 'EventDelivery', { eventId: id('ev2'), subscriber: 'listings', status: 'failed', attempts: 3, lastErrorCode: 'DeliveryAttemptsExhausted', firstFailedAt: at(-DAY), lastFailedAt: at(-DAY) });
+    await admin(db);
+    const { json } = await post('admin.events.replay', { eventId: id('ev2'), subscriber: 'listings' }, await signIn(id('admin')));
+    expect(json.result?.data).toMatchObject({ status: 'failed' });
+    expect(await rows(db, 'EventDelivery', `"eventId" = $1`, [id('ev2')])).toMatchObject([{ status: 'failed', lastErrorCode: 'Unexpected' }]);
   });
 });
 
@@ -369,6 +381,68 @@ describe('catalog.browse over HTTP (S-FR-CAT-1; Story 4.5)', () => {
     expect([read.status, read.json.result?.data]).toEqual([200, expect.objectContaining({ total: 1, entries: [expect.objectContaining({ catalogEntryId: id('pika') })] })]);
     const refused = await get('catalog.browse', { filters: {}, page: 1, pageSize: 101 }, '');
     expect([refused.status, refused.json.error?.code]).toEqual([400, 'RequestValidationFailed']);
+  });
+});
+
+describe('inventory.create over HTTP (INV-2; Story 5.1)', () => {
+  const listingInput = { itemRef: id('char'), condition: 'NM', priceCop: 45_000, quantity: 3, location: null, description: '', openToTrade: false };
+
+  it('without a session it is NotAuthenticated 401 and nothing is written', async () => {
+    const { status, json } = await post('inventory.create', listingInput);
+    expect([status, json.error?.code]).toEqual([401, 'NotAuthenticated']);
+    expect(await db.counts(['Listing', 'InventoryUnit'])).toEqual({ Listing: 0, InventoryUnit: 0 });
+  });
+
+  it('an individual seller lists through the real identity and catalog: 200 Active, and the listing is the session user\'s', async () => {
+    await individualSeller(db, id('valentina'));
+    await catalogEntry(db, id('char'));
+    const { status, json } = await post('inventory.create', listingInput, await signIn(id('valentina')));
+    expect([status, json.result?.data]).toEqual([200, expect.objectContaining({ state: 'Active', availability: 3 })]);
+    expect(await rows(db, 'Listing')).toMatchObject([{ sellerId: id('valentina'), sellerKindAtCreation: 'individual', lat: null }]);
+  });
+
+  it('an Approved business with no projection lists Paused; open to trade it is OpenToTradeNotAllowed 409', async () => {
+    await business(db, id('andres'), 'Approved');
+    await catalogEntry(db, id('char'));
+    const cookie = await signIn(id('andres'));
+    expect((await post('inventory.create', listingInput, cookie)).json.result?.data).toMatchObject({ state: 'Paused' });
+    const refused = await post('inventory.create', { ...listingInput, openToTrade: true }, cookie);
+    expect([refused.status, refused.json.error?.code]).toEqual([409, 'OpenToTradeNotAllowed']);
+  });
+});
+
+describe('the seller\'s inventory procedures over HTTP (S-FR-INV-2, -9, -10; Story 5.6)', () => {
+  it('a seller bundles, restocks, edits, deactivates and lists; a buyer reads only the visible listing', async () => {
+    await individualSeller(db, id('valentina'));
+    await catalogEntry(db, id('char'));
+    await catalogEntry(db, id('pika'));
+    const cookie = await signIn(id('valentina'));
+    const listingInput = { itemRef: id('char'), condition: 'NM', priceCop: 45_000, quantity: 3, location: null, description: '', openToTrade: true };
+    const listingId = (await post('inventory.create', listingInput, cookie)).json.result?.data.listingId as string;
+    const bundle = await post('inventory.createBundle', { title: 'Lote', priceCop: 80_000, location: null, description: '',
+      components: [{ itemRef: id('char'), condition: 'NM', perBundleQty: 1, quantity: 9 }, { itemRef: id('pika'), condition: 'LP', perBundleQty: 2, quantity: 4 }] }, cookie);
+    expect(bundle.json.result?.data).toMatchObject({ state: 'Active', availability: 2 });
+    expect((await post('inventory.restock', { listingId, delta: 2 }, cookie)).json.result?.data).toMatchObject({ availability: 5 });
+    expect((await post('inventory.update', { listingId, expectedVersion: 0, changes: { priceCop: 50_000 } }, cookie)).json.result?.data).toMatchObject({ version: 1 });
+    const stale = await post('inventory.update', { listingId, expectedVersion: 0, changes: { priceCop: 51_000 } }, cookie);
+    expect([stale.status, stale.json.error?.code]).toEqual([400, 'RequestValidationFailed']);
+    expect((await get('inventory.get', { listingId }, '')).json.result?.data).toMatchObject({ state: 'Active', priceCop: 50_000, availability: 5 });
+    expect((await post('inventory.deactivate', { listingId }, cookie)).json.result?.data).toMatchObject({ version: 2 });
+    const hidden = await get('inventory.get', { listingId }, '');
+    expect([hidden.status, hidden.json.error?.code]).toEqual([404, 'ListingNotFound']);
+    const mine = (await get('inventory.mine', { cursor: null }, cookie)).json.result?.data as { items: { state: string }[]; nextCursor: string | null };
+    expect([mine.items.map((i) => i.state).sort(), mine.nextCursor]).toEqual([['Active', 'Deactivated'], null]);
+    expect((await post('inventory.reactivate', { listingId }, cookie)).json.result?.data).toMatchObject({ version: 3 });
+  });
+
+  it('another seller restocking is ListingNotOwnedByCaller 403, and the unit is unchanged', async () => {
+    await individualSeller(db, id('valentina'));
+    await individualSeller(db, id('mateo'));
+    await catalogEntry(db, id('char'));
+    const listingId = (await post('inventory.create', { itemRef: id('char'), condition: 'NM', priceCop: 45_000, quantity: 3, location: null, description: '', openToTrade: false }, await signIn(id('valentina')))).json.result?.data.listingId;
+    const refused = await post('inventory.restock', { listingId, delta: 2 }, await signIn(id('mateo')));
+    expect([refused.status, refused.json.error?.code]).toEqual([403, 'ListingNotOwnedByCaller']);
+    expect(await rows(db, 'InventoryUnit')).toMatchObject([{ quantity: 3 }]);
   });
 });
 

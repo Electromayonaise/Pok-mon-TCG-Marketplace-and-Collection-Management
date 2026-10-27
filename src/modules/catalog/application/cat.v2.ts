@@ -42,6 +42,7 @@ export interface CatV2UseCases {
 // </gen-solu2-api>
 
 import type { Citation, Decision } from '../../../shared-kernel/decision.js';
+import { ambientTx } from '../../../shared-kernel/db.js';
 import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
@@ -122,6 +123,15 @@ const NO_COUNTS: BatchCounts = { created: 0, updated: 0, unchanged: 0, quarantin
 /** CAT (contracts.md §3, §15, §15.11–12): the catalog, its feed and its reference prices. */
 export class CatServiceV2 implements CatV2UseCases {
   constructor(protected readonly deps: CatV2Deps) {}
+
+  /**
+   * AD-SYS-4 rule 9: the offered ports (§15.11) read on the caller's open transaction when there is
+   * one, so a neighbour query never takes a second connection; otherwise in a read-only one of their own.
+   */
+  private async reading<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+    const tx = ambientTx();
+    return tx ? fn(tx) : this.deps.transactions.run(fn, { readOnly: true });
+  }
 
   /** The refusal of a start (rule 1) or a continue (rule 2) while `run` is live (AD-CAT-1). */
   private refuseLiveRun(run: Pick<RunState, 'runId' | 'startedAt'>, rule: 'AD-CAT-1 rule 1' | 'AD-CAT-1 rule 2'): never {
@@ -455,27 +465,27 @@ export class CatServiceV2 implements CatV2UseCases {
   /** P-CAT.entry (AD-CAT-1 rule 5): the entry by its stable id, else CatalogEntryNotFound. */
   async getEntry(input: GetEntryRequest): Promise<GetEntryResponse> {
     const { catalogEntryId } = input;
-    const [entry] = await this.deps.transactions.run((tx) => this.deps.repo.entriesByIds(tx, [catalogEntryId]));
+    const [entry] = await this.reading((tx) => this.deps.repo.entriesByIds(tx, [catalogEntryId]));
     return entry ?? raise('CatalogEntryNotFound', [{ rule: 'AD-CAT-1 rule 5', inputs: { catalogEntryId } }]);
   }
 
   /** P-CAT.entries (AD-7): 1–500 ids; entries in input order, unknown ids in `missing`, never thrown. */
   async getEntries(input: GetEntriesRequest): Promise<GetEntriesResponse> {
     const ids = boundedList('catalogEntryIds', input.catalogEntryIds);
-    const found = new Map((await this.deps.transactions.run((tx) => this.deps.repo.entriesByIds(tx, ids))).map((e) => [e.catalogEntryId, e]));
+    const found = new Map((await this.reading((tx) => this.deps.repo.entriesByIds(tx, ids))).map((e) => [e.catalogEntryId, e]));
     return { entries: ids.flatMap((id) => found.get(id) ?? []), missing: ids.filter((id) => !found.has(id)) };
   }
 
   /** P-CAT.match (AD-DSC-2 rule 2): at most 20,000 ids in browse order, else `tooBroad`. */
   async matchEntryIds(input: MatchEntryIdsRequest): Promise<MatchEntryIdsResponse> {
-    const ids = await this.deps.transactions.run((tx) => this.deps.repo.matchIds(tx, input.filters, MAX_MATCH + 1));
+    const ids = await this.reading((tx) => this.deps.repo.matchIds(tx, input.filters, MAX_MATCH + 1));
     return ids.length > MAX_MATCH ? { ids: [], tooBroad: true } : { ids, tooBroad: false };
   }
 
   /** P-CAT.refs (AD-1, OQ-6): each ref's kind in input order; unknown refs in `missing`. */
   async resolveItemRefs(input: ResolveItemRefsRequest): Promise<ResolveItemRefsResponse> {
     const refs = boundedList('refs', input.refs);
-    const kinds = new Map((await this.deps.transactions.run((tx) => this.deps.repo.entriesByIds(tx, refs))).map((e) => [e.catalogEntryId, e.kind]));
+    const kinds = new Map((await this.reading((tx) => this.deps.repo.entriesByIds(tx, refs))).map((e) => [e.catalogEntryId, e.kind]));
     return {
       resolved: refs.flatMap((ref) => { const kind = kinds.get(ref); return kind ? [{ ref, kind }] : []; }),
       missing: refs.filter((ref) => !kinds.has(ref)),
@@ -487,7 +497,7 @@ export class CatServiceV2 implements CatV2UseCases {
     const ids = boundedList('catalogEntryIds', input.catalogEntryIds);
     if (Number.isNaN(Date.parse(input.asOf))) rejectRequest([{ field: 'asOf', issue: 'debe ser un instante ISO 8601' }]);
     const asOf = new Date(input.asOf).toISOString();
-    const latest = await this.deps.transactions.run((tx) => this.deps.repo.latestObservations(tx, ids, asOf));
+    const latest = await this.reading((tx) => this.deps.repo.latestObservations(tx, ids, asOf));
     return {
       prices: ids.map((catalogEntryId) => {
         const price = latest.get(catalogEntryId) ?? null;
@@ -502,14 +512,14 @@ export class CatServiceV2 implements CatV2UseCases {
     if (!(Date.parse(input.from) <= Date.parse(input.to))) rejectRequest([{ field: 'from', issue: 'debe ser anterior o igual a to' }]);
     const from = new Date(input.from).toISOString();
     const to = new Date(input.to).toISOString();
-    const series = await this.deps.transactions.run((tx) => this.deps.repo.priceHistory(tx, ids, from, to));
+    const series = await this.reading((tx) => this.deps.repo.priceHistory(tx, ids, from, to));
     return { series: ids.map((catalogEntryId) => ({ catalogEntryId, observations: series.get(catalogEntryId) ?? [] })) };
   }
 
   /** P-CAT.sets (AD-COL-1 rule 5): each known set's name and card count, never sealed products. */
   async getSetSummaries(input: GetSetSummariesRequest): Promise<GetSetSummariesResponse> {
     const setIds = boundedList('setIds', input.setIds);
-    const found = new Map((await this.deps.transactions.run((tx) => this.deps.repo.setSummaries(tx, setIds))).map((r) => [r.setId, r]));
+    const found = new Map((await this.reading((tx) => this.deps.repo.setSummaries(tx, setIds))).map((r) => [r.setId, r]));
     return { sets: setIds.flatMap((setId) => found.get(setId) ?? []) };
   }
 

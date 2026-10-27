@@ -479,3 +479,52 @@
 - **Environment note:** the local Postgres must run with `max_connections=200`, as `docker-compose.yml` sets it. With the default 100, `[CAT-1.I1]`'s 50-way race once failed with `53300` while other files ran in parallel. The CI service container runs with the default.
 - **Artifact changed:** `src/modules/catalog/**`, `src/server/composition.ts` (+ test), `test-support/solu2/fixtures.ts`, `_bmad-output/planning-artifacts/detailed-design/contracts.md` (§13), `_bmad-output/planning-artifacts/epics.source.mjs` and `epics.md`, `_bmad-output/test-artifacts/nfr/cat1_latency.test.ts`, `_bmad-output/test-artifacts/nfr-evidence.md`, `deferred-work.md`, the five Epic 4 story files, and `sprint-status.yaml` (4.3 out of `impl2_scope`; `epic-4: done`).
 - **Decided by:** Martín.
+
+### 30. Epic 5 is built whole, a null location and the area filter wait for Epic 6, its close review bounds restock, and the epic is signed (Governance)
+
+- **Phase:** 3 (Epic 5 planning at `ab3430b`, then the close review over `ab3430b..4485962`).
+- **Persona/Skill:** `bmad-quick-dev`, epic-batched (#22), then `bmad-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor).
+- **Prompt (summary):** Two rounds.
+  - **The specs.** Martín approved the six Epic 5 specs together. With them came four choices:
+    - **Scope.** Stories 5.3, 5.4 and 5.5 are in `impl2_scope`, but their bound tests run code that 5.1 and 5.2 must build:
+      - `[INV-2.P1]` passes as soon as `createListing` calls eligibility first;
+      - `[INV-1.I1]` requires every losing reserve to be `InsufficientQuantity`;
+      - `[INV-3.I2]` passes with the fail-closed reserve (AD-3).
+      Built without them, the other INV-2 refusals would fail for a reason other than NotImplemented, and the gate refuses that too.
+    - **A `null` location.** FR-INV-1 says it defaults to the individual seller's meeting point, but INV has no identity port that reads it, and the ATDD fakes provide only two methods.
+    - **A stale `expectedVersion`** on `updateListing` has no registry code.
+    - **NFR-INV-4** is in the DoD of four stories.
+  - **The close review.** It left 2 decisions, 10 patches, 2 deferrals and 17 dismissed findings. The two decisions:
+    - two application decisions for a business with no listings are not serialized, because no row exists to lock;
+    - restock accepts any integer `delta`, and one beyond INT range answers 500.
+- **AI output (summary):** The agent recommended:
+  - **(recommended)** Build the whole epic, as 2.4, 3.3, 3.4 and 4.3 were (#26, #27, #29), committing in the order 5.1, 5.3, 5.2, 5.4, 5.5, 5.6. 5.3 and 5.4 are proof-only, committed right after the story they prove (#23). 5.5 also wires the real `listings` delivery handler in `compose()`. The three leave `impl2_scope` and do not count toward the 43 Impl-1 stories. The alternatives were a gate exception, or postponing INV (risk R-05, P0).
+  - **(recommended)** Store no coordinates for a `null` location, and defer the meeting-point default to Epic 6 (DSC), the first consumer of a listing's coordinates. The alternatives were an optional `meetingPoint` on IDN-2 now, or a new P-IDN port that would break `[S-FR-INV-2.h]`'s fake.
+  - **(recommended)** Refuse a stale version as `RequestValidationFailed` on `expectedVersion`, through `rejectRequest` (the #27 and #29 pattern). The alternatives were a new `ListingVersionConflict` code, or last-write-wins.
+  - **(recommended)** Bind `[NFR-INV-4.create]` (p95 ≤ 800 ms) to 5.1, and `[NFR-INV-4.reserve]` (≤ 150 ms) and `[NFR-INV-4.bundle]` (≤ 300 ms) to 5.2, as #28 and #29 did. The alternatives were the reserve half only, or no benchmark.
+  - **(recommended)** Accept the unserialized decisions and defer them. VER decides one application at a time, the newest non-ignored decision is still the newest, and a listing that escapes a racing rejection is not purchasable, because a reserve reads the verification live. The alternative was a new advisory namespace (AD-SYS-4 rule 4) taken by the subscriber and by listing creation.
+  - **(recommended)** Bound restock to `|delta| ≤ 999` per call (the create bound), refused through `rejectRequest`, with no cap on the total. The alternatives were a cap on the resulting quantity at INT range, or leaving it as a 500.
+  - Apply all 10 patches.
+- **Human decision:** ACCEPT every recommendation, and sign the Epic 5 gate (#5).
+- **Reason:** `done` keeps meaning what the bound tests prove, and the gate needs no exception. The deferrals each have an owner epic: Epic 6 (location, area), Epic 8 (the first-event race), Epic 11 (the availability batch). The patches close real defects without changing a DTO or a bound test.
+- **Also decided (the patches):**
+  - A listing that draws on no unit (a bundle without components) is `Unexpected` in a reserve, never a reservation that takes no stock.
+  - The domain `purchasable` treats an omitted projection as absent (fail-closed, AD-3).
+  - A rejection withdraws, and an approval restores, only the seller's business listings.
+  - `createBundle` checks that each component's condition fits its kind (`InvalidItemRef`).
+  - `listMyListings` reads the verification for business rows only, so a page mixing seller kinds reads each row correctly.
+  - `reserveForTrade` refuses a listing closed to trade (`ListingNotOpenToTrade`).
+  - A fractional or negative `expectedVersion` is refused through `rejectRequest`.
+  - The Paused detail cites `{ businessId, ledgerSeq, projection, paused }` (INV-3 Q4; `balanceAfter` is not stored), and the Unverified detail cites the real verification status.
+  - The test pool's `error` listener ignores only `57P01`.
+- **Also in this epic:**
+  - CAT's seven §15.11 ports now read on the ambient transaction (AD-SYS-4 rule 9). A reserve calls `catalog.getEntries` inside the order's transaction, and the ports used to open a connection of their own.
+  - The per-file test pool gets an `error` listener: `DROP DATABASE … WITH (FORCE)` sometimes reached a client still closing after a 50-client race, and the resulting `57P01` surfaced as an uncaught error.
+  - `getAvailabilitySummary` refuses a non-null `area` as NotImplemented until DSC-3 (Story 6.1).
+  - The measured figures (local Postgres 16):
+    - `[NFR-INV-4.create]` p95 4.3 ms;
+    - `.reserve` p95 4.3 ms;
+    - `.bundle` p95 10.4 ms;
+    - `[INV-1.MEC]`, 100 repetitions, in 479 ms.
+- **Artifact changed:** `src/modules/listings/**`, `src/modules/catalog/application/cat.v2.ts`, `src/server/composition.ts` (+ test), `test-support/db.ts`, `test-support/solu2/fixtures.ts`, `_bmad-output/planning-artifacts/detailed-design/contracts.md` (§13, eight stored-only rows), `_bmad-output/planning-artifacts/epics.source.mjs` and `epics.md`, `_bmad-output/test-artifacts/nfr/inv4_latency.test.ts`, `_bmad-output/test-artifacts/nfr-evidence.md`, `deferred-work.md`, the six Epic 5 story files, and `sprint-status.yaml` (5.3, 5.4 and 5.5 out of `impl2_scope`; `epic-5: done`).
+- **Decided by:** Martín.

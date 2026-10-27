@@ -47,54 +47,492 @@ export interface InvV2UseCases {
 }
 // </gen-solu2-api>
 
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import type { Citation, Decision } from '../../../shared-kernel/decision.js';
+import { ambientTx } from '../../../shared-kernel/db.js';
+import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest } from '../../../shared-kernel/request.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import {
+  availability, conditionFitsKind, createdState, decodeListingCursor, detailState, encodeListingCursor, isValidLocation, isValidPrice, ownerCheck, pausedAtInsert, purchasable,
+  type ListingDetailState, type ProjectionState, type VerificationStatus,
+} from '../domain/inv.js';
+import type { ListingDetailDTO, ListingSnapshotDTO } from '../dto/inv.v2.dto.js';
+import type { ListingDetailRow, ReserveFacts } from '../ports/inv.v2.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('listings');
+
+/** AD-INV-3 rule 3: the projection row as a listing reads it; an absent row means paused. */
+const projectionOf = (row: { paused: boolean } | null): ProjectionState => (row === null ? 'absent' : row.paused ? 'paused' : 'funded');
+
+/** INV-2: `description` is at most 1,000 code points, as the schema's `char_length` CHECK counts them. */
+const MAX_DESCRIPTION = 1_000;
+
+/** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
+function explained(outcome: Decision['outcome'], code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
+  return { outcome, reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
+}
+
+/** S-FR-INV-10.mine: the page size. */
+const MY_LISTINGS_PAGE = 25;
+/** S-FR-INV-2: 1–20 components (the parser's bound, repeated for in-process callers). */
+const MAX_COMPONENTS = 20;
+/** S-FR-INV-9.restock: at most ±999 per call. */
+const MAX_RESTOCK = 999;
+/** P-INV.availability: at most 500 distinct ids. */
+const MAX_IDS = 500;
+
+/** S-FR-INV-10: the decision a listing's state reads with. */
+function detailDecision(state: ListingDetailState, row: ListingDetailRow, verification: VerificationStatus | null, now: IsoInstant): Decision {
+  switch (state) {
+    case 'Hidden': return explained('hidden', 'ListingHidden', [{ rule: 'FR-INV-10', inputs: { reasonCode: row.hiddenReason } }], now);
+    case 'Withdrawn': return explained('withdrawn', 'ListingWithdrawn', [{ rule: 'FR-INV-8', inputs: { withdrawnReason: 'ApplicationRejected' } }], now);
+    case 'Deactivated': return explained('withdrawn', 'ListingDeactivated', [{ rule: 'FR-INV-9', inputs: { deactivated: true } }], now);
+    case 'Paused': return explained('paused', 'ListingPausedBalanceExhausted', [{ rule: 'FR-INV-7', inputs: { businessId: row.sellerId, ledgerSeq: row.ledgerSeq, projection: row.projection, paused: row.paused } }], now);
+    case 'Unverified': return explained('unverified', 'ListingUnverified', [{ rule: 'FR-INV-7', inputs: { verification } }], now);
+    case 'Active': return explained('allowed', 'ListingActive', [{ rule: 'FR-INV-10', inputs: { availability: row.availability } }], now);
+  }
+}
+
+/** INV-2 Q4: the decision that matches a new listing's state. */
+function creationDecision(state: 'Active' | 'Unverified' | 'Paused', citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
+  if (state === 'Paused') return explained('paused', 'ListingPausedBalanceExhausted', citations, now);
+  if (state === 'Unverified') return explained('allowedWithNotice', 'ListingUnverified', citations, now);
+  return explained('allowed', 'ListingActive', citations, now);
+}
+
+/** Every method not yet built throws NotImplementedError until its story is done (red for the right reason). */
 export class InvServiceV2 implements InvV2UseCases {
   constructor(protected readonly deps: InvV2Deps) {}
 
-  async reserveForPurchase(_tx: Tx, _input: ReserveForPurchaseRequest): Promise<ReserveForPurchaseResponse> {
-    throw new NotImplementedError('listings.reserveForPurchase');
+  /**
+   * AD-SYS-4 rule 9: reads on the caller's open transaction when there is one, so a neighbour
+   * query never takes a second connection; otherwise in one read-only transaction of its own.
+   */
+  private async reading<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+    const tx = ambientTx();
+    return tx ? fn(tx) : this.deps.transactions.run(fn, { readOnly: true });
   }
 
-  async createListing(_input: CreateListingRequest): Promise<CreateListingResponse> {
-    throw new NotImplementedError('listings.createListing');
+  /** P2 of INV-1, P-INV.purchase and P-INV.trade: an unknown or invisible listing, with no id cited (S-2). */
+  private notFound(rule: string): never {
+    return raise('ListingNotFound', [{ rule, inputs: { visible: false } }]);
   }
 
-  async applyCommissionProjection(_tx: Tx, _input: ApplyCommissionProjectionRequest): Promise<ApplyCommissionProjectionResponse> {
-    throw new NotImplementedError('listings.applyCommissionProjection');
+  /**
+   * AD-INV-2 rule 3: one conditional decrement per unit in ascending id order (`units` is sorted by
+   * the read). A unit short of `req` raises InsufficientQuantity; the caller's rollback is the only undo.
+   */
+  private async decrement(tx: Tx, units: ReserveFacts['units'], qty: number, now: IsoInstant): Promise<{ inventoryUnitId: CuidId; qty: number }[]> {
+    const taken: { inventoryUnitId: CuidId; qty: number }[] = [];
+    for (const unit of units) {
+      const req = unit.perBundleQty * qty;
+      if (!(await this.deps.repo.decrementUnit(tx, unit.inventoryUnitId, req, now))) {
+        const available = (await this.deps.repo.unitQuantity(tx, unit.inventoryUnitId)) ?? 0;
+        raise('InsufficientQuantity', [{ rule: 'FR-INV-3', inputs: { requested: req, available } }]);
+      }
+      taken.push({ inventoryUnitId: unit.inventoryUnitId, qty: req });
+    }
+    return taken;
   }
 
-  async createBundle(_input: CreateBundleRequest): Promise<CreateBundleResponse> {
-    throw new NotImplementedError('listings.createBundle');
+  /** INV-1 Q2: the snapshot the caller stores; a single listing's title is its catalog entry's name. */
+  private async snapshotOf(listing: ReserveFacts): Promise<ListingSnapshotDTO> {
+    if (listing.kind === 'bundle') {
+      return { title: listing.title ?? '', itemRef: null, condition: null, unitPriceCop: listing.priceCop, components: listing.units.map((u) => ({ catalogEntryId: u.catalogEntryId, perBundleQty: u.perBundleQty })) };
+    }
+    const unit = listing.units[0]!;
+    const { entries } = await this.deps.catalog.getEntries({ catalogEntryIds: [unit.catalogEntryId] });
+    const entry = entries.find((e) => e.catalogEntryId === unit.catalogEntryId);
+    if (!entry) throw new UnexpectedError(`Unexpected: listing ${listing.id} names catalog entry ${unit.catalogEntryId}, which catalog does not know`);
+    return { title: entry.name, itemRef: unit.catalogEntryId, condition: unit.condition, unitPriceCop: listing.priceCop, components: null };
   }
 
-  async getListing(_input: GetListingRequest): Promise<GetListingResponse> {
-    throw new NotImplementedError('listings.getListing');
+  /**
+   * INV-1 (AD-INV-2): in the caller's `tx`, never a transaction of its own. The checks run in the
+   * PRD order, then the ascending conditional decrements; only `"InventoryUnit"` is written (NFR-INV-3).
+   */
+  async reserveForPurchase(tx: Tx, input: ReserveForPurchaseRequest): Promise<ReserveForPurchaseResponse> {
+    const { repo, clock, identity } = this.deps;
+    if (!Number.isInteger(input.qty) || input.qty < 1) throw new UnexpectedError(`Unexpected: reserveForPurchase qty ${input.qty} is not an integer ≥ 1 (AD-INV-2 rule 3)`);
+    const now = clock.now().toISOString();
+    const listing = await repo.readReserveFacts(tx, input.listingId);
+    if (listing === null || !listing.visible) return this.notFound('FR-INV-3');
+    if (listing.sellerKindAtCreation === 'individual') raise('NotBusinessListing', [{ rule: 'FR-INV-3', inputs: { sellerKind: 'individual' } }]);
+    const { status } = await identity.getSellerVerification({ sellerId: listing.sellerId });
+    const verdict = purchasable({
+      sellerKindAtCreation: 'business', verification: status, pausedAt: listing.pausedAt === null ? null : new Date(listing.pausedAt),
+      hiddenAt: null, withdrawnAt: null, deactivatedAt: null, availability: 1, projection: listing.projection,
+    });
+    if (verdict === 'ListingUnverified' || verdict === 'ListingPausedBalanceExhausted') {
+      raise('ListingNotPurchasable', [{ rule: 'FR-INV-3', inputs: { reasonCode: verdict, verification: status, projection: listing.projection } }]);
+    }
+    if (listing.units.length === 0) throw new UnexpectedError(`Unexpected: listing ${listing.id} draws on no unit`);
+    const snapshot = await this.snapshotOf(listing);
+    const units = await this.decrement(tx, listing.units, input.qty, now);
+    const exhaustedListingIds = await repo.exhaustedListingIds(tx, units.map((u) => u.inventoryUnitId));
+    return { reservationRef: { listingId: listing.id, units }, exhaustedListingIds, snapshot };
   }
 
-  async listMyListings(_input: ListMyListingsRequest): Promise<ListMyListingsResponse> {
-    throw new NotImplementedError('listings.listMyListings');
+  /** S-FR-INV-5 (AD-INV-2 rule 6): increments the referenced units in ascending id order, in the caller's `tx`. */
+  async releaseReservation(tx: Tx, input: ReleaseReservationRequest): Promise<ReleaseReservationResponse> {
+    const { repo, clock } = this.deps;
+    const now = clock.now().toISOString();
+    const byUnit = new Map<CuidId, number>();
+    for (const { inventoryUnitId, qty } of input.reservationRef.units) {
+      if (!Number.isInteger(qty) || qty < 1) throw new UnexpectedError(`Unexpected: releaseReservation qty ${qty} is not an integer ≥ 1`);
+      byUnit.set(inventoryUnitId, (byUnit.get(inventoryUnitId) ?? 0) + qty);
+    }
+    let releasedUnits = 0;
+    for (const [unitId, qty] of [...byUnit].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+      if (!(await repo.incrementUnit(tx, unitId, qty, now))) throw new UnexpectedError(`Unexpected: releaseReservation names unknown unit ${unitId}`);
+      releasedUnits += qty;
+    }
+    return { releasedUnits };
   }
 
-  async releaseReservation(_tx: Tx, _input: ReleaseReservationRequest): Promise<ReleaseReservationResponse> {
-    throw new NotImplementedError('listings.releaseReservation');
+  /**
+   * INV-3 (AD-INV-3 rule 4), in the handler's `tx`: the projection applies only a newer `ledgerSeq`,
+   * then pauses or resumes every listing of the business. Redelivered and older events are no-ops.
+   */
+  async applyCommissionProjection(tx: Tx, input: ApplyCommissionProjectionRequest): Promise<ApplyCommissionProjectionResponse> {
+    const { repo, clock, audit } = this.deps;
+    const { type, businessId, ledgerSeq, balanceAfter } = input;
+    if (!Number.isSafeInteger(ledgerSeq) || ledgerSeq < 0) throw new UnexpectedError(`Unexpected: ${type} ledgerSeq ${ledgerSeq} is not an integer ≥ 0 (INV-3 P2)`);
+    const now = clock.now().toISOString();
+    const paused = type === 'CommissionBalanceExhausted';
+    if (!(await repo.upsertProjection(tx, { businessId, seq: ledgerSeq, paused, now }))) return { applied: false, listingsChanged: 0 };
+    const listingsChanged = await repo.setPausedForSeller(tx, businessId, paused, now);
+    await audit.record(tx, {
+      actorId: null, actorKind: 'system', module: 'listings', action: 'listings.commissionProjection.applied', aggregateType: 'SellerCommissionState', aggregateId: businessId,
+      decisionCode: paused ? 'ListingPausedBalanceExhausted' : null, data: { type, ledgerSeq, balanceAfter, listingsChanged }, at: now,
+    });
+    return { applied: true, listingsChanged };
   }
 
-  async applyApplicationDecision(_tx: Tx, _input: ApplyApplicationDecisionRequest): Promise<ApplyApplicationDecisionResponse> {
-    throw new NotImplementedError('listings.applyApplicationDecision');
+  /**
+   * S-FR-INV-8 (AD-INV-3 rule 5), in the handler's `tx`: a decision applies once, and only when it is
+   * newer than every decision applied for the business. The listing locks serialize two decisions.
+   */
+  async applyApplicationDecision(tx: Tx, input: ApplyApplicationDecisionRequest): Promise<ApplyApplicationDecisionResponse> {
+    const { repo, clock, audit } = this.deps;
+    const { type, applicationId, businessId, decidedAt } = input;
+    if (Number.isNaN(Date.parse(decidedAt))) throw new UnexpectedError(`Unexpected: ${type} decidedAt ${decidedAt} is not an instant`);
+    const now = clock.now().toISOString();
+    await repo.lockSellerListings(tx, businessId);
+    const newest = await repo.newestAppliedDecision(tx, businessId);
+    const isNewest = newest === null || Date.parse(decidedAt) > Date.parse(newest);
+    const decision = type === 'BusinessApplicationApproved' ? 'Approved' : 'Rejected';
+    const inserted = await repo.insertAppliedDecision(tx, { applicationId, businessId, decision, decidedAt, ignored: !isNewest, now });
+    if (!inserted || !isNewest) return { applied: false, ignored: true, listingsChanged: 0 };
+    const listingsChanged = decision === 'Rejected'
+      ? await repo.withdrawForRejection(tx, businessId, applicationId, now)
+      : await repo.restoreFromRejection(tx, businessId, now);
+    await audit.record(tx, {
+      actorId: null, actorKind: 'system', module: 'listings', action: 'listings.applicationDecision.applied', aggregateType: 'AppliedApplicationDecision', aggregateId: applicationId,
+      decisionCode: null, data: { businessId, decision, decidedAt, listingsChanged }, at: now,
+    });
+    return { applied: true, ignored: false, listingsChanged };
   }
 
-  async updateListing(_input: UpdateListingRequest): Promise<ListingChangeResponse> {
-    throw new NotImplementedError('listings.updateListing');
+  /** The seller's verification for the detail state; individuals have none to read. */
+  private async verificationOf(row: Pick<ListingDetailRow, 'sellerId' | 'sellerKindAtCreation'>): Promise<VerificationStatus | null> {
+    return row.sellerKindAtCreation === 'business' ? (await this.deps.identity.getSellerVerification({ sellerId: row.sellerId })).status : null;
   }
 
-  async restockListing(_input: RestockListingRequest): Promise<ListingChangeResponse> {
-    throw new NotImplementedError('listings.restockListing');
+  /** S-FR-INV-10: rows to DTOs; single listings take their title from catalog in one batch. */
+  private async details(rows: ListingDetailRow[], verification: (row: ListingDetailRow) => Promise<VerificationStatus | null>): Promise<ListingDetailDTO[]> {
+    const entryIds = [...new Set(rows.flatMap((r) => (r.unitEntryId ? [r.unitEntryId] : [])))];
+    const names = new Map(entryIds.length ? (await this.deps.catalog.getEntries({ catalogEntryIds: entryIds })).entries.map((e) => [e.catalogEntryId, e.name]) : []);
+    const now = this.deps.clock.now().toISOString();
+    const out: ListingDetailDTO[] = [];
+    for (const row of rows) {
+      const status = await verification(row);
+      const state = detailState({ ...row, verification: status });
+      out.push({
+        listingId: row.id, sellerId: row.sellerId, kind: row.kind, title: row.title ?? names.get(row.unitEntryId ?? '') ?? '', priceCop: row.priceCop,
+        availability: row.availability, openToTrade: row.openToTrade, state, decision: detailDecision(state, row, status, now),
+      });
+    }
+    return out;
   }
 
-  async setListingActive(_input: SetListingActiveRequest): Promise<ListingChangeResponse> {
-    throw new NotImplementedError('listings.setListingActive');
+  /** S-FR-INV-9 P: the owner acts; anyone else reads an invisible listing exactly like an unknown id (S-2). */
+  private async ownedListing(listingId: CuidId, actorId: CuidId): Promise<ListingDetailRow> {
+    const row = await this.reading((tx) => this.deps.repo.readListingDetail(tx, listingId));
+    const check = ownerCheck(row, actorId);
+    if (check === 'notFound') return this.notFound('AD-12');
+    if (check === 'notOwner') raise('ListingNotOwnedByCaller', [{ rule: 'FR-INV-9', inputs: { owner: false } }]);
+    return row!;
+  }
+
+  /** S-FR-INV-9: the change response, with availability read after the write. */
+  private async changed(tx: Tx, listingId: CuidId, decision: Decision): Promise<ListingChangeResponse> {
+    const row = (await this.deps.repo.readListingDetail(tx, listingId))!;
+    return { listingId, version: row.version, availability: row.availability, decision };
+  }
+
+  /**
+   * S-FR-INV-2: INV-2's eligibility and checks per component, then one transaction that resolves each
+   * unit in `(itemRef, condition)` order, reads the projection `FOR SHARE`, and inserts the bundle.
+   */
+  async createBundle(input: CreateBundleRequest): Promise<CreateBundleResponse> {
+    const { repo, transactions, clock, ids, audit, identity, catalog } = this.deps;
+    const { listingKind, verified } = await identity.requireListingEligibility({ userId: input.sellerId });
+    const { components } = input;
+    if (components.length === 0) raise('EmptyComponentList', [{ rule: 'FR-INV-2', inputs: { components: 0 } }]);
+    if (components.length > MAX_COMPONENTS) rejectRequest([{ field: 'components', issue: `debe tener como máximo ${MAX_COMPONENTS} cartas` }]);
+    const title = input.title;
+    if ([...title].length < 1 || [...title].length > 120) rejectRequest([{ field: 'title', issue: 'debe tener entre 1 y 120 caracteres' }]);
+    for (const c of components) {
+      if (!Number.isInteger(c.perBundleQty) || c.perBundleQty < 1 || c.perBundleQty > 4) rejectRequest([{ field: 'components.perBundleQty', issue: 'debe ser un entero entre 1 y 4' }]);
+      if (!Number.isInteger(c.quantity) || c.quantity < 1 || c.quantity > 999) rejectRequest([{ field: 'components.quantity', issue: 'debe ser un entero entre 1 y 999' }]);
+    }
+    if (new Set(components.map((c) => `${c.itemRef}|${c.condition}`)).size !== components.length) rejectRequest([{ field: 'components', issue: 'no puede repetir una carta en la misma condición' }]);
+    const { resolved } = await catalog.resolveItemRefs({ refs: [...new Set(components.map((c) => c.itemRef))] });
+    const kinds = new Map(resolved.map((r) => [r.ref, r.kind]));
+    for (const c of components) {
+      const kind = kinds.get(c.itemRef) ?? null;
+      if (kind === null) return raise('InvalidItemRef', [{ rule: 'FR-INV-1', inputs: { itemRef: c.itemRef, kind, condition: c.condition } }]);
+      if (kind === 'sealedProduct') raise('SealedProductInBundle', [{ rule: 'AD-INV-1 rule 5', inputs: { itemRef: c.itemRef } }]);
+      if (!conditionFitsKind(c.condition, kind)) raise('InvalidItemRef', [{ rule: 'FR-INV-1', inputs: { itemRef: c.itemRef, kind, condition: c.condition } }]);
+    }
+    this.checkPriceAndLocation(input.priceCop, input.location);
+    if ([...input.description].length > MAX_DESCRIPTION) rejectRequest([{ field: 'description', issue: `debe tener como máximo ${MAX_DESCRIPTION} caracteres` }]);
+    const ordered = [...components].sort((a, b) => (a.itemRef === b.itemRef ? (a.condition < b.condition ? -1 : 1) : a.itemRef < b.itemRef ? -1 : 1));
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      const units = [];
+      for (const c of ordered) {
+        const unit = await repo.resolveUnit(tx, { id: ids.next(), sellerId: input.sellerId, catalogEntryId: c.itemRef, condition: c.condition, quantity: c.quantity, now });
+        units.push({ ...unit, component: c });
+      }
+      const projection = listingKind === 'business' ? projectionOf(await repo.readProjectionForShare(tx, input.sellerId)) : null;
+      const paused = pausedAtInsert(listingKind, projection);
+      const listingId = ids.next();
+      await repo.insertListing(tx, {
+        id: listingId, sellerId: input.sellerId, sellerKindAtCreation: listingKind, kind: 'bundle', inventoryUnitId: null, title,
+        priceCop: input.priceCop, location: input.location, description: input.description, openToTrade: false, pausedAt: paused ? now : null, now,
+      });
+      await repo.insertBundleComponents(tx, listingId, input.sellerId, units.map((u) => ({ inventoryUnitId: u.id, catalogEntryId: u.component.itemRef, condition: u.component.condition, perBundleQty: u.component.perBundleQty })), now);
+      const state = createdState({ paused, listingKind, verified });
+      const verification = listingKind === 'business' ? (verified ? 'Approved' : 'Pending') : 'none';
+      const citations: [Citation, ...Citation[]] = [{ rule: 'FR-INV-7', inputs: { verification, projection } }];
+      for (const u of units) {
+        if (!u.created) citations.push({ rule: 'FR-INV-1', inputs: { inventoryUnitId: u.id, existingQuantity: u.quantity, ignoredQuantity: u.component.quantity } });
+      }
+      const decision = creationDecision(state, citations, now);
+      await audit.record(tx, {
+        actorId: input.sellerId, actorKind: 'user', module: 'listings', action: 'listings.listing.created', aggregateType: 'Listing', aggregateId: listingId,
+        decisionCode: decision.reasonCode, data: { listingId, kind: 'bundle', components: units.length, state }, at: now,
+      });
+      return { listingId, state, availability: availability('bundle', units.map((u) => ({ quantity: u.quantity, perBundleQty: u.component.perBundleQty }))), decision };
+    });
+  }
+
+  /** S-FR-INV-10.get: the owner sees any state with its reason; anyone else a visible listing, or ListingNotFound. */
+  async getListing(input: GetListingRequest): Promise<GetListingResponse> {
+    const row = await this.reading((tx) => this.deps.repo.readListingDetail(tx, input.listingId));
+    if (row === null || (row.sellerId !== input.actorId && !row.visible)) return this.notFound('AD-12');
+    return (await this.details([row], (r) => this.verificationOf(r)))[0]!;
+  }
+
+  /** S-FR-INV-10.mine: every listing of the seller, newest first, 25 per page behind a keyset cursor. */
+  async listMyListings(input: ListMyListingsRequest): Promise<ListMyListingsResponse> {
+    const after = input.cursor === null ? null : decodeListingCursor(input.cursor);
+    if (input.cursor !== null && after === null) rejectRequest([{ field: 'cursor', issue: 'no es un cursor válido' }]);
+    const rows = await this.reading((tx) => this.deps.repo.listSellerListings(tx, input.sellerId, after, MY_LISTINGS_PAGE + 1));
+    const page = rows.slice(0, MY_LISTINGS_PAGE);
+    // One read for the seller's business rows; an individual row has no verification (decision log Impl-1 #30, review).
+    let verification: Promise<VerificationStatus | null> | undefined;
+    const items = await this.details(page, (r) => (r.sellerKindAtCreation === 'business' ? (verification ??= this.verificationOf(r)) : Promise.resolve(null)));
+    const last = page[page.length - 1];
+    return { items, nextCursor: rows.length > MY_LISTINGS_PAGE && last ? encodeListingCursor(last.createdAt, last.id) : null };
+  }
+
+  /** S-FR-INV-9.update: the owner's conditional edit on `version`; a stale version is refused (decision log Impl-1 #30). */
+  async updateListing(input: UpdateListingRequest): Promise<ListingChangeResponse> {
+    const { repo, transactions, clock, audit } = this.deps;
+    const listing = await this.ownedListing(input.listingId, input.actorId);
+    const { changes } = input;
+    if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0) rejectRequest([{ field: 'expectedVersion', issue: 'debe ser un entero mayor o igual a cero' }]);
+    if (changes.priceCop === undefined && changes.description === undefined && changes.openToTrade === undefined) rejectRequest([{ field: 'changes', issue: 'no trae ningún cambio' }]);
+    if (changes.openToTrade && listing.sellerKindAtCreation === 'business') raise('OpenToTradeNotAllowed', [{ rule: 'AD-4', inputs: { listingKind: 'business', openToTrade: true } }]);
+    if (changes.priceCop !== undefined && !isValidPrice(changes.priceCop)) raise('InvalidPrice', [{ rule: 'FR-INV-1', inputs: { priceCop: changes.priceCop } }]);
+    if (changes.description !== undefined && [...changes.description].length > MAX_DESCRIPTION) rejectRequest([{ field: 'description', issue: `debe tener como máximo ${MAX_DESCRIPTION} caracteres` }]);
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      const version = await repo.updateListingFields(tx, input.listingId, input.expectedVersion, changes, now);
+      if (version === null) rejectRequest([{ field: 'expectedVersion', issue: 'la publicación cambió; vuelve a cargarla' }]);
+      const fields = Object.keys(changes).sort().join(',');
+      await audit.record(tx, {
+        actorId: input.actorId, actorKind: 'user', module: 'listings', action: 'listings.listing.updated', aggregateType: 'Listing', aggregateId: input.listingId,
+        decisionCode: 'ListingUpdated', data: { version, fields }, at: now,
+      });
+      return this.changed(tx, input.listingId, explained('allowed', 'ListingUpdated', [{ rule: 'FR-INV-9', inputs: { version, fields } }], now));
+    });
+  }
+
+  /** S-FR-INV-9.restock (AD-INV-1 rule 4): `+δ` adds; `−δ` is the conditional decrement. Every listing of the unit follows. */
+  async restockListing(input: RestockListingRequest): Promise<ListingChangeResponse> {
+    const { repo, transactions, clock, audit } = this.deps;
+    const listing = await this.ownedListing(input.listingId, input.actorId);
+    const { delta } = input;
+    // AD-INV-1 rule 4 refuses 0; the ±999 bound per call is the create bound (decision log Impl-1 #30), so no delta overflows the INT column.
+    if (!Number.isInteger(delta) || delta === 0 || Math.abs(delta) > MAX_RESTOCK) rejectRequest([{ field: 'delta', issue: `debe ser un entero distinto de cero entre -${MAX_RESTOCK} y ${MAX_RESTOCK}` }]);
+    if (listing.kind === 'bundle') rejectRequest([{ field: 'listingId', issue: 'un lote no se reabastece; reabastece cada carta en su publicación' }]);
+    const facts = await this.reading((tx) => repo.readReserveFacts(tx, input.listingId));
+    const unitId = facts!.units[0]!.inventoryUnitId;
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      if (delta > 0) await repo.incrementUnit(tx, unitId, delta, now);
+      else if (!(await repo.decrementUnit(tx, unitId, -delta, now))) {
+        raise('InsufficientQuantity', [{ rule: 'AD-INV-1 rule 4', inputs: { requested: -delta, available: (await repo.unitQuantity(tx, unitId)) ?? 0 } }]);
+      }
+      await audit.record(tx, {
+        actorId: input.actorId, actorKind: 'user', module: 'listings', action: 'listings.unit.restocked', aggregateType: 'InventoryUnit', aggregateId: unitId,
+        decisionCode: 'ListingRestocked', data: { listingId: input.listingId, delta }, at: now,
+      });
+      return this.changed(tx, input.listingId, explained('allowed', 'ListingRestocked', [{ rule: 'AD-INV-1 rule 4', inputs: { inventoryUnitId: unitId, delta } }], now));
+    });
+  }
+
+  /** S-FR-INV-9.active: deactivate, or reactivate after re-checking IDN-2. A state that already holds is an explained no-op. */
+  async setListingActive(input: SetListingActiveRequest): Promise<ListingChangeResponse> {
+    const { repo, transactions, clock, audit, identity } = this.deps;
+    await this.ownedListing(input.listingId, input.actorId);
+    if (input.active) await identity.requireListingEligibility({ userId: input.actorId });
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      const version = await repo.setDeactivated(tx, input.listingId, !input.active, now);
+      const code = input.active ? 'ListingActive' : 'ListingDeactivated';
+      const citations: [Citation, ...Citation[]] = [{ rule: 'FR-INV-9', inputs: { active: input.active, changed: version !== null } }];
+      if (version === null) return this.changed(tx, input.listingId, explained('allowedWithNotice', code, citations, now));
+      await audit.record(tx, {
+        actorId: input.actorId, actorKind: 'user', module: 'listings', action: input.active ? 'listings.listing.reactivated' : 'listings.listing.deactivated',
+        aggregateType: 'Listing', aggregateId: input.listingId, decisionCode: code, data: { version }, at: now,
+      });
+      return this.changed(tx, input.listingId, explained(input.active ? 'allowed' : 'withdrawn', code, citations, now));
+    });
+  }
+
+  /** P-INV.trade (AD-INV-2): INV-1's decrement for an individual listing, in the caller's `tx`. */
+  async reserveForTrade(tx: Tx, input: ReserveForTradeRequest): Promise<ReserveForTradeResponse> {
+    const { repo, clock } = this.deps;
+    if (input.qty !== 1) throw new UnexpectedError(`Unexpected: reserveForTrade qty ${String(input.qty)} is not 1 (P-INV.trade)`);
+    const now = clock.now().toISOString();
+    const listing = await repo.readReserveFacts(tx, input.listingId);
+    if (listing === null || !listing.visible) return this.notFound('AD-INV-2 rule 2');
+    if (listing.sellerKindAtCreation !== 'individual') raise('NotIndividualSellerListing', [{ rule: 'AD-INV-2 rule 2', inputs: { sellerKind: 'business' } }]);
+    if (!listing.openToTrade) raise('ListingNotOpenToTrade', [{ rule: 'AD-4', inputs: { openToTrade: false } }]);
+    if (listing.units.length === 0) throw new UnexpectedError(`Unexpected: listing ${listing.id} draws on no unit`);
+    const units = await this.decrement(tx, listing.units, 1, now);
+    return { reservationRef: { listingId: listing.id, units }, exhaustedListingIds: await repo.exhaustedListingIds(tx, units.map((u) => u.inventoryUnitId)) };
+  }
+
+  /** P-INV.tradeability (AD-4): a visible listing open to trade, with its availability, in the ambient `tx`. */
+  async getTradeability(tx: Tx, input: GetTradeabilityRequest): Promise<GetTradeabilityResponse> {
+    const listing = await this.deps.repo.readReserveFacts(tx, input.listingId);
+    if (listing === null || !listing.visible) return this.notFound('AD-4');
+    if (!listing.openToTrade) raise('ListingNotOpenToTrade', [{ rule: 'AD-4', inputs: { openToTrade: false } }]);
+    const available = availability(listing.kind, listing.units);
+    return { sellerId: listing.sellerId, availability: available, decision: explained('allowed', 'ListingOpenToTrade', [{ rule: 'AD-4', inputs: { availability: available } }], this.deps.clock.now().toISOString()) };
+  }
+
+  /**
+   * P-INV.availability (AD-INV-3 rule 2): per id, the visible single listings with stock that are
+   * individual, or business and purchasable; the verification term once per distinct seller.
+   */
+  async getAvailabilitySummary(input: GetAvailabilitySummaryRequest): Promise<GetAvailabilitySummaryResponse> {
+    const ids = input.catalogEntryIds;
+    if (ids.length < 1 || ids.length > MAX_IDS) rejectRequest([{ field: 'catalogEntryIds', issue: `debe tener entre 1 y ${MAX_IDS} elementos` }]);
+    if (new Set(ids).size !== ids.length) rejectRequest([{ field: 'catalogEntryIds', issue: 'no puede repetir elementos' }]);
+    if (input.area !== null) throw new NotImplementedError('listings.getAvailabilitySummary.area (DSC-3, Story 6.1)');
+    return this.reading(async (tx) => {
+      const candidates = await this.deps.repo.availabilityCandidates(tx, ids);
+      const sellers = [...new Set(candidates.filter((c) => c.sellerKindAtCreation === 'business').map((c) => c.sellerId))];
+      const approved = new Set<CuidId>();
+      for (const sellerId of sellers) if ((await this.deps.identity.getSellerVerification({ sellerId })).status === 'Approved') approved.add(sellerId);
+      const counted = candidates.filter((c) => c.sellerKindAtCreation === 'individual' || approved.has(c.sellerId));
+      return {
+        items: ids.map((catalogEntryId) => {
+          const prices = counted.filter((c) => c.catalogEntryId === catalogEntryId).map((c) => c.priceCop);
+          return { catalogEntryId, lowestPriceCop: prices.length ? Math.min(...prices) : null, availableCount: prices.length };
+        }),
+      };
+    });
+  }
+
+  /** P-INV.refs (AD-1, OQ-6): catalog's answer under listings' name, so trading never imports catalog. */
+  async resolveItemRefs(input: ItemRefsRequest): Promise<ItemRefsResponse> {
+    return this.deps.catalog.resolveItemRefs(input);
+  }
+
+  /** P-INV.purchase (ORD-1 P2): a visible listing's seller and kind, read on the ambient transaction. */
+  async getListingForPurchase(input: GetListingForPurchaseRequest): Promise<GetListingForPurchaseResponse> {
+    const header = await this.reading((tx) => this.deps.repo.readListingHeader(tx, input.listingId));
+    if (header === null || !header.visible) return this.notFound('FR-INV-3');
+    return { sellerId: header.sellerId, kind: header.kind, visible: true };
+  }
+
+  /** P-INV.units (AD-ORD-2 rule 7): the listing's unit ids, `[]` for an unknown id, read on the ambient transaction. */
+  async getInventoryUnitIds(input: GetInventoryUnitIdsRequest): Promise<GetInventoryUnitIdsResponse> {
+    return { unitIds: await this.reading((tx) => this.deps.repo.listingUnitIds(tx, input.listingId)) };
+  }
+
+  /** INV-2 P2–P5 for one item: the checks after eligibility, first-fail, before any write. */
+  private async checkListingInput(input: CreateListingRequest, listingKind: 'business' | 'individual'): Promise<void> {
+    if (input.openToTrade && listingKind === 'business') {
+      raise('OpenToTradeNotAllowed', [{ rule: 'AD-4', inputs: { listingKind, openToTrade: true } }]);
+    }
+    const { resolved } = await this.deps.catalog.resolveItemRefs({ refs: [input.itemRef] });
+    const kind = resolved.find((r) => r.ref === input.itemRef)?.kind ?? null;
+    if (kind === null || !conditionFitsKind(input.condition, kind)) {
+      raise('InvalidItemRef', [{ rule: 'FR-INV-1', inputs: { itemRef: input.itemRef, kind, condition: input.condition } }]);
+    }
+    this.checkPriceAndLocation(input.priceCop, input.location);
+    if (!Number.isInteger(input.quantity) || input.quantity < 1 || input.quantity > 999) rejectRequest([{ field: 'quantity', issue: 'debe ser un entero entre 1 y 999' }]);
+    if ([...input.description].length > MAX_DESCRIPTION) rejectRequest([{ field: 'description', issue: `debe tener como máximo ${MAX_DESCRIPTION} caracteres` }]);
+  }
+
+  /** INV-2 P4 and P5, shared with bundles and edits. A null location stores no coordinates (decision log Impl-1 #30). */
+  private checkPriceAndLocation(priceCop: number, location: { lat: number; lng: number } | null): void {
+    if (!isValidPrice(priceCop)) raise('InvalidPrice', [{ rule: 'FR-INV-1', inputs: { priceCop } }]);
+    if (location !== null && !isValidLocation(location)) raise('InvalidLocation', [{ rule: 'FR-INV-1', inputs: { lat: location.lat, lng: location.lng } }]);
+  }
+
+  /**
+   * INV-2: eligibility and the input checks first, then one transaction that links or creates the
+   * unit, reads the projection `FOR SHARE` for a business, and inserts the listing (fail-closed).
+   */
+  async createListing(input: CreateListingRequest): Promise<CreateListingResponse> {
+    const { repo, transactions, clock, ids, audit, identity } = this.deps;
+    const eligibility = await identity.requireListingEligibility({ userId: input.sellerId });
+    const { listingKind, verified } = eligibility;
+    await this.checkListingInput(input, listingKind);
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      const unit = await repo.resolveUnit(tx, { id: ids.next(), sellerId: input.sellerId, catalogEntryId: input.itemRef, condition: input.condition, quantity: input.quantity, now });
+      const projection = listingKind === 'business' ? projectionOf(await repo.readProjectionForShare(tx, input.sellerId)) : null;
+      const paused = pausedAtInsert(listingKind, projection);
+      const listingId = ids.next();
+      await repo.insertListing(tx, {
+        id: listingId, sellerId: input.sellerId, sellerKindAtCreation: listingKind, kind: 'single', inventoryUnitId: unit.id, title: null,
+        priceCop: input.priceCop, location: input.location, description: input.description, openToTrade: input.openToTrade, pausedAt: paused ? now : null, now,
+      });
+      const state = createdState({ paused, listingKind, verified });
+      const verification = listingKind === 'business' ? (verified ? 'Approved' : 'Pending') : 'none';
+      const citations: [Citation, ...Citation[]] = [{ rule: 'FR-INV-7', inputs: { verification, projection } }];
+      if (!unit.created) citations.push({ rule: 'FR-INV-1', inputs: { inventoryUnitId: unit.id, existingQuantity: unit.quantity, ignoredQuantity: input.quantity } });
+      const decision = creationDecision(state, citations, now);
+      await audit.record(tx, {
+        actorId: input.sellerId, actorKind: 'user', module: 'listings', action: 'listings.listing.created', aggregateType: 'Listing', aggregateId: listingId,
+        decisionCode: decision.reasonCode, data: { listingId, inventoryUnitId: unit.id, state, unitCreated: unit.created }, at: now,
+      });
+      return { listingId, inventoryUnitId: unit.id, state, availability: unit.quantity, decision };
+    });
   }
 
   async setListingHidden(_input: SetListingHiddenRequest): Promise<SetListingHiddenResponse> {
@@ -105,27 +543,4 @@ export class InvServiceV2 implements InvV2UseCases {
     throw new NotImplementedError('listings.listListingModerationLog');
   }
 
-  async getListingForPurchase(_input: GetListingForPurchaseRequest): Promise<GetListingForPurchaseResponse> {
-    throw new NotImplementedError('listings.getListingForPurchase');
-  }
-
-  async reserveForTrade(_tx: Tx, _input: ReserveForTradeRequest): Promise<ReserveForTradeResponse> {
-    throw new NotImplementedError('listings.reserveForTrade');
-  }
-
-  async getTradeability(_tx: Tx, _input: GetTradeabilityRequest): Promise<GetTradeabilityResponse> {
-    throw new NotImplementedError('listings.getTradeability');
-  }
-
-  async getInventoryUnitIds(_input: GetInventoryUnitIdsRequest): Promise<GetInventoryUnitIdsResponse> {
-    throw new NotImplementedError('listings.getInventoryUnitIds');
-  }
-
-  async getAvailabilitySummary(_input: GetAvailabilitySummaryRequest): Promise<GetAvailabilitySummaryResponse> {
-    throw new NotImplementedError('listings.getAvailabilitySummary');
-  }
-
-  async resolveItemRefs(_input: ItemRefsRequest): Promise<ItemRefsResponse> {
-    throw new NotImplementedError('listings.resolveItemRefs');
-  }
 }

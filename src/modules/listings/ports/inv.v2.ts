@@ -37,9 +37,142 @@ export interface InvV2Deps {
 }
 // </gen-solu2-api>
 
+import type { Tx } from '../../../shared-kernel/ports.js';
+import type { Condition, CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import type { ProjectionState } from '../domain/inv.js';
+
+/** INV-2 Q1.1: the one unit of `(sellerId, catalogEntryId, condition)` after the insert-or-link. */
+export interface ResolvedUnit {
+  id: CuidId;
+  quantity: number;
+  /** false when the unit already existed and was linked unchanged (FR-INV-1 rule 3). */
+  created: boolean;
+}
+
+/** One `"Listing"` row as INV-2 Q1.3 and S-FR-INV-2 insert it. */
+export interface NewListingRow {
+  id: CuidId;
+  sellerId: CuidId;
+  sellerKindAtCreation: 'business' | 'individual';
+  kind: 'single' | 'bundle';
+  inventoryUnitId: CuidId | null;
+  title: string | null;
+  priceCop: number;
+  location: { lat: number; lng: number } | null;
+  description: string;
+  openToTrade: boolean;
+  pausedAt: IsoInstant | null;
+  now: IsoInstant;
+}
+
+/** A listing's visibility facts: hidden, withdrawn and deactivated listings are not visible (AD-12). */
+export interface ListingHeader {
+  id: CuidId;
+  sellerId: CuidId;
+  sellerKindAtCreation: 'business' | 'individual';
+  kind: 'single' | 'bundle';
+  visible: boolean;
+}
+
+/** One unit a listing draws on: a single listing's unit (`perBundleQty` 1), or a bundle component. */
+export interface ListingUnit {
+  inventoryUnitId: CuidId;
+  catalogEntryId: CuidId;
+  condition: Condition;
+  quantity: number;
+  perBundleQty: number;
+}
+
+/** INV-1's one read in the caller's `tx`: the listing, its units and the seller's projection, unlocked. */
+export interface ReserveFacts extends ListingHeader {
+  title: string | null;
+  priceCop: number;
+  pausedAt: IsoInstant | null;
+  openToTrade: boolean;
+  projection: ProjectionState;
+  units: ListingUnit[];
+}
+
+/** S-FR-INV-10: one listing as its detail reads it, with availability computed at read (AD-INV-1 rule 2). */
+export interface ListingDetailRow extends ListingHeader {
+  title: string | null;
+  /** The catalog entry of a single listing's unit; null for a bundle. */
+  unitEntryId: CuidId | null;
+  priceCop: number;
+  openToTrade: boolean;
+  paused: boolean;
+  hiddenReason: string | null;
+  withdrawn: boolean;
+  deactivated: boolean;
+  hidden: boolean;
+  version: number;
+  projection: ProjectionState;
+  /** The projection's `lastAppliedSeq`, or null when it is absent (INV-3 Q4). */
+  ledgerSeq: number | null;
+  availability: number;
+  createdAt: IsoInstant;
+}
+
+/** P-INV.availability: a visible single listing with stock that may count, before the verification term. */
+export interface AvailabilityCandidate {
+  catalogEntryId: CuidId;
+  sellerId: CuidId;
+  sellerKindAtCreation: 'business' | 'individual';
+  priceCop: number;
+}
+
 /**
  * Repository port of INV (review A-4): the only way its application service reads or writes
- * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * its own tables (AD-8). Every method takes the transaction it runs in; `infra/pg.ts` implements them.
  */
-export interface InvRepository {}
+export interface InvRepository {
+  /** INV-2 Q1.1, AD-INV-1 rule 1: `INSERT … ON CONFLICT DO NOTHING`, then the unit as it now stands. */
+  resolveUnit(tx: Tx, unit: { id: CuidId; sellerId: CuidId; catalogEntryId: CuidId; condition: Condition; quantity: number; now: IsoInstant }): Promise<ResolvedUnit>;
+  /** INV-2 Q1.2, AD-INV-3 rule 3: the projection row read `FOR SHARE`, or null when absent. */
+  readProjectionForShare(tx: Tx, businessId: CuidId): Promise<{ paused: boolean } | null>;
+  /** INV-2 Q1.3. */
+  insertListing(tx: Tx, row: NewListingRow): Promise<void>;
+  /** INV-1, P-INV.trade: the listing, its units in ascending id order, and the projection; null when unknown. */
+  readReserveFacts(tx: Tx, listingId: CuidId): Promise<ReserveFacts | null>;
+  /** AD-INV-2 rule 3: `quantity − req` when `quantity >= req`; false when 0 rows changed. */
+  decrementUnit(tx: Tx, unitId: CuidId, req: number, now: IsoInstant): Promise<boolean>;
+  /** S-FR-INV-5: `quantity + qty`; false when the unit does not exist. */
+  incrementUnit(tx: Tx, unitId: CuidId, qty: number, now: IsoInstant): Promise<boolean>;
+  /** The unit's quantity as `tx` now sees it, or null. */
+  unitQuantity(tx: Tx, unitId: CuidId): Promise<number | null>;
+  /** INV-1 Q2: every listing on one of `unitIds` whose availability is now 0, in id order. */
+  exhaustedListingIds(tx: Tx, unitIds: CuidId[]): Promise<CuidId[]>;
+  /** P-INV.purchase: the listing's visibility facts, or null. */
+  readListingHeader(tx: Tx, listingId: CuidId): Promise<ListingHeader | null>;
+  /**
+   * INV-3 Q1 (AD-INV-3 rule 4): upserts the projection only when no row exists or `seq` is newer
+   * than `lastAppliedSeq`; false when the event is older or already applied.
+   */
+  upsertProjection(tx: Tx, p: { businessId: CuidId; seq: number; paused: boolean; now: IsoInstant }): Promise<boolean>;
+  /** INV-3 Q2: sets (or clears) `pausedAt` on the business's listings that are not already so; the rows changed. */
+  setPausedForSeller(tx: Tx, businessId: CuidId, paused: boolean, now: IsoInstant): Promise<number>;
+  /** S-FR-INV-8: locks the seller's listings `FOR UPDATE` in ascending id order, so two decisions serialize. */
+  lockSellerListings(tx: Tx, sellerId: CuidId): Promise<void>;
+  /** AD-INV-3 rule 5: the latest `decidedAt` among the business's applied, not ignored, decisions. */
+  newestAppliedDecision(tx: Tx, businessId: CuidId): Promise<IsoInstant | null>;
+  /** AD-INV-3 rule 5: `INSERT … ON CONFLICT ("applicationId") DO NOTHING`; false on a redelivery. */
+  insertAppliedDecision(tx: Tx, d: { applicationId: CuidId; businessId: CuidId; decision: 'Approved' | 'Rejected'; decidedAt: IsoInstant; ignored: boolean; now: IsoInstant }): Promise<boolean>;
+  /** FR-INV-8: withdraws the seller's not-withdrawn listings for `ApplicationRejected`; the rows changed. */
+  withdrawForRejection(tx: Tx, sellerId: CuidId, applicationId: CuidId, now: IsoInstant): Promise<number>;
+  /** FR-INV-8: clears only the withdrawals made for `ApplicationRejected`; the rows changed. */
+  restoreFromRejection(tx: Tx, sellerId: CuidId, now: IsoInstant): Promise<number>;
+  /** S-FR-INV-2: the bundle's components, after its `"Listing"` row. */
+  insertBundleComponents(tx: Tx, listingId: CuidId, sellerId: CuidId, components: { inventoryUnitId: CuidId; catalogEntryId: CuidId; condition: Condition; perBundleQty: number }[], now: IsoInstant): Promise<void>;
+  /** S-FR-INV-10.get: the listing's detail, or null. */
+  readListingDetail(tx: Tx, listingId: CuidId): Promise<ListingDetailRow | null>;
+  /** S-FR-INV-10.mine: the seller's listings newest first by `("createdAt", id)`, after the keyset when given. */
+  listSellerListings(tx: Tx, sellerId: CuidId, after: { createdAt: IsoInstant; id: CuidId } | null, limit: number): Promise<ListingDetailRow[]>;
+  /** S-FR-INV-9.update: the conditional write on `version`; the new version, or null when it moved. */
+  updateListingFields(tx: Tx, listingId: CuidId, expectedVersion: number, changes: { priceCop?: number; description?: string; openToTrade?: boolean }, now: IsoInstant): Promise<number | null>;
+  /** S-FR-INV-9.active: sets or clears `deactivatedAt` when it is not already so; the new version, or null for a no-op. */
+  setDeactivated(tx: Tx, listingId: CuidId, deactivated: boolean, now: IsoInstant): Promise<number | null>;
+  /** P-INV.availability: the candidates of `entryIds` (the SQL twin of AD-INV-3 rule 2, without the verification term). */
+  availabilityCandidates(tx: Tx, entryIds: CuidId[]): Promise<AvailabilityCandidate[]>;
+  /** P-INV.units: the unit ids of a single listing or a bundle, in id order; [] for an unknown id. */
+  listingUnitIds(tx: Tx, listingId: CuidId): Promise<CuidId[]>;
+}

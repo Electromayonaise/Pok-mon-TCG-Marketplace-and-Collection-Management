@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 375 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 378 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -700,11 +700,11 @@ Let sellers list from one stock pool per (seller, item, condition). Reserve that
 - **Binding invariants:** AD-3 — Commission balance is the single source of purchasability (Fail-closed `SellerCommissionState` read `FOR SHARE` at listing insert; projection seq gate); AD-INV-1 — One unit per (seller, item, condition) (`UNIQUE (sellerId, catalogEntryId, condition)`); also cited by its clauses: AD-4, AD-6, AD-INV-3
 - **Files:** `src/modules/listings/application/inv.v2.ts` (`InvServiceV2.createListing`), `src/modules/listings/ports/inv.v2.ts` (`InvRepository`), `src/modules/listings/domain/inv.ts`, `src/modules/listings/infra/pg.ts`
 - **Schema/DTO:** tables `"InventoryUnit"`, `"Listing"`, `"SellerCommissionState"`; DTOs `CreateListingRequest` → `CreateListingResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_contracts.test.ts` › `[INV-2.Q1]`, `[INV-2.I1]`, `[INV-2.Q2]`, `[INV-2.I2]`, `[INV-2.R1]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_contracts.test.ts` › `[INV-2.Q1]`, `[INV-2.I1]`, `[INV-2.Q2]`, `[INV-2.I2]`, `[INV-2.R1]`; `_bmad-output/test-artifacts/nfr/inv4_latency.test.ts` › `[NFR-INV-4.create]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Valentina is an individual seller with no unit for the card. **When:** she lists 3 copies, then lists the same copy again. **Then:** a unit of 3 and an Active listing; the second listing links the unit unchanged and explains the ignored quantity.
   - **Scenario (failure) — Given:** an Approved business has no commission projection yet, a Pending business lists, and two listings of one copy are created at once. **When:** the listings are created. **Then:** the first is Paused (fail-closed), the second Unverified with the `ListingUnverified` notice, and the concurrent pair shares one unit.
-- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-INV-4: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 5.2: Reserve stock in the caller's transaction and restore it on abort
 
@@ -716,11 +716,11 @@ Let sellers list from one stock pool per (seller, item, condition). Reserve that
 - **Binding invariants:** AD-6 — `InventoryUnit` is the sole quantity owner (`CHECK (quantity >= 0)`; conditional decrement); AD-SYS-4 — Transaction handles, pooler-safe state, global lock order (`tx` first; `db()` ambient client; ascending unit locks); AD-INV-2 — Reserve and release in the caller's transaction (`tx` parameter; ascending conditional decrement); also cited by its clauses: AD-INV-1, AD-ORD-1, AD-ORD-2, AD-SYS-5
 - **Files:** `src/modules/listings/application/inv.v2.ts` (`InvServiceV2.reserveForPurchase`, `InvServiceV2.releaseReservation`, `InvServiceV2.getListingForPurchase`, `InvServiceV2.getInventoryUnitIds`), `src/modules/listings/ports/inv.v2.ts` (`InvRepository`), `src/modules/listings/domain/inv.ts`, `src/modules/listings/infra/pg.ts`
 - **Schema/DTO:** tables `"InventoryUnit"`; DTOs `ReserveForPurchaseRequest` → `ReserveForPurchaseResponse`, `ReleaseReservationRequest` → `ReleaseReservationResponse`, `GetListingForPurchaseRequest` → `GetListingForPurchaseResponse`, `GetInventoryUnitIdsRequest` → `GetInventoryUnitIdsResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_contracts.test.ts` › `[INV-1.Q1]`, `[INV-1.Q3]`, `[INV-1.I1]`, `[INV-1.I3]`, `[INV-1.MEC]`; `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-INV-5.h]`, `[S-FR-INV-5.f]`, `[P-INV.purchase.h]`, `[P-INV.units.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_contracts.test.ts` › `[INV-1.Q1]`, `[INV-1.Q3]`, `[INV-1.I1]`, `[INV-1.I3]`, `[INV-1.MEC]`; `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-INV-5.h]`, `[S-FR-INV-5.f]`, `[P-INV.purchase.h]`, `[P-INV.units.h]`; `_bmad-output/test-artifacts/nfr/inv4_latency.test.ts` › `[NFR-INV-4.reserve]`, `[NFR-INV-4.bundle]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a unit of 5. **When:** `orders` reserves 2 inside its transaction. **Then:** the unit drops to 3, the reservation and price snapshot are returned, and nothing but `InventoryUnit` is written.
   - **Scenario (failure) — Given:** the caller aborts after a successful reserve, 100 times; 50 buyers race for the last unit; a bundle and a single listing race on a shared unit. **When:** the transactions end. **Then:** the stock is fully restored with no compensating write; exactly 1 reservation and 49 `InsufficientQuantity`; one winner, no deadlock, never negative stock.
-- **DoD:** the shared DoD, plus: the 9 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7); NFR-INV-4: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 11 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7).
 
 ### Story 5.3: Refuse invalid listings
 
@@ -736,7 +736,7 @@ Let sellers list from one stock pool per (seller, item, condition). Reserve that
 - **Gherkin:**
   - **Scenario (happy) — Given:** a valid card listing at 45,000 COP inside Colombia. **When:** Andrés creates it. **Then:** it is created: the contrast case of the refusals below.
   - **Scenario (failure) — Given:** a Rejected business lists; a business listing is open to trade; a sealed product has a card condition; the price is 999 COP; the meeting point is (0, 0). **When:** the listing is created. **Then:** `SellerNotVerified` propagated unchanged, `OpenToTradeNotAllowed` (409), `InvalidItemRef` (400), `InvalidPrice` (400) and `InvalidLocation` (400), each with zero writes; no business listing is ever open to trade.
-- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-INV-4: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 5.4: Refuse unpurchasable and over-quantity reservations
 
@@ -752,7 +752,7 @@ Let sellers list from one stock pool per (seller, item, condition). Reserve that
 - **Gherkin:**
   - **Scenario (happy) — Given:** a visible, funded business listing with 5 units. **When:** Camila's order reserves 2. **Then:** the reservation succeeds: the contrast case.
   - **Scenario (failure) — Given:** the listing is hidden, belongs to an individual seller, is paused for balance, or holds fewer units than asked. **When:** the reservation runs. **Then:** `ListingNotFound` (404), `NotBusinessListing` (409), `ListingNotPurchasable` citing `ListingPausedBalanceExhausted`, or `InsufficientQuantity` citing requested and available; nothing is decremented.
-- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-INV-4: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 5.5: Pause, withdraw and restore listings from commission and verification events
 

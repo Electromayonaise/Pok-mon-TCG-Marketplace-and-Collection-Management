@@ -58,6 +58,14 @@ export const MESSAGES = {
   FxRateAlreadyCovered: 'La TRM de hoy ya estaba guardada; no consultamos la fuente.',
   FxRateSourceUnavailable: 'La fuente de la TRM no respondió; mantenemos la última tasa publicada como desactualizada.',
   FxRateSourceMismatch: 'La fuente publicó otro valor para una fecha ya guardada; conservamos el valor guardado y lo reportamos.',
+  ListingActive: 'La publicación está activa.',
+  ListingPausedBalanceExhausted: 'La publicación está pausada hasta que la tienda recargue su saldo de comisión.',
+  ListingHidden: 'Un administrador ocultó esta publicación; el motivo está en el detalle.',
+  ListingWithdrawn: 'Retiramos esta publicación porque la solicitud de la tienda fue rechazada.',
+  ListingDeactivated: 'La publicación está desactivada; puedes reactivarla cuando quieras.',
+  ListingUpdated: 'Guardamos los cambios de la publicación.',
+  ListingRestocked: 'Actualizamos el stock; todas las publicaciones de esta copia muestran la nueva cantidad.',
+  ListingOpenToTrade: 'Esta publicación acepta ofertas de intercambio.',
   InvalidItemRef: 'La carta {itemRef} no existe o no corresponde al tipo elegido.',
   InvalidPrice: 'El precio debe estar entre $1.000 y $100.000.000 COP.',
   InvalidLocation: 'El punto de encuentro debe estar en Colombia.',
@@ -121,6 +129,6 @@ export const MESSAGES = {
   DuplicateReview: 'Ya reseñaste a este vendedor; puedes editar tu reseña.',
   ReviewNotFound: 'No encontramos esa reseña.',
   Unexpected: 'Algo falló de nuestro lado; no se aplicó ningún cambio.',
-} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected' | 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred' | 'FeedRunStarted' | 'ReferencePriceFresh' | 'ReferencePriceStale' | 'ReferencePriceMissing' | 'TrendComputed' | 'TrendNoBaseline' | 'FxRateCovered' | 'FxRateCarriedForward' | 'FxRateStored' | 'FxRateAlreadyCovered' | 'FxRateSourceUnavailable' | 'FxRateSourceMismatch', string>;
+} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected' | 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred' | 'FeedRunStarted' | 'ReferencePriceFresh' | 'ReferencePriceStale' | 'ReferencePriceMissing' | 'TrendComputed' | 'TrendNoBaseline' | 'FxRateCovered' | 'FxRateCarriedForward' | 'FxRateStored' | 'FxRateAlreadyCovered' | 'FxRateSourceUnavailable' | 'FxRateSourceMismatch' | 'ListingActive' | 'ListingPausedBalanceExhausted' | 'ListingHidden' | 'ListingWithdrawn' | 'ListingDeactivated' | 'ListingUpdated' | 'ListingRestocked' | 'ListingOpenToTrade', string>;
 
 export type MessageCode = keyof typeof MESSAGES;
