@@ -98,7 +98,7 @@ development_status:
   epic-6-retrospective: optional
   epic-7: in-progress
   7-1-buy-a-listing-and-attach-the-comprobante: done
-  7-2-confirm-paid-and-close-orders-safely-in-any-order: backlog
+  7-2-confirm-paid-and-close-orders-safely-in-any-order: done
   7-3-refuse-self-purchase-open-order-overflow-and-listing-refusals: done
   7-4-refuse-out-of-role-repeated-and-expired-confirmations: backlog
   7-5-cancel-expire-read-and-support-orders: backlog

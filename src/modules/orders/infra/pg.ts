@@ -31,6 +31,8 @@ export class PgOrderRepository implements IOrderRepository {
 
 /** AD-ORD-1 rule 2.2, AD-ORD-2 rule 1: an order that still counts as open at `$now`. */
 const OPEN = `"buyerPaidConfirmedAt" IS NULL AND "cancelledAt" IS NULL AND "expiredAt" IS NULL`;
+/** AD-ORD-2 rule 2: paid, and neither cancelled nor expired (ORD-2 I2 makes the latter defensive). */
+const PAID_ACTIVE = `"buyerPaidConfirmedAt" IS NOT NULL AND "cancelledAt" IS NULL AND "expiredAt" IS NULL`;
 /** AD-ORD-3 rule 1: the one visibility predicate, for actor `$2`. */
 const VISIBLE_TO = `("buyerId" = $2 OR ("businessId" = $2 AND "buyerPaidConfirmedAt" IS NOT NULL))`;
 /** Every column a command or a read needs; the comprobante key only as a flag (AD-17), `comprobanteKeyOf` reads it for storage calls. */
@@ -101,5 +103,32 @@ export class PgOrdRepository implements OrdRepository {
       [orderId, buyerId, key, now],
     );
     return rows[0];
+  }
+
+  async setBuyerPaid(tx: Tx, orderId: CuidId, buyerId: CuidId, now: IsoInstant): Promise<boolean> {
+    const { rowCount } = await tx.query(
+      `UPDATE "Order" SET "buyerPaidConfirmedAt" = $3, "updatedAt" = $3, version = version + 1
+       WHERE id = $1 AND "buyerId" = $2 AND "comprobanteObjectKey" IS NOT NULL AND ${OPEN} AND "expiresAt" > $3 RETURNING id`,
+      [orderId, buyerId, now],
+    );
+    return rowCount === 1;
+  }
+
+  async setSellerReceived(tx: Tx, orderId: CuidId, businessId: CuidId, now: IsoInstant): Promise<OrderRow | null> {
+    const { rows } = await tx.query<RawOrder>(
+      `UPDATE "Order" SET "sellerReceivedConfirmedAt" = $3, "updatedAt" = $3, version = version + 1
+       WHERE id = $1 AND "businessId" = $2 AND ${PAID_ACTIVE} AND "sellerReceivedConfirmedAt" IS NULL RETURNING ${ORDER_COLUMNS}`,
+      [orderId, businessId, now],
+    );
+    return rows[0] ? order(rows[0]) : null;
+  }
+
+  async setItemReceived(tx: Tx, orderId: CuidId, buyerId: CuidId, now: IsoInstant): Promise<OrderRow | null> {
+    const { rows } = await tx.query<RawOrder>(
+      `UPDATE "Order" SET "buyerItemReceivedConfirmedAt" = $3, "updatedAt" = $3, version = version + 1
+       WHERE id = $1 AND "buyerId" = $2 AND ${PAID_ACTIVE} AND "buyerItemReceivedConfirmedAt" IS NULL RETURNING ${ORDER_COLUMNS}`,
+      [orderId, buyerId, now],
+    );
+    return rows[0] ? order(rows[0]) : null;
   }
 }

@@ -101,6 +101,9 @@ export const MESSAGES = {
   ComprobanteAttached: 'Guardamos tu comprobante. Cuando hayas pagado, confirma el pago del pedido.',
   ComprobanteUrlIssued: 'El enlace al comprobante vence en 10 minutos.',
   ComprobanteNotUploaded: 'Este pedido aún no tiene comprobante.',
+  OrderPaidConfirmed: 'Confirmaste el pago. La tienda ya puede ver el pedido y confirmar que recibió el dinero.',
+  OrderPaymentReceived: 'Confirmaste que recibiste el pago del pedido.',
+  OrderItemReceived: 'Confirmaste que recibiste el producto; el pedido quedó cerrado.',
   TopUpAmountInvalid: 'La recarga debe estar entre $20.000 y $10.000.000 COP.',
   TopUpNotPending: 'Esta recarga ya fue {status} por {decidedBy} el {decidedAt}.',
   TopUpNotVisibleToCaller: 'No encontramos esa recarga.',
@@ -136,6 +139,6 @@ export const MESSAGES = {
   DuplicateReview: 'Ya reseñaste a este vendedor; puedes editar tu reseña.',
   ReviewNotFound: 'No encontramos esa reseña.',
   Unexpected: 'Algo falló de nuestro lado; no se aplicó ningún cambio.',
-} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected' | 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred' | 'FeedRunStarted' | 'ReferencePriceFresh' | 'ReferencePriceStale' | 'ReferencePriceMissing' | 'TrendComputed' | 'TrendNoBaseline' | 'FxRateCovered' | 'FxRateCarriedForward' | 'FxRateStored' | 'FxRateAlreadyCovered' | 'FxRateSourceUnavailable' | 'FxRateSourceMismatch' | 'ListingActive' | 'ListingPausedBalanceExhausted' | 'ListingHidden' | 'ListingWithdrawn' | 'ListingDeactivated' | 'ListingUpdated' | 'ListingRestocked' | 'ListingOpenToTrade' | 'ListingRanked' | 'SearchRanked' | 'ListingLocationUnusable' | 'OrderCreated' | 'ComprobanteAttached' | 'ComprobanteUrlIssued' | 'ComprobanteNotUploaded', string>;
+} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected' | 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred' | 'FeedRunStarted' | 'ReferencePriceFresh' | 'ReferencePriceStale' | 'ReferencePriceMissing' | 'TrendComputed' | 'TrendNoBaseline' | 'FxRateCovered' | 'FxRateCarriedForward' | 'FxRateStored' | 'FxRateAlreadyCovered' | 'FxRateSourceUnavailable' | 'FxRateSourceMismatch' | 'ListingActive' | 'ListingPausedBalanceExhausted' | 'ListingHidden' | 'ListingWithdrawn' | 'ListingDeactivated' | 'ListingUpdated' | 'ListingRestocked' | 'ListingOpenToTrade' | 'ListingRanked' | 'SearchRanked' | 'ListingLocationUnusable' | 'OrderCreated' | 'ComprobanteAttached' | 'ComprobanteUrlIssued' | 'ComprobanteNotUploaded' | 'OrderPaidConfirmed' | 'OrderPaymentReceived' | 'OrderItemReceived', string>;
 
 export type MessageCode = keyof typeof MESSAGES;

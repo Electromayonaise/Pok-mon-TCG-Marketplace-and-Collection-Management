@@ -2,7 +2,7 @@
 // the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2, VER-3, the supporting
 // VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
 // (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2), the seller's inventory (S-FR-INV-2, -9, -10), the discovery reads (DSC-1, DSC-2),
-// the order and its comprobante (ORD-1, S-FR-ORD-2) and S-SYS.replay,
+// the order, its comprobante and its three facts (ORD-1, S-FR-ORD-2, ORD-2, -3, -4) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -11,7 +11,7 @@ import { PrismaClient } from '../../generated/prisma/client.js';
 import { VirtualClock } from '../../test-support/clock.js';
 import { useTestDatabase } from '../../test-support/db.js';
 import { FixtureFeedSource, FixtureFxRateSource, InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
-import { admin, at, business, catalogEntry, DAY, feedRun, HOUR, id, individualSeller, ins, listing, observation, purchasableListing, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
+import { admin, at, business, catalogEntry, DAY, feedRun, HOUR, id, individualSeller, ins, listing, observation, order, purchasableListing, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
 import { createAuth } from './auth.js';
 import { compose } from './composition.js';
 import { betterAuthSessions } from './sessions.js';
@@ -502,6 +502,24 @@ describe('orders.create and the comprobante over HTTP (ORD-1, S-FR-ORD-2; Story 
     expect((await get('orders.comprobanteUrl', { orderId }, cookie)).json.result?.data).toMatchObject({ expiresAt: at(600_000) });
     const own = await post('orders.create', { listingId: id('lchar'), qty: 1 }, await signIn(id('andres')));
     expect([own.status, own.json.error?.code]).toEqual([409, 'SelfPurchaseNotAllowed']);
+  });
+});
+
+describe('the three order facts over HTTP (ORD-2, ORD-3, ORD-4; Story 7.2)', () => {
+  it('the buyer pays, the business confirms and the buyer closes; each actor comes from the session, and each event is enqueued once', async () => {
+    await business(db, id('andres'), 'Approved');
+    await user(db, { id: id('camila') });
+    await order(db, { id: id('o1'), buyerId: id('camila'), businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar'), comprobante: true });
+    const camila = await signIn(id('camila'));
+    const andres = await signIn(id('andres'));
+    const early = await post('orders.confirmPaymentReceived', { orderId: id('o1') }, andres);
+    expect([early.status, early.json.error?.code]).toEqual([403, 'OrderNotVisibleToCaller']);
+    expect((await post('orders.confirmPaid', { orderId: id('o1') }, camila)).json.result?.data).toMatchObject({ status: 'Paid' });
+    const wrongRole = await post('orders.confirmItemReceived', { orderId: id('o1') }, andres);
+    expect([wrongRole.status, wrongRole.json.error?.code]).toEqual([403, 'OrderNotOwnedByCaller']);
+    expect((await post('orders.confirmPaymentReceived', { orderId: id('o1') }, andres)).json.result?.data).toMatchObject({ status: 'PaymentConfirmed' });
+    expect((await post('orders.confirmItemReceived', { orderId: id('o1') }, camila)).json.result?.data).toMatchObject({ status: 'Closed' });
+    expect((await rows<{ type: string }>(db, 'OutboxEvent')).map((e) => e.type).sort()).toEqual(['OrderClosed', 'OrderPaymentConfirmedByBusiness']);
   });
 });
 

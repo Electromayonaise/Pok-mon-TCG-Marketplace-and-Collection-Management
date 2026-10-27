@@ -1353,6 +1353,9 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `ComprobanteAttached` | — (stored only) | orders | S-FR-ORD-2.upload: the comprobante was attached before "paid" (FR-ORD-2; the rule of decision log Impl-1 #16) | "Guardamos tu comprobante. Cuando hayas pagado, confirma el pago del pedido." | no |
 | `ComprobanteUrlIssued` | — (stored only) | orders | S-FR-ORD-2.url: a signed URL for the comprobante, valid 600 s (AD-14; the rule of decision log Impl-1 #16) | "El enlace al comprobante vence en 10 minutos." | no |
 | `ComprobanteNotUploaded` | — (stored only) | orders | S-FR-ORD-2.url: the order has no comprobante yet, so `url` is null (FR-ORD-2; the rule of decision log Impl-1 #16) | "Este pedido aún no tiene comprobante." | no |
+| `OrderPaidConfirmed` | — (stored only) | orders | ORD-2 Q4: the buyer confirmed the payment, citing `{ orderId, buyerPaidConfirmedAt }` (FR-ORD-3; the rule of decision log Impl-1 #16) | "Confirmaste el pago. La tienda ya puede ver el pedido y confirmar que recibió el dinero." | no |
+| `OrderPaymentReceived` | — (stored only) | orders | ORD-3 Q4: the business confirmed it received the payment, citing `{ orderId, sellerReceivedConfirmedAt }` (FR-ORD-4; the rule of decision log Impl-1 #16) | "Confirmaste que recibiste el pago del pedido." | no |
+| `OrderItemReceived` | — (stored only) | orders | ORD-4 Q4: the buyer confirmed the item arrived, which closes the order, citing `{ orderId, buyerItemReceivedConfirmedAt }` (FR-ORD-5; the rule of decision log Impl-1 #16) | "Confirmaste que recibiste el producto; el pedido quedó cerrado." | no |
 | `TopUpAmountInvalid` | 400 | commission | S-FR-COM-2 | "La recarga debe estar entre $20.000 y $10.000.000 COP." | no |
 | `TopUpNotPending` | 409 | commission | COM-2 P3 | "Esta recarga ya fue {status} por {decidedBy} el {decidedAt}." | no |
 | `TopUpNotVisibleToCaller` | 403 | commission | S-FR-COM-2 | "No encontramos esa recarga." | no |

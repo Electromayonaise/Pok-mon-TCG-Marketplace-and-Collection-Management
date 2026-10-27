@@ -43,11 +43,15 @@ import { ambientTx } from '../../../shared-kernel/db.js';
 import { DomainError, NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
+import type { OrderClosedLineV1 } from '../../../shared-kernel/events.js';
 import type { Tx } from '../../../shared-kernel/ports.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest } from '../../../shared-kernel/request.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import { comprobanteUploadPrefix, deriveStatus, MAX_COMPROBANTE_BYTES, openOrderOverflow, sniffComprobanteType, UNPAID_ORDER_TTL_MS, type OrderStatus } from '../domain/ord.js';
+import {
+  closedLines, comprobanteUploadPrefix, deriveStatus, expiryUnmaterialized, itemReceivedLoserCode, MAX_COMPROBANTE_BYTES, openOrderOverflow, paidLoserCode,
+  paymentReceivedLoserCode, sniffComprobanteType, UNPAID_ORDER_TTL_MS, type OrderStatus,
+} from '../domain/ord.js';
 import type { OrderRow } from '../ports/ord.v2.js';
 
 const raise = raiserFor('orders');
@@ -61,6 +65,9 @@ const SIGNED_URL_TTL = 600;
 function explained(code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant, outcome: Decision['outcome'] = 'allowed'): Decision {
   return { outcome, reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
 }
+
+/** Every refusal a 0-row fact update can map to (AD-ORD-2 rule 3). */
+type LoserCode = NonNullable<ReturnType<typeof paidLoserCode> | ReturnType<typeof paymentReceivedLoserCode> | ReturnType<typeof itemReceivedLoserCode>>;
 
 /** The instant a terminated order ended, for `OrderNoLongerActive` (AD-ORD-2 rule 3). */
 function endedAt(row: OrderRow): Date {
@@ -262,16 +269,117 @@ export class OrdServiceV2 implements OrdV2UseCases {
     return { url, expiresAt, decision: explained('ComprobanteUrlIssued', citations, now) };
   }
 
-  async confirmPaid(_input: ConfirmPaidRequest): Promise<ConfirmPaidResponse> {
-    throw new NotImplementedError('orders.confirmPaid');
+  /**
+   * AD-ORD-2 rules 3–4: the refusal of a 0-row fact update, mapped from the order as `tx` re-reads it
+   * through the visibility predicate. An unpaid order past `expiresAt` is first materialized as
+   * expired in `tx`; that refusal is returned, not thrown, so the caller commits the expiry before
+   * raising it. Every other refusal is thrown and writes nothing.
+   */
+  private async refuseFact(tx: Tx, row: OrderRow | null, code: LoserCode | null, rule: string, at: Date): Promise<() => never> {
+    if (row === null) return this.notVisible();
+    const orderId = row.id;
+    switch (code) {
+      case null: throw new UnexpectedError(`Unexpected: a fact update on order ${orderId} changed 0 rows, yet nothing refuses it`);
+      case 'OrderNotOwnedByCaller': return this.notOwned(orderId, rule);
+      case 'ComprobanteNotYetUploaded': return raise(code, [{ rule, inputs: { orderId } }]);
+      case 'ComprobanteMissingOnConfirm': return raise(code, [{ rule, inputs: { orderId } }]);
+      case 'OrderConfirmationOutOfOrder': return raise(code, [{ rule, inputs: { orderId, buyerPaidConfirmedAt: null } }]);
+      case 'OrderAlreadyConfirmedByRole': {
+        const confirmedAt = rule === 'FR-ORD-3' ? row.buyerPaidConfirmedAt : rule === 'FR-ORD-4' ? row.sellerReceivedConfirmedAt : row.buyerItemReceivedConfirmedAt;
+        return raise(code, [{ rule, inputs: { orderId, confirmedAt: confirmedAt?.toISOString() ?? null } }]);
+      }
+      case 'OrderNoLongerActive': {
+        const status = deriveStatus(row, at);
+        if (expiryUnmaterialized(row, at)) await this.expireInTx(tx, orderId, at.toISOString());
+        return () => this.noLongerActive(row, status, rule);
+      }
+    }
   }
 
-  async confirmPaymentReceived(_input: ConfirmPaymentReceivedRequest): Promise<ConfirmPaymentReceivedResponse> {
-    throw new NotImplementedError('orders.confirmPaymentReceived');
+  /** ORD-2 (AD-ORD-2 rules 1, 3, 4): the buyer's "paid", set once while the order is active and has a comprobante. */
+  async confirmPaid(input: ConfirmPaidRequest): Promise<ConfirmPaidResponse> {
+    const { repo, transactions, clock, audit } = this.deps;
+    const { orderId, buyerId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    const outcome = await transactions.run(async (tx) => {
+      if (!(await repo.setBuyerPaid(tx, orderId, buyerId, now))) {
+        const row = await repo.readVisibleOrder(tx, orderId, buyerId);
+        return this.refuseFact(tx, row, row && paidLoserCode(row, row.buyerId === buyerId, at), 'FR-ORD-3', at);
+      }
+      await audit.record(tx, {
+        actorId: buyerId, actorKind: 'user', module: 'orders', action: 'orders.fact.buyerPaid',
+        aggregateType: 'Order', aggregateId: orderId, decisionCode: 'OrderPaidConfirmed', data: { orderId }, at: now,
+      });
+      return null;
+    });
+    if (outcome) return outcome();
+    const decision = explained('OrderPaidConfirmed', [{ rule: 'FR-ORD-3', inputs: { orderId, buyerPaidConfirmedAt: now } }], now);
+    return { orderId, buyerPaidConfirmedAt: now, status: 'Paid', decision };
   }
 
-  async confirmItemReceived(_input: ConfirmItemReceivedRequest): Promise<ConfirmItemReceivedResponse> {
-    throw new NotImplementedError('orders.confirmItemReceived');
+  /**
+   * ORD-3 (AD-ORD-2 rules 2, 5; AD-15): the business's fact, set once on a paid order, with one
+   * `OrderPaymentConfirmedByBusiness` for commission in the same transaction.
+   */
+  async confirmPaymentReceived(input: ConfirmPaymentReceivedRequest): Promise<ConfirmPaymentReceivedResponse> {
+    const { repo, transactions, clock, audit, outbox } = this.deps;
+    const { orderId, businessId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    const outcome = await transactions.run(async (tx) => {
+      const row = await repo.setSellerReceived(tx, orderId, businessId, now);
+      if (row === null) {
+        const seen = await repo.readVisibleOrder(tx, orderId, businessId);
+        return this.refuseFact(tx, seen, seen && paymentReceivedLoserCode(seen, seen.businessId === businessId, at), 'FR-ORD-4', at);
+      }
+      const snapshot = row.listingSnapshot;
+      await outbox.enqueue(tx, 'OrderPaymentConfirmedByBusiness', orderId, {
+        orderId, businessId, buyerId: row.buyerId, totalCop: row.totalCop,
+        lines: [{ listingId: row.listingId, itemRef: snapshot.itemRef, title: snapshot.title, qty: row.qty, unitPriceCop: row.unitPriceCop }],
+        sellerReceivedConfirmedAt: now, buyerItemReceivedConfirmedAt: row.buyerItemReceivedConfirmedAt?.toISOString() ?? null,
+      });
+      await audit.record(tx, {
+        actorId: businessId, actorKind: 'user', module: 'orders', action: 'orders.fact.sellerReceived',
+        aggregateType: 'Order', aggregateId: orderId, decisionCode: 'OrderPaymentReceived', data: { orderId }, at: now,
+      });
+      return row.buyerItemReceivedConfirmedAt !== null ? 'Closed' as const : 'PaymentConfirmed' as const;
+    });
+    if (typeof outcome === 'function') return outcome();
+    const decision = explained('OrderPaymentReceived', [{ rule: 'FR-ORD-4', inputs: { orderId, sellerReceivedConfirmedAt: now } }], now);
+    return { orderId, sellerReceivedConfirmedAt: now, status: outcome, decision };
+  }
+
+  /**
+   * ORD-4 (AD-ORD-2 rules 2, 5): the buyer's item fact, the only one that closes an order, with one
+   * `OrderClosed` for commission and collections in the same transaction.
+   */
+  async confirmItemReceived(input: ConfirmItemReceivedRequest): Promise<ConfirmItemReceivedResponse> {
+    const { repo, transactions, clock, audit, outbox } = this.deps;
+    const { orderId, buyerId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    const outcome = await transactions.run(async (tx) => {
+      const row = await repo.setItemReceived(tx, orderId, buyerId, now);
+      if (row === null) {
+        const seen = await repo.readVisibleOrder(tx, orderId, buyerId);
+        return this.refuseFact(tx, seen, seen && itemReceivedLoserCode(seen, seen.buyerId === buyerId, at), 'FR-ORD-5', at);
+      }
+      // A single listing's snapshot always names its catalog entry (INV-1 Q2), so every line has an item.
+      const lines = closedLines(row.listingSnapshot, row.qty) as OrderClosedLineV1[];
+      await outbox.enqueue(tx, 'OrderClosed', orderId, {
+        orderId, buyerId, businessId: row.businessId, totalCop: row.totalCop, lines,
+        sellerReceivedConfirmedAt: row.sellerReceivedConfirmedAt?.toISOString() ?? null, buyerItemReceivedConfirmedAt: now,
+      });
+      await audit.record(tx, {
+        actorId: buyerId, actorKind: 'user', module: 'orders', action: 'orders.fact.itemReceived',
+        aggregateType: 'Order', aggregateId: orderId, decisionCode: 'OrderItemReceived', data: { orderId }, at: now,
+      });
+      return null;
+    });
+    if (outcome) return outcome();
+    const decision = explained('OrderItemReceived', [{ rule: 'FR-ORD-5', inputs: { orderId, buyerItemReceivedConfirmedAt: now } }], now);
+    return { orderId, buyerItemReceivedConfirmedAt: now, status: 'Closed', decision };
   }
 
   async getOrder(_input: GetOrderRequest): Promise<GetOrderResponse> {

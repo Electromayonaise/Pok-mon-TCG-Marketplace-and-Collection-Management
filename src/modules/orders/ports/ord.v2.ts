@@ -105,4 +105,10 @@ export interface OrdRepository {
    * the previous key, or `undefined` when 0 rows changed.
    */
   attachComprobante(tx: Tx, orderId: CuidId, buyerId: CuidId, key: string, now: IsoInstant): Promise<{ previousKey: string | null } | undefined>;
+  /** ORD-2 Q1 (AD-ORD-2 rule 1): the conditional "paid"; false when 0 rows changed. */
+  setBuyerPaid(tx: Tx, orderId: CuidId, buyerId: CuidId, now: IsoInstant): Promise<boolean>;
+  /** ORD-3 Q1 (AD-ORD-2 rule 2): the conditional business fact; the order as it now stands, or null when 0 rows changed. */
+  setSellerReceived(tx: Tx, orderId: CuidId, businessId: CuidId, now: IsoInstant): Promise<OrderRow | null>;
+  /** ORD-4 Q1 (AD-ORD-2 rule 2): the conditional item fact; the order as it now stands, or null when 0 rows changed. */
+  setItemReceived(tx: Tx, orderId: CuidId, buyerId: CuidId, now: IsoInstant): Promise<OrderRow | null>;
 }

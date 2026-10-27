@@ -1,5 +1,4 @@
 // Core domain — ORD. Pure (AD-SYS-6).
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { CuidId } from '../../../shared-kernel/types.js';
 
 /** ADD-§4.2, derived from the three facts; never stored. */
@@ -47,16 +46,78 @@ export function comprobanteUploadPrefix(buyerId: CuidId): string {
   return `comprobante/${buyerId}/`;
 }
 
+/** The listing snapshot an order stores (INV-1 Q2), as the domain reads it. */
+export interface OrderSnapshot {
+  title: string;
+  itemRef: CuidId | null;
+  unitPriceCop: number;
+  components: { catalogEntryId: CuidId; perBundleQty: number }[] | null;
+}
+
+const terminated = (facts: OrderFacts, now: Date): boolean => {
+  const status = deriveStatus(facts, now);
+  return status === 'Cancelled' || status === 'Expired';
+};
+
 /**
- * AD-ORD-2 rule 3: maps a 0-row "paid" update to the loser's error, in precedence order.
- * `isBuyer` is false when the actor can see the order but is not its buyer.
+ * AD-ORD-2 rule 3: maps a 0-row "paid" update to the loser's error, in the precedence of ORD-2
+ * P2–P5, or null when nothing refuses it. `isBuyer` is false when the actor sees the order but is
+ * not its buyer.
  */
 export function paidLoserCode(
-  _facts: OrderFacts,
-  _isBuyer: boolean,
-  _now: Date,
-): 'OrderNotOwnedByCaller' | 'OrderAlreadyConfirmedByRole' | 'OrderNoLongerActive' | 'ComprobanteNotYetUploaded' {
-  throw new NotImplementedError('orders.domain.paidLoserCode');
+  facts: OrderFacts,
+  isBuyer: boolean,
+  now: Date,
+): 'OrderNotOwnedByCaller' | 'OrderAlreadyConfirmedByRole' | 'OrderNoLongerActive' | 'ComprobanteNotYetUploaded' | null {
+  if (!isBuyer) return 'OrderNotOwnedByCaller';
+  if (facts.buyerPaidConfirmedAt !== null) return 'OrderAlreadyConfirmedByRole';
+  if (terminated(facts, now)) return 'OrderNoLongerActive';
+  if (!facts.hasComprobante) return 'ComprobanteNotYetUploaded';
+  return null;
+}
+
+/** ORD-3 P2–P5 after a 0-row update, for an actor who sees the order (P1). */
+export function paymentReceivedLoserCode(
+  facts: OrderFacts,
+  isBusiness: boolean,
+  now: Date,
+): 'OrderNotOwnedByCaller' | 'ComprobanteMissingOnConfirm' | 'OrderAlreadyConfirmedByRole' | 'OrderNoLongerActive' | null {
+  if (!isBusiness) return 'OrderNotOwnedByCaller';
+  if (!facts.hasComprobante) return 'ComprobanteMissingOnConfirm';
+  if (facts.sellerReceivedConfirmedAt !== null) return 'OrderAlreadyConfirmedByRole';
+  if (terminated(facts, now)) return 'OrderNoLongerActive';
+  return null;
+}
+
+/**
+ * ORD-4 P2–P5 after a 0-row update. A terminated order precedes an unpaid one, because it can
+ * never become paid (contracts.md ORD-4 P3).
+ */
+export function itemReceivedLoserCode(
+  facts: OrderFacts,
+  isBuyer: boolean,
+  now: Date,
+): 'OrderNotOwnedByCaller' | 'OrderNoLongerActive' | 'OrderConfirmationOutOfOrder' | 'OrderAlreadyConfirmedByRole' | null {
+  if (!isBuyer) return 'OrderNotOwnedByCaller';
+  if (terminated(facts, now)) return 'OrderNoLongerActive';
+  if (facts.buyerPaidConfirmedAt === null) return 'OrderConfirmationOutOfOrder';
+  if (facts.buyerItemReceivedConfirmedAt !== null) return 'OrderAlreadyConfirmedByRole';
+  return null;
+}
+
+/** AD-ORD-2 rule 4: an unpaid order past `expiresAt` whose expiry no transaction has written yet. */
+export function expiryUnmaterialized(facts: OrderFacts, now: Date): boolean {
+  return facts.buyerPaidConfirmedAt === null && facts.cancelledAt === null && facts.expiredAt === null && facts.expiresAt.getTime() <= now.getTime();
+}
+
+/**
+ * AD-ORD-2 rule 5: the `OrderClosed` lines. A card or sealed product is one line at the snapshot's
+ * unit price; a bundle is one line per component, `perBundleQty × qty`, under the bundle's title
+ * and with no unit price.
+ */
+export function closedLines(snapshot: OrderSnapshot, qty: number): { itemRef: CuidId | null; title: string; qty: number; unitPriceCop?: number }[] {
+  if (snapshot.components === null) return [{ itemRef: snapshot.itemRef, title: snapshot.title, qty, unitPriceCop: snapshot.unitPriceCop }];
+  return snapshot.components.map((c) => ({ itemRef: c.catalogEntryId, title: snapshot.title, qty: c.perBundleQty * qty }));
 }
 
 /** AD-SYS-8 rule 6: the 5 MiB cap and the magic bytes of the three accepted comprobante types. */

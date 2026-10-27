@@ -76,9 +76,9 @@
 | FR-DSC-7 | Card detail composition (CAP-3, CAP-2) | DSC-2 | AD-SYS-7, AD-1, AD-DSC-2, AD-DSC-1 | 4 — `DSC-2.MEC`, `DSC-2.MEC2`, `DSC-2.P1` +1 | 6.3 (done), 6.4 (done) | red |
 | FR-ORD-1 | Purchase and reserve at creation (CAP-17) | ORD-1 | AD-ORD-1, AD-ORD-2, AD-SYS-7, AD-9 | 6 — `ORD-1.I2`, `ORD-1.I4`, `ORD-1.P3` +3 | 7.1 (done), 7.3 (done) | red |
 | FR-ORD-2 | Upload or replace the comprobante (CAP-20) | S-FR-ORD-2, S-FR-ORD-2.url | AD-SYS-8, AD-ORD-3, AD-17, AD-14 | 3 — `S-FR-ORD-2.f`, `S-FR-ORD-2.h`, `S-FR-ORD-2.url.h` | 7.1 (done) | red |
-| FR-ORD-3 | Buyer confirms "I paid" (CAP-20, CAP-22) | ORD-2 | AD-ORD-3, AD-ORD-2, AD-15, AD-SYS-5 | 7 — `ORD-2.I2`, `ORD-2.MEC`, `ORD-2.P1` +4 | 7.2 (backlog), 7.4 (backlog) | red |
-| FR-ORD-4 | Business confirms payment received (CAP-20, CAP-22) | ORD-3 | AD-ORD-2, AD-2, AD-SYS-2, AD-15 | 6 — `ORD-3.I3`, `ORD-3.MEC`, `ORD-3.P2` +3 | 7.2 (backlog), 7.4 (backlog) | red |
-| FR-ORD-5 | Buyer confirms item received; the order closes (CAP-22, CAP-27) | ORD-4 | AD-ORD-2, AD-2, AD-ORD-3 | 5 — `ORD-4.MEC`, `ORD-4.P2`, `ORD-4.P3` +2 | 7.2 (backlog), 7.4 (backlog) | red |
+| FR-ORD-3 | Buyer confirms "I paid" (CAP-20, CAP-22) | ORD-2 | AD-ORD-3, AD-ORD-2, AD-15, AD-SYS-5 | 7 — `ORD-2.I2`, `ORD-2.MEC`, `ORD-2.P1` +4 | 7.2 (done), 7.4 (backlog) | red |
+| FR-ORD-4 | Business confirms payment received (CAP-20, CAP-22) | ORD-3 | AD-ORD-2, AD-2, AD-SYS-2, AD-15 | 6 — `ORD-3.I3`, `ORD-3.MEC`, `ORD-3.P2` +3 | 7.2 (done), 7.4 (backlog) | red |
+| FR-ORD-5 | Buyer confirms item received; the order closes (CAP-22, CAP-27) | ORD-4 | AD-ORD-2, AD-2, AD-ORD-3 | 5 — `ORD-4.MEC`, `ORD-4.P2`, `ORD-4.P3` +2 | 7.2 (done), 7.4 (backlog) | red |
 | FR-ORD-6 | Visibility and fact queries (CAP-22, CAP-20) | S-FR-ORD-6 | AD-ORD-3, AD-15 | 2 — `S-FR-ORD-6.f`, `S-FR-ORD-6.h` | 7.5 (backlog) | red |
 | FR-ORD-7 | Buyer cancels before paying (CAP-17) | S-FR-ORD-7 | AD-ORD-2, AD-INV-2 | 2 — `S-FR-ORD-7.f`, `S-FR-ORD-7.h` | 7.5 (backlog) | red |
 | FR-ORD-8 | Expire unpaid orders (CAP-17) | S-FR-ORD-8 | AD-ORD-2, AD-SYS-6 | 2 — `S-FR-ORD-8.f`, `S-FR-ORD-8.h` | 7.5 (backlog) | red |
@@ -198,7 +198,7 @@
 | AD | Invariant | Enforcement point | Tests that turn red on violation | Story | Status |
 |---|---|---|---|---|---|
 | AD-1 | Module dependency graph is AD-1's | Each module imports only neighbours' `index.ts`; `catalog` imports no module; admin guard lives in `server/trpc` | `SYS-AD1` | 1.4 (done) | green |
-| AD-2 | Three facts, no custody | Fact CHECKs on `"Order"`; no balance/escrow/payment column | `ORD-2.I2`, `ORD-1.I4` | 7.1 (done), 7.2 (backlog) | red |
+| AD-2 | Three facts, no custody | Fact CHECKs on `"Order"`; no balance/escrow/payment column | `ORD-2.I2`, `ORD-1.I4` | 7.1 (done), 7.2 (done) | red |
 | AD-3 | Commission balance is the single source of purchasability | Fail-closed `SellerCommissionState` read `FOR SHARE` at listing insert; projection seq gate | `INV-2.I2`, `INV-3.I2` | 5.1 (done), 5.5 (done) | red |
 | AD-4 | Trading is a one-way flow off `listings` | `CHECK (sellerKindAtCreation='individual' OR NOT openToTrade)`; `getTradeability` / `reserveForTrade` ports | `INV-2.I4`, `TRD-1.I1` | 5.3 (done), 10.3 (backlog) | red |
 | AD-5 | One location query path | One SQL builder with no seller-kind branch | `DSC-1.I1` | 6.2 (done) | red |
@@ -211,7 +211,7 @@
 | AD-12 | Hide, never delete | `DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate | `REP-2.I1`, `DSC-1.I2` | 6.2 (done), 13.2 (backlog) | red |
 | AD-13 | `legalIdentity` under Ley 1581 | Split table; one repository reader | `VER-3.I2`, `IDN-3.I1` | 2.5 (done), 3.4 (done) | red |
 | AD-14 | Signed URLs, 10-minute TTL | `ObjectStorage.sign(key, 600)` | `VER-3.I3` | 3.4 (done) | red |
-| AD-15 | Business sees an order from `buyerPaidConfirmedAt` | One visibility predicate | `ORD-3.I3`, `ORD-3.MEC` | 7.2 (backlog) | red |
+| AD-15 | Business sees an order from `buyerPaidConfirmedAt` | One visibility predicate | `ORD-3.I3`, `ORD-3.MEC` | 7.2 (done) | red |
 | AD-16 | Roles derived server-side | `deriveCapabilities`; no role-like input key | `IDN-2.I1`, `SYS-8.R2` | 1.1 (done), 2.3 (done) | red |
 | AD-17 | Comprobante is regulated data | `regulated.ts` + redactor; promotion through quarantine | `S-FR-ORD-2.f`, `SYS-8.R4` | 1.2 (done), 7.1 (done) | red |
 | AD-18 | Exclusivity by rejecting the second state-granting action | Conditional `UPDATE "User"."sellerTrack"`; composite FKs | `IDN-1.MEC` | 2.2 (done) | red |
@@ -239,8 +239,8 @@
 | AD-DSC-1 | SQL distance equals the TS reference | One haversine expression; `+ 1e-6` inclusive bound | `DSC-1.I4`, `DSC-2.MEC` | 6.2 (done), 6.3 (done) | red |
 | AD-DSC-2 | At most 3 neighbour calls per request | Composition in `listings` | `DSC-2.Q1` | 6.3 (done) | red |
 | AD-ORD-1 | Creation serialized per buyer | `orders:buyer` advisory lock + derived count | `ORD-1.I2` | 7.1 (done) | red |
-| AD-ORD-2 | Facts set once; expiry derived and materialized once | `IS NULL` predicates; `expiresAt > now` | `ORD-2.MEC`, `ORD-4.MEC` | 7.2 (backlog) | red |
-| AD-ORD-3 | One visibility predicate; locked comprobante | Visibility SQL; comprobante update predicate | `ORD-3.I3`, `S-FR-ORD-2.f` | 7.1 (done), 7.2 (backlog) | red |
+| AD-ORD-2 | Facts set once; expiry derived and materialized once | `IS NULL` predicates; `expiresAt > now` | `ORD-2.MEC`, `ORD-4.MEC` | 7.2 (done) | red |
+| AD-ORD-3 | One visibility predicate; locked comprobante | Visibility SQL; comprobante update predicate | `ORD-3.I3`, `S-FR-ORD-2.f` | 7.1 (done), 7.2 (done) | red |
 | AD-COM-1 | One atomic account update + one ledger entry | `UPDATE … RETURNING`; `UNIQUE (businessId, seq)` | `COM-3.I1` | 8.5 (backlog) | red |
 | AD-COM-2 | Deduction keyed by `orderId`, priced at the trigger time | Partial unique; rate by `commissionTriggeredAt` | `COM-1.I1` | 8.2 (backlog) | red |
 | AD-COM-3 | Top-ups have one domain path | `WHERE status='Pending'`; unique TopUp entry | `COM-2.I1` | 8.3 (backlog) | red |
@@ -268,7 +268,7 @@
 | R-03 A renamed or reprinted card gets a new id and orphans its listings … | P0 | CAT | Integration | `CAT-2.MEC`, `CAT-2.I1` | 4.2 (done) | red |
 | R-04 Radius boundary, missing coordinates or an entry whose listings are… | P0 | DSC | Integration (boundary) | `DSC-2.MEC`, `DSC-2.MEC2` | 6.3 (done) | red |
 | R-05 A caller aborts after a reserve and the stock is not restored; the … | P0 | INV | Integration (race, abort) | `INV-1.MEC`, `INV-1.I1`, `INV-1.I3` | 5.2 (done) | red |
-| R-06 A business confirms payment before the buyer's "paid", or a double … | P0 | ORD | Integration (race) | `ORD-3.MEC`, `ORD-4.MEC`, `ORD-2.MEC` | 7.2 (backlog) | red |
+| R-06 A business confirms payment before the buyer's "paid", or a double … | P0 | ORD | Integration (race) | `ORD-3.MEC`, `ORD-4.MEC`, `ORD-2.MEC` | 7.2 (done) | red |
 | R-07 Two orders at one instant against one order's balance, plus a dupli… | P0 | COM | Integration (race, repeat) | `COM-1.MEC`, `COM-1.MEC2` | 8.2 (backlog) | red |
 | R-08 Two offers for the last unit are accepted from two tabs, and both h… | P0 | TRD | Integration (race, 100 ×) | `TRD-1.MEC` | 10.3 (backlog) | red |
 | R-09 Long, accented or emoji product names break the contact message; th… | P0 | MSG | Integration (boundary, race) | `MSG-2.MEC`, `MSG-3.MEC` | 9.2 (backlog), 9.3 (backlog) | red |

@@ -2,7 +2,7 @@
 title: 'Story 7.2: Confirm paid and close orders safely in any order'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'f595122'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -59,10 +59,10 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] domain loser mappings and lines, with unit tests
-- [ ] the three commands with their events and audit rows; §13 rows and the generator
-- [ ] the three procedures with HTTP cases
-- [ ] `sprint-status.yaml` -- 7.2 `done`; `gen:trace:solu2`
+- [x] domain loser mappings and lines, with unit tests
+- [x] the three commands with their events and audit rows; §13 rows and the generator
+- [x] the three procedures with HTTP cases
+- [x] `sprint-status.yaml` -- 7.2 `done`; `gen:trace:solu2`
 
 **Acceptance Criteria:**
 - Given 7.2 and 7.5 `done`, when the 11 bound tests run, then they pass, and `[ORD-2.MEC]`, `[ORD-3.MEC]` and `[ORD-4.MEC]` run their full count against Postgres. Story 7.4's seven tests are early greens, restored by the 7.4 commit (decision #23).
@@ -76,3 +76,10 @@ context:
 ## Implementation Notes
 
 - Code review is batched with the rest of Epic 7 at its close (decision #22).
+- Martín approved the five specs together (decision log Impl-1 #32). This story is committed after 7.3 and before 7.4 and 7.5. Its commit is red locally on `[ORD-2.I2]` and `[ORD-2.MEC]`, which call 7.5's `cancelOrder` and `expireDueOrders`, until 7.5 lands (decision #23).
+- One private `refuseFact` maps every 0-row update. It re-reads through the visibility predicate in the same transaction and applies the story's domain mapping (`paidLoserCode`, `paymentReceivedLoserCode`, `itemReceivedLoserCode`). For `OrderNoLongerActive` it materializes an unmaterialized expiry (the conditional expiry, the release and a `system` audit row) and returns the refusal, so the transaction commits before it is raised (AD-ORD-2 rule 4). Every other refusal is thrown inside the transaction and writes nothing.
+- `OrderNotVisibleToCaller` cites only `{ visible: false }` under `AD-ORD-3 rule 1`, so a foreign id and an unknown id give byte-identical bodies (S-2).
+- `OrderAlreadyConfirmedByRole` cites the role's own stored instant: paid, received or item.
+- `OrderClosed` lines come from the pure `closedLines`. A bundle's component lines carry the bundle's title, because `orders` has no catalog port that names each component. The single-listing line's `itemRef` is the snapshot's; INV-1 Q2 always fills it for a single listing.
+- §13: `OrderPaidConfirmed`, `OrderPaymentReceived` and `OrderItemReceived` join as stored-only rows with no placeholders (decision #16).
+- MEC runtime (TG-7, local Postgres 16, real connections): `[ORD-3.MEC]` 201 ms; `[ORD-4.MEC]` 182 ms (a 2-way race plus the out-of-order refusal); `[ORD-2.MEC]` is recorded with Story 7.5, which builds the expiry job it races.
