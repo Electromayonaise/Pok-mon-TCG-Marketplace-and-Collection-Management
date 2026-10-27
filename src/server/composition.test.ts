@@ -1,6 +1,7 @@
 // The production composition over HTTP (decision log Impl-1 #24): a real Better Auth session on
 // the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2, VER-3, the supporting
-// VER contracts and S-SYS.replay,
+// VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
+// (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -8,8 +9,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '../../generated/prisma/client.js';
 import { VirtualClock } from '../../test-support/clock.js';
 import { useTestDatabase } from '../../test-support/db.js';
-import { InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
-import { admin, at, business, DAY, id, ins, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
+import { FixtureFeedSource, FixtureFxRateSource, InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
+import { admin, at, business, catalogEntry, DAY, feedRun, HOUR, id, ins, observation, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
 import { createAuth } from './auth.js';
 import { compose } from './composition.js';
 import { betterAuthSessions } from './sessions.js';
@@ -19,13 +20,17 @@ const db = useTestDatabase();
 const SECRET = 'composition-test-secret-0123456789abcdef';
 const clock = new VirtualClock();
 const storage = new InMemoryObjectStorage(clock);
+const feed = new FixtureFeedSource({
+  current: [{ externalKey: 'sv1-025', setCode: 'SV1', number: '025', name: 'Pikachu', kind: 'card', eraCode: 'SV' }], previous: [], defects: [], renamed: [],
+});
 let app: ReturnType<typeof compose>;
 let sessions = 0;
 
 beforeAll(() => {
   const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000' });
   const ok = async () => undefined;
-  app = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { commission: ok, listings: ok, collections: ok }, storage, scanner: new SimulatedScanner() });
+  app = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { commission: ok, listings: ok, collections: ok }, storage, scanner: new SimulatedScanner(), feed,
+    fx: new FixtureFxRateSource([{ valor: '4130.00', validFrom: '2026-10-01', validTo: '2026-10-01' }]) });
 });
 
 /** A live `"Session"` row and the cookie Better Auth signs for it (HMAC-SHA256 of the token). */
@@ -290,6 +295,80 @@ describe('the legal-identity read and its audit over HTTP (VER-3, S-FR-VER-5.aud
       .toMatchObject({ rows: [{ actorId: id('admin'), applicationId, outcome: 'granted' }], nextCursor: null });
     await user(db, { id: id('camila') });
     expect((await get('verification.legalIdentityAudit', { cursor: null }, await signIn(id('camila')))).json.error?.code).toBe('AdminOnly');
+  });
+});
+
+describe('the catalog feed over HTTP (CAT-1, CAT-2.ingress, CAT-1.runs; Story 4.1)', () => {
+  it('a signed-in non-admin is AdminOnly 403 on start, continue and runs, and no run exists', async () => {
+    await user(db, { id: id('camila') });
+    const cookie = await signIn(id('camila'));
+    expect((await post('catalog.feed.start', {}, cookie)).status).toBe(403);
+    expect((await post('catalog.feed.continue', { runId: id('run1') }, cookie)).status).toBe(403);
+    expect((await get('catalog.feed.runs', { cursor: null }, cookie)).status).toBe(403);
+    expect(await rows(db, 'FeedIngestionRun')).toHaveLength(0);
+  });
+
+  it('an admin starts a run, continues it to the end and lists it, and the audit row names the session admin', async () => {
+    await admin(db);
+    await ins(db, 'CatalogSet', { id: id('setsv1'), code: 'SV1', name: 'Escarlata y Púrpura', era: 'SV' });
+    const cookie = await signIn(id('admin'));
+    const started = await post('catalog.feed.start', {}, cookie);
+    expect([started.status, started.json.result?.data]).toEqual([200, expect.objectContaining({ decision: expect.objectContaining({ reasonCode: 'FeedRunStarted' }) })]);
+    const runId = started.json.result?.data.runId;
+    const continued = await post('catalog.feed.continue', { runId }, cookie);
+    expect([continued.status, continued.json.result?.data]).toEqual([200, { done: true, status: 'Completed', cursor: 1 }]);
+    const listed = await get('catalog.feed.runs', { cursor: null }, cookie);
+    expect(listed.json.result?.data).toMatchObject({ runs: [{ runId, status: 'Completed', created: 1 }], nextCursor: null });
+    expect(await rows(db, 'audit_events', `action = 'catalog.feedRun.started'`)).toMatchObject([{ actorId: id('admin') }]);
+  });
+
+  it('an admin lists a run\'s quarantined rows without the raw row (CAT-2.quarantine, Story 4.2); a non-admin is AdminOnly 403', async () => {
+    await admin(db);
+    await user(db, { id: id('camila') });
+    await feedRun(db, id('run1'));
+    await ins(db, 'QuarantinedFeedRow', { id: id('q1'), runId: id('run1'), rowNumber: 7, externalKey: 'sv1-025', reasonCode: 'KindChanged', rawRow: '{"secret":"raw"}' }, 'created');
+    const listed = await get('catalog.feed.quarantine', { runId: id('run1'), cursor: null }, await signIn(id('admin')));
+    expect([listed.status, listed.json.result?.data]).toEqual([200, { rows: [{ rowNumber: 7, externalKey: 'sv1-025', reasonCode: 'KindChanged' }], nextCursor: null }]);
+    expect((await get('catalog.feed.quarantine', { runId: id('run1'), cursor: null }, await signIn(id('camila')))).status).toBe(403);
+  });
+
+  it('a second start while a run is live is FeedRunInProgress 409', async () => {
+    await admin(db);
+    await feedRun(db, id('run1'), { status: 'Running', startedAt: at(-DAY / 2) });
+    const { status, json } = await post('catalog.feed.start', {}, await signIn(id('admin')));
+    expect([status, json.error?.code]).toEqual([409, 'FeedRunInProgress']);
+  });
+});
+
+describe('the reference prices over HTTP (CAT-3, S-FR-CAT-8.fetch; Story 4.4)', () => {
+  it('anyone reads the provenance without a session; an unknown id is CatalogEntryNotFound 404', async () => {
+    await catalogEntry(db, id('char'));
+    await feedRun(db, id('run1'));
+    await observation(db, { id: id('o1'), catalogEntryId: id('char'), cop: 45_000, observedAt: at(-HOUR), runId: id('run1') });
+    const read = await get('catalog.provenance', { catalogEntryIds: [id('char')], period: 30 }, '');
+    expect([read.status, read.json.result?.data]).toEqual([200, { items: [expect.objectContaining({ freshness: 'fresh', lastTransactionReference: expect.objectContaining({ cop: 45_000 }) })] }]);
+    const missing = await get('catalog.provenance', { catalogEntryIds: [id('ghost')], period: 30 }, '');
+    expect([missing.status, missing.json.error?.code]).toEqual([404, 'CatalogEntryNotFound']);
+  });
+
+  it('an admin retries the TRM fetch and today\'s rate is stored once; a non-admin is AdminOnly 403', async () => {
+    await admin(db);
+    await user(db, { id: id('camila') });
+    expect((await post('catalog.fx.retry', {}, await signIn(id('camila')))).status).toBe(403);
+    const cookie = await signIn(id('admin'));
+    expect((await post('catalog.fx.retry', {}, cookie)).json.result?.data).toMatchObject({ outcome: 'stored' });
+    expect((await post('catalog.fx.retry', {}, cookie)).json.result?.data).toMatchObject({ outcome: 'alreadyCovered' });
+    expect(await rows(db, 'FxRate')).toHaveLength(1);
+  });
+});
+
+describe('catalog.browse over HTTP (S-FR-CAT-1; Story 4.5)', () => {
+  it('anyone browses without a session; pageSize 101 is RequestValidationFailed 400 from the parser', async () => {
+    await catalogEntry(db, id('pika'), { name: 'Pikachu' });
+    const read = await get('catalog.browse', { filters: { nameQuery: 'pika' }, page: 1, pageSize: 24 }, '');
+    expect([read.status, read.json.result?.data]).toEqual([200, expect.objectContaining({ total: 1, entries: [expect.objectContaining({ catalogEntryId: id('pika') })] })]);
+    const refused = await get('catalog.browse', { filters: {}, page: 1, pageSize: 101 }, '');
+    expect([refused.status, refused.json.error?.code]).toEqual([400, 'RequestValidationFailed']);
   });
 });
 

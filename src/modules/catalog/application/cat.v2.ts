@@ -41,73 +41,489 @@ export interface CatV2UseCases {
 }
 // </gen-solu2-api>
 
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import type { Citation, Decision } from '../../../shared-kernel/decision.js';
+import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest } from '../../../shared-kernel/request.js';
+import type { FeedSourceRow } from '../../../shared-kernel/external.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import {
+  bogotaDate, changePercent, copFromUsd, decodeQuarantineCursor, decodeRunCursor, diffAttributes, encodeQuarantineCursor, encodeRunCursor, isStale, numberSort, observedAtOf, parseTrm, validateRow, type FeedRowPrice,
+} from '../domain/cat.js';
+import type { PriceProvenanceDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
+import type { BatchCounts, RunState } from '../ports/cat.v2.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('catalog');
+
+/** AD-CAT-1 rule 3: rows per batch transaction. */
+const BATCH_ROWS = 500;
+/** AD-CAT-1 rules 2–3: a lease lives 90 s from each renewal. */
+const LEASE_MS = 90_000;
+/** AD-CAT-1 rule 4: no new batch starts after 50 s of one `continue`. */
+const CONTINUE_BUDGET_MS = 50_000;
+/** AD-CAT-1 rule 7: a run whose lease (or start) is older than 24 h no longer blocks. */
+const ABANDONED_MS = 24 * 3_600_000;
+/** CAT-1.runs: the page size. */
+const RUNS_PAGE = 25;
+/** CAT-2.quarantine: the page size. */
+const QUARANTINE_PAGE = 50;
+
+/** FR-CAT-7: the freshness threshold (configuration, default 36). */
+const FRESHNESS_HOURS = 36;
+/** P1 of CAT-3 and of the batch ports: at most 500 ids. */
+const MAX_IDS = 500;
+const DAY_MS = 86_400_000;
+/** S-FR-CAT-1: the largest page. */
+const MAX_PAGE_SIZE = 100;
+/** P-CAT.match (AD-DSC-2 rule 2): more matches than this answer `tooBroad`. */
+const MAX_MATCH = 20_000;
+
+const plus = (instant: Date, ms: number): IsoInstant => new Date(instant.getTime() + ms).toISOString();
+/** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
+function explained(outcome: Decision['outcome'], code: MessageCode, rule: string, inputs: Citation['inputs'], now: IsoInstant): Decision {
+  return { outcome, reasonCode: code, humanMessage: renderMessage(code, inputs), citations: [{ rule, inputs }], occurredAt: now };
+}
+
+/** CAT-3 P3: the trend periods. */
+const PERIODS: readonly number[] = [7, 30, 90];
+
+/** A real calendar date `YYYY-MM-DD`. */
+function isIsoDate(date: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date)) && new Date(Date.parse(date)).toISOString().startsWith(date);
+}
+
+/** AD-CAT-3: the source's row is ordered, well formed and covers `day`. */
+function coversDay(rate: { validFrom: string; validTo: string }, day: string): boolean {
+  return isIsoDate(rate.validFrom) && isIsoDate(rate.validTo) && rate.validFrom <= day && day <= rate.validTo;
+}
+
+/** AD-CAT-1 rule 7: the code a source error carries, for the failed run's audit row. A missing adapter is no source failure. */
+function sourceFailure(error: unknown): string {
+  if (error instanceof NotImplementedError) throw error;
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' ? code : 'SourceError';
+}
+
+/** The batch ports' bound (§15.11): 1–500 ids, refused through the kernel otherwise; returned de-duplicated, in input order. */
+function boundedList(field: string, ids: readonly string[]): string[] {
+  if (ids.length < 1 || ids.length > MAX_IDS) rejectRequest([{ field, issue: `debe tener entre 1 y ${MAX_IDS} elementos` }]);
+  return [...new Set(ids)];
+}
+
+/** CAT-3 P1: 1–500 distinct ids; a duplicate is refused, since the response has one element per input id. */
+function boundedIds(field: string, ids: readonly string[]): void {
+  if (boundedList(field, ids).length !== ids.length) rejectRequest([{ field, issue: 'no puede repetir elementos' }]);
+}
+
+const NO_COUNTS: BatchCounts = { created: 0, updated: 0, unchanged: 0, quarantined: 0, deferredNoFx: 0 };
+
+/** CAT (contracts.md §3, §15, §15.11–12): the catalog, its feed and its reference prices. */
 export class CatServiceV2 implements CatV2UseCases {
   constructor(protected readonly deps: CatV2Deps) {}
 
-  async startFeedRun(_input: StartFeedRunRequest): Promise<StartFeedRunResponse> {
-    throw new NotImplementedError('catalog.startFeedRun');
+  /** The refusal of a start (rule 1) or a continue (rule 2) while `run` is live (AD-CAT-1). */
+  private refuseLiveRun(run: Pick<RunState, 'runId' | 'startedAt'>, rule: 'AD-CAT-1 rule 1' | 'AD-CAT-1 rule 2'): never {
+    return raise('FeedRunInProgress', [{ rule, inputs: { runId: run.runId, startedAt: run.startedAt } }]);
   }
 
-  async continueFeedRun(_input: ContinueFeedRunRequest): Promise<ContinueFeedRunResponse> {
-    throw new NotImplementedError('catalog.continueFeedRun');
+  /**
+   * CAT-1, AD-CAT-1 rules 1 and 7: fail the abandoned run, then insert the Running row. The
+   * partial unique index is the lock; a 23505 cites the live run and rolls everything back.
+   */
+  async startFeedRun(input: StartFeedRunRequest): Promise<StartFeedRunResponse> {
+    const { repo, transactions, clock, ids, audit } = this.deps;
+    return transactions.run(async (tx) => {
+      const at = clock.now();
+      const now = at.toISOString();
+      const failed = await repo.failAbandonedRuns(tx, plus(at, -ABANDONED_MS), now);
+      const runId = ids.next();
+      if (!(await repo.insertRunningRun(tx, runId, now))) {
+        const live = await repo.readRunningRun(tx);
+        if (live === null) throw new UnexpectedError('feed_run_single_running refused the insert, but no run is Running');
+        return this.refuseLiveRun(live, 'AD-CAT-1 rule 1');
+      }
+      for (const abandoned of failed) {
+        await audit.record(tx, {
+          actorId: input.actorId, actorKind: 'admin', module: 'catalog', action: 'catalog.feedRun.failedAbandoned',
+          aggregateType: 'FeedIngestionRun', aggregateId: abandoned, decisionCode: null, data: { runId: abandoned }, at: now,
+        });
+      }
+      await audit.record(tx, {
+        actorId: input.actorId, actorKind: 'admin', module: 'catalog', action: 'catalog.feedRun.started',
+        aggregateType: 'FeedIngestionRun', aggregateId: runId, decisionCode: 'FeedRunStarted', data: { runId }, at: now,
+      });
+      return { runId, startedAt: now, decision: explained('allowed', 'FeedRunStarted', 'AD-CAT-1 rule 1', { runId }, now) };
+    });
   }
 
-  async upsertCatalogEntry(_tx: Tx, _input: UpsertCatalogEntryRequest): Promise<UpsertCatalogEntryResponse> {
-    throw new NotImplementedError('catalog.upsertCatalogEntry');
+  /**
+   * CAT-2.ingress, AD-CAT-1 rules 2–4 and 7: claim the lease with a fresh token, then run batches
+   * of 500 rows, each one transaction that renews the lease first. Stops after 50 s and hands
+   * the lease back, so the console's next call resumes from `cursor`.
+   */
+  async continueFeedRun(input: ContinueFeedRunRequest): Promise<ContinueFeedRunResponse> {
+    const { repo, transactions, clock, ids, feed } = this.deps;
+    const { runId } = input;
+    const token = ids.next();
+    const started = clock.now();
+    const claimed = await transactions.run(async (tx) => {
+      if (await repo.claimLease(tx, runId, token, started.toISOString(), plus(started, LEASE_MS))) return null;
+      const run = await repo.readRun(tx, runId);
+      if (run === null) return rejectRequest([{ field: 'runId', issue: 'no corresponde a ninguna carga del catálogo' }]);
+      if (run.status !== 'Running') return { done: true, status: run.status, cursor: run.cursor };
+      return this.refuseLiveRun(run, 'AD-CAT-1 rule 2');
+    });
+    if (claimed !== null) return claimed;
+
+    let cursor = (await transactions.run((tx) => repo.readRun(tx, runId)))!.cursor;
+    let source: string;
+    try {
+      source = (await feed.openRun()).sourceName;
+    } catch (error) {
+      return this.failRun(input, token, cursor, sourceFailure(error));
+    }
+    for (;;) {
+      let batch: { rows: { rowNumber: number; row: FeedSourceRow }[]; done: boolean };
+      try {
+        batch = await feed.readRows(cursor, BATCH_ROWS);
+      } catch (error) {
+        return this.failRun(input, token, cursor, sourceFailure(error));
+      }
+      // A source with nothing more yet but not done: hand the run back instead of spinning on empty batches.
+      if (batch.rows.length === 0 && !batch.done) {
+        await transactions.run((tx) => repo.releaseLease(tx, runId, token, clock.now().toISOString()));
+        return { done: false, status: 'Running', cursor };
+      }
+      const outcome = await transactions.run(async (tx) => {
+        const at = clock.now();
+        const now = at.toISOString();
+        if (!(await repo.renewLease(tx, runId, token, now, plus(at, LEASE_MS)))) return 'lost' as const;
+        const counts = await this.applyBatch(tx, runId, source, batch.rows, now);
+        const next = cursor + batch.rows.length;
+        await repo.advanceRun(tx, runId, token, next, counts, batch.done, now);
+        await this.deps.audit.record(tx, {
+          actorId: input.actorId, actorKind: 'admin', module: 'catalog', action: 'catalog.feedBatch.applied',
+          aggregateType: 'FeedIngestionRun', aggregateId: runId, decisionCode: null, data: { cursor: next, ...counts }, at: now,
+        });
+        return next;
+      });
+      if (outcome === 'lost') return this.stateOf(runId);
+      cursor = outcome;
+      if (batch.done) return { done: true, status: 'Completed', cursor };
+      if (clock.now().getTime() - started.getTime() >= CONTINUE_BUDGET_MS) {
+        await transactions.run((tx) => repo.releaseLease(tx, runId, token, clock.now().toISOString()));
+        return { done: false, status: 'Running', cursor };
+      }
+    }
   }
 
-  async getPriceProvenance(_input: GetPriceProvenanceRequest): Promise<GetPriceProvenanceResponse> {
-    throw new NotImplementedError('catalog.getPriceProvenance');
+  /** A continue that lost its lease answers the run as it now stands: another caller may have finished or failed it. */
+  private async stateOf(runId: CuidId): Promise<ContinueFeedRunResponse> {
+    const run = (await this.deps.transactions.run((tx) => this.deps.repo.readRun(tx, runId)))!;
+    return { done: run.status !== 'Running', status: run.status, cursor: run.cursor };
   }
 
-  async browseCatalog(_input: BrowseCatalogRequest): Promise<BrowseCatalogResponse> {
-    throw new NotImplementedError('catalog.browseCatalog');
+  /** AD-CAT-1 rule 7: a source error fails the run under the token check, recording the error's code. */
+  private async failRun(input: ContinueFeedRunRequest, token: string, cursor: number, cause: string): Promise<ContinueFeedRunResponse> {
+    const { repo, transactions, clock, audit } = this.deps;
+    const failed = await transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      if (!(await repo.failRun(tx, input.runId, token, now))) return false;
+      await audit.record(tx, {
+        actorId: input.actorId, actorKind: 'admin', module: 'catalog', action: 'catalog.feedRun.failed',
+        aggregateType: 'FeedIngestionRun', aggregateId: input.runId, decisionCode: null, data: { cursor, cause }, at: now,
+      });
+      return true;
+    });
+    return failed ? { done: true, status: 'Failed', cursor } : this.stateOf(input.runId);
   }
 
-  async fetchTrm(_input: FetchTrmRequest): Promise<FetchTrmResponse> {
-    throw new NotImplementedError('catalog.fetchTrm');
+  /** AD-CAT-1 rule 3 for one batch: validate, quarantine or upsert, and store each price once (AD-CAT-2 rules 1–2). */
+  private async applyBatch(tx: Tx, runId: CuidId, source: string, rows: { rowNumber: number; row: FeedSourceRow }[], now: IsoInstant): Promise<BatchCounts> {
+    const { repo, ids } = this.deps;
+    const counts = { ...NO_COUNTS };
+    const sets = await repo.readSetIds(tx);
+    const rates = new Map<string, { copPerUsdCentavos: number; validFrom: string } | null>();
+    const rateAt = async (observedAt: string) => {
+      const date = bogotaDate(observedAt);
+      if (!rates.has(date)) rates.set(date, await repo.readRateOnOrBefore(tx, date));
+      return rates.get(date)!;
+    };
+    const knownSetCodes = new Set(sets.keys());
+    for (const { rowNumber, row: raw } of rows) {
+      // Loads the TRM of the row's date first, so the pure validateRow reads it synchronously.
+      const observedAt = observedAtOf(raw, now);
+      if (observedAt !== null) await rateAt(observedAt);
+      const verdict = validateRow(raw, {
+        knownSetCodes, now,
+        copPerUsdCentavos: (observedAt) => rates.get(bogotaDate(observedAt))?.copPerUsdCentavos ?? null,
+      });
+      if (!verdict.ok) {
+        const externalKey = typeof raw.externalKey === 'string' && raw.externalKey !== '' ? raw.externalKey : null;
+        await repo.quarantineRow(tx, { id: ids.next(), runId, rowNumber, externalKey, reasonCode: verdict.reason, rawRow: raw }, now);
+        counts.quarantined++;
+        continue;
+      }
+      const result = await this.upsert(tx, verdict.row, runId, rowNumber, now, sets, raw);
+      if (result.outcome === 'quarantinedKindChanged') counts.quarantined++;
+      else counts[result.outcome]++;
+      if (verdict.price !== null && result.outcome !== 'quarantinedKindChanged') {
+        if (!(await this.storePrice(tx, result.catalogEntryId, verdict.price, source, runId, now, rateAt))) counts.deferredNoFx++;
+      }
+    }
+    return counts;
   }
 
-  async getFxRate(_input: GetFxRateRequest): Promise<GetFxRateResponse> {
-    throw new NotImplementedError('catalog.getFxRate');
+  /** AD-CAT-2 rules 1–2: a COP price is stored as delivered; a USD-only one is converted once, or deferred without a TRM. */
+  private async storePrice(
+    tx: Tx, catalogEntryId: CuidId, price: FeedRowPrice, source: string, runId: CuidId, now: IsoInstant,
+    rateAt: (observedAt: string) => Promise<{ copPerUsdCentavos: number; validFrom: string } | null>,
+  ): Promise<boolean> {
+    let cop = price.cop;
+    let fxRateDate: string | null = null;
+    if (cop === null) {
+      const rate = await rateAt(price.observedAt);
+      if (rate === null) return false;
+      cop = copFromUsd(price.usdCents!, rate.copPerUsdCentavos);
+      fxRateDate = rate.validFrom;
+    }
+    await this.deps.repo.insertObservation(tx, {
+      id: this.deps.ids.next(), catalogEntryId, source, observedAt: price.observedAt, usdCents: price.usdCents, cop,
+      copDerivation: fxRateDate === null ? 'sourceNative' : 'fxDerived', fxRateDate, runId,
+    }, now);
+    return true;
   }
 
-  async getEntry(_input: GetEntryRequest): Promise<GetEntryResponse> {
-    throw new NotImplementedError('catalog.getEntry');
+  /**
+   * CAT-2, AD-CAT-1 rule 5 and AD-7: the upsert by `externalKey` keeps the id; a changed row writes
+   * one revision; a row whose kind differs is quarantined and the entry is not written.
+   */
+  async upsertCatalogEntry(tx: Tx, input: UpsertCatalogEntryRequest): Promise<UpsertCatalogEntryResponse> {
+    return this.upsert(tx, input.row, input.runId, input.rowNumber, this.deps.clock.now().toISOString(), await this.deps.repo.readSetIds(tx));
   }
 
-  async getEntries(_input: GetEntriesRequest): Promise<GetEntriesResponse> {
-    throw new NotImplementedError('catalog.getEntries');
+  private async upsert(
+    tx: Tx, row: ValidFeedRow, runId: CuidId, rowNumber: number, now: IsoInstant, sets: Map<string, CuidId>, raw: FeedSourceRow | null = null,
+  ): Promise<UpsertCatalogEntryResponse> {
+    const { repo, ids } = this.deps;
+    const setId = sets.get(row.setCode);
+    if (setId === undefined) throw new UnexpectedError(`CAT-2 P3: no CatalogSet with the code of row ${rowNumber}`);
+    const stored = await repo.readEntryByExternalKey(tx, row.externalKey);
+    if (stored !== null && stored.kind !== row.kind) {
+      await repo.quarantineRow(tx, { id: ids.next(), runId, rowNumber, externalKey: row.externalKey, reasonCode: 'KindChanged', rawRow: raw ?? { ...row } }, now);
+      return { catalogEntryId: stored.id, outcome: 'quarantinedKindChanged', changedFields: ['kind'] };
+    }
+    const sort = numberSort(row.number);
+    const written = await repo.upsertEntry(tx, ids.next(), row, setId, sort, now);
+    if (written === null) return { catalogEntryId: stored!.id, outcome: 'unchanged', changedFields: [] };
+    if (written.inserted) return { catalogEntryId: written.id, outcome: 'created', changedFields: [] };
+    const { id: _id, kind: _kind, ...before } = stored!;
+    const after = { setId, name: row.name, number: row.number, numberSort: sort, pokemon: row.pokemon, colour: row.colour, style: row.style, artist: row.artist, imageUrl: row.imageUrl };
+    const changedFields = diffAttributes(before, after);
+    await repo.insertRevision(tx, { id: ids.next(), catalogEntryId: written.id, runId, changedFields, before, after }, now);
+    return { catalogEntryId: written.id, outcome: 'updated', changedFields };
   }
 
-  async matchEntryIds(_input: MatchEntryIdsRequest): Promise<MatchEntryIdsResponse> {
-    throw new NotImplementedError('catalog.matchEntryIds');
+  /** CAT-1.runs: newest first, 25 per page, behind an opaque keyset cursor. Zero writes. */
+  async listFeedRuns(input: ListFeedRunsRequest): Promise<ListFeedRunsResponse> {
+    const { repo, transactions } = this.deps;
+    const after = input.cursor === null ? null : decodeRunCursor(input.cursor);
+    if (input.cursor !== null && after === null) rejectRequest([{ field: 'cursor', issue: 'no corresponde a una página de esta lista' }]);
+    return transactions.run(async (tx) => {
+      const runs = await repo.listRuns(tx, after, RUNS_PAGE + 1);
+      const page = runs.slice(0, RUNS_PAGE);
+      const last = page.at(-1);
+      return { runs: page, nextCursor: runs.length > RUNS_PAGE && last ? encodeRunCursor({ startedAt: last.startedAt, id: last.runId }) : null };
+    });
   }
 
-  async resolveItemRefs(_input: ResolveItemRefsRequest): Promise<ResolveItemRefsResponse> {
-    throw new NotImplementedError('catalog.resolveItemRefs');
+  /**
+   * CAT-3, AD-CAT-2 rules 3–5: the latest observation and the baseline, two indexed reads; stale
+   * is computed at read, and every returned price is one stored row unchanged. Zero writes.
+   */
+  async getPriceProvenance(input: GetPriceProvenanceRequest): Promise<GetPriceProvenanceResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { catalogEntryIds: ids, period } = input;
+    boundedIds('catalogEntryIds', ids);
+    if (!PERIODS.includes(period)) rejectRequest([{ field: 'period', issue: 'debe ser 7, 30 o 90' }]);
+    const at = clock.now();
+    const now = at.toISOString();
+    const periodStart = plus(at, -period * DAY_MS);
+    return transactions.run(async (tx) => {
+      const known = await repo.existingEntryIds(tx, ids);
+      const missing = ids.filter((id) => !known.has(id));
+      if (missing.length > 0) raise('CatalogEntryNotFound', [{ rule: 'FR-CAT-5', inputs: { missingIds: missing.join(',') } }]);
+      const latest = await repo.latestObservations(tx, ids, now);
+      const baselines = await repo.latestObservations(tx, ids, periodStart);
+      const items = ids.map((catalogEntryId): PriceProvenanceDTO => {
+        const last = latest.get(catalogEntryId) ?? null;
+        const base = baselines.get(catalogEntryId) ?? null;
+        const change = last === null ? null : changePercent(base?.cop ?? null, last.cop);
+        const trend = change === null
+          ? explained('allowed', 'TrendNoBaseline', 'FR-CAT-6', { periodStart }, now)
+          : explained('allowed', 'TrendComputed', 'FR-CAT-6', { periodStart, changePercentHundredths: change }, now);
+        let freshness: PriceProvenanceDTO['freshness'] = null;
+        let decision = explained('allowed', 'ReferencePriceMissing', 'FR-CAT-5', { catalogEntryId }, now);
+        if (last !== null) {
+          const inputs = { observedAt: last.observedAt, thresholdHours: FRESHNESS_HOURS };
+          freshness = isStale(last.observedAt, now, FRESHNESS_HOURS) ? 'stale' : 'fresh';
+          decision = freshness === 'stale'
+            ? explained('stale', 'ReferencePriceStale', 'FR-CAT-7', inputs, now)
+            : explained('allowed', 'ReferencePriceFresh', 'FR-CAT-7', inputs, now);
+        }
+        return {
+          catalogEntryId, lastTransactionReference: last, freshness, decision,
+          trend: { period, referencePriceAtStart: base, changePercentHundredths: change, decision: trend },
+        };
+      });
+      return { items };
+    });
   }
 
-  async getReferencePricesAsOf(_input: GetReferencePricesAsOfRequest): Promise<GetReferencePricesAsOfResponse> {
-    throw new NotImplementedError('catalog.getReferencePricesAsOf');
+  /** S-FR-CAT-1: one statement for the page, the total and the facets, in `(setId, numberSort, id)` order. Zero writes. */
+  async browseCatalog(input: BrowseCatalogRequest): Promise<BrowseCatalogResponse> {
+    const { page, pageSize, filters } = input;
+    if (!Number.isSafeInteger(page) || page < 1) rejectRequest([{ field: 'page', issue: 'debe ser un entero desde 1' }]);
+    if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) rejectRequest([{ field: 'pageSize', issue: `debe estar entre 1 y ${MAX_PAGE_SIZE}` }]);
+    return this.deps.transactions.run((tx) => this.deps.repo.browse(tx, filters, pageSize, (page - 1) * pageSize));
   }
 
-  async getPriceHistory(_input: GetPriceHistoryRequest): Promise<GetPriceHistoryResponse> {
-    throw new NotImplementedError('catalog.getPriceHistory');
+  async fetchTrm(input: FetchTrmRequest): Promise<FetchTrmResponse> {
+    const { repo, transactions, clock, ids, audit, fx } = this.deps;
+    const now = clock.now().toISOString();
+    const today = bogotaDate(now);
+    const rule = 'FR-CAT-8';
+    if ((await transactions.run((tx) => repo.readRateCovering(tx, today))) !== null) {
+      return { outcome: 'alreadyCovered', decision: explained('allowed', 'FxRateAlreadyCovered', rule, { today, trigger: input.trigger }, now) };
+    }
+    const unavailable = (): FetchTrmResponse =>
+      ({ outcome: 'sourceUnavailable', decision: explained('allowedWithNotice', 'FxRateSourceUnavailable', rule, { today, trigger: input.trigger }, now) });
+    let delivered: Awaited<ReturnType<typeof fx.getRateCovering>>;
+    try {
+      delivered = await fx.getRateCovering(today);
+    } catch (error) {
+      if (error instanceof NotImplementedError) throw error;
+      return unavailable();
+    }
+    const centavos = delivered === null ? null : parseTrm(delivered.valor);
+    // A row that is no rate covering today is refused as unavailable, never inserted (AD-CAT-3 rules 1–3).
+    if (delivered === null || centavos === null || !coversDay(delivered, today)) return unavailable();
+    const row = { copPerUsdCentavos: centavos, validFrom: delivered.validFrom, validTo: delivered.validTo };
+    return transactions.run(async (tx) => {
+      const id = ids.next();
+      const inputs = { validFrom: row.validFrom, validTo: row.validTo, copPerUsdCentavos: centavos };
+      if (await repo.insertFxRate(tx, { ...row, id, source: delivered.source }, now)) {
+        await audit.record(tx, {
+          actorId: null, actorKind: 'system', module: 'catalog', action: 'catalog.fxRate.stored',
+          aggregateType: 'FxRate', aggregateId: id, decisionCode: 'FxRateStored', data: { ...inputs, trigger: input.trigger }, at: now,
+        });
+        return { outcome: 'stored' as const, decision: explained('allowed', 'FxRateStored', rule, inputs, now) };
+      }
+      const stored = await repo.readOverlappingRate(tx, row.validFrom, row.validTo);
+      if (stored === null) throw new UnexpectedError('fx_rate_no_overlap refused the insert, but no stored rate overlaps it');
+      if (stored.copPerUsdCentavos === row.copPerUsdCentavos && stored.validFrom === row.validFrom && stored.validTo === row.validTo) {
+        return { outcome: 'alreadyCovered' as const, decision: explained('allowed', 'FxRateAlreadyCovered', rule, { today, trigger: input.trigger }, now) };
+      }
+      // A different value or a different range for a stored day: the stored row is kept (decision log Impl-1 #29).
+      const mismatch = { ...inputs, storedCopPerUsdCentavos: stored.copPerUsdCentavos, storedValidFrom: stored.validFrom, storedValidTo: stored.validTo };
+      await audit.record(tx, {
+        actorId: null, actorKind: 'system', module: 'catalog', action: 'catalog.fxRate.sourceMismatch',
+        aggregateType: 'FxRate', aggregateId: stored.id, decisionCode: 'FxRateSourceMismatch', data: { ...mismatch, trigger: input.trigger }, at: now,
+      });
+      return { outcome: 'mismatchKept' as const, decision: explained('allowedWithNotice', 'FxRateSourceMismatch', rule, mismatch, now) };
+    });
   }
 
-  async getSetSummaries(_input: GetSetSummariesRequest): Promise<GetSetSummariesResponse> {
-    throw new NotImplementedError('catalog.getSetSummaries');
+  /** S-FR-CAT-8.rate, AD-CAT-3 rule 5: the covering rate, else the latest earlier one, stale. Never writes. */
+  async getFxRate(input: GetFxRateRequest): Promise<GetFxRateResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const now = clock.now().toISOString();
+    const { date } = input;
+    if (!isIsoDate(date)) rejectRequest([{ field: 'date', issue: 'debe ser una fecha AAAA-MM-DD' }]);
+    return transactions.run(async (tx) => {
+      const covering = await repo.readRateCovering(tx, date);
+      if (covering !== null) return { ...covering, stale: false, decision: explained('allowed', 'FxRateCovered', 'FR-CAT-8', { date, validFrom: covering.validFrom }, now) };
+      const earlier = await repo.readRateBefore(tx, date);
+      // The DTO has no null: every deployment stores a rate on its first fetch (Story 4.4 spec).
+      if (earlier === null) throw new UnexpectedError(`no TRM is stored on or before ${date}`);
+      return { ...earlier, stale: true, decision: explained('stale', 'FxRateCarriedForward', 'FR-CAT-8', { date, validFrom: earlier.validFrom }, now) };
+    });
   }
 
-  async listFeedRuns(_input: ListFeedRunsRequest): Promise<ListFeedRunsResponse> {
-    throw new NotImplementedError('catalog.listFeedRuns');
+  /** P-CAT.entry (AD-CAT-1 rule 5): the entry by its stable id, else CatalogEntryNotFound. */
+  async getEntry(input: GetEntryRequest): Promise<GetEntryResponse> {
+    const { catalogEntryId } = input;
+    const [entry] = await this.deps.transactions.run((tx) => this.deps.repo.entriesByIds(tx, [catalogEntryId]));
+    return entry ?? raise('CatalogEntryNotFound', [{ rule: 'AD-CAT-1 rule 5', inputs: { catalogEntryId } }]);
   }
 
-  async listQuarantinedRows(_input: ListQuarantinedRowsRequest): Promise<ListQuarantinedRowsResponse> {
-    throw new NotImplementedError('catalog.listQuarantinedRows');
+  /** P-CAT.entries (AD-7): 1–500 ids; entries in input order, unknown ids in `missing`, never thrown. */
+  async getEntries(input: GetEntriesRequest): Promise<GetEntriesResponse> {
+    const ids = boundedList('catalogEntryIds', input.catalogEntryIds);
+    const found = new Map((await this.deps.transactions.run((tx) => this.deps.repo.entriesByIds(tx, ids))).map((e) => [e.catalogEntryId, e]));
+    return { entries: ids.flatMap((id) => found.get(id) ?? []), missing: ids.filter((id) => !found.has(id)) };
+  }
+
+  /** P-CAT.match (AD-DSC-2 rule 2): at most 20,000 ids in browse order, else `tooBroad`. */
+  async matchEntryIds(input: MatchEntryIdsRequest): Promise<MatchEntryIdsResponse> {
+    const ids = await this.deps.transactions.run((tx) => this.deps.repo.matchIds(tx, input.filters, MAX_MATCH + 1));
+    return ids.length > MAX_MATCH ? { ids: [], tooBroad: true } : { ids, tooBroad: false };
+  }
+
+  /** P-CAT.refs (AD-1, OQ-6): each ref's kind in input order; unknown refs in `missing`. */
+  async resolveItemRefs(input: ResolveItemRefsRequest): Promise<ResolveItemRefsResponse> {
+    const refs = boundedList('refs', input.refs);
+    const kinds = new Map((await this.deps.transactions.run((tx) => this.deps.repo.entriesByIds(tx, refs))).map((e) => [e.catalogEntryId, e.kind]));
+    return {
+      resolved: refs.flatMap((ref) => { const kind = kinds.get(ref); return kind ? [{ ref, kind }] : []; }),
+      missing: refs.filter((ref) => !kinds.has(ref)),
+    };
+  }
+
+  /** P-CAT.asOf (AD-CAT-2 rules 3, 5): the latest observation at or before `asOf`, stale relative to `asOf`. */
+  async getReferencePricesAsOf(input: GetReferencePricesAsOfRequest): Promise<GetReferencePricesAsOfResponse> {
+    const ids = boundedList('catalogEntryIds', input.catalogEntryIds);
+    if (Number.isNaN(Date.parse(input.asOf))) rejectRequest([{ field: 'asOf', issue: 'debe ser un instante ISO 8601' }]);
+    const asOf = new Date(input.asOf).toISOString();
+    const latest = await this.deps.transactions.run((tx) => this.deps.repo.latestObservations(tx, ids, asOf));
+    return {
+      prices: ids.map((catalogEntryId) => {
+        const price = latest.get(catalogEntryId) ?? null;
+        return { catalogEntryId, price, stale: price !== null && isStale(price.observedAt, asOf, FRESHNESS_HOURS) };
+      }),
+    };
+  }
+
+  /** P-CAT.history (AD-CAT-2 rule 5): the observations in `[from, to]` plus the carried-in one before `from`. */
+  async getPriceHistory(input: GetPriceHistoryRequest): Promise<GetPriceHistoryResponse> {
+    const ids = boundedList('catalogEntryIds', input.catalogEntryIds);
+    if (!(Date.parse(input.from) <= Date.parse(input.to))) rejectRequest([{ field: 'from', issue: 'debe ser anterior o igual a to' }]);
+    const from = new Date(input.from).toISOString();
+    const to = new Date(input.to).toISOString();
+    const series = await this.deps.transactions.run((tx) => this.deps.repo.priceHistory(tx, ids, from, to));
+    return { series: ids.map((catalogEntryId) => ({ catalogEntryId, observations: series.get(catalogEntryId) ?? [] })) };
+  }
+
+  /** P-CAT.sets (AD-COL-1 rule 5): each known set's name and card count, never sealed products. */
+  async getSetSummaries(input: GetSetSummariesRequest): Promise<GetSetSummariesResponse> {
+    const setIds = boundedList('setIds', input.setIds);
+    const found = new Map((await this.deps.transactions.run((tx) => this.deps.repo.setSummaries(tx, setIds))).map((r) => [r.setId, r]));
+    return { sets: setIds.flatMap((setId) => found.get(setId) ?? []) };
+  }
+
+  async listQuarantinedRows(input: ListQuarantinedRowsRequest): Promise<ListQuarantinedRowsResponse> {
+    const { repo, transactions } = this.deps;
+    const after = input.cursor === null ? null : decodeQuarantineCursor(input.cursor);
+    const reasonCode = input.reasonCode ?? null;
+    if (input.cursor !== null && (after?.runId !== input.runId || after.reasonCode !== reasonCode)) rejectRequest([{ field: 'cursor', issue: 'no corresponde a una página de esta lista' }]);
+    return transactions.run(async (tx) => {
+      if ((await repo.readRun(tx, input.runId)) === null) rejectRequest([{ field: 'runId', issue: 'no corresponde a ninguna carga del catálogo' }]);
+      const rows = await repo.listQuarantined(tx, input.runId, reasonCode, after?.rowNumber ?? null, QUARANTINE_PAGE + 1);
+      const page = rows.slice(0, QUARANTINE_PAGE);
+      const last = page.at(-1);
+      return { rows: page, nextCursor: rows.length > QUARANTINE_PAGE && last ? encodeQuarantineCursor({ runId: input.runId, reasonCode, rowNumber: last.rowNumber }) : null };
+    });
   }
 }

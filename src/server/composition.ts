@@ -2,11 +2,12 @@
 // Postgres adapters → the services → the router whose wired resolvers call them. The clock comes
 // from app/ (AD-SYS-6) and the session reader from Better Auth, so a test binds both.
 import type pg from 'pg';
+import { CatServiceV2, PgCatRepository } from '../modules/catalog/index.js';
 import { IdentityGateV2, IdnServiceV2, PgIdnRepository, PgLegalIdentityRepository, PgVerRepository, VerServiceV2, type SessionReader } from '../modules/identity/index.js';
 import { AdminEventsServiceV2 } from '../shared-kernel/admin-events.js';
 import { OutboxDispatcherV2, type DeliveryHandler, type SubscriberName } from '../shared-kernel/dispatcher.js';
 import { NotImplementedError } from '../shared-kernel/errors.js';
-import type { MalwareScanner, ObjectStorage } from '../shared-kernel/external.js';
+import type { CatalogFeedSource, FxRateSource, MalwareScanner, ObjectStorage } from '../shared-kernel/external.js';
 import { CuidIds } from '../shared-kernel/infra/cuid-ids.js';
 import { PgAdminEventsRepository } from '../shared-kernel/infra/pg-admin-events.js';
 import { PgAuditLog } from '../shared-kernel/infra/pg-audit.js';
@@ -38,6 +39,23 @@ const UNWIRED_SCANNER: MalwareScanner = {
   scan: async () => { throw new NotImplementedError('scanner.scan'); },
 };
 
+/**
+ * No production catalog feed exists (OQ-9 names a fixture) and the datos.gov.co TRM adapter is not
+ * built (deferred-work.md); until they land, a continue or a TRM fetch fails as NotImplemented.
+ */
+const UNWIRED_FEED: CatalogFeedSource = {
+  openRun: async () => { throw new NotImplementedError('feed.openRun'); },
+  readRows: async () => { throw new NotImplementedError('feed.readRows'); },
+};
+const UNWIRED_FX: FxRateSource = {
+  getRateCovering: async () => { throw new NotImplementedError('fx.getRateCovering'); },
+};
+
+/** zod gives an absent optional key as `undefined`; the DTOs leave it out (exactOptionalPropertyTypes). */
+function defined<T extends object>(input: T): { [K in keyof T]: Exclude<T[K], undefined> } {
+  return Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined)) as { [K in keyof T]: Exclude<T[K], undefined> };
+}
+
 export interface AppDeps {
   pool: pg.Pool;
   clock: Clock;
@@ -45,15 +63,17 @@ export interface AppDeps {
   handlers?: Record<SubscriberName, DeliveryHandler>;
   storage?: ObjectStorage;
   scanner?: MalwareScanner;
+  feed?: CatalogFeedSource;
+  fx?: FxRateSource;
 }
 
 /**
  * The procedures whose contracts the done stories implement: IDN-1.ingress (Story 2.1),
  * IDN-3 (Story 2.5), S-SYS.replay (Story 1.3), S-SYS.tick, .deliveries, .health
  * (Story 1.5), VER-2 (Story 3.1), VER-1 (Story 3.2), VER-3 and S-FR-VER-5.audit (Story 3.4) and
- * S-FR-VER-2, -7, -8, -9 (Story 3.5). Every other procedure stays NotImplemented until its story wires it.
+ * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), CAT-3 and S-FR-CAT-8.fetch (Story 4.4), and S-FR-CAT-1 (Story 4.5). Every other procedure stays NotImplemented until its story wires it.
  */
-function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
+function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
   return {
     'access.completeIndividualProfile': (input, userId) => s.idn.completeIndividualProfile({ ...input, userId }),
     'access.traceCapabilities': (input, adminId) => s.idn.traceCapabilities({ ...input, adminId }),
@@ -71,6 +91,13 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; adminEvents: Admin
     'verification.reasons.upsert': (input, adminId) => s.ver.upsertRejectionReason({ ...input, adminId }),
     'verification.reasons.setActive': (input, adminId) => s.ver.setRejectionReasonActive({ ...input, adminId }),
     'verification.updatePaymentInstructions': ({ instructions }, businessId) => s.ver.updatePaymentInstructions({ instructions, businessId }),
+    'catalog.feed.start': (_input, actorId) => s.cat.startFeedRun({ actorId }),
+    'catalog.feed.continue': ({ runId }, actorId) => s.cat.continueFeedRun({ actorId, runId }),
+    'catalog.feed.runs': ({ cursor }, actorId) => s.cat.listFeedRuns({ actorId, cursor }),
+    'catalog.provenance': (input) => s.cat.getPriceProvenance(input),
+    'catalog.browse': ({ filters, page, pageSize }) => s.cat.browseCatalog({ filters: defined(filters), page, pageSize }),
+    'catalog.fx.retry': () => s.cat.fetchTrm({ trigger: 'admin' }),
+    'catalog.feed.quarantine': ({ runId, reasonCode, cursor }, actorId) => s.cat.listQuarantinedRows({ actorId, runId, cursor, ...(reasonCode ? { reasonCode } : {}) }),
     'admin.events.replay': (input, adminId) => s.adminEvents.replayEventDelivery({ ...input, adminId }),
     'admin.jobs.tickHealth': (_input, adminId) => s.adminEvents.getTickHealth({ adminId }),
     'admin.events.deliveries': (input, adminId) => s.adminEvents.listDeliveries({ ...input, adminId }),
@@ -78,19 +105,22 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; adminEvents: Admin
   };
 }
 
-export function compose({ pool, clock, sessions, handlers = UNWIRED_HANDLERS, storage = UNWIRED_STORAGE, scanner = UNWIRED_SCANNER }: AppDeps) {
+export function compose({
+  pool, clock, sessions, handlers = UNWIRED_HANDLERS, storage = UNWIRED_STORAGE, scanner = UNWIRED_SCANNER, feed = UNWIRED_FEED, fx = UNWIRED_FX,
+}: AppDeps) {
   const ids = new CuidIds();
   const transactions = new PgTransactionRunner(pool);
   const outbox = new PgOutboxV2(ids, clock);
   const audit = new PgAuditLog(ids, clock);
   // The one repository object every service receives (R-14).
-  const repo = oneRepository(new PgAdminEventsRepository(), new PgIdnRepository(), new PgVerRepository(), new PgLegalIdentityRepository());
+  const repo = oneRepository(new PgAdminEventsRepository(), new PgIdnRepository(), new PgVerRepository(), new PgLegalIdentityRepository(), new PgCatRepository());
   const idn = new IdnServiceV2({ repo, transactions, clock, ids, outbox, audit });
   const ver = new VerServiceV2({ repo, transactions, clock, ids, outbox, audit, storage, scanner });
+  const cat = new CatServiceV2({ repo, transactions, clock, ids, outbox, audit, feed, fx });
   const dispatcher = new OutboxDispatcherV2({ transactions, clock }, handlers);
   const adminEvents = new AdminEventsServiceV2({ repo, transactions, clock, ids, outbox, audit, dispatcher });
   return {
     identity: new IdentityGateV2({ sessions, repo, transactions, idn }),
-    router: buildAppRouter(resolvers({ idn, ver, adminEvents })),
+    router: buildAppRouter(resolvers({ idn, ver, cat, adminEvents })),
   };
 }

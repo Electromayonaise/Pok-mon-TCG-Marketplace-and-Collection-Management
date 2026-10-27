@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 373 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 375 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -664,11 +664,11 @@ Ingest the card catalog with stable ids and serve reference prices that are alwa
 - **Binding invariants:** AD-CAT-2 — Observations immutable, aged at read (Append-only observations; `stale` computed); AD-CAT-3 — TRM never invented (`EXCLUDE` on validity ranges; no gap row); also cited by its clauses: AD-SYS-6, AD-SYS-7
 - **Files:** `src/modules/catalog/application/cat.v2.ts` (`CatServiceV2.getPriceProvenance`, `CatServiceV2.fetchTrm`, `CatServiceV2.getFxRate`), `src/modules/catalog/ports/cat.v2.ts` (`CatRepository`), `src/modules/catalog/domain/cat.ts`, `src/modules/catalog/infra/pg.ts`
 - **Schema/DTO:** tables `"FxRate"`; DTOs `GetPriceProvenanceRequest` → `GetPriceProvenanceResponse`, `FetchTrmRequest` → `FetchTrmResponse`, `GetFxRateRequest` → `GetFxRateResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/cat_contracts.test.ts` › `[CAT-3.Q1]`, `[CAT-3.Q4]`, `[CAT-3.Q5]`, `[CAT-3.P2]`, `[CAT-3.I1]`, `[S-FR-CAT-8.h]`, `[S-FR-CAT-8.f]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/cat_contracts.test.ts` › `[CAT-3.Q1]`, `[CAT-3.Q4]`, `[CAT-3.Q5]`, `[CAT-3.P2]`, `[CAT-3.I1]`, `[S-FR-CAT-8.h]`, `[S-FR-CAT-8.f]`; `_bmad-output/test-artifacts/nfr/cat1_latency.test.ts` › `[NFR-CAT-1.provenance]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a card has a 30-day baseline of 40,000 and a latest observation of 45,000. **When:** Camila reads its provenance. **Then:** +12.50 % with the source and observation time; two sources at one instant give one stored row chosen by source order, never an average.
   - **Scenario (failure) — Given:** the latest observation is older than 36 h, there is no baseline, the id is unknown, or the TRM source is down. **When:** the read or the daily TRM fetch runs. **Then:** the price is labelled stale (`ReferencePriceStale`), the trend is null (`TrendNoBaseline`), `CatalogEntryNotFound` (404), or no FX row is written and today's rate is yesterday's, stale (`FxRateCarriedForward`).
-- **DoD:** the shared DoD, plus: the 7 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-CAT-1: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 8 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 4.5: Browse the catalog and answer neighbours' catalog queries
 
@@ -676,15 +676,15 @@ Ingest the card catalog with stable ids and serve reference prices that are alwa
 - **Description:** As Camila browsing, and as the modules that read the catalog, I want stable, bounded catalog queries, so that discovery, listings and collections agree on one catalog.
 - **Contracts:** `S-FR-CAT-1` browseCatalog, `P-CAT.entry` getEntry, `P-CAT.entries` getEntries, `P-CAT.match` matchEntryIds, `P-CAT.refs` resolveItemRefs, `P-CAT.asOf` getReferencePricesAsOf, `P-CAT.history` getPriceHistory, `P-CAT.sets` getSetSummaries
 - **Depends on:** Story 4.2
-- **Traceability:** FR-CAT-1 · UI 2.1, 9.2
+- **Traceability:** FR-CAT-1 · NFR-CAT-1 · UI 2.1, 9.2
 - **Binding invariants:** also cited by its clauses: AD-1, AD-7, AD-CAT-1, AD-CAT-2, AD-COL-1, AD-DSC-2
 - **Files:** `src/modules/catalog/application/cat.v2.ts` (`CatServiceV2.browseCatalog`, `CatServiceV2.getEntry`, `CatServiceV2.getEntries`, `CatServiceV2.matchEntryIds`, `CatServiceV2.resolveItemRefs`, `CatServiceV2.getReferencePricesAsOf`, `CatServiceV2.getPriceHistory`, `CatServiceV2.getSetSummaries`), `src/modules/catalog/ports/cat.v2.ts` (`CatRepository`), `src/modules/catalog/domain/cat.ts`, `src/modules/catalog/infra/pg.ts`
 - **Schema/DTO:** DTOs `BrowseCatalogRequest` → `BrowseCatalogResponse`, `GetEntryRequest` → `GetEntryResponse`, `GetEntriesRequest` → `GetEntriesResponse`, `MatchEntryIdsRequest` → `MatchEntryIdsResponse`, `ResolveItemRefsRequest` → `ResolveItemRefsResponse`, `GetReferencePricesAsOfRequest` → `GetReferencePricesAsOfResponse`, `GetPriceHistoryRequest` → `GetPriceHistoryResponse`, `GetSetSummariesRequest` → `GetSetSummariesResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/cat_contracts.test.ts` › `[S-FR-CAT-1.h]`, `[S-FR-CAT-1.f]`, `[P-CAT.entry.h]`, `[P-CAT.entries.h]`, `[P-CAT.match.h]`, `[P-CAT.refs.h]`, `[P-CAT.asOf.h]`, `[P-CAT.history.h]`, `[P-CAT.sets.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/cat_contracts.test.ts` › `[S-FR-CAT-1.h]`, `[S-FR-CAT-1.f]`, `[P-CAT.entry.h]`, `[P-CAT.entries.h]`, `[P-CAT.match.h]`, `[P-CAT.refs.h]`, `[P-CAT.asOf.h]`, `[P-CAT.history.h]`, `[P-CAT.sets.h]`; `_bmad-output/test-artifacts/nfr/cat1_latency.test.ts` › `[NFR-CAT-1.browse]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** the catalog holds Pikachu cards in two sets. **When:** Camila filters by pokemon. **Then:** only matches, in `(setId, numberSort, id)` order; neighbours read entries, refs, prices as of an instant, history and set summaries through the ports.
   - **Scenario (failure) — Given:** a filter names an unknown set, a match covers 20,001 entries, or an id is unknown. **When:** browse or a neighbour port runs. **Then:** an empty page with total 0, `tooBroad`, and the unknown id listed in `missing`, never thrown.
-- **DoD:** the shared DoD, plus: the 9 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 10 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ## Epic 5: Listings and shared inventory (INV)
 

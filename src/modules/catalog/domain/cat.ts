@@ -1,5 +1,4 @@
 // Core domain — CAT. Pure (AD-SYS-6).
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
 
 export type CatalogKind = 'card' | 'sealedProduct';
 export type CopDerivation = 'sourceNative' | 'fxDerived';
@@ -17,15 +16,216 @@ export interface RawFeedRow {
   [field: string]: string | number | null | undefined;
 }
 
-/** ADD-§8.1 rules 1–5, plus KindChanged when `storedKind` differs from the row's kind. */
-export function validateRow(
-  _row: RawFeedRow,
-  _context: { knownSetCodes: ReadonlySet<string>; storedKind: CatalogKind | null },
-): { ok: true } | { ok: false; reason: QuarantineReason } {
-  throw new NotImplementedError('catalog.domain.validateRow');
+/** The catalog attributes of a valid row (CAT-2's `ValidFeedRow`). */
+export interface FeedRowFields {
+  externalKey: string;
+  setCode: string;
+  number: string;
+  name: string;
+  kind: CatalogKind;
+  eraCode: string;
+  pokemon: string | null;
+  colour: string | null;
+  style: string | null;
+  artist: string | null;
+  imageUrl: string | null;
 }
 
+/** A valid row's price, still in the source's units; the batch converts it once (AD-CAT-2 rule 1). */
+export interface FeedRowPrice {
+  usdCents: number | null;
+  cop: number | null;
+  /** ISO instant; the row's own, else the batch's `now`. */
+  observedAt: string;
+}
+
+export type RowVerdict =
+  | { ok: true; row: FeedRowFields; price: FeedRowPrice | null }
+  | { ok: false; reason: Exclude<QuarantineReason, 'KindChanged'> };
+
+const REQUIRED = ['externalKey', 'setCode', 'number', 'name', 'kind', 'eraCode'] as const;
+const OPTIONAL = ['pokemon', 'colour', 'style', 'artist', 'imageUrl'] as const;
+/**
+ * ADD-§8.1 rule 3: digits, optionally with a letter prefix or suffix, or a slash total ("025/165").
+ * At most 9 digits per run, so the sort key fits `"numberSort" INT` (Epic 4 review).
+ */
+const NUMBER = /^[A-Za-z]{0,5}\d{1,9}[A-Za-z]{0,3}(?:\/\d{1,9})?$/;
+const MINOR_UNITS = /^\d+$/;
+/** The schema's `char_length(name) BETWEEN 1 AND 200`, counted in code points as Postgres counts. */
+const MAX_NAME = 200;
+/** An ISO 8601 instant with its offset; anything looser would be read in the server's time zone. */
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+/** A feed value, trimmed; null when absent or blank. */
+const text = (v: RawFeedRow[string]): string | null => {
+  const t = v === null || v === undefined ? '' : String(v).trim();
+  return t === '' ? null : t;
+};
+
+/** ADD-§8.1 rule 4: absent, or a non-negative integer in its minor unit; `undefined` when invalid. */
+function minorUnits(v: RawFeedRow[string]): number | null | undefined {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'number') return Number.isSafeInteger(v) && v >= 0 ? v : undefined;
+  return MINOR_UNITS.test(v) && Number.isSafeInteger(Number(v)) ? Number(v) : undefined;
+}
+
+/**
+ * ADD-§8.1 rules 1–5. `copPerUsdCentavos` is the TRM covering the row's Bogotá date (or the latest
+ * earlier one), null when none is stored; without it a two-currency row cannot be checked and is
+ * kept as source-native. KindChanged is the upsert's, never this function's (CAT-2 Q-fail).
+ */
+export function validateRow(
+  raw: RawFeedRow,
+  context: { knownSetCodes: ReadonlySet<string>; now: string; copPerUsdCentavos: (observedAt: string) => number | null },
+): RowVerdict {
+  for (const field of REQUIRED) if (text(raw[field]) === null) return { ok: false, reason: 'MissingRequiredField' };
+  const kind = text(raw.kind)!;
+  if (kind !== 'card' && kind !== 'sealedProduct') return { ok: false, reason: 'MissingRequiredField' };
+  // A name outside 1–200 has no valid value: MissingRequiredField (decision log Impl-1 #29), never a refused insert.
+  const name = text(raw.name)!;
+  if ([...name].length > MAX_NAME) return { ok: false, reason: 'MissingRequiredField' };
+  const setCode = text(raw.setCode)!;
+  if (!context.knownSetCodes.has(setCode)) return { ok: false, reason: 'UnknownSet' };
+  const number = text(raw.number)!;
+  if (!NUMBER.test(number)) return { ok: false, reason: 'BadNumberFormat' };
+  const usdCents = minorUnits(raw.usdCents);
+  const cop = minorUnits(raw.cop);
+  if (usdCents === undefined || cop === undefined) return { ok: false, reason: 'InvalidPrice' };
+  const observedAt = observedAtOf(raw, context.now);
+  if (observedAt === null) return { ok: false, reason: 'InvalidPrice' };
+  if (usdCents !== null && cop !== null) {
+    const rate = context.copPerUsdCentavos(observedAt);
+    if (rate !== null && Math.abs(copFromUsd(usdCents, rate) - cop) > 1) return { ok: false, reason: 'CurrencyPairInconsistent' };
+  }
+  const row: FeedRowFields = {
+    externalKey: text(raw.externalKey)!, setCode, number, name, kind, eraCode: text(raw.eraCode)!,
+    pokemon: null, colour: null, style: null, artist: null, imageUrl: null,
+  };
+  for (const field of OPTIONAL) row[field] = text(raw[field]);
+  return { ok: true, row, price: usdCents === null && cop === null ? null : { usdCents, cop, observedAt } };
+}
+
+/**
+ * A row's observation instant: its own `observedAt`, else `now`. Null when the field is no ISO 8601
+ * instant with an offset, or lies after `now`: a price is never observed in the future.
+ */
+export function observedAtOf(raw: RawFeedRow, now: string): string | null {
+  const observed = text(raw.observedAt);
+  if (observed === null) return now;
+  const ms = ISO_INSTANT.test(observed) ? Date.parse(observed) : Number.NaN;
+  return Number.isNaN(ms) || ms > Date.parse(now) ? null : new Date(ms).toISOString();
+}
+
+/** The sort value of a card number: its first run of digits ("025/165" → 25, "TG05" → 5). */
+export function numberSort(number: string): number {
+  const digits = /\d+/.exec(number);
+  return digits ? Number.parseInt(digits[0], 10) : 0;
+}
+
+/** ADD-§2.1: `floor((usdCents × copPerUsdCentavos + 5 000) / 10 000)`, in BigInt, so it never rounds twice. */
+export function copFromUsd(usdCents: number, copPerUsdCentavos: number): number {
+  return Number((BigInt(usdCents) * BigInt(copPerUsdCentavos) + 5_000n) / 10_000n);
+}
+
+/** The calendar date in America/Bogota (UTC−5, no daylight saving) of an instant. */
+export function bogotaDate(instant: string | Date): string {
+  const ms = typeof instant === 'string' ? Date.parse(instant) : instant.getTime();
+  return new Date(ms - 5 * 3_600_000).toISOString().slice(0, 10);
+}
+
+/**
+ * ADD-§2.2 in hundredths of a percent: `n = Δ × 10 000`, `q = (|n| × 2 + base) // (2 × base)`,
+ * signed, so it rounds half away from zero. Null with no base or `base = 0` (TrendNoBaseline).
+ */
+export function changePercent(base: number | null, now: number): number | null {
+  if (base === null || base === 0) return null;
+  const n = (BigInt(now) - BigInt(base)) * 10_000n;
+  const b = BigInt(base);
+  const q = ((n < 0n ? -n : n) * 2n + b) / (2n * b);
+  return Number(n < 0n ? -q : q);
+}
+
+/** FR-CAT-7: stale when strictly older than the threshold; exactly the threshold is fresh. */
+export function isStale(observedAt: string, now: string, thresholdHours: number): boolean {
+  return Date.parse(now) - Date.parse(observedAt) > thresholdHours * 3_600_000;
+}
+
+/**
+ * ADD-§6, AD-CAT-3 rule 3: the TRM `valor` decimal string in centavos, never through a float;
+ * past 2 decimals it rounds half-up. Null when `valor` is no positive decimal.
+ */
+export function parseTrm(valor: string): number | null {
+  const m = /^(\d+)(?:\.(\d+))?$/.exec(valor.trim());
+  if (!m) return null;
+  const [, whole, frac = ''] = m;
+  let centavos = BigInt(whole!) * 100n + BigInt((frac + '00').slice(0, 2));
+  if (frac.length > 2 && frac[2]! >= '5') centavos += 1n;
+  return centavos > 0n && centavos <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(centavos) : null;
+}
+
+/** The nine attributes CAT-2 Q1 may update; never `id`, `externalKey`, `kind` or `createdAt`. */
+export const UPSERT_ATTRIBUTES = ['setId', 'name', 'number', 'numberSort', 'pokemon', 'colour', 'style', 'artist', 'imageUrl'] as const;
+
 /** Attribute names whose values differ between the stored entry and the row (AD-CAT-1 rule 3). */
-export function diffAttributes(_stored: Record<string, unknown>, _incoming: Record<string, unknown>): string[] {
-  throw new NotImplementedError('catalog.domain.diffAttributes');
+export function diffAttributes(stored: Record<string, unknown>, incoming: Record<string, unknown>): string[] {
+  return UPSERT_ATTRIBUTES.filter((name) => (stored[name] ?? null) !== (incoming[name] ?? null));
+}
+
+// ---------------------------------------------------------------- keyset cursors
+
+const KEY_ID = /^[a-z][0-9a-z]{23}$/;
+
+/** The opaque cursor of a page: base64url JSON of the list's tag and its last row's sort key. */
+function encodeKeyset(tag: string, ...key: (string | number)[]): string {
+  return Buffer.from(JSON.stringify([tag, ...key])).toString('base64url');
+}
+
+function decodeKeyset(tag: string, cursor: string, arity: number): unknown[] | null {
+  let parts: unknown = null;
+  try {
+    parts = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parts) || parts.length !== arity + 1 || parts[0] !== tag) return null;
+  return parts.slice(1);
+}
+
+/** CAT-1.runs: `("startedAt", id)` of a page's last row; the list runs newest first. */
+export interface RunKey {
+  startedAt: string;
+  id: string;
+}
+
+export function encodeRunCursor(key: RunKey): string {
+  return encodeKeyset('feed-runs', key.startedAt, key.id);
+}
+
+export function decodeRunCursor(cursor: string): RunKey | null {
+  const key = decodeKeyset('feed-runs', cursor, 2);
+  if (key === null) return null;
+  const [startedAt, id] = key;
+  if (typeof startedAt !== 'string' || !/^\d{4}-/.test(startedAt) || Number.isNaN(Date.parse(startedAt))) return null;
+  if (new Date(startedAt).toISOString() !== startedAt || typeof id !== 'string' || !KEY_ID.test(id)) return null;
+  return { startedAt, id };
+}
+
+/** CAT-2.quarantine: the run, the reason filter and the last `rowNumber` of a page, so a cursor never crosses runs or filters. */
+export interface QuarantineKey {
+  runId: string;
+  reasonCode: string | null;
+  rowNumber: number;
+}
+
+export function encodeQuarantineCursor(key: QuarantineKey): string {
+  return encodeKeyset('feed-quarantine', key.runId, key.reasonCode ?? '', key.rowNumber);
+}
+
+export function decodeQuarantineCursor(cursor: string): QuarantineKey | null {
+  const key = decodeKeyset('feed-quarantine', cursor, 3);
+  if (key === null) return null;
+  const [runId, reasonCode, rowNumber] = key;
+  if (typeof runId !== 'string' || !KEY_ID.test(runId) || typeof reasonCode !== 'string') return null;
+  if (!Number.isSafeInteger(rowNumber) || (rowNumber as number) < 1) return null;
+  return { runId, reasonCode: reasonCode === '' ? null : reasonCode, rowNumber: rowNumber as number };
 }

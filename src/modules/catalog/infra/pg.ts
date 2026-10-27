@@ -1,6 +1,12 @@
-// Driven adapters (persistence) — catalog. Bound to the Solu-1 migration 003_create_catalog.sql (retired; git 853449c:docs/solu-1/planning/schemas/).
+// Driven adapters (persistence) — catalog. The Solu-1 stubs below are bound to the retired migration
+// 003_create_catalog.sql (git 853449c:docs/solu-1/planning/schemas/); the Solu-2 PgCatRepository at
+// the end is bound to _bmad-output/planning-artifacts/detailed-design/schemas.
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
-import type { Sql } from '../../../shared-kernel/ports.js';
+import type { Sql, Tx } from '../../../shared-kernel/ports.js';
+import type { CuidId, IsoDate, IsoInstant } from '../../../shared-kernel/types.js';
+import type { RunKey } from '../domain/cat.js';
+import type { BrowseCatalogResponse, CatalogEntryDTO, CatalogFilters, FeedRunDTO, ObservedPriceDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
+import type { BatchCounts, CatRepository, FeedRunStatus, FxRateRow, ObservationRow, QuarantineListRow, QuarantineRow, RunState, StoredEntry } from '../ports/cat.v2.js';
 import type { ReferencePriceDTO } from '../dto/cat.dto.js';
 import type { ICatalogEntryRepository, IFeedRunRepository, IReferencePriceRepository } from '../ports/cat.js';
 
@@ -31,5 +37,322 @@ export class PgReferencePriceRepository implements IReferencePriceRepository {
   constructor(protected readonly sql: Sql) {}
   async latestAsOf(): Promise<ReferencePriceDTO | null> {
     throw new NotImplementedError('PgReferencePriceRepository.latestAsOf');
+  }
+}
+
+// ---------------------------------------------------------------- Solu-2 (AD-CAT-1, AD-CAT-2)
+
+type RunRow = { runId: CuidId; status: FeedRunStatus; cursor: number; startedAt: Date; leaseUntil: Date | null };
+const RUN_COLUMNS = `id AS "runId", status, cursor, "startedAt", "leaseUntil"`;
+const runState = (r: RunRow): RunState => ({ ...r, startedAt: r.startedAt.toISOString(), leaseUntil: r.leaseUntil?.toISOString() ?? null });
+
+/** An observation's columns as stored; BIGINT and DATE are read as text, so nothing is parsed or rounded on the way (AD-CAT-2 rule 5). */
+const OBSERVED_COLUMNS = `"usdCents"::text AS "usdCents", cop::text AS cop, "observedAt", source, "copDerivation", "fxRateDate"::text AS "fxRateDate"`;
+type ObservedRow = { usdCents: string | null; cop: string; observedAt: Date; source: string; copDerivation: ObservedPriceDTO['copDerivation']; fxRateDate: string | null };
+const observed = (r: ObservedRow): ObservedPriceDTO => ({
+  usdCents: r.usdCents === null ? null : Number(r.usdCents), cop: Number(r.cop), observedAt: r.observedAt.toISOString(),
+  source: r.source, copDerivation: r.copDerivation, fxRateDate: r.fxRateDate,
+});
+const FX_COLUMNS = `"copPerUsdCentavos"::text AS "copPerUsdCentavos", "validFrom"::text AS "validFrom", "validTo"::text AS "validTo"`;
+type FxRow = { copPerUsdCentavos: string; validFrom: string; validTo: string };
+const fxRate = (r: FxRow | undefined): FxRateRow | null => (r ? { ...r, copPerUsdCentavos: Number(r.copPerUsdCentavos) } : null);
+
+const ENTRY_COLUMNS = `id AS "catalogEntryId", "setId", kind, name, number, pokemon, colour, style, artist, "imageUrl"`;
+const BROWSE_ORDER = `"setId", "numberSort", id`;
+
+/**
+ * S-FR-CAT-1's filter as a parameterized predicate: only the filters present are appended, never
+ * `OR $n IS NULL`, so each shape keeps its own plan. `nameQuery` is a prefix of the unaccented,
+ * lower-cased name, with LIKE's wildcards escaped.
+ */
+function catalogPredicate(filters: CatalogFilters, params: unknown[]): string {
+  const where = ['TRUE'];
+  if (filters.setIds !== undefined) where.push(`"setId" = ANY($${params.push(filters.setIds)})`);
+  for (const column of ['pokemon', 'colour', 'style', 'artist', 'kind'] as const) {
+    if (filters[column] !== undefined) where.push(`${column} = $${params.push(filters[column])}`);
+  }
+  if (filters.nameQuery !== undefined) {
+    where.push(`"nameKey" LIKE tezg_unaccent_lower($${params.push(filters.nameQuery.replace(/[\\%_]/g, '\\$&'))}) || '%' ESCAPE '\\'`);
+  }
+  return where.join(' AND ');
+}
+
+/** CAT's repository port over `_bmad-output/planning-artifacts/detailed-design/schemas` (AD-8). */
+export class PgCatRepository implements CatRepository {
+  async failAbandonedRuns(tx: Tx, cutoff: IsoInstant, now: IsoInstant): Promise<CuidId[]> {
+    const { rows } = await tx.query<{ id: CuidId }>(
+      `UPDATE "FeedIngestionRun" SET status = 'Failed', "endedAt" = $2, "updatedAt" = $2, "leaseUntil" = NULL, "leaseToken" = NULL
+       WHERE status = 'Running' AND COALESCE("leaseUntil", "startedAt") < $1 RETURNING id`,
+      [cutoff, now],
+    );
+    return rows.map((r) => r.id);
+  }
+
+  async insertRunningRun(tx: Tx, runId: CuidId, now: IsoInstant): Promise<boolean> {
+    // The partial unique index is the lock (AD-CAT-1 rule 1); the savepoint keeps `tx` usable
+    // after a 23505, so the caller can still cite the live run.
+    await tx.query('SAVEPOINT cat_insert_run');
+    try {
+      await tx.query(
+        `INSERT INTO "FeedIngestionRun" (id, status, cursor, "startedAt", "createdAt", "updatedAt") VALUES ($1, 'Running', 0, $2, $2, $2)`,
+        [runId, now],
+      );
+    } catch (error) {
+      const pgError = error as { code?: string; constraint?: string };
+      if (pgError.code !== '23505' || pgError.constraint !== 'feed_run_single_running') throw error;
+      await tx.query('ROLLBACK TO SAVEPOINT cat_insert_run');
+      return false;
+    }
+    await tx.query('RELEASE SAVEPOINT cat_insert_run');
+    return true;
+  }
+
+  async readRunningRun(tx: Tx): Promise<RunState | null> {
+    const { rows } = await tx.query<RunRow>(`SELECT ${RUN_COLUMNS} FROM "FeedIngestionRun" WHERE status = 'Running'`);
+    return rows[0] ? runState(rows[0]) : null;
+  }
+
+  async readRun(tx: Tx, runId: CuidId): Promise<RunState | null> {
+    const { rows } = await tx.query<RunRow>(`SELECT ${RUN_COLUMNS} FROM "FeedIngestionRun" WHERE id = $1`, [runId]);
+    return rows[0] ? runState(rows[0]) : null;
+  }
+
+  async claimLease(tx: Tx, runId: CuidId, token: string, now: IsoInstant, until: IsoInstant): Promise<boolean> {
+    const { rowCount } = await tx.query(
+      `UPDATE "FeedIngestionRun" SET "leaseUntil" = $3, "leaseToken" = $2, "updatedAt" = $4
+       WHERE id = $1 AND status = 'Running' AND ("leaseUntil" IS NULL OR "leaseUntil" < $4)`,
+      [runId, token, until, now],
+    );
+    return rowCount === 1;
+  }
+
+  async renewLease(tx: Tx, runId: CuidId, token: string, now: IsoInstant, until: IsoInstant): Promise<boolean> {
+    const { rowCount } = await tx.query(
+      `UPDATE "FeedIngestionRun" SET "leaseUntil" = $3, "updatedAt" = $4 WHERE id = $1 AND "leaseToken" = $2 AND status = 'Running'`,
+      [runId, token, until, now],
+    );
+    return rowCount === 1;
+  }
+
+  async advanceRun(tx: Tx, runId: CuidId, token: string, cursor: number, c: BatchCounts, done: boolean, now: IsoInstant): Promise<void> {
+    await tx.query(
+      `UPDATE "FeedIngestionRun" SET cursor = $3, created = created + $4, updated = updated + $5, unchanged = unchanged + $6,
+         quarantined = quarantined + $7, "deferredNoFx" = "deferredNoFx" + $8, "updatedAt" = $9,
+         status = CASE WHEN $10 THEN 'Completed' ELSE status END,
+         "endedAt" = CASE WHEN $10 THEN $9::timestamptz ELSE "endedAt" END,
+         "leaseUntil" = CASE WHEN $10 THEN NULL ELSE "leaseUntil" END,
+         "leaseToken" = CASE WHEN $10 THEN NULL ELSE "leaseToken" END
+       WHERE id = $1 AND "leaseToken" = $2`,
+      [runId, token, cursor, c.created, c.updated, c.unchanged, c.quarantined, c.deferredNoFx, now, done],
+    );
+  }
+
+  async releaseLease(tx: Tx, runId: CuidId, token: string, now: IsoInstant): Promise<void> {
+    await tx.query(
+      `UPDATE "FeedIngestionRun" SET "leaseUntil" = $3::timestamptz - interval '1 millisecond', "updatedAt" = $3 WHERE id = $1 AND "leaseToken" = $2`,
+      [runId, token, now],
+    );
+  }
+
+  async failRun(tx: Tx, runId: CuidId, token: string, now: IsoInstant): Promise<boolean> {
+    const { rowCount } = await tx.query(
+      `UPDATE "FeedIngestionRun" SET status = 'Failed', "endedAt" = $3, "updatedAt" = $3, "leaseUntil" = NULL, "leaseToken" = NULL
+       WHERE id = $1 AND "leaseToken" = $2 AND status = 'Running'`,
+      [runId, token, now],
+    );
+    return rowCount === 1;
+  }
+
+  async listRuns(tx: Tx, after: RunKey | null, limit: number): Promise<FeedRunDTO[]> {
+    // Two statements, not `OR $1 IS NULL` (Story 1.5 deferral).
+    const select = `SELECT id AS "runId", status, cursor, created, updated, unchanged, quarantined, "deferredNoFx", "startedAt", "endedAt" FROM "FeedIngestionRun"`;
+    type Row = Omit<FeedRunDTO, 'startedAt' | 'endedAt'> & { startedAt: Date; endedAt: Date | null };
+    const { rows } = after === null
+      ? await tx.query<Row>(`${select} ORDER BY "startedAt" DESC, id DESC LIMIT $1`, [limit])
+      : await tx.query<Row>(`${select} WHERE ("startedAt", id) < ($1, $2) ORDER BY "startedAt" DESC, id DESC LIMIT $3`, [after.startedAt, after.id, limit]);
+    return rows.map((r) => ({ ...r, startedAt: r.startedAt.toISOString(), endedAt: r.endedAt?.toISOString() ?? null }));
+  }
+
+  async readSetIds(tx: Tx): Promise<Map<string, CuidId>> {
+    const { rows } = await tx.query<{ code: string; id: CuidId }>(`SELECT code, id FROM "CatalogSet"`);
+    return new Map(rows.map((r) => [r.code, r.id]));
+  }
+
+  async readRateOnOrBefore(tx: Tx, date: IsoDate): Promise<{ copPerUsdCentavos: number; validFrom: IsoDate } | null> {
+    const { rows } = await tx.query<{ copPerUsdCentavos: string; validFrom: string }>(
+      `SELECT "copPerUsdCentavos"::text AS "copPerUsdCentavos", "validFrom"::text AS "validFrom" FROM "FxRate"
+       WHERE "validFrom" <= $1::date ORDER BY "validFrom" DESC LIMIT 1`,
+      [date],
+    );
+    return rows[0] ? { copPerUsdCentavos: Number(rows[0].copPerUsdCentavos), validFrom: rows[0].validFrom } : null;
+  }
+
+  async readEntryByExternalKey(tx: Tx, externalKey: string): Promise<StoredEntry | null> {
+    const { rows } = await tx.query<StoredEntry>(
+      `SELECT id, kind, "setId", name, number, "numberSort", pokemon, colour, style, artist, "imageUrl" FROM "CatalogEntry" WHERE "externalKey" = $1`,
+      [externalKey],
+    );
+    return rows[0] ?? null;
+  }
+
+  async upsertEntry(tx: Tx, newId: CuidId, row: ValidFeedRow, setId: CuidId, sort: number, now: IsoInstant): Promise<{ id: CuidId; inserted: boolean } | null> {
+    // CAT-2 Q1: the SET list never names id, "externalKey", kind or "createdAt" (AD-7).
+    const { rows } = await tx.query<{ id: CuidId; inserted: boolean }>(
+      `INSERT INTO "CatalogEntry" (id, "externalKey", "setId", kind, name, number, "numberSort", pokemon, colour, style, artist, "imageUrl", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)
+       ON CONFLICT ("externalKey") DO UPDATE SET
+         "setId" = EXCLUDED."setId", name = EXCLUDED.name, number = EXCLUDED.number, "numberSort" = EXCLUDED."numberSort",
+         pokemon = EXCLUDED.pokemon, colour = EXCLUDED.colour, style = EXCLUDED.style, artist = EXCLUDED.artist,
+         "imageUrl" = EXCLUDED."imageUrl", "updatedAt" = EXCLUDED."updatedAt"
+       WHERE ("CatalogEntry"."setId", "CatalogEntry".name, "CatalogEntry".number, "CatalogEntry"."numberSort", "CatalogEntry".pokemon,
+              "CatalogEntry".colour, "CatalogEntry".style, "CatalogEntry".artist, "CatalogEntry"."imageUrl")
+         IS DISTINCT FROM (EXCLUDED."setId", EXCLUDED.name, EXCLUDED.number, EXCLUDED."numberSort", EXCLUDED.pokemon,
+              EXCLUDED.colour, EXCLUDED.style, EXCLUDED.artist, EXCLUDED."imageUrl")
+       RETURNING id, (xmax = 0) AS inserted`,
+      [newId, row.externalKey, setId, row.kind, row.name, row.number, sort, row.pokemon, row.colour, row.style, row.artist, row.imageUrl, now],
+    );
+    return rows[0] ?? null;
+  }
+
+  async insertRevision(tx: Tx, r: { id: CuidId; catalogEntryId: CuidId; runId: CuidId; changedFields: string[]; before: object; after: object }, now: IsoInstant): Promise<void> {
+    await tx.query(
+      `INSERT INTO "CatalogEntryRevision" (id, "catalogEntryId", "runId", "changedFields", before, after, "createdAt") VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [r.id, r.catalogEntryId, r.runId, r.changedFields, JSON.stringify(r.before), JSON.stringify(r.after), now],
+    );
+  }
+
+  async quarantineRow(tx: Tx, r: QuarantineRow, now: IsoInstant): Promise<void> {
+    await tx.query(
+      `INSERT INTO "QuarantinedFeedRow" (id, "runId", "rowNumber", "externalKey", "reasonCode", "rawRow", "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT ("runId", "rowNumber") DO NOTHING`,
+      [r.id, r.runId, r.rowNumber, r.externalKey, r.reasonCode, JSON.stringify(r.rawRow), now],
+    );
+  }
+
+  async listQuarantined(tx: Tx, runId: CuidId, reasonCode: string | null, afterRow: number | null, limit: number): Promise<QuarantineListRow[]> {
+    // The filters are appended, never `OR $n IS NULL`, so the (runId, rowNumber) unique index serves each page.
+    const params: unknown[] = [runId];
+    let where = '"runId" = $1';
+    if (reasonCode !== null) where += ` AND "reasonCode" = $${params.push(reasonCode)}`;
+    if (afterRow !== null) where += ` AND "rowNumber" > $${params.push(afterRow)}`;
+    const { rows } = await tx.query<QuarantineListRow>(
+      `SELECT "rowNumber", "externalKey", "reasonCode" FROM "QuarantinedFeedRow" WHERE ${where} ORDER BY "rowNumber" LIMIT $${params.push(limit)}`,
+      params,
+    );
+    return rows;
+  }
+
+  async existingEntryIds(tx: Tx, ids: CuidId[]): Promise<Set<CuidId>> {
+    const { rows } = await tx.query<{ id: CuidId }>(`SELECT id FROM "CatalogEntry" WHERE id = ANY($1)`, [ids]);
+    return new Set(rows.map((r) => r.id));
+  }
+
+  async latestObservations(tx: Tx, ids: CuidId[], asOf: IsoInstant): Promise<Map<CuidId, ObservedPriceDTO>> {
+    const { rows } = await tx.query<ObservedRow & { catalogEntryId: CuidId }>(
+      `SELECT DISTINCT ON ("catalogEntryId") "catalogEntryId", ${OBSERVED_COLUMNS} FROM "ReferencePriceObservation"
+       WHERE "catalogEntryId" = ANY($1) AND "observedAt" <= $2 ORDER BY "catalogEntryId", "observedAt" DESC, source, id`,
+      [ids, asOf],
+    );
+    return new Map(rows.map((r) => [r.catalogEntryId, observed(r)]));
+  }
+
+  async readRateCovering(tx: Tx, date: IsoDate): Promise<FxRateRow | null> {
+    const { rows } = await tx.query<FxRow>(`SELECT ${FX_COLUMNS} FROM "FxRate" WHERE "validFrom" <= $1::date AND "validTo" >= $1::date`, [date]);
+    return fxRate(rows[0]);
+  }
+
+  async readRateBefore(tx: Tx, date: IsoDate): Promise<FxRateRow | null> {
+    const { rows } = await tx.query<FxRow>(`SELECT ${FX_COLUMNS} FROM "FxRate" WHERE "validTo" < $1::date ORDER BY "validTo" DESC LIMIT 1`, [date]);
+    return fxRate(rows[0]);
+  }
+
+  async insertFxRate(tx: Tx, r: FxRateRow & { id: CuidId; source: string }, now: IsoInstant): Promise<boolean> {
+    await tx.query('SAVEPOINT cat_insert_fx');
+    try {
+      await tx.query(
+        `INSERT INTO "FxRate" (id, "copPerUsdCentavos", "validFrom", "validTo", source, "fetchedAt", "createdAt") VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+        [r.id, r.copPerUsdCentavos, r.validFrom, r.validTo, r.source, now],
+      );
+    } catch (error) {
+      const pgError = error as { code?: string; constraint?: string };
+      if (pgError.code !== '23P01' || pgError.constraint !== 'fx_rate_no_overlap') throw error;
+      await tx.query('ROLLBACK TO SAVEPOINT cat_insert_fx');
+      return false;
+    }
+    await tx.query('RELEASE SAVEPOINT cat_insert_fx');
+    return true;
+  }
+
+  async readOverlappingRate(tx: Tx, validFrom: IsoDate, validTo: IsoDate): Promise<(FxRateRow & { id: CuidId }) | null> {
+    const { rows } = await tx.query<FxRow & { id: CuidId }>(
+      `SELECT id, ${FX_COLUMNS} FROM "FxRate" WHERE daterange("validFrom", "validTo", '[]') && daterange($1::date, $2::date, '[]') ORDER BY "validFrom" LIMIT 1`,
+      [validFrom, validTo],
+    );
+    return rows[0] ? { ...rows[0], copPerUsdCentavos: Number(rows[0].copPerUsdCentavos) } : null;
+  }
+
+  async browse(tx: Tx, filters: CatalogFilters, limit: number, offset: number): Promise<BrowseCatalogResponse> {
+    const params: unknown[] = [];
+    const where = catalogPredicate(filters, params);
+    const page = `SELECT ${ENTRY_COLUMNS}, "numberSort" FROM m ORDER BY ${BROWSE_ORDER} LIMIT $${params.push(limit)} OFFSET $${params.push(offset)}`;
+    const facet = (column: string) =>
+      `(SELECT COALESCE(json_agg(json_build_object('value', v, 'count', c) ORDER BY v), '[]') FROM (SELECT ${column} AS v, count(*)::int AS c FROM m GROUP BY 1) f)`;
+    const { rows } = await tx.query<{ total: number; entries: (CatalogEntryDTO & { numberSort: number })[]; setFacet: BrowseCatalogResponse['facets'][number]['values']; kindFacet: BrowseCatalogResponse['facets'][number]['values'] }>(
+      `WITH m AS (SELECT * FROM "CatalogEntry" WHERE ${where})
+       SELECT (SELECT count(*)::int FROM m) AS total,
+              (SELECT COALESCE(json_agg(p ORDER BY p."setId", p."numberSort", p."catalogEntryId"), '[]') FROM (${page}) p) AS entries,
+              ${facet('"setId"')} AS "setFacet", ${facet('kind')} AS "kindFacet"`,
+      params,
+    );
+    const r = rows[0]!;
+    return { entries: r.entries.map(({ numberSort: _sort, ...entry }) => entry), total: r.total, facets: [{ name: 'setId', values: r.setFacet }, { name: 'kind', values: r.kindFacet }] };
+  }
+
+  async matchIds(tx: Tx, filters: CatalogFilters, limit: number): Promise<CuidId[]> {
+    const params: unknown[] = [];
+    const where = catalogPredicate(filters, params);
+    const { rows } = await tx.query<{ id: CuidId }>(`SELECT id FROM "CatalogEntry" WHERE ${where} ORDER BY ${BROWSE_ORDER} LIMIT $${params.push(limit)}`, params);
+    return rows.map((r) => r.id);
+  }
+
+  async entriesByIds(tx: Tx, ids: CuidId[]): Promise<CatalogEntryDTO[]> {
+    const { rows } = await tx.query<CatalogEntryDTO>(`SELECT ${ENTRY_COLUMNS} FROM "CatalogEntry" WHERE id = ANY($1)`, [ids]);
+    return rows;
+  }
+
+  async priceHistory(tx: Tx, ids: CuidId[], from: IsoInstant, to: IsoInstant): Promise<Map<CuidId, ObservedPriceDTO[]>> {
+    const { rows } = await tx.query<ObservedRow & { catalogEntryId: CuidId }>(
+      `SELECT "catalogEntryId", ${OBSERVED_COLUMNS} FROM (
+         SELECT * FROM "ReferencePriceObservation" WHERE "catalogEntryId" = ANY($1) AND "observedAt" BETWEEN $2 AND $3
+         UNION ALL
+         (SELECT DISTINCT ON ("catalogEntryId") * FROM "ReferencePriceObservation" WHERE "catalogEntryId" = ANY($1) AND "observedAt" < $2
+          ORDER BY "catalogEntryId", "observedAt" DESC, source, id)
+       ) o ORDER BY "catalogEntryId", "observedAt", source, id`,
+      [ids, from, to],
+    );
+    const series = new Map<CuidId, ObservedPriceDTO[]>();
+    for (const r of rows) {
+      const list = series.get(r.catalogEntryId) ?? [];
+      list.push(observed(r));
+      series.set(r.catalogEntryId, list);
+    }
+    return series;
+  }
+
+  async setSummaries(tx: Tx, setIds: CuidId[]): Promise<{ setId: CuidId; name: string; cardEntryCount: number }[]> {
+    const { rows } = await tx.query<{ setId: CuidId; name: string; cardEntryCount: number }>(
+      `SELECT s.id AS "setId", s.name, count(e.id) FILTER (WHERE e.kind = 'card')::int AS "cardEntryCount"
+       FROM "CatalogSet" s LEFT JOIN "CatalogEntry" e ON e."setId" = s.id WHERE s.id = ANY($1) GROUP BY s.id, s.name`,
+      [setIds],
+    );
+    return rows;
+  }
+
+  async insertObservation(tx: Tx, o: ObservationRow, now: IsoInstant): Promise<void> {
+    await tx.query(
+      `INSERT INTO "ReferencePriceObservation" (id, "catalogEntryId", source, "observedAt", "usdCents", cop, "copDerivation", "fxRateDate", "runId", "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT ("catalogEntryId", source, "observedAt") DO NOTHING`,
+      [o.id, o.catalogEntryId, o.source, o.observedAt, o.usdCents, o.cop, o.copDerivation, o.fxRateDate, o.runId, now],
+    );
   }
 }
