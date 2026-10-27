@@ -107,3 +107,17 @@ context:
 - Production storage and scanner are unwired stand-ins until a provider is approved (`deferred-work.md`). Tests bind `InMemoryObjectStorage` and `SimulatedScanner`.
 - Unit tests: `src/shared-kernel/request.test.ts`, `src/modules/identity/ver-domain.test.ts`, `src/modules/identity/application/ver.v2.test.ts` (14 cases), `src/server/trpc/errors.test.ts`, and two HTTP cases in `src/server/composition.test.ts`.
 - Early greens until Story 3.3 is committed: `[VER-2.P1]`, `[VER-2.P3]`, `[VER-2.P7]`.
+
+### Review Findings
+
+Epic 3 close review (2026-10-26, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `140bd6a..b4a7e1f` (code paths).
+
+- [x] [Review][Patch] A failed storage delete during cleanup replaces the real error, and a failed post-commit quarantine delete fails a submit that already committed. `Promise.all` should be `Promise.allSettled` [src/modules/identity/application/ver.v2.ts:191]
+- [x] [Review][Patch] If `get`, `scan` or `put` throws partway through `promoteDocuments`, the copies already promoted stay in `ver-documents` with no row pointing at them [src/modules/identity/application/ver.v2.ts:203]
+- [x] [Review][Patch] Duplicate `documentUploadKeys` are accepted, so one file is promoted twice [src/modules/identity/application/ver.v2.ts:459]
+- [x] [Review][Patch] `lengthIn` counts UTF-16 units, but the DB CHECK uses `char_length` (code points). A name made of emoji passes the app check and fails the CHECK with a 500 [src/modules/identity/application/ver.v2.ts:432]
+- [x] [Review][Patch] The unit and HTTP fixtures use the NIT `9001234563`, which fails the check digit. The valid one is `9001234568` [src/modules/identity/application/ver.v2.test.ts:366]
+- [x] [Review][Defer] An ambiguous COMMIT outcome (the connection drops after COMMIT is sent) deletes promoted documents that a committed row may reference [src/modules/identity/application/ver.v2.ts:189] — deferred: needs the production storage adapter and a reconciliation sweep
+- [x] [Review][Defer] The scanner's sanitized output is stored without the magic-byte check running again [src/modules/identity/application/ver.v2.ts:203] — deferred: belongs with the production scanner item
+- [x] [Review][Defer] The 5 MB size is checked after the whole object is read into memory [src/modules/identity/application/ver.v2.ts:203] — deferred: the upload ticket caps the size at upload time
+- [x] [Review][Defer] Length checks run on untrimmed input, so `"  "` passes the 2-character minimum [src/modules/identity/application/ver.v2.ts:432] — deferred: the contracts do not say whether to trim; decide it with the UI form

@@ -97,3 +97,9 @@ context:
 - The audit row has `actorKind: 'admin'`, `decisionCode` `ApplicationApproved` or `ApplicationRejected`, and `data: {decision, reasonCode}`.
 - Unit tests: `src/modules/identity/application/ver.v2.test.ts` (4 new cases: the loser's re-read, a row gone by the re-read, the barred snapshot, a later reason edit), and three HTTP cases in `src/server/composition.test.ts`.
 - Early greens until Story 3.3 is committed: `[VER-1.P2]`, `[VER-1.P3]`, `[VER-1.P4]` (new with this story), `[VER-2.P1]`, `[VER-2.P3]`, `[VER-2.P7]`.
+
+### Review Findings
+
+Epic 3 close review (2026-10-26, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `140bd6a..b4a7e1f` (code paths).
+
+- [x] [Review][Patch] `decideApplication` does not call `requireAdmin` (AD-16), unlike every other admin operation. Only the router's admin builder guards it [src/modules/identity/application/ver.v2.ts:84]

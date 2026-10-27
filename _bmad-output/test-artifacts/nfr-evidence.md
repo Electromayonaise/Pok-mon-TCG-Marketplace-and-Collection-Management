@@ -72,7 +72,7 @@ All three are red, and each fails for the right reason (`npm run gate:nfr-red:so
 | NFR-IDN-3 | Security | 0 procedures accept a role, seller-kind or capability field | Schema scan of every tRPC input | `[SYS-8.R2.static]`, `[SYS-8.R2]` | Green — gate |
 | NFR-VER-1 | Reliability (MEC) | 100 repetitions: one transition, one event, no half state | Approve and reject raced by two admins | `[VER-1.MEC]` | Red — ATDD |
 | NFR-VER-2 | Security (audit) | 100 % of legal-identity reads and denials audited | Access-log count vs instrumented reads | `[VER-3.I1]`, `[VER-3.I2]`, `[IDN-3.I1]` | Red — ATDD |
-| NFR-VER-3 | Performance | Review queue (1,000 pending) p95 ≤ 1,000 ms; signed URL p95 ≤ 300 ms | PRD §7 protocol over the §3 seed topped up to 1,000 Pending applications; the signed-URL figure times the whole `getApplicationForReview` call | `[NFR-VER-3.queue]`, `[NFR-VER-3.sign]` | Green — benchmark |
+| NFR-VER-3 | Performance | Review queue (1,000 pending) p95 ≤ 1,000 ms; signed URL p95 ≤ 300 ms | PRD §7 protocol over the §3 seed topped up to 1,000 Pending applications; the signed-URL figure times the whole `getApplicationForReview` call, with the in-memory storage double until the production adapter lands (a provider's signing latency is not in it) | `[NFR-VER-3.queue]`, `[NFR-VER-3.sign]` | Green — benchmark |
 | NFR-VER-4 | Performance / security | ≤ 5 MB per file, ≤ 3 files; upload + validation p95 ≤ 10 s at 10 Mbps | Quarantine validation tests; the transfer time needs a shaped network | `[VER-2.P3]`, `[VER-2.P5]` | Red — ATDD (size); Deferred — launch (transfer) |
 | NFR-CAT-1 | Performance | Browse over 10,000 entries p95 ≤ 1,000 ms; provenance for 48 p95 ≤ 300 ms | PRD §7 protocol on the §3 catalog | — | Planned — story DoD |
 | NFR-CAT-2 | Performance / integrity | 10,000-row run ≤ 120 s; a rerun creates 0 duplicates | Unique `externalKey`; convergent rerun | `[CAT-2.I1]`, `[CAT-2.MEC]` | Red — ATDD |
@@ -129,5 +129,5 @@ Each benchmark writes its figures (milliseconds, n = 500) to `.vitest-results/`.
 
 | NFR | Benchmark | Result file | p50 | p95 | Threshold | Measured |
 |---|---|---|---|---|---|---|
-| NFR-VER-3 | `[NFR-VER-3.queue]` | `nfr-ver-3-queue.json` | 3.0 | 4.9 | p95 ≤ 1,000 | 2026-10-26, Story 3.4, local Docker Postgres 16 |
-| NFR-VER-3 | `[NFR-VER-3.sign]` | `nfr-ver-3-sign.json` | 4.6 | 10.0 | p95 ≤ 300 | 2026-10-26, Story 3.4, local Docker Postgres 16 |
+| NFR-VER-3 | `[NFR-VER-3.queue]` | `nfr-ver-3-queue.json` | 3.3 | 6.1 | p95 ≤ 1,000 | 2026-10-26, Epic 3 review, local Docker Postgres 16 |
+| NFR-VER-3 | `[NFR-VER-3.sign]` | `nfr-ver-3-sign.json` | 4.9 | 8.2 | p95 ≤ 300 | 2026-10-26, Epic 3 review (signing inside the grant transaction), local Docker Postgres 16, in-memory storage |

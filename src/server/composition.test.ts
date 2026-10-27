@@ -267,7 +267,7 @@ describe('the supporting verification procedures over HTTP (S-FR-VER-2, -7, -8, 
 describe('the legal-identity read and its audit over HTTP (VER-3, S-FR-VER-5.audit; Story 3.4)', () => {
   const withLegalIdentity = async () => {
     const applicationId = await business(db, id('andres'), 'Pending');
-    await ins(db, 'BusinessApplicationLegalIdentity', { applicationId, type: 'NIT', number: '9001234563', documentKeys: ['ver-documents/doc1'] }, 'created');
+    await ins(db, 'BusinessApplicationLegalIdentity', { applicationId, type: 'NIT', number: '9001234568', documentKeys: ['ver-documents/doc1'] }, 'created');
     return applicationId;
   };
 
@@ -285,7 +285,7 @@ describe('the legal-identity read and its audit over HTTP (VER-3, S-FR-VER-5.aud
     const cookie = await signIn(id('admin'));
     const read = await post('verification.getApplicationForReview', { applicationId }, cookie);
     expect(read.status).toBe(200);
-    expect(read.json.result?.data).toMatchObject({ applicationId, legalIdentity: { type: 'NIT', number: '9001234563' } });
+    expect(read.json.result?.data).toMatchObject({ applicationId, legalIdentity: { type: 'NIT', number: '9001234568' } });
     expect((await get('verification.legalIdentityAudit', { cursor: null, applicationId }, cookie)).json.result?.data)
       .toMatchObject({ rows: [{ actorId: id('admin'), applicationId, outcome: 'granted' }], nextCursor: null });
     await user(db, { id: id('camila') });

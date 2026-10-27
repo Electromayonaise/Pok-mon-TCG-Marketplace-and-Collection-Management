@@ -2,8 +2,10 @@
 // Pending applications p95 ≤ 1,000 ms, and the signed-URL read of one application p95 ≤ 300 ms.
 // PRD §7 protocol: Docker Postgres, the §3 seed, 50 warm-up and 500 measured calls, server-side
 // handler time. The signed-URL figure times the whole getApplicationForReview call (read, access
-// log, audit and signing), so it bounds the URL issue from above. The service is composed as the
-// composition root binds it (no fakes), so the measured path is the real one.
+// log, audit and signing), so it bounds the URL issue from above. The repositories, transactions
+// and audit are the composition root's Postgres ones; the object storage is the in-memory test
+// double, because the production adapter is not wired yet (deferred-work.md). A provider's own
+// signing latency is therefore not in the figure; re-measure when the adapter lands.
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { VerServiceV2 } from '../../../src/modules/identity/index.js';
@@ -40,7 +42,7 @@ async function seedQueue(): Promise<string[]> {
     pending.push(applicationId);
   }
   for (const applicationId of pending) {
-    await ins(db, 'BusinessApplicationLegalIdentity', { applicationId, type: 'NIT', number: '9001234563', documentKeys: ['ver-documents/doc1', 'ver-documents/doc2'] }, 'created');
+    await ins(db, 'BusinessApplicationLegalIdentity', { applicationId, type: 'NIT', number: '9001234568', documentKeys: ['ver-documents/doc1', 'ver-documents/doc2'] }, 'created');
   }
   return pending;
 }

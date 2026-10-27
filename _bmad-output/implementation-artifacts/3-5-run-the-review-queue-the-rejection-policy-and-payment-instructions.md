@@ -94,7 +94,7 @@ context:
 - **Codes:** §13 gained no change code. `RejectionReasonUnknown`, `LastActiveReasonRequired` and `NotBusinessAccount` already existed.
 - **Citations name the FR (`FR-VER-7`, `FR-VER-8`, `FR-VER-9`), not the contract id `S-FR-VER-n`.** The explanation contract only accepts `AD`, `FR` or `NFR` rule ids (`explainAssert`). The new unit tests caught the first draft, which cited `S-FR-VER-n`.
 - **Reasons:** `upsert` locks the row under `FOR UPDATE` and inserts with `ON CONFLICT DO NOTHING`. If a concurrent create wins the code, it re-locks and edits that row. `setActive(false)` follows rule 6 as specified. An already-active `setActive(true)` is a no-op. An unknown code is `RejectionReasonUnknown` (409). The change row and the audit row are written in one helper.
-- **Payment instructions:** `update` is an `UPDATE` of the existing `"BusinessProfile"`, not an upsert. Submission (VER-2) always creates the profile. A business-track account with no profile gets `NotBusinessAccount` with `{status: 'none'}`, the same as an individual seller. The audit data is `{bankName, accountType}` only.
+- **Payment instructions:** `update` is an `UPDATE` of the existing `"BusinessProfile"`, not an upsert. Submission (VER-2) always creates the profile. A business-track account with no profile gets `NotBusinessAccount` with `{status: 'none'}`, the same as an individual seller. The audit data is `{bankName, accountType}` only. A non-null `qrUploadKey` is refused, as in the submission, until the QR has its own upload ticket and promotion (`deferred-work.md`).
 - **Queue:**
   - Pages are fetched 26 rows at a time to tell whether a next page exists.
   - The cursor is base64url JSON of the last row's `("submittedAt", id)`. Decoding accepts only the canonical ISO instant it writes and a cuid2 id.
@@ -104,3 +104,12 @@ context:
 - **Unit tests:**
   - `ver.v2.test.ts`: every rule-6 branch, upsert create, no-op and barred edit, field-by-field shape refusals, `AdminOnly`, queue paging with id tie-breaks, the foreign cursor, the `none` and barred copies, and the payment-instruction edges.
   - `ver-domain.test.ts`: `verificationCopy` and the cursor codec.
+
+### Review Findings
+
+Epic 3 close review (2026-10-26, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `140bd6a..b4a7e1f` (code paths).
+
+- [x] [Review][Patch] `updatePaymentInstructions` refuses a non-null `qrUploadKey`, as the submission does, but neither these notes nor the deferred QR item say so [src/modules/identity/application/ver.v2.ts:476]
+- [x] [Review][Defer] `bankName` has no length bound in the contract, zod or the schema [src/server/trpc/inputs.generated.ts] — deferred: the contract sets no bound; add one with a contract change
+- [x] [Review][Defer] The rejection reason's `textEsCo` is never shown to the business. The status copy shows the reason code and a raw ISO date [src/modules/identity/application/ver.v2.ts] — deferred: presentation belongs to the verification UI story
+- [x] [Review][Defer] Reapplication's profile upsert writes `qrObjectKey = EXCLUDED."qrObjectKey"`, always `null` today, so a future QR would be cleared on reapply [src/modules/identity/infra/pg.ts:211] — deferred: added to the QR deferred item

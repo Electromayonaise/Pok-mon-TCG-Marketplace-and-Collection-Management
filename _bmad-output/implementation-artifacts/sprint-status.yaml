@@ -68,7 +68,7 @@ development_status:
   2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins: done
   2-5-trace-capabilities-for-admins-and-answer-neighbours-identity-queries: done
   epic-2-retrospective: optional
-  epic-3: in-progress
+  epic-3: done
   3-1-submit-a-business-application-with-its-legal-identity: done
   3-2-decide-an-application-exactly-once: done
   3-3-refuse-incomplete-unsafe-and-premature-applications: done

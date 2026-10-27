@@ -416,3 +416,26 @@
   - With Story 3.1 done and 3.2 not yet, `[VER-2.P1]`, `[VER-2.P3]` and `[VER-2.P7]` of Story 3.3 are early greens. Story 3.3 is committed after 3.2 and restores the gate.
 - **Artifact changed:** `_bmad-output/implementation-artifacts/sprint-status.yaml` (the `impl2_scope` note), the five Epic 3 story files, `deferred-work.md`, `_bmad-output/test-artifacts/atdd/ver_contracts.test.ts` and `ver_supporting.test.ts` (the NIT), `_bmad-output/planning-artifacts/detailed-design/contracts.md` (`ApplicationSubmitted`), `src/server/trpc/errors.ts`.
 - **Decided by:** Martín.
+
+### 28. Epic 3 close review: the unknown-id denial stays unlogged, the NFR-VER-3 binding stands, and the epic is signed (Governance)
+
+- **Phase:** 3 (Epic 3 close review, after `b4a7e1f`).
+- **Persona/Skill:** `bmad-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor) over `140bd6a..b4a7e1f`.
+- **Prompt (summary):** The review of Stories 3.1–3.5 left 2 decisions, 9 patches, 10 deferrals and 17 dismissed findings. The two decisions:
+  - A non-admin asking for an unknown application id gets `LegalIdentityAccessDenied` and an audit row, but no `"LegalIdentityAccessLog"` row, because `applicationId` is a foreign key. "Rows = reads + denials" undercounts those attempts.
+  - Story 3.4 bound `[NFR-VER-3.queue]` and `[NFR-VER-3.sign]` without a recorded approval, although its Ask First covers any bound-test change.
+- **AI output (summary):** The agent recommended:
+  - **(recommended)** Accept the unlogged unknown-id denial and record it. The audit row keeps the attempt, the same answer for existing and unknown ids hides whether an application exists, and the schema stays as designed. The alternative was a nullable or dropped FK.
+  - **(recommended)** Confirm the binding. `gate:nfr-red:impl1` only accepts a green NFR test that a done story binds, and Story 7.1's `[NFR-ORD-2.p95]` is the precedent. The alternative was to revert it and leave the benchmark red.
+  - Apply all 9 patches.
+- **Human decision:** ACCEPT all three recommendations, and sign the Epic 3 gate (#5).
+- **Reason:** Both decisions keep the design that the contracts and the gates already assume, and the patches close real defects without changing a contract.
+- **Also decided (the patches):**
+  - `submitApplication` and `promoteDocuments` clean up with `Promise.allSettled`, so a failed delete never hides the error that caused the cleanup, and a failed post-commit quarantine delete no longer fails a submit that committed. A storage or scanner failure partway through promotion now deletes the copies already made.
+  - Duplicate `documentUploadKeys` are refused, and name lengths count code points, as the schema's `char_length` CHECKs do.
+  - `decideApplication` calls `requireAdmin` (AD-16), like every other admin operation.
+  - `getApplicationForReview` runs the admin check, the read, the signing, the `granted` row and its audit row in one transaction, so a failed sign writes nothing.
+  - The unit, HTTP and benchmark fixtures use the valid NIT `9001234568` (#27). The benchmark header and `nfr-evidence.md` say the storage is the in-memory double; the re-measured figures are queue p95 6.1 ms and signed-URL read p95 8.2 ms.
+  - Story 3.5's notes say `updatePaymentInstructions` refuses a non-null `qrUploadKey`.
+- **Artifact changed:** `src/modules/identity/application/ver.v2.ts` (+ test), `src/server/composition.test.ts`, `_bmad-output/test-artifacts/nfr/ver3_latency.test.ts`, `_bmad-output/test-artifacts/nfr-evidence.md`, `deferred-work.md` (the Epic 3 section), the Review Findings of Stories 3.1, 3.2, 3.4 and 3.5, `sprint-status.yaml` (`epic-3: done`).
+- **Decided by:** Martín.

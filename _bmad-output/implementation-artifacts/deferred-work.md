@@ -33,4 +33,16 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 
 - The production `ObjectStorage` and `MalwareScanner` adapters need a provider and a dependency approval. Until they land, `compose()` binds `UNWIRED_STORAGE` and `UNWIRED_SCANNER`, so a production submit that reaches promotion fails as NotImplemented (500), never silently. Tests bind `InMemoryObjectStorage` and `SimulatedScanner`.
 - The upload ticket for `business-document/<businessId>/<cuid2>`, the client step before VER-2, is not wired yet. It belongs to the story that wires the upload procedures.
-- The payment QR (`paymentInstructions.qrUploadKey`) is refused until it has an upload ticket and a promotion like the documents' (owner prefix, size, magic bytes, scanner, server-generated key). `qrObjectKey` stays `null` until then.
+- The payment QR (`paymentInstructions.qrUploadKey`) is refused until it has an upload ticket and a promotion like the documents' (owner prefix, size, magic bytes, scanner, server-generated key). `qrObjectKey` stays `null` until then. Both VER-2 and `updatePaymentInstructions` refuse it. When the QR lands, reapplication's profile upsert must stop overwriting `qrObjectKey` with `EXCLUDED."qrObjectKey"` (Epic 3 review).
+
+## Deferred from: code review of Epic 3 (3.1–3.5) (2026-10-26)
+
+- An ambiguous COMMIT outcome (the connection drops after COMMIT is sent) makes the submit delete promoted documents that a committed row may reference. Needs the production storage adapter and a reconciliation sweep.
+- The scanner's sanitized output is stored without the magic-byte check running again. Belongs with the production scanner item.
+- The 5 MB document size is checked after the whole object is read into memory. The upload ticket will cap the size at upload time.
+- Length checks run on untrimmed input, so whitespace-only names pass the 2-character minimum. The contracts do not say whether to trim; decide it with the UI form.
+- `bankName` has no length bound in the contract, zod or the schema. Add one with a contract change.
+- The rejection reason's `textEsCo` is never shown to the business, and the status copy shows the reason code and a raw ISO date. Presentation belongs to the verification UI story.
+- A non-admin can flood `"LegalIdentityAccessLog"` with denied rows. Needs the throttle tables (NFR-SYS-14).
+- `legal-identity-confined` misses the table name built from concatenation or reached through an accessor. The same literal-style limit Story 1.4 recorded.
+- `nfr-evidence.md` leaves every row at "Red — ATDD" after its story is done (NFR-VER-2, NFR-IDN-2). Refresh the whole table once.

@@ -86,6 +86,7 @@ export class VerServiceV2 implements VerV2UseCases {
     const { applicationId, decision: choice, adminId } = input;
     const rule = choice.kind === 'approve' ? 'FR-VER-3' : 'FR-VER-4';
     return transactions.run(async (tx) => {
+      await requireAdmin(this.deps, tx, adminId);
       const at = clock.now();
       const now = at.toISOString();
       const refuseDecided = async (): Promise<never> => {
@@ -188,52 +189,78 @@ export class VerServiceV2 implements VerV2UseCases {
       });
     } catch (error) {
       // Q-fail: the rollback left no row pointing at them (AD-VER-3 rule 4).
-      await Promise.all(promoted.map((d) => storage.delete('ver-documents', d.key)));
+      await this.discardPromoted(promoted);
       throw error;
     }
-    await Promise.all(promoted.map((d) => storage.delete('upload-quarantine', d.quarantineKey)));
+    // Best effort: the submit has committed, so a failed quarantine delete must not fail it.
+    await Promise.allSettled(promoted.map((d) => storage.delete('upload-quarantine', d.quarantineKey)));
     return response;
   }
 
   /**
    * VER-2 P3, AD-SYS-8 rules 5.3 and 6, first-fail per key. Clean bytes are copied to
    * `ver-documents`; the quarantine objects go only after the commit, so a refused submit can be
-   * retried with the same keys. A refusal deletes the copies already made.
+   * retried with the same keys. A refusal, or a storage or scanner failure, deletes the copies
+   * already made.
    */
   private async promoteDocuments(businessId: CuidId, keys: readonly string[]): Promise<{ key: string; quarantineKey: string }[]> {
     const { storage, scanner, ids } = this.deps;
     const promoted: { key: string; quarantineKey: string }[] = [];
-    const refuse = async (key: string, cause: DocumentRefusal): Promise<never> => {
-      await Promise.all(promoted.map((d) => storage.delete('ver-documents', d.key)));
-      return raise('InvalidDocumentFile', [{ rule: 'AD-SYS-8', inputs: { key, cause } }]);
-    };
-    for (const key of keys) {
-      const bytes = key.startsWith(`business-document/${businessId}/`) ? await storage.get('upload-quarantine', key) : null;
-      if (bytes === null) return refuse(key, 'missing');
-      if (bytes.length > MAX_DOCUMENT_BYTES) return refuse(key, 'size');
-      const declared = sniffDocumentType(bytes);
-      if (declared === null) return refuse(key, 'magic');
-      const scan = await scanner.scan(bytes, declared);
-      if (scan.verdict !== 'clean') return refuse(key, 'scanner');
-      const promotedKey = ids.next();
-      await storage.put('ver-documents', promotedKey, scan.sanitized ?? bytes, declared);
-      promoted.push({ key: promotedKey, quarantineKey: key });
+    const refuse = (key: string, cause: DocumentRefusal): never => raise('InvalidDocumentFile', [{ rule: 'AD-SYS-8', inputs: { key, cause } }]);
+    try {
+      for (const key of keys) {
+        const bytes = key.startsWith(`business-document/${businessId}/`) ? await storage.get('upload-quarantine', key) : null;
+        if (bytes === null) return refuse(key, 'missing');
+        if (bytes.length > MAX_DOCUMENT_BYTES) return refuse(key, 'size');
+        const declared = sniffDocumentType(bytes);
+        if (declared === null) return refuse(key, 'magic');
+        const scan = await scanner.scan(bytes, declared);
+        if (scan.verdict !== 'clean') return refuse(key, 'scanner');
+        const promotedKey = ids.next();
+        await storage.put('ver-documents', promotedKey, scan.sanitized ?? bytes, declared);
+        promoted.push({ key: promotedKey, quarantineKey: key });
+      }
+    } catch (error) {
+      await this.discardPromoted(promoted);
+      throw error;
     }
     return promoted;
   }
 
+  /** Deletes promoted copies without letting a failed delete hide the error that caused the cleanup. */
+  private async discardPromoted(promoted: readonly { key: string }[]): Promise<void> {
+    await Promise.allSettled(promoted.map((d) => this.deps.storage.delete('ver-documents', d.key)));
+  }
+
   /**
-   * VER-3, AD-VER-2 rules 2–5. A non-admin's denial commits in its own transaction before the
-   * error, so it survives it. An admin's read and its `granted` row share one transaction, the
-   * read first, so an unknown id writes nothing. No regulated value reaches an error or the audit.
+   * VER-3, AD-VER-2 rules 2–5. An admin's check, read, signing and `granted` row share one
+   * transaction, the read first, so an unknown id or a failed signing writes nothing. A
+   * non-admin's denial then commits in its own transaction before the error, so it survives it.
+   * No regulated value reaches an error or the audit.
    */
   async getApplicationForReview(input: GetApplicationForReviewRequest): Promise<GetApplicationForReviewResponse> {
     const { repo, transactions, clock, ids, audit, storage } = this.deps;
     const { applicationId, actorId } = input;
     const now = clock.now();
     const at = now.toISOString();
-    const facts = await transactions.run((tx) => repo.readCapabilityFacts(tx, actorId), { readOnly: true });
-    if (!facts?.isAdmin) {
+    const expiresAt = new Date(now.getTime() + SIGNED_URL_TTL * 1000).toISOString();
+    const granted = await transactions.run(async (tx) => {
+      const facts = await repo.readCapabilityFacts(tx, actorId);
+      if (!facts?.isAdmin) return null;
+      const row = await repo.readForReview(tx, applicationId);
+      if (row === null) return raise('ApplicationNotFound', [{ rule: 'FR-VER-5', inputs: { applicationId } }]);
+      const documents = await Promise.all(row.documentKeys.map(async (key) => {
+        const { url } = await storage.sign('ver-documents', key.replace(/^ver-documents\//, ''), SIGNED_URL_TTL);
+        return { url, expiresAt };
+      }));
+      await repo.insertAccessLog(tx, { id: ids.next(), actorId, applicationId, fieldsRead: FIELDS_READ, outcome: 'granted', procedure: REVIEW_PROCEDURE }, at);
+      await audit.record(tx, {
+        actorId, actorKind: 'admin', module: 'identity', action: 'verification.legalIdentity.read',
+        aggregateType: 'BusinessApplication', aggregateId: applicationId, decisionCode: null, data: { fieldsRead: FIELDS_READ.join(',') }, at,
+      });
+      return { row, documents };
+    });
+    if (granted === null) {
       await transactions.run(async (tx) => {
         await repo.insertAccessLog(tx, { id: ids.next(), actorId, applicationId, fieldsRead: [], outcome: 'denied', procedure: REVIEW_PROCEDURE }, at);
         await audit.record(tx, {
@@ -244,21 +271,7 @@ export class VerServiceV2 implements VerV2UseCases {
       });
       return raise('LegalIdentityAccessDenied', [{ rule: 'FR-VER-5', inputs: { applicationId, outcome: 'denied' } }]);
     }
-    const row = await transactions.run(async (tx) => {
-      const found = await repo.readForReview(tx, applicationId);
-      if (found === null) return raise('ApplicationNotFound', [{ rule: 'FR-VER-5', inputs: { applicationId } }]);
-      await repo.insertAccessLog(tx, { id: ids.next(), actorId, applicationId, fieldsRead: FIELDS_READ, outcome: 'granted', procedure: REVIEW_PROCEDURE }, at);
-      await audit.record(tx, {
-        actorId, actorKind: 'admin', module: 'identity', action: 'verification.legalIdentity.read',
-        aggregateType: 'BusinessApplication', aggregateId: applicationId, decisionCode: null, data: { fieldsRead: FIELDS_READ.join(',') }, at,
-      });
-      return found;
-    });
-    const expiresAt = new Date(now.getTime() + SIGNED_URL_TTL * 1000).toISOString();
-    const documents = await Promise.all(row.documentKeys.map(async (key) => {
-      const { url } = await storage.sign('ver-documents', key.replace(/^ver-documents\//, ''), SIGNED_URL_TTL);
-      return { url, expiresAt };
-    }));
+    const { row, documents } = granted;
     return {
       applicationId: row.applicationId, businessId: row.businessId, businessName: row.businessName, city: row.city,
       externalPresenceUrl: row.externalPresenceUrl, submittedAt: row.submittedAt, status: row.status,
@@ -429,7 +442,11 @@ export class VerServiceV2 implements VerV2UseCases {
 }
 
 const blank = (value: unknown): boolean => value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
-const lengthIn = (value: string, min: number, max: number): boolean => value.length >= min && value.length <= max;
+/** Counts code points, as the schema's `char_length` CHECKs do, not UTF-16 units. */
+const lengthIn = (value: string, min: number, max: number): boolean => {
+  const length = [...value].length;
+  return length >= min && length <= max;
+};
 
 /**
  * VER-2 P1–P2: every issue at once. A missing field is `MissingRequiredField` (identity); a
@@ -457,6 +474,7 @@ function checkSubmissionShape(input: SubmitApplicationRequest): void {
   else if (legal.type === 'CC') check(isValidCc(legal.number!), 'legalIdentity.number', 'una cédula tiene entre 6 y 10 dígitos');
   else check(false, 'legalIdentity.type', 'debe ser NIT o CC');
   check(input.documentUploadKeys.length <= 3, 'documentUploadKeys', 'admite como máximo 3 documentos');
+  check(new Set(input.documentUploadKeys).size === input.documentUploadKeys.length, 'documentUploadKeys', 'no debe repetir un documento');
   check(isHttpsUrl(input.externalPresenceUrl), 'externalPresenceUrl', 'debe ser un enlace https de hasta 2048 caracteres');
   check(lengthIn(input.city, 2, 60), 'city', 'debe tener entre 2 y 60 caracteres');
   issues.push(...paymentIssues(pay, 'paymentInstructions'));

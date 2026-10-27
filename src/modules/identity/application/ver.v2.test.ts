@@ -81,6 +81,20 @@ describe('VerServiceV2.submitApplication — promotion (P3, AD-SYS-8 rule 6)', (
     expect(await rows(db, 'BusinessApplicationLegalIdentity')).toMatchObject([{ applicationId: result.applicationId, documentKeys: promoted }]);
     expect(await rows(db, 'audit_events', `action = 'verification.application.submitted'`)).toMatchObject([{ aggregateId: result.applicationId }]);
   });
+
+  it('a storage failure partway through deletes the copies already made and surfaces its own error', async () => {
+    await user(db, { id: id('andres') });
+    const { w, ver } = setup();
+    const keys = [keyOf(id('andres'), 'doc1'), keyOf(id('andres'), 'doc2')];
+    for (const key of keys) w.storage.simulateDirectUpload(key, PDF, 'application/pdf');
+    const put = w.storage.put.bind(w.storage);
+    let puts = 0;
+    w.storage.put = async (...args: Parameters<typeof put>) => { if (puts++ === 1) throw new Error('storage down'); return put(...args); };
+    const error = await caught(() => ver.submitApplication(application(id('andres'), { documentUploadKeys: keys })));
+    expect((error as Error).message).toBe('storage down');
+    expect(bucketKeys(w, 'ver-documents')).toEqual([]);
+    expect(bucketKeys(w, 'upload-quarantine')).toHaveLength(2);
+  });
 });
 
 describe('VerServiceV2.submitApplication — Q-fail cleanup (AD-VER-3 rule 4)', () => {
@@ -92,6 +106,23 @@ describe('VerServiceV2.submitApplication — Q-fail cleanup (AD-VER-3 rule 4)', 
     expect(codeOf(error)).toBe('ApplicationAlreadyPending');
     expect(bucketKeys(w, 'ver-documents')).toEqual([]);
     expect(bucketKeys(w, 'upload-quarantine')).toHaveLength(1);
+  });
+
+  it('a failed delete during the cleanup does not hide the refusal', async () => {
+    await business(db, id('andres'), 'Pending');
+    const { w, ver } = setup();
+    w.storage.simulateDirectUpload(keyOf(id('andres')), PDF, 'application/pdf');
+    w.storage.delete = async () => { throw new Error('storage down'); };
+    expect(codeOf(await caught(() => ver.submitApplication(application(id('andres')))))).toBe('ApplicationAlreadyPending');
+  });
+
+  it('a failed quarantine delete after the commit does not fail the committed submit', async () => {
+    await user(db, { id: id('andres') });
+    const { w, ver } = setup();
+    w.storage.simulateDirectUpload(keyOf(id('andres')), PDF, 'application/pdf');
+    w.storage.delete = async () => { throw new Error('storage down'); };
+    expect(await ver.submitApplication(application(id('andres')))).toMatchObject({ status: 'Pending' });
+    expect(await db.counts(['BusinessApplication'])).toEqual({ BusinessApplication: 1 });
   });
 });
 
@@ -120,6 +151,14 @@ describe('VerServiceV2.submitApplication — shape (P1–P2)', () => {
     const input = application(id('andres'), { legalIdentity: { type: 'CC', number: '12345' }, externalPresenceUrl: 'http://x.co', documentUploadKeys: keys });
     const error = await caught(() => ver.submitApplication(input)) as { citations: { inputs: { field: string } }[] };
     expect(error.citations.map((c) => c.inputs.field)).toEqual(['legalIdentity.number', 'documentUploadKeys', 'externalPresenceUrl']);
+  });
+
+  it('a repeated document key is refused, and a name is measured in characters as the schema does, not in UTF-16 units', async () => {
+    const { ver } = setup();
+    const key = keyOf(id('andres'));
+    const input = application(id('andres'), { businessName: '🃏', documentUploadKeys: [key, key] });
+    const error = await caught(() => ver.submitApplication(input)) as { citations: { inputs: { field: string } }[] };
+    expect(error.citations.map((c) => c.inputs.field)).toEqual(['businessName', 'documentUploadKeys']);
   });
 
   it('a payment-QR key is refused until the QR upload can promote it, and nothing is written', async () => {
@@ -158,6 +197,16 @@ describe('VerServiceV2.submitApplication — the latest application (P6–P7)', 
   });
 });
 
+describe('VerServiceV2.decideApplication — admin only (AD-16)', () => {
+  it('a non-admin is AdminOnly, even past the router, and nothing is written', async () => {
+    await user(db, { id: id('camila') });
+    const applicationId = await business(db, id('andres'), 'Pending');
+    const error = await caught(() => setup().ver.decideApplication({ applicationId, decision: { kind: 'approve' }, adminId: id('camila') }));
+    expect(codeOf(error)).toBe('AdminOnly');
+    expect(await db.counts(['ApplicationDecisionLog', 'OutboxEvent', 'audit_events'])).toEqual({ ApplicationDecisionLog: 0, OutboxEvent: 0, audit_events: 0 });
+  });
+});
+
 describe('VerServiceV2.decideApplication — the race loser (VER-1 Q-fail, AD-VER-1 rule 3)', () => {
   /** The P3 read saw Pending, but another decider committed first: the UPDATE matches 0 rows. */
   function staleRead(w: ReturnType<typeof wiring>) {
@@ -170,6 +219,7 @@ describe('VerServiceV2.decideApplication — the race loser (VER-1 Q-fail, AD-VE
 
   it('re-reads and names the winner, and writes no log, audit or event row', async () => {
     await admin(db);
+    await admin(db, id('admin2'));
     const applicationId = await business(db, id('andres'), 'Approved');
     const error = await caught(() => staleRead(wiring(db)).decideApplication({ applicationId, decision: { kind: 'approve' }, adminId: id('admin2') }));
     expect(codeOf(error)).toBe('ApplicationNotPending');
@@ -363,7 +413,7 @@ describe('VerServiceV2.getApplicationForReview (VER-3, AD-VER-2)', () => {
   async function scene() {
     await admin(db);
     const applicationId = await business(db, id('andres'), 'Pending');
-    await ins(db, 'BusinessApplicationLegalIdentity', { applicationId, type: 'NIT', number: '9001234563', documentKeys: ['ver-documents/doc1', 'ver-documents/doc2'] }, 'created');
+    await ins(db, 'BusinessApplicationLegalIdentity', { applicationId, type: 'NIT', number: '9001234568', documentKeys: ['ver-documents/doc1', 'ver-documents/doc2'] }, 'created');
     return applicationId;
   }
 
@@ -375,7 +425,7 @@ describe('VerServiceV2.getApplicationForReview (VER-3, AD-VER-2)', () => {
     expect(await rows(db, 'LegalIdentityAccessLog')).toMatchObject([{ outcome: 'denied', fieldsRead: [], procedure: 'verification.getApplicationForReview' }]);
     const audits = await rows(db, 'audit_events', `action = 'verification.legalIdentity.denied'`);
     expect(audits).toMatchObject([{ actorId: id('camila'), aggregateId: applicationId }]);
-    expect(JSON.stringify([error, audits])).not.toContain('9001234563');
+    expect(JSON.stringify([error, audits])).not.toContain('9001234568');
   });
 
   it('a non-admin asking for an unknown id is still denied; the audit row records it, the log has no application to name', async () => {
@@ -391,11 +441,20 @@ describe('VerServiceV2.getApplicationForReview (VER-3, AD-VER-2)', () => {
     const { w, ver } = setup();
     const result = await ver.getApplicationForReview({ applicationId, actorId: id('admin') });
     expect(w.storage.signedReads).toEqual([{ bucket: 'ver-documents', key: 'doc1' }, { bucket: 'ver-documents', key: 'doc2' }]);
-    expect(result).toMatchObject({ applicationId, businessId: id('andres'), status: 'Pending', legalIdentity: { type: 'NIT', number: '9001234563' } });
+    expect(result).toMatchObject({ applicationId, businessId: id('andres'), status: 'Pending', legalIdentity: { type: 'NIT', number: '9001234568' } });
     expect(await rows(db, 'LegalIdentityAccessLog')).toMatchObject([{ outcome: 'granted', fieldsRead: ['type', 'number', 'documentKeys'] }]);
     const audits = await rows(db, 'audit_events', `action = 'verification.legalIdentity.read'`);
     expect(audits).toHaveLength(1);
-    expect(JSON.stringify(audits)).not.toContain('9001234563');
+    expect(JSON.stringify(audits)).not.toContain('9001234568');
+  });
+
+  it('a failed signing writes no granted row and no audit row', async () => {
+    const applicationId = await scene();
+    const { w, ver } = setup();
+    w.storage.sign = async () => { throw new Error('storage down'); };
+    expect((await caught(() => ver.getApplicationForReview({ applicationId, actorId: id('admin') })) as Error).message).toBe('storage down');
+    expect(await db.counts(['LegalIdentityAccessLog'])).toEqual({ LegalIdentityAccessLog: 0 });
+    expect(await rows(db, 'audit_events', `action = 'verification.legalIdentity.read'`)).toHaveLength(0);
   });
 });
 
