@@ -232,7 +232,30 @@ const regulatedSelect = {
   },
 };
 
+/** AD-VER-2 rule 1: the one file that may name the legal-identity table. */
+export const LEGAL_IDENTITY_FILE = 'src/modules/identity/infra/legalIdentityRepository.ts';
+
+const legalIdentityConfined = {
+  meta: {
+    type: 'problem',
+    docs: { description: 'Only legalIdentityRepository.ts names "BusinessApplicationLegalIdentity" (AD-13, AD-VER-2 rule 1).' },
+    schema: [],
+    messages: {
+      confined: 'names BusinessApplicationLegalIdentity outside {{file}}: read and write it through legalIdentityRepository.',
+    },
+  },
+  create(context) {
+    if (fileOf(context).rel === LEGAL_IDENTITY_FILE) return {};
+    // Any mention counts, a SELECT, a RETURNING or a write alike: the table has one adapter.
+    const check = (node) => {
+      const text = node.type === 'Literal' ? (typeof node.value === 'string' ? node.value : null) : node.quasis.map((q) => q.value.cooked ?? q.value.raw).join('');
+      if (text !== null && /\bBusinessApplicationLegalIdentity\b/.test(text)) context.report({ node, messageId: 'confined', data: { file: LEGAL_IDENTITY_FILE } });
+    };
+    return { Literal: check, TemplateLiteral: check };
+  },
+};
+
 export default {
   meta: { name: 'tezg' },
-  rules: { 'error-owner': errorOwner, 'table-owner': tableOwner, 'regulated-select': regulatedSelect },
+  rules: { 'error-owner': errorOwner, 'table-owner': tableOwner, 'regulated-select': regulatedSelect, 'legal-identity-confined': legalIdentityConfined },
 };

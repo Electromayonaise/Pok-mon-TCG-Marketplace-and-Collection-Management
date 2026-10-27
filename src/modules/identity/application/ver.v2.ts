@@ -42,7 +42,8 @@ import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId } from '../../../shared-kernel/types.js';
 import {
-  CURRENT_CONSENT_VERSION, decodeQueueCursor, encodeQueueCursor, evaluateSubmission, isValidCc, isValidNit, rejectionSnapshot, verificationCopy,
+  CURRENT_CONSENT_VERSION, decodeAccessLogCursor, decodeQueueCursor, encodeAccessLogCursor, encodeQueueCursor, evaluateSubmission, isValidCc,
+  isValidNit, rejectionSnapshot, verificationCopy,
 } from '../domain/ver.js';
 import type { PaymentInstructionsInput } from '../dto/ver.v2.dto.js';
 import type { ApplicationTransition, RejectionReasonRow } from '../ports/ver.v2.js';
@@ -52,6 +53,14 @@ const raise = raiserFor('identity');
 
 /** S-FR-VER-2: the review queue's page size. */
 const QUEUE_PAGE = 25;
+/** S-FR-VER-5.audit: the access log's page size. */
+const ACCESS_PAGE = 50;
+
+/** VER-3: the procedure each access row names, and the fields a granted read returns (names only). */
+const REVIEW_PROCEDURE = 'verification.getApplicationForReview';
+const FIELDS_READ = ['type', 'number', 'documentKeys'];
+/** AD-14: a signed document URL lives exactly 600 s. */
+const SIGNED_URL_TTL = 600;
 
 /** AD-SYS-8 rule 6: the 5 MiB cap and the magic bytes of the three accepted document types. */
 const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
@@ -213,8 +222,48 @@ export class VerServiceV2 implements VerV2UseCases {
     return promoted;
   }
 
-  async getApplicationForReview(_input: GetApplicationForReviewRequest): Promise<GetApplicationForReviewResponse> {
-    throw new NotImplementedError('identity.getApplicationForReview');
+  /**
+   * VER-3, AD-VER-2 rules 2–5. A non-admin's denial commits in its own transaction before the
+   * error, so it survives it. An admin's read and its `granted` row share one transaction, the
+   * read first, so an unknown id writes nothing. No regulated value reaches an error or the audit.
+   */
+  async getApplicationForReview(input: GetApplicationForReviewRequest): Promise<GetApplicationForReviewResponse> {
+    const { repo, transactions, clock, ids, audit, storage } = this.deps;
+    const { applicationId, actorId } = input;
+    const now = clock.now();
+    const at = now.toISOString();
+    const facts = await transactions.run((tx) => repo.readCapabilityFacts(tx, actorId), { readOnly: true });
+    if (!facts?.isAdmin) {
+      await transactions.run(async (tx) => {
+        await repo.insertAccessLog(tx, { id: ids.next(), actorId, applicationId, fieldsRead: [], outcome: 'denied', procedure: REVIEW_PROCEDURE }, at);
+        await audit.record(tx, {
+          actorId, actorKind: 'user', module: 'identity', action: 'verification.legalIdentity.denied',
+          aggregateType: 'BusinessApplication', aggregateId: applicationId, decisionCode: 'LegalIdentityAccessDenied',
+          data: { procedure: REVIEW_PROCEDURE }, at,
+        });
+      });
+      return raise('LegalIdentityAccessDenied', [{ rule: 'FR-VER-5', inputs: { applicationId, outcome: 'denied' } }]);
+    }
+    const row = await transactions.run(async (tx) => {
+      const found = await repo.readForReview(tx, applicationId);
+      if (found === null) return raise('ApplicationNotFound', [{ rule: 'FR-VER-5', inputs: { applicationId } }]);
+      await repo.insertAccessLog(tx, { id: ids.next(), actorId, applicationId, fieldsRead: FIELDS_READ, outcome: 'granted', procedure: REVIEW_PROCEDURE }, at);
+      await audit.record(tx, {
+        actorId, actorKind: 'admin', module: 'identity', action: 'verification.legalIdentity.read',
+        aggregateType: 'BusinessApplication', aggregateId: applicationId, decisionCode: null, data: { fieldsRead: FIELDS_READ.join(',') }, at,
+      });
+      return found;
+    });
+    const expiresAt = new Date(now.getTime() + SIGNED_URL_TTL * 1000).toISOString();
+    const documents = await Promise.all(row.documentKeys.map(async (key) => {
+      const { url } = await storage.sign('ver-documents', key.replace(/^ver-documents\//, ''), SIGNED_URL_TTL);
+      return { url, expiresAt };
+    }));
+    return {
+      applicationId: row.applicationId, businessId: row.businessId, businessName: row.businessName, city: row.city,
+      externalPresenceUrl: row.externalPresenceUrl, submittedAt: row.submittedAt, status: row.status,
+      legalIdentity: { type: row.type, number: row.number }, documents,
+    };
   }
 
   /** S-FR-VER-2: admin only; `Pending` by `("submittedAt", id)`, one row past the page to know a next one exists. Zero writes. */
@@ -363,8 +412,19 @@ export class VerServiceV2 implements VerV2UseCases {
     }, { readOnly: true });
   }
 
-  async listLegalIdentityAccess(_input: ListLegalIdentityAccessRequest): Promise<ListLegalIdentityAccessResponse> {
-    throw new NotImplementedError('identity.listLegalIdentityAccess');
+  /** S-FR-VER-5.audit: admin only; newest first, one row past the page to know a next one exists. Zero writes. */
+  async listLegalIdentityAccess(input: ListLegalIdentityAccessRequest): Promise<ListLegalIdentityAccessResponse> {
+    const { repo, transactions } = this.deps;
+    return transactions.run(async (tx) => {
+      await requireAdmin(this.deps, tx, input.adminId);
+      const before = input.cursor === null ? null : decodeAccessLogCursor(input.cursor);
+      if (input.cursor !== null && before === null) rejectRequest([{ field: 'cursor', issue: 'no corresponde a una página de esta lista' }]);
+      const rows = await repo.listAccessLog(tx, before, input.applicationId ?? null, ACCESS_PAGE + 1);
+      const page = rows.slice(0, ACCESS_PAGE);
+      const last = page.at(-1);
+      const nextCursor = rows.length > ACCESS_PAGE && last ? encodeAccessLogCursor({ createdAt: last.at, id: last.logId }) : null;
+      return { rows: page, nextCursor };
+    }, { readOnly: true });
   }
 }
 

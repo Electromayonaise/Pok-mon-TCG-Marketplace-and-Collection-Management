@@ -1,14 +1,15 @@
 // Proves each `tezg/*` rule fails on its planted violation (Story 1.4), so `npm run lint` passing
 // on src/ is never vacuous. The plants are the ones the fitness probes and ATDD tests use:
 // [SYS-1.R2] (a foreign raiser), [SYS-AD8.probe] (a listings write to "CommissionAccount"),
-// AD-SYS-8 rule 3 (an admin path selecting "Message".body). Run with `npm run test:lint-rules`.
+// AD-SYS-8 rule 3 (an admin path selecting "Message".body), AD-VER-2 rule 1 (the legal-identity
+// table named outside its repository, Story 3.4). Run with `npm run test:lint-rules`.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { RuleTester } from 'eslint';
 import tseslint from 'typescript-eslint';
-import plugin, { CODE_OWNERS, REGULATED_COLUMNS, REPO_ROOT, TABLE_OWNERS } from './tezg-plugin.mjs';
+import plugin, { CODE_OWNERS, LEGAL_IDENTITY_FILE, REGULATED_COLUMNS, REPO_ROOT, TABLE_OWNERS } from './tezg-plugin.mjs';
 
 RuleTester.describe = describe;
 RuleTester.it = it;
@@ -77,6 +78,22 @@ tester.run('tezg/regulated-select', plugin.rules['regulated-select'], {
     { filename: at('src/modules/messaging/infra/pg.ts'), code: 'q(`SELECT c.id, m.* FROM "Conversation" c JOIN "Message" m ON m."conversationId" = c.id`);', errors: [{ messageId: 'regulatedStar', data: { name: 'Message' } }] },
     { filename: at('src/shared-kernel/admin-events.ts'), code: 'q(`SELECT m.body FROM "Conversation" c, "Message" m WHERE m."conversationId" = c.id`);', errors: [{ messageId: 'regulatedColumn', data: { name: 'Message.body', owner: 'messaging' } }] },
     { filename: at('src/modules/identity/infra/pg.ts'), code: 'q(`SELECT "userId", * FROM "IndividualSellerProfile"`);', errors: [{ messageId: 'regulatedStar', data: { name: 'IndividualSellerProfile' } }] },
+  ],
+});
+
+tester.run('tezg/legal-identity-confined', plugin.rules['legal-identity-confined'], {
+  valid: [
+    { filename: at(LEGAL_IDENTITY_FILE), code: 'q(`SELECT l.type FROM "BusinessApplicationLegalIdentity" l WHERE l."applicationId" = $1`);' },
+    // The access log only shares a prefix; prose about the legal identity names no table.
+    { filename: at('src/modules/identity/infra/pg.ts'), code: 'q(`INSERT INTO "LegalIdentityAccessLog" (id) VALUES ($1)`);' },
+    { filename: at('src/modules/identity/application/ver.v2.ts'), code: "const why = 'legal identity read';" },
+  ],
+  invalid: [
+    // Story 3.4 AC: the table named in infra/pg.ts, which regulated-select allows in identity's infra/.
+    { filename: at('src/modules/identity/infra/pg.ts'), code: 'q("BusinessApplicationLegalIdentity");', errors: [{ messageId: 'confined', data: { file: LEGAL_IDENTITY_FILE } }] },
+    // The Story 1.4 deferred gap: a RETURNING that regulated-select does not read.
+    { filename: at('src/modules/identity/infra/pg.ts'), code: 'q(`INSERT INTO "BusinessApplicationLegalIdentity" ("applicationId") VALUES ($1) RETURNING number`);', errors: [{ messageId: 'confined' }] },
+    { filename: at('src/modules/orders/application/ord.ts'), code: 'q(`SELECT 1 FROM "BusinessApplicationLegalIdentity" WHERE "applicationId" = ${id}`);', errors: [{ messageId: 'confined' }] },
   ],
 });
 

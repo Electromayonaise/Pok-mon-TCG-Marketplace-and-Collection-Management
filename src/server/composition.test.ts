@@ -1,5 +1,5 @@
 // The production composition over HTTP (decision log Impl-1 #24): a real Better Auth session on
-// the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2, the supporting
+// the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2, VER-3, the supporting
 // VER contracts and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
@@ -261,6 +261,35 @@ describe('the supporting verification procedures over HTTP (S-FR-VER-2, -7, -8, 
     const instructions = { bankName: 'Davivienda', accountType: 'checking', accountNumber: '99887766554', holderName: 'Andrés Tienda', qrUploadKey: null };
     expect((await post('verification.updatePaymentInstructions', { instructions }, cookie)).status).toBe(200);
     expect(await rows(db, 'BusinessProfile')).toMatchObject([{ businessId: id('andres'), bankName: 'Davivienda' }]);
+  });
+});
+
+describe('the legal-identity read and its audit over HTTP (VER-3, S-FR-VER-5.audit; Story 3.4)', () => {
+  const withLegalIdentity = async () => {
+    const applicationId = await business(db, id('andres'), 'Pending');
+    await ins(db, 'BusinessApplicationLegalIdentity', { applicationId, type: 'NIT', number: '9001234563', documentKeys: ['ver-documents/doc1'] }, 'created');
+    return applicationId;
+  };
+
+  it('a signed-in non-admin reaches the service: LegalIdentityAccessDenied 403, and the denial row names the session user', async () => {
+    const applicationId = await withLegalIdentity();
+    await user(db, { id: id('camila') });
+    const { status, json } = await post('verification.getApplicationForReview', { applicationId }, await signIn(id('camila')));
+    expect([status, json.error?.code]).toEqual([403, 'LegalIdentityAccessDenied']);
+    expect(await rows(db, 'LegalIdentityAccessLog')).toMatchObject([{ actorId: id('camila'), applicationId, outcome: 'denied' }]);
+  });
+
+  it('an admin reads the application and then the audit: 200, one granted row by the session admin, and a non-admin is AdminOnly on the audit', async () => {
+    const applicationId = await withLegalIdentity();
+    await admin(db);
+    const cookie = await signIn(id('admin'));
+    const read = await post('verification.getApplicationForReview', { applicationId }, cookie);
+    expect(read.status).toBe(200);
+    expect(read.json.result?.data).toMatchObject({ applicationId, legalIdentity: { type: 'NIT', number: '9001234563' } });
+    expect((await get('verification.legalIdentityAudit', { cursor: null, applicationId }, cookie)).json.result?.data)
+      .toMatchObject({ rows: [{ actorId: id('admin'), applicationId, outcome: 'granted' }], nextCursor: null });
+    await user(db, { id: id('camila') });
+    expect((await get('verification.legalIdentityAudit', { cursor: null }, await signIn(id('camila')))).json.error?.code).toBe('AdminOnly');
   });
 });
 

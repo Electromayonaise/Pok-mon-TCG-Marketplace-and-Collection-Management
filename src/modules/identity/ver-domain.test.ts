@@ -1,8 +1,8 @@
 // VER-2 P2 and P5–P7: the DIAN NIT check digit (the ADD-§2.5 vectors), the CC length, and the
 // submission verdict judged from the latest application's snapshot only (AD-VER-3, FR-VER-6).
-// S-FR-VER-7's copy and S-FR-VER-2's queue cursor.
+// S-FR-VER-7's copy, S-FR-VER-2's queue cursor and S-FR-VER-5.audit's access-log cursor.
 import { describe, expect, it } from 'vitest';
-import { decodeQueueCursor, encodeQueueCursor, evaluateSubmission, isValidCc, isValidNit, nitCheckDigit, verificationCopy } from './domain/ver.js';
+import { decodeAccessLogCursor, decodeQueueCursor, encodeAccessLogCursor, encodeQueueCursor, evaluateSubmission, isValidCc, isValidNit, nitCheckDigit, verificationCopy } from './domain/ver.js';
 
 describe('nitCheckDigit / isValidNit (ADD-§2.5)', () => {
   it.each([
@@ -80,5 +80,18 @@ describe('encodeQueueCursor / decodeQueueCursor (S-FR-VER-2)', () => {
     ['an id that is no cuid2', raw(['queue', key.submittedAt, 'APP-1'])],
   ])('refuses %s', (_label, cursor) => {
     expect(decodeQueueCursor(cursor)).toBeNull();
+  });
+});
+
+describe('encodeAccessLogCursor / decodeAccessLogCursor (S-FR-VER-5.audit)', () => {
+  const key = { createdAt: '2026-10-01T15:00:00.000Z', id: 'logx00000000000000000001' };
+
+  it('round-trips the sort key of a page', () => {
+    expect(decodeAccessLogCursor(encodeAccessLogCursor(key))).toEqual(key);
+  });
+
+  it('the two lists refuse each other\'s cursors', () => {
+    expect(decodeAccessLogCursor(encodeQueueCursor({ submittedAt: key.createdAt, id: key.id }))).toBeNull();
+    expect(decodeQueueCursor(encodeAccessLogCursor(key))).toBeNull();
   });
 });

@@ -50,8 +50,8 @@ export interface AppDeps {
 /**
  * The procedures whose contracts the done stories implement: IDN-1.ingress (Story 2.1),
  * IDN-3 (Story 2.5), S-SYS.replay (Story 1.3), S-SYS.tick, .deliveries, .health
- * (Story 1.5), VER-2 (Story 3.1), VER-1 (Story 3.2) and S-FR-VER-2, -7, -8, -9 (Story 3.5). Every other
- * procedure stays NotImplemented until its story wires it.
+ * (Story 1.5), VER-2 (Story 3.1), VER-1 (Story 3.2), VER-3 and S-FR-VER-5.audit (Story 3.4) and
+ * S-FR-VER-2, -7, -8, -9 (Story 3.5). Every other procedure stays NotImplemented until its story wires it.
  */
 function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
   return {
@@ -61,6 +61,10 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; adminEvents: Admin
     'verification.approve': ({ applicationId }, adminId) => s.ver.decideApplication({ applicationId, decision: { kind: 'approve' }, adminId }),
     'verification.reject': ({ applicationId, reasonCode, note }, adminId) =>
       s.ver.decideApplication({ applicationId, decision: { kind: 'reject', reasonCode, note }, adminId }),
+    // An authed builder, not admin: a non-admin's attempt must reach the service to be logged (AD-VER-2).
+    'verification.getApplicationForReview': ({ applicationId }, actorId) => s.ver.getApplicationForReview({ applicationId, actorId }),
+    'verification.legalIdentityAudit': ({ cursor, applicationId }, adminId) =>
+      s.ver.listLegalIdentityAccess({ cursor, adminId, ...(applicationId ? { applicationId } : {}) }),
     'verification.queue': ({ cursor }, adminId) => s.ver.listReviewQueue({ cursor, adminId }),
     'verification.myStatus': (_input, businessId) => s.ver.getMyApplicationStatus({ businessId }),
     'verification.reasons.list': (_input, adminId) => s.ver.listRejectionReasons({ adminId }),

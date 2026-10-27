@@ -6,14 +6,14 @@ import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { ApplicationStatus, AuthThrottleScope, CapabilityFacts, SellerTrack } from '../domain/idn.js';
-import type { LatestApplicationSnapshot, QueueKey, RejectionPolicy } from '../domain/ver.js';
+import type { AccessLogKey, LatestApplicationSnapshot, QueueKey, RejectionPolicy } from '../domain/ver.js';
 import type { PaymentInstructionsDTO } from '../dto/ver.dto.js';
 import type { IUserRepository } from '../ports/idn.js';
 import type { IdnRepository, IndividualProfileRow } from '../ports/idn.v2.js';
 import type { IBusinessApplicationRepository, IBusinessProfileRepository, IRejectionReasonRepository } from '../ports/ver.js';
 import type {
-  ApplicationRow, ApplicationStatusRow, ApplicationTransition, BusinessProfileRow, DecisionLogRow, DecisionState, PaymentInstructionsRow,
-  QueueRow, RejectionReasonChangeRow, RejectionReasonRow, VerRepository,
+  AccessLogListRow, AccessLogRow, ApplicationRow, ApplicationStatusRow, ApplicationTransition, BusinessProfileRow, DecisionLogRow, DecisionState,
+  PaymentInstructionsRow, QueueRow, RejectionReasonChangeRow, RejectionReasonRow, VerRepository,
 } from '../ports/ver.v2.js';
 
 export class PgUserRepository implements IUserRepository {
@@ -168,7 +168,7 @@ export class PgIdnRepository implements IdnRepository {
  * rule 1). Every statement runs on the caller's `tx`; every instant is a bound parameter.
  * Proven by ver_contracts › VER-2.
  */
-export class PgVerRepository implements Omit<VerRepository, keyof IdnRepository | 'insertLegalIdentity'> {
+export class PgVerRepository implements Omit<VerRepository, keyof IdnRepository | 'insertLegalIdentity' | 'readForReview'> {
   async readLatestApplication(tx: Tx, businessId: CuidId): Promise<(LatestApplicationSnapshot & { id: CuidId; submittedAt: IsoInstant }) | null> {
     const { rows } = await tx.query<{ id: CuidId; status: ApplicationStatus; reapplyBarred: boolean; reapplyNotBefore: Date | null; submittedAt: Date }>(
       `SELECT id, status, "reapplyBarred", "reapplyNotBefore", "submittedAt" FROM "BusinessApplication"
@@ -355,6 +355,31 @@ export class PgVerRepository implements Omit<VerRepository, keyof IdnRepository 
       [businessId],
     );
     return rows[0]?.businessName ?? null;
+  }
+
+  async insertAccessLog(tx: Tx, row: AccessLogRow, now: IsoInstant): Promise<boolean> {
+    // INSERT … SELECT, so an unknown application writes nothing instead of failing the FK.
+    const { rowCount } = await tx.query(
+      `INSERT INTO "LegalIdentityAccessLog" (id, "actorId", "applicationId", "fieldsRead", outcome, procedure, "createdAt")
+       SELECT $1, $2, a.id, $4, $5, $6, $7 FROM "BusinessApplication" a WHERE a.id = $3`,
+      [row.id, row.actorId, row.applicationId, row.fieldsRead, row.outcome, row.procedure, now],
+    );
+    return rowCount === 1;
+  }
+
+  async listAccessLog(tx: Tx, before: AccessLogKey | null, applicationId: CuidId | null, limit: number): Promise<AccessLogListRow[]> {
+    // The keyset predicate exists only after a first page, never as `OR $1 IS NULL`; likewise the filter.
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (applicationId !== null) where.push(`"applicationId" = $${params.push(applicationId)}`);
+    if (before !== null) where.push(`("createdAt", id) < ($${params.push(before.createdAt)}, $${params.push(before.id)})`);
+    const { rows } = await tx.query<Omit<AccessLogListRow, 'at'> & { at: Date }>(
+      `SELECT id AS "logId", "actorId", "applicationId", "fieldsRead", outcome, procedure, "createdAt" AS at
+         FROM "LegalIdentityAccessLog"${where.length > 0 ? ` WHERE ${where.join(' AND ')}` : ''}
+        ORDER BY "createdAt" DESC, id DESC LIMIT $${params.push(limit)}`,
+      params,
+    );
+    return rows.map((r) => ({ ...r, at: r.at.toISOString() }));
   }
 }
 

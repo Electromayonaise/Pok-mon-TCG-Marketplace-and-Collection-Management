@@ -4,7 +4,7 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 
 ## Deferred from: code review of 1-4-keep-time-sockets-and-module-boundaries-deterministic (2026-10-25)
 
-- `regulated-select` false negatives on `RETURNING`, concatenated or interpolated SQL, schema-qualified and unquoted uppercase names. The rule guards the repo's literal style; the DB-backed fitness tests remain the proof.
+- `regulated-select` false negatives on `RETURNING`, concatenated or interpolated SQL, schema-qualified and unquoted uppercase names. The rule guards the repo's literal style; the DB-backed fitness tests remain the proof. (Story 3.4 closes the gap for the legal identity: `legal-identity-confined` refuses any literal naming `"BusinessApplicationLegalIdentity"` outside `legalIdentityRepository.ts`, so a `RETURNING` or interpolated read of that table elsewhere fails lint.)
 - `error-owner` misses an aliased `raiserFor` and member callees (`x.raiserFor`). No such call exists; revisit if one appears.
 - The drift test reads column markers only; table-level `-- regulated` markers and `TRUNCATE a, b` lists are not parsed. The schema has neither today.
 

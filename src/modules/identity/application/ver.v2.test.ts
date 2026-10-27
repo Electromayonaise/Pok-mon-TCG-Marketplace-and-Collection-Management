@@ -4,11 +4,14 @@
 // decideApplication (VER-1): the race loser's re-read (Q-fail) and the barred snapshot (Q2).
 // The supporting contracts (S-FR-VER-2, -7, -8, -9): every rule-6 branch, upsert no-ops and shape,
 // queue paging and its cursor, the none and barred copies, and the payment-instruction edges.
+// VER-3 and S-FR-VER-5.audit: the denial that survives its error, what the audit rows leave out,
+// the signed keys, and the access log's paging, filter and foreign cursor.
 import { describe, expect, it } from 'vitest';
 import { useTestDatabase } from '../../../../test-support/db.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
 import { caught, citedInputs, httpOf } from '../../../../test-support/errors.js';
-import { admin, at, business, DAY, explainAssert, id, rejectionReason, rows, user, wiring } from '../../../../test-support/solu2/fixtures.js';
+import { admin, at, business, DAY, explainAssert, id, ins, rejectionReason, rows, user, wiring } from '../../../../test-support/solu2/fixtures.js';
+import { encodeQueueCursor } from '../domain/ver.js';
 import type { SubmitApplicationRequest } from '../dto/ver.v2.dto.js';
 import { PgVerRepository } from '../infra/pg.js';
 import { VerServiceV2 } from './ver.v2.js';
@@ -353,6 +356,78 @@ describe('VerServiceV2.updatePaymentInstructions (S-FR-VER-9)', () => {
     const { ver } = setup();
     expect(await ver.getBusinessPaymentInstructions({ businessId: id('andres') })).toMatchObject({ bankName: 'Bancolombia', qrObjectKey: null });
     expect(await ver.getBusinessPaymentInstructions({ businessId: id('pending') })).toBeNull();
+  });
+});
+
+describe('VerServiceV2.getApplicationForReview (VER-3, AD-VER-2)', () => {
+  async function scene() {
+    await admin(db);
+    const applicationId = await business(db, id('andres'), 'Pending');
+    await ins(db, 'BusinessApplicationLegalIdentity', { applicationId, type: 'NIT', number: '9001234563', documentKeys: ['ver-documents/doc1', 'ver-documents/doc2'] }, 'created');
+    return applicationId;
+  }
+
+  it('a denial commits before the error: its log row and audit row survive, neither holds a regulated value', async () => {
+    const applicationId = await scene();
+    await user(db, { id: id('camila') });
+    const error = await caught(() => setup().ver.getApplicationForReview({ applicationId, actorId: id('camila') }));
+    explainAssert(error, { code: 'LegalIdentityAccessDenied', rule: 'FR-VER-5', inputs: { applicationId, outcome: 'denied' } });
+    expect(await rows(db, 'LegalIdentityAccessLog')).toMatchObject([{ outcome: 'denied', fieldsRead: [], procedure: 'verification.getApplicationForReview' }]);
+    const audits = await rows(db, 'audit_events', `action = 'verification.legalIdentity.denied'`);
+    expect(audits).toMatchObject([{ actorId: id('camila'), aggregateId: applicationId }]);
+    expect(JSON.stringify([error, audits])).not.toContain('9001234563');
+  });
+
+  it('a non-admin asking for an unknown id is still denied; the audit row records it, the log has no application to name', async () => {
+    await user(db, { id: id('camila') });
+    const error = await caught(() => setup().ver.getApplicationForReview({ applicationId: id('noapp'), actorId: id('camila') }));
+    expect(codeOf(error)).toBe('LegalIdentityAccessDenied');
+    expect(await db.counts(['LegalIdentityAccessLog'])).toEqual({ LegalIdentityAccessLog: 0 });
+    expect(await rows(db, 'audit_events', `action = 'verification.legalIdentity.denied'`)).toHaveLength(1);
+  });
+
+  it('a grant signs each document under ver-documents and audits the field names only', async () => {
+    const applicationId = await scene();
+    const { w, ver } = setup();
+    const result = await ver.getApplicationForReview({ applicationId, actorId: id('admin') });
+    expect(w.storage.signedReads).toEqual([{ bucket: 'ver-documents', key: 'doc1' }, { bucket: 'ver-documents', key: 'doc2' }]);
+    expect(result).toMatchObject({ applicationId, businessId: id('andres'), status: 'Pending', legalIdentity: { type: 'NIT', number: '9001234563' } });
+    expect(await rows(db, 'LegalIdentityAccessLog')).toMatchObject([{ outcome: 'granted', fieldsRead: ['type', 'number', 'documentKeys'] }]);
+    const audits = await rows(db, 'audit_events', `action = 'verification.legalIdentity.read'`);
+    expect(audits).toHaveLength(1);
+    expect(JSON.stringify(audits)).not.toContain('9001234563');
+  });
+});
+
+describe('VerServiceV2.listLegalIdentityAccess (S-FR-VER-5.audit)', () => {
+  const logRow = (n: number, applicationId: string) => ({
+    id: id(`log${n}`), actorId: id('admin'), applicationId, fieldsRead: ['type'], outcome: 'granted', procedure: 'verification.getApplicationForReview',
+    createdAt: at(n * 1000),
+  });
+
+  it('pages 50 at a time, newest first, and filters by application', async () => {
+    await admin(db);
+    const a = await business(db, id('andres'), 'Pending');
+    const b = await business(db, id('beatriz'), 'Pending');
+    for (let n = 0; n < 50; n++) await ins(db, 'LegalIdentityAccessLog', logRow(n, a), 'none');
+    await ins(db, 'LegalIdentityAccessLog', logRow(99, b), 'none');
+    const { ver } = setup();
+    const first = await ver.listLegalIdentityAccess({ adminId: id('admin'), cursor: null });
+    expect(first.rows).toHaveLength(50);
+    expect(first.rows[0]).toMatchObject({ logId: id('log99'), applicationId: b });
+    const second = await ver.listLegalIdentityAccess({ adminId: id('admin'), cursor: first.nextCursor });
+    expect(second).toEqual({ rows: [expect.objectContaining({ logId: id('log0') })], nextCursor: null });
+    const onlyB = await ver.listLegalIdentityAccess({ adminId: id('admin'), cursor: null, applicationId: b });
+    expect(onlyB).toEqual({ rows: [expect.objectContaining({ logId: id('log99') })], nextCursor: null });
+  });
+
+  it('a non-admin is AdminOnly, and a queue cursor is refused here', async () => {
+    await user(db, { id: id('camila') });
+    await admin(db);
+    const { ver } = setup();
+    expect(codeOf(await caught(() => ver.listLegalIdentityAccess({ adminId: id('camila'), cursor: null })))).toBe('AdminOnly');
+    const queueCursor = encodeQueueCursor({ submittedAt: at(0), id: id('x') });
+    expect(codeOf(await caught(() => ver.listLegalIdentityAccess({ adminId: id('admin'), cursor: queueCursor })))).toBe('RequestValidationFailed');
   });
 });
 

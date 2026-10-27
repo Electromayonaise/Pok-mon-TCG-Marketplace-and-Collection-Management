@@ -93,24 +93,48 @@ export interface QueueKey {
   id: string;
 }
 
-const QUEUE_ID = /^[a-z][0-9a-z]{23}$/;
-
-/** The opaque cursor of a queue page: base64url JSON of its last row's sort key. */
-export function encodeQueueCursor(key: QueueKey): string {
-  return Buffer.from(JSON.stringify(['queue', key.submittedAt, key.id])).toString('base64url');
+/** S-FR-VER-5.audit: the access log's sort key, `("createdAt", id)` of a page's last row. */
+export interface AccessLogKey {
+  createdAt: string;
+  id: string;
 }
 
-/** A cursor `encodeQueueCursor` issued, else null; the instant must be the canonical ISO form it writes. */
-export function decodeQueueCursor(cursor: string): QueueKey | null {
+const KEY_ID = /^[a-z][0-9a-z]{23}$/;
+
+/** The opaque cursor of a page: base64url JSON of the list's tag and its last row's sort key. */
+function encodeKeyset(tag: string, at: string, id: string): string {
+  return Buffer.from(JSON.stringify([tag, at, id])).toString('base64url');
+}
+
+/** A cursor `encodeKeyset` issued for `tag`, else null; the instant must be the canonical ISO form it writes. */
+function decodeKeyset(tag: string, cursor: string): [at: string, id: string] | null {
   let parts: unknown = null;
   try {
     parts = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
   } catch {
     return null;
   }
-  if (!Array.isArray(parts) || parts.length !== 3 || parts[0] !== 'queue') return null;
-  const [, submittedAt, id] = parts as unknown[];
-  if (typeof submittedAt !== 'string' || !/^(?!0000)\d{4}-/.test(submittedAt) || Number.isNaN(Date.parse(submittedAt))) return null;
-  if (new Date(submittedAt).toISOString() !== submittedAt || typeof id !== 'string' || !QUEUE_ID.test(id)) return null;
-  return { submittedAt, id };
+  if (!Array.isArray(parts) || parts.length !== 3 || parts[0] !== tag) return null;
+  const [, at, id] = parts as unknown[];
+  if (typeof at !== 'string' || !/^(?!0000)\d{4}-/.test(at) || Number.isNaN(Date.parse(at))) return null;
+  if (new Date(at).toISOString() !== at || typeof id !== 'string' || !KEY_ID.test(id)) return null;
+  return [at, id];
+}
+
+export function encodeQueueCursor(key: QueueKey): string {
+  return encodeKeyset('queue', key.submittedAt, key.id);
+}
+
+export function decodeQueueCursor(cursor: string): QueueKey | null {
+  const key = decodeKeyset('queue', cursor);
+  return key === null ? null : { submittedAt: key[0], id: key[1] };
+}
+
+export function encodeAccessLogCursor(key: AccessLogKey): string {
+  return encodeKeyset('legal-access', key.createdAt, key.id);
+}
+
+export function decodeAccessLogCursor(cursor: string): AccessLogKey | null {
+  const key = decodeKeyset('legal-access', cursor);
+  return key === null ? null : { createdAt: key[0], id: key[1] };
 }

@@ -21,7 +21,7 @@ export interface VerV2Deps {
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { ApplicationStatus } from '../domain/idn.js';
-import type { AccountType, LatestApplicationSnapshot, QueueKey, RejectionPolicy } from '../domain/ver.js';
+import type { AccessLogKey, AccountType, LatestApplicationSnapshot, QueueKey, RejectionPolicy } from '../domain/ver.js';
 import type { IdnRepository } from './idn.v2.js';
 
 /** VER-2 Q2: one `"BusinessApplication"` row as a submission inserts it (Pending, consent snapshot). */
@@ -59,8 +59,8 @@ export interface BusinessProfileRow {
 /**
  * Repository port of VER (review A-4): the only way its application service reads or writes
  * its own tables (AD-8). It extends IDN's, because VER-2 runs IDN-1's claim on the same `repo`
- * (R-14). `infra/pg.ts` implements the VER methods; `insertLegalIdentity` is implemented only by
- * `infra/legalIdentityRepository.ts` (AD-VER-2 rule 1).
+ * (R-14). `infra/pg.ts` implements the VER methods; `insertLegalIdentity` and `readForReview` are
+ * implemented only by `infra/legalIdentityRepository.ts` (AD-VER-2 rule 1).
  */
 export interface VerRepository extends IdnRepository {
   /** VER-2 Q2: the latest application by ("submittedAt" DESC, id DESC), read after the claim locked `"User"`. */
@@ -106,6 +106,50 @@ export interface VerRepository extends IdnRepository {
   readPaymentInstructionsIfApproved(tx: Tx, businessId: CuidId): Promise<(PaymentInstructionsRow & { qrObjectKey: string | null }) | null>;
   /** P-VER.name: the latest application's name. */
   readLatestBusinessName(tx: Tx, businessId: CuidId): Promise<string | null>;
+  /**
+   * VER-3 Q2: the application with its legal identity, or null when either is absent. Implemented
+   * only by `infra/legalIdentityRepository.ts`; it is the one instrumented reader (AD-VER-2 rule 5).
+   */
+  readForReview(tx: Tx, applicationId: CuidId): Promise<ApplicationForReviewRow | null>;
+  /** VER-3: one append-only access row; false when the application does not exist (no FK target). */
+  insertAccessLog(tx: Tx, row: AccessLogRow, now: IsoInstant): Promise<boolean>;
+  /** S-FR-VER-5.audit: rows before `before` by `("createdAt", id)` DESC, optionally one application's. */
+  listAccessLog(tx: Tx, before: AccessLogKey | null, applicationId: CuidId | null, limit: number): Promise<AccessLogListRow[]>;
+}
+
+/** VER-3: the review read; `documentKeys` are bucket-qualified (`ver-documents/<cuid2>`). */
+export interface ApplicationForReviewRow {
+  applicationId: CuidId;
+  businessId: CuidId;
+  businessName: string;
+  city: string;
+  externalPresenceUrl: string;
+  submittedAt: IsoInstant;
+  status: ApplicationStatus;
+  type: 'NIT' | 'CC';
+  number: string;
+  documentKeys: string[];
+}
+
+/** VER-3: one `"LegalIdentityAccessLog"` row; a denial reads no field. */
+export interface AccessLogRow {
+  id: CuidId;
+  actorId: CuidId;
+  applicationId: CuidId;
+  fieldsRead: string[];
+  outcome: 'granted' | 'denied';
+  procedure: string;
+}
+
+/** S-FR-VER-5.audit: one listed access row. */
+export interface AccessLogListRow {
+  logId: CuidId;
+  actorId: CuidId | null;
+  applicationId: CuidId;
+  fieldsRead: string[];
+  outcome: 'granted' | 'denied';
+  procedure: string;
+  at: IsoInstant;
 }
 
 /** S-FR-VER-2: one queue row. */

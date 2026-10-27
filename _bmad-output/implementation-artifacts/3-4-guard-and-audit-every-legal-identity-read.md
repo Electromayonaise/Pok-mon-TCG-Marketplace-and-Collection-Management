@@ -2,7 +2,7 @@
 title: 'Story 3.4: Guard and audit every legal-identity read'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: '140bd6a1b6b03ae0a7a56b826bc4ec3b9c326ef8'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -75,12 +75,12 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] ports + infra -- `readForReview`, `insertAccessLog`, `listAccessLog` (two statements)
-- [ ] `application/ver.v2.ts` -- both methods; a unit test that the denial survives the error
-- [ ] lint rule, its tests and the config; `npm run lint` stays at 0
-- [ ] the NFR-VER-3 benchmark and its evidence
-- [ ] `composition.ts` + test -- the two procedures
-- [ ] `sprint-status.yaml` -- 3.4 out of `impl2_scope` (decision #27)
+- [x] ports + infra -- `readForReview`, `insertAccessLog`, `listAccessLog` (two statements)
+- [x] `application/ver.v2.ts` -- both methods; a unit test that the denial survives the error
+- [x] lint rule, its tests and the config; `npm run lint` stays at 0
+- [x] the NFR-VER-3 benchmark and its evidence
+- [x] `composition.ts` + test -- the two procedures
+- [x] `sprint-status.yaml` -- 3.4 out of `impl2_scope` (decision #27)
 
 **Acceptance Criteria:**
 - Given the 7 bound tests, when they run, then they pass.
@@ -93,3 +93,20 @@ context:
 - `npm run lint` -- expected: 0 errors
 - `npm run test:ci` -- expected: exit 0
 - the benchmark command from `nfr-evidence.md` -- expected: both p95 values under their thresholds
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 3 at its close (decision #22).
+- The 7 bound tests pass. `gate:atdd-red:impl1`: 74 green for done stories, 278 red for the right reason, 0 not as expected. `npm run test:ci` exits 0.
+- **One reader:** `readForReview` lives in `legalIdentityRepository.ts`, next to `insertLegalIdentity`. `PgVerRepository` implements the rest of `VerRepository`, minus those two methods. The access-log insert stays in `pg.ts`; it names `"LegalIdentityAccessLog"`, which the lint rule allows.
+- **Denial for an unknown id:** a non-admin asking for an id that does not exist still gets `LegalIdentityAccessDenied`, so the answer does not reveal whether an application exists. Its audit row is written. Its log row is not, because `"LegalIdentityAccessLog".applicationId` is a foreign key. The insert is an `INSERT … SELECT` over `"BusinessApplication"` and returns whether it wrote a row, so an unknown id writes nothing instead of failing on the FK.
+- **Expiry:** `expiresAt` comes from the service's single clock read plus 600 s, not from the storage adapter. Stored keys are bucket-qualified (`ver-documents/<key>`), and the prefix is stripped before `sign('ver-documents', key, 600)`.
+- **Audit data:** `AuditEntry.data` takes scalars only, so `fieldsRead` is joined (`'type,number,documentKeys'`). The log row keeps the array.
+- **Audit list:** 51 rows are fetched to tell whether a next page exists. The cursor codec is shared with the queue under a list tag (`'queue'`, `'legal-access'`), so each list refuses the other's cursor with `RequestValidationFailed` on `cursor`. The WHERE clause is built from the optional filter and the optional keyset, never with `OR $1 IS NULL`.
+- **Lint:** `tezg/legal-identity-confined` reports any string or template literal matching `\bBusinessApplicationLegalIdentity\b` outside `legalIdentityRepository.ts`. That covers the Story 1.4 `RETURNING` gap for this table; `deferred-work.md` says so.
+- **Benchmark:** `ver3_latency.test.ts` tops the §3 seed up to 1,000 Pending applications, each with a legal identity. Measured on local Docker Postgres 16: queue p95 4.9 ms (≤ 1,000), signed-URL read p95 10.0 ms (≤ 300). The signed-URL figure times the whole `getApplicationForReview` call, so it bounds the URL issue from above.
+- **Binding the benchmark:** `gate:nfr-red:impl1` only accepts a green NFR test that a done story binds, and every test id must be bound by exactly one story. So `[NFR-VER-3.queue]` and `[NFR-VER-3.sign]` joined Story 3.4's tests in `epics.source.mjs`, the same way Story 7.1 binds `[NFR-ORD-2.p95]`. `epics.md` was regenerated: the story now binds 9 tests, and its DoD no longer carries the "add its benchmark" line. `nfr-evidence.md` gained a **Green — benchmark** status and a *Measured* table.
+- **Wiring:** `verification.getApplicationForReview` uses the authed builder, so a non-admin's attempt reaches the service and is logged. `verification.legalIdentityAudit` is admin. `composition.test.ts` adds two HTTP cases.
+- **Unit tests:**
+  - `ver.v2.test.ts`: the denial survives its error with no regulated value; a non-admin with an unknown id; the grant signs both documents and audits field names only; audit paging (50 + 1), the filter, `AdminOnly` and a refused queue cursor.
+  - `ver-domain.test.ts`: the access-log cursor round trip, and each list refusing the other's cursor.

@@ -25,8 +25,8 @@
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
-| NFR evidence status | Red — ATDD: 36; Red — benchmark: 4; Green — gate: 7; Deferred — launch: 2; Planned — story DoD: 12 |
-| Contract clauses / test ids | 112 / 371 (359 red, 12 green) |
+| NFR evidence status | Red — ATDD: 36; Red — benchmark: 4; Green — gate: 7; Deferred — launch: 2; Planned — story DoD: 11; Green — benchmark: 1 |
+| Contract clauses / test ids | 112 / 373 (361 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -41,10 +41,10 @@
 | FR-IDN-6 | Messaging, review-target and seller-kind queries (CAP-18, CAP-7, CAP-1) | MSG-3, S-FR-IDN-6 | AD-IDN-1, AD-MSG-2 | 5 — `MSG-3.MEC`, `MSG-3.Q1`, `MSG-3.QF1` +2 | 2.5 (done), 9.1 (backlog) | red |
 | FR-IDN-7 | Authentication and admin gating (CAP-15, CAP-28) | S-FR-IDN-7 | AD-16, AD-IDN-3, AD-SYS-8 | 2 — `S-FR-IDN-7.f`, `S-FR-IDN-7.h` | 2.4 (done) | red |
 | FR-VER-1 | Submit a business application (CAP-15, CAP-5) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | 2.1 (done), 2.2 (done), 3.1 (done), 3.3 (done) | red |
-| FR-VER-2 | Admin review queue (CAP-15) | VER-3, S-FR-VER-2 | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 8 — `VER-3.I1`, `VER-3.I2`, `VER-3.I3` +5 | 3.4 (ready-for-dev), 3.5 (done) | red |
+| FR-VER-2 | Admin review queue (CAP-15) | VER-3, S-FR-VER-2 | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 8 — `VER-3.I1`, `VER-3.I2`, `VER-3.I3` +5 | 3.4 (done), 3.5 (done) | red |
 | FR-VER-3 | Approve (CAP-15, CAP-5) | VER-1 | AD-VER-1, AD-SYS-5, AD-SYS-2 | 7 — `VER-1.I1`, `VER-1.MEC`, `VER-1.P2` +4 | 3.2 (done), 3.3 (done) | red |
 | FR-VER-4 | Reject with a policy reason (CAP-15) | VER-1 | AD-VER-1, AD-SYS-5, AD-SYS-2 | 7 — `VER-1.I1`, `VER-1.MEC`, `VER-1.P2` +4 | 3.2 (done), 3.3 (done) | red |
-| FR-VER-5 | Access to legal identity only through admin review (CAP-15) | VER-3, S-FR-VER-5.audit | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 7 — `VER-3.I1`, `VER-3.I2`, `VER-3.I3` +4 | 3.4 (ready-for-dev) | red |
+| FR-VER-5 | Access to legal identity only through admin review (CAP-15) | VER-3, S-FR-VER-5.audit | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 7 — `VER-3.I1`, `VER-3.I2`, `VER-3.I3` +4 | 3.4 (done) | red |
 | FR-VER-6 | Reapplication policy (CAP-15) | VER-2 | AD-SYS-8, AD-VER-3, AD-VER-1, AD-VER-2 | 7 — `VER-2.I1`, `VER-2.I2`, `VER-2.P1` +4 | 3.1 (done), 3.3 (done) | red |
 | FR-VER-7 | Applicant status view (CAP-15) | S-FR-VER-7 | AD-VER-3 | 2 — `S-FR-VER-7.f`, `S-FR-VER-7.h` | 3.5 (done) | red |
 | FR-VER-8 | Rejection-reason policy settings (CAP-15) | S-FR-VER-8, S-FR-VER-8.list | AD-VER-1 | 3 — `S-FR-VER-8.f`, `S-FR-VER-8.h`, `S-FR-VER-8.list.h` | 3.5 (done) | red |
@@ -164,7 +164,7 @@
 | NFR-IDN-1 | getCapabilities | — | — | 0 | Planned — story DoD |
 | NFR-IDN-3 | 0 procedures accept a client-supplied role | — | `SYS-8.R2.static`, `SYS-8.R2` | 2 | Green — gate |
 | NFR-VER-2 | 100% of legalIdentity reads and denials are audited | VER-3 | `VER-3.I1`, `VER-3.I2`, `IDN-3.I1` | 7 | Red — ATDD |
-| NFR-VER-3 | the review queue | VER-3 | — | 6 | Planned — story DoD |
+| NFR-VER-3 | the review queue | VER-3 | `NFR-VER-3.queue`, `NFR-VER-3.sign` | 8 | Green — benchmark |
 | NFR-VER-4 | document uploads are ≤ 5 MB per file and at most 3 files | — | `VER-2.P3`, `VER-2.P5` | 2 | Red — ATDD (size); Deferred — launch (transfer) |
 | NFR-CAT-1 | FR-CAT-1 over 10,000 entries in p95 ≤ 1,000 ms | CAT-3 | — | 5 | Planned — story DoD |
 | NFR-CAT-2 | a 10,000-row ingestion run completes in ≤ 120 s | CAT-2 | `CAT-2.I1`, `CAT-2.MEC` | 9 | Red — ATDD |
@@ -209,8 +209,8 @@
 | AD-10 | Post-commit, in-process dispatch with an outbox | `outbox.enqueue(tx)` + sweeper | `SYS-2.R6` | 1.3 (done) | red |
 | AD-11 | One owner per error code | Registry `owner`; `raise` checks the caller module | `SYS-1.R2` | 1.1 (done) | red |
 | AD-12 | Hide, never delete | `DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate | `REP-2.I1`, `DSC-1.I2` | 6.2 (backlog), 13.2 (backlog) | red |
-| AD-13 | `legalIdentity` under Ley 1581 | Split table; one repository reader | `VER-3.I2`, `IDN-3.I1` | 2.5 (done), 3.4 (ready-for-dev) | red |
-| AD-14 | Signed URLs, 10-minute TTL | `ObjectStorage.sign(key, 600)` | `VER-3.I3` | 3.4 (ready-for-dev) | red |
+| AD-13 | `legalIdentity` under Ley 1581 | Split table; one repository reader | `VER-3.I2`, `IDN-3.I1` | 2.5 (done), 3.4 (done) | red |
+| AD-14 | Signed URLs, 10-minute TTL | `ObjectStorage.sign(key, 600)` | `VER-3.I3` | 3.4 (done) | red |
 | AD-15 | Business sees an order from `buyerPaidConfirmedAt` | One visibility predicate | `ORD-3.I3`, `ORD-3.MEC` | 7.2 (backlog) | red |
 | AD-16 | Roles derived server-side | `deriveCapabilities`; no role-like input key | `IDN-2.I1`, `SYS-8.R2` | 1.1 (done), 2.3 (done) | red |
 | AD-17 | Comprobante is regulated data | `regulated.ts` + redactor; promotion through quarantine | `S-FR-ORD-2.f`, `SYS-8.R4` | 1.2 (done), 7.1 (backlog) | red |
@@ -228,7 +228,7 @@
 | AD-IDN-2 | Seller-track exclusivity | Conditional `UPDATE "User"."sellerTrack"` | `IDN-1.I1` | 2.2 (done) | red |
 | AD-IDN-3 | `canBuy` gate and auth throttle | `requireCanBuy`; `AuthThrottleEvent` count | `S-FR-IDN-7.f` | 2.4 (done) | red |
 | AD-VER-1 | One decision with its audit row and event | `WHERE status='Pending'`; unique decision log | `VER-1.I1` | 3.2 (done) | red |
-| AD-VER-2 | Legal identity has one reader; reads and denials logged | `legalIdentityRepository`; access log | `VER-3.I1` | 3.4 (ready-for-dev) | red |
+| AD-VER-2 | Legal identity has one reader; reads and denials logged | `legalIdentityRepository`; access log | `VER-3.I1` | 3.4 (done) | red |
 | AD-VER-3 | One pending application; reapplication from the snapshot | Partial unique `(businessId) WHERE Pending` | `VER-2.I1` | 3.1 (done) | red |
 | AD-CAT-1 | Resumable leased ingestion | Partial unique `Running`; lease token | `CAT-1.I1`, `CAT-2.I1` | 4.1 (backlog), 4.2 (backlog) | red |
 | AD-CAT-2 | Observations immutable, aged at read | Append-only observations; `stale` computed | `CAT-3.I1` | 4.4 (backlog) | red |

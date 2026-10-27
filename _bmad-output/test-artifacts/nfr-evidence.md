@@ -32,6 +32,7 @@ Concurrency proofs are a separate measure: 50 real connections × 100 repetition
 | **Red — benchmark** | The benchmark exists and fails on `NotImplementedError`. It asserts the threshold once its story is done. |
 | **Red — ATDD** | The proof is an acceptance test that fails on `NotImplementedError` today. |
 | **Green — gate** | A static gate or a green test proves it on every push. |
+| **Green — benchmark** | Its story is done, and the benchmark asserts the PRD threshold in `npm run gate:nfr-red:impl1`. The last measured figures are under *Measured* below. |
 | **Planned — story DoD** | No artifact exists yet. The story's Definition of Done adds the benchmark with the shared harness (Phase 4 names the story). |
 | **Deferred — launch** | It depends on the deployed system (a browser, a real network or a WCAG audit), and is tracked to the launch checklist. |
 
@@ -71,7 +72,7 @@ All three are red, and each fails for the right reason (`npm run gate:nfr-red:so
 | NFR-IDN-3 | Security | 0 procedures accept a role, seller-kind or capability field | Schema scan of every tRPC input | `[SYS-8.R2.static]`, `[SYS-8.R2]` | Green — gate |
 | NFR-VER-1 | Reliability (MEC) | 100 repetitions: one transition, one event, no half state | Approve and reject raced by two admins | `[VER-1.MEC]` | Red — ATDD |
 | NFR-VER-2 | Security (audit) | 100 % of legal-identity reads and denials audited | Access-log count vs instrumented reads | `[VER-3.I1]`, `[VER-3.I2]`, `[IDN-3.I1]` | Red — ATDD |
-| NFR-VER-3 | Performance | Review queue (1,000 pending) p95 ≤ 1,000 ms; signed URL p95 ≤ 300 ms | PRD §7 protocol | — | Planned — story DoD |
+| NFR-VER-3 | Performance | Review queue (1,000 pending) p95 ≤ 1,000 ms; signed URL p95 ≤ 300 ms | PRD §7 protocol over the §3 seed topped up to 1,000 Pending applications; the signed-URL figure times the whole `getApplicationForReview` call | `[NFR-VER-3.queue]`, `[NFR-VER-3.sign]` | Green — benchmark |
 | NFR-VER-4 | Performance / security | ≤ 5 MB per file, ≤ 3 files; upload + validation p95 ≤ 10 s at 10 Mbps | Quarantine validation tests; the transfer time needs a shaped network | `[VER-2.P3]`, `[VER-2.P5]` | Red — ATDD (size); Deferred — launch (transfer) |
 | NFR-CAT-1 | Performance | Browse over 10,000 entries p95 ≤ 1,000 ms; provenance for 48 p95 ≤ 300 ms | PRD §7 protocol on the §3 catalog | — | Planned — story DoD |
 | NFR-CAT-2 | Performance / integrity | 10,000-row run ≤ 120 s; a rerun creates 0 duplicates | Unique `externalKey`; convergent rerun | `[CAT-2.I1]`, `[CAT-2.MEC]` | Red — ATDD |
@@ -116,7 +117,17 @@ All three are red, and each fails for the right reason (`npm run gate:nfr-red:so
 | Red — benchmark | 4 (NFR-SYS-2, NFR-SYS-6, NFR-SYS-9, NFR-ORD-2) |
 | Red — ATDD (wholly or in part) | 36 |
 | Green — gate (wholly or in part) | 7 (NFR-SYS-3, NFR-SYS-4, NFR-SYS-12, NFR-IDN-3, NFR-MSG-3, NFR-COL-3, NFR-REP-3) |
-| Planned — story DoD (wholly or in part) | 12: the latency NFRs without a benchmark yet. Each gets one in its story, with the shared harness |
+| Green — benchmark | 1 (NFR-VER-3) |
+| Planned — story DoD (wholly or in part) | 11: the latency NFRs without a benchmark yet. Each gets one in its story, with the shared harness |
 | Deferred — launch | 2: NFR-SYS-11 (WCAG audit), and NFR-VER-4's transfer time on a shaped 10 Mbps link |
 
 Rows marked "in part" are counted under each of their statuses, so the summary adds up to more than 56. No NFR is left without a named artifact or an owner phase.
+
+## Measured
+
+Each benchmark writes its figures (milliseconds, n = 500) to `.vitest-results/`. Run one with `npx vitest run --project solu2-nfr <file>`, or all of them with `npm run gate:nfr-red:impl1`.
+
+| NFR | Benchmark | Result file | p50 | p95 | Threshold | Measured |
+|---|---|---|---|---|---|---|
+| NFR-VER-3 | `[NFR-VER-3.queue]` | `nfr-ver-3-queue.json` | 3.0 | 4.9 | p95 ≤ 1,000 | 2026-10-26, Story 3.4, local Docker Postgres 16 |
+| NFR-VER-3 | `[NFR-VER-3.sign]` | `nfr-ver-3-sign.json` | 4.6 | 10.0 | p95 ≤ 300 | 2026-10-26, Story 3.4, local Docker Postgres 16 |

@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 371 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 373 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -580,11 +580,11 @@ Let a business apply once with its legal identity, and let admins decide each ap
 - **Binding invariants:** AD-13 — `legalIdentity` under Ley 1581 (Split table; one repository reader); AD-14 — Signed URLs, 10-minute TTL (`ObjectStorage.sign(key, 600)`); AD-VER-2 — Legal identity has one reader; reads and denials logged (`legalIdentityRepository`; access log); also cited by its clauses: AD-SYS-8
 - **Files:** `src/modules/identity/application/ver.v2.ts` (`VerServiceV2.getApplicationForReview`, `VerServiceV2.listLegalIdentityAccess`), `src/modules/identity/ports/ver.v2.ts` (`VerRepository`), `src/modules/identity/domain/ver.ts`, `src/modules/identity/infra/pg.ts`
 - **Schema/DTO:** tables `"LegalIdentityAccessLog"`; DTOs `GetApplicationForReviewRequest` → `GetApplicationForReviewResponse`, `ListLegalIdentityAccessRequest` → `ListLegalIdentityAccessResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/ver_contracts.test.ts` › `[VER-3.Q1]`, `[VER-3.P1]`, `[VER-3.P2]`, `[VER-3.I1]`, `[VER-3.I2]`, `[VER-3.I3]`; `_bmad-output/test-artifacts/atdd/ver_supporting.test.ts` › `[S-FR-VER-5.audit.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/ver_contracts.test.ts` › `[VER-3.Q1]`, `[VER-3.P1]`, `[VER-3.P2]`, `[VER-3.I1]`, `[VER-3.I2]`, `[VER-3.I3]`; `_bmad-output/test-artifacts/atdd/ver_supporting.test.ts` › `[S-FR-VER-5.audit.h]`; `_bmad-output/test-artifacts/nfr/ver3_latency.test.ts` › `[NFR-VER-3.queue]`, `[NFR-VER-3.sign]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Andrés's application has a legal identity and documents. **When:** an admin opens it for review. **Then:** the NIT and document URLs that expire 600 s later are shown, and one granted access row is written; no other VER read returns the legal identity.
   - **Scenario (failure) — Given:** a non-admin requests the same application, and an admin requests an unknown one. **When:** the reads run. **Then:** `LegalIdentityAccessDenied` (403) whose denial row survives the error, and `ApplicationNotFound` (404) with zero writes; the access-log count equals reads plus denials.
-- **DoD:** the shared DoD, plus: the 7 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-VER-3: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 9 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 3.5: Run the review queue, the rejection policy and payment instructions
 

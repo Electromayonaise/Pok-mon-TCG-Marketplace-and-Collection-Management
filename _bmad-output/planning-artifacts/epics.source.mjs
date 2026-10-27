@@ -180,7 +180,7 @@ export default {
         {
           title: 'Guard and audit every legal-identity read', kind: 'Failure-state',
           as: 'As the data protection officer, I want every read of a legal identity audited, denials included, so that NFR-VER-2 holds.',
-          ops: ['VER-3', 'S-FR-VER-5.audit'], tests: ['VER-3.Q1', 'VER-3.P1', 'VER-3.P2', 'VER-3.I1', 'VER-3.I2', 'VER-3.I3', 'S-FR-VER-5.audit.h'], depends: ['3.1'],
+          ops: ['VER-3', 'S-FR-VER-5.audit'], tests: ['VER-3.Q1', 'VER-3.P1', 'VER-3.P2', 'VER-3.I1', 'VER-3.I2', 'VER-3.I3', 'S-FR-VER-5.audit.h', 'NFR-VER-3.queue', 'NFR-VER-3.sign'], depends: ['3.1'],
           happy: ['Andrés\'s application has a legal identity and documents.', 'an admin opens it for review.', 'the NIT and document URLs that expire 600 s later are shown, and one granted access row is written; no other VER read returns the legal identity.'],
           failure: ['a non-admin requests the same application, and an admin requests an unknown one.', 'the reads run.', '`LegalIdentityAccessDenied` (403) whose denial row survives the error, and `ApplicationNotFound` (404) with zero writes; the access-log count equals reads plus denials.'],
         },

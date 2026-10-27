@@ -10,6 +10,6 @@ export default [
     files: ['src/**/*.{ts,tsx,mts,cts}'],
     ignores: ['src/**/*.test.{ts,tsx,mts,cts}'],
     plugins: { tezg },
-    rules: { 'tezg/error-owner': 'error', 'tezg/table-owner': 'error', 'tezg/regulated-select': 'error' },
+    rules: { 'tezg/error-owner': 'error', 'tezg/table-owner': 'error', 'tezg/regulated-select': 'error', 'tezg/legal-identity-confined': 'error' },
   },
 ];
