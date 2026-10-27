@@ -140,5 +140,5 @@ Each benchmark writes its figures (milliseconds, n = 500) to `.vitest-results/`.
 | NFR-INV-4 | `[NFR-INV-4.reserve]` | `nfr-inv-4-reserve.json` | 2.9 | 4.3 | p95 ≤ 150 | 2026-10-27, Story 5.2, funded single listings of the §3 seed, each reserve in a transaction rolled back after the call, local Postgres 16 |
 | NFR-INV-4 | `[NFR-INV-4.bundle]` | `nfr-inv-4-bundle.json` | 5.8 | 10.4 | p95 ≤ 300 | 2026-10-27, Story 5.2, a 20-component bundle on the §3 seed, rolled back after each call, local Postgres 16 |
 | NFR-INV-4 | `[NFR-INV-4.create]` | `nfr-inv-4-create.json` | 2.1 | 4.3 | p95 ≤ 800 | 2026-10-27, Story 5.1, individual sellers and funded businesses on the §3 seed, half new units and half links, local Postgres 16 |
-| NFR-DSC-1 | `[NFR-DSC-1.seed]` | `nfr-dsc-1-seed.json` | 12.1 | 18.6 | p95 ≤ 1,000 | 2026-10-27, Story 6.2, 15 km around Bogotá, pages 1–3, the §3 seed, local Postgres 16 |
-| NFR-DSC-1 | `[NFR-DSC-1.scale]` | `nfr-dsc-1-scale.json` | 51.6 | 89.9 | p95 ≤ 1,500 | 2026-10-27, Story 6.2, the same searches on the §3 seed grown to 50,000 listings around the four cities, local Postgres 16 |
+| NFR-DSC-1 | `[NFR-DSC-1.seed]` | `nfr-dsc-1-seed.json` | 12.1 | 19.0 | p95 ≤ 1,000 | 2026-10-27, Epic 6 review, 15 km around Bogotá, pages 1–3, the §3 seed, local Postgres 16 |
+| NFR-DSC-1 | `[NFR-DSC-1.scale]` | `nfr-dsc-1-scale.json` | 57.7 | 97.2 | p95 ≤ 1,500 | 2026-10-27, Epic 6 review, the same searches on the §3 seed grown to 50,000 listings around the four cities, local Postgres 16 |

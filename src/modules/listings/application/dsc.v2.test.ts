@@ -3,9 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { useTestDatabase } from '../../../../test-support/db.js';
 import { business, catalogEntry, commissionState, fake, id, listing, unit, user, wiring } from '../../../../test-support/solu2/fixtures.js';
 import { COLOMBIA_BBOX } from '../../../shared-kernel/types.js';
-import { haversineKm } from '../domain/dsc.js';
+import { compareRank, haversineKm } from '../domain/dsc.js';
 import { distanceSql } from '../infra/pg.js';
 import type { CatalogForDsc, IdentityForDsc } from '../ports/dsc.v2.js';
+import type { CatalogEntryDTO, PriceProvenanceDTO } from '../../catalog/index.js';
 import { DscServiceV2 } from './dsc.v2.js';
 
 const db = useTestDatabase();
@@ -87,3 +88,53 @@ describe('DSC-1 search edges', () => {
 function explainNone(decision: { reasonCode: string; citations: { inputs: Record<string, unknown> }[] }) {
   expect([decision.reasonCode, decision.citations[0]?.inputs.unusableLocation]).toEqual(['SearchRanked', 0]);
 }
+
+describe('Epic 6 close review patches (decision log Impl-1 #31)', () => {
+  const kinds = fake<IdentityForDsc>('identity', { getSellerKinds: async ({ userIds }) => ({ sellers: userIds.map((userId) => ({ userId, sellerKind: 'business' as const, verified: true })) }) });
+  const entry = { catalogEntryId: id('char') } as CatalogEntryDTO;
+  const provenance = { catalogEntryId: id('char') } as PriceProvenanceDTO;
+  const calls: string[] = [];
+  const dsc = () => new DscServiceV2({ ...wiring(db), identity: kinds, catalog: fake<CatalogForDsc>('catalog', {
+    getEntry: async () => { calls.push('getEntry'); return entry; },
+    getPriceProvenance: async () => ({ items: [provenance] }),
+  }) });
+  const BOGOTA = { lat: 4.711, lng: -74.0721 };
+
+  async function seller(n: number) {
+    await business(db, id('andres'), 'Approved');
+    await commissionState(db, id('andres'));
+    await catalogEntry(db, id('char'));
+    await unit(db, { id: id('ua'), sellerId: id('andres'), catalogEntryId: id('char'), quantity: 1 });
+    for (let k = 0; k < n; k++) await listing(db, { id: id(`l${k}`), sellerId: id('andres'), unitId: id('ua'), priceCop: 40_000 + ((k * 7919) % 50) * 1_000, lat: BOGOTA.lat + (k % 13) * 0.004, lng: BOGOTA.lng - (k % 7) * 0.004 });
+  }
+
+  it('without an area nothing is excluded: a listing with no location is returned, and the decision is SearchRanked', async () => {
+    await seller(1);
+    await listing(db, { id: id('nowhere'), sellerId: id('andres'), unitId: id('ua'), lat: null, lng: null });
+    const result = await dsc().search({ view: 'listings', page: 1, pageSize: 24 });
+    expect([result.results.length, result.excluded.unusableLocation, result.decision.reasonCode]).toEqual([2, 0, 'SearchRanked']);
+  });
+
+  it('the SQL order is the domain order: compareRank sorts the page the same way', async () => {
+    await seller(30);
+    const { results } = await dsc().search({ view: 'listings', area: { ...BOGOTA, radiusKm: 15 }, page: 1, pageSize: 24 });
+    const keys = results.map((r) => ({ listingId: r.listingId, distanceKm: r.distanceKm, priceCop: r.priceCop, soldOut: false }));
+    expect([...keys].sort((a, b) => compareRank(a, b, true)).map((k) => k.listingId)).toEqual(keys.map((k) => k.listingId));
+  });
+
+  it('the card price is the lowest over every listing in the area, beyond the first 100 returned', async () => {
+    await seller(101);
+    await listing(db, { id: id('cheapfar'), sellerId: id('andres'), unitId: id('ua'), priceCop: 1_000, lat: BOGOTA.lat + 0.12, lng: BOGOTA.lng });
+    const detail = await dsc().getCardDetail({ catalogEntryId: id('char'), area: { ...BOGOTA, radiusKm: 15 } });
+    expect([detail.listings.length, detail.listings.some((l) => l.listingId === id('cheapfar')), detail.listingPriceCop]).toEqual([100, false, 1_000]);
+  });
+
+  it('a bad maxPriceCop and an omitted card area are RequestValidationFailed before any neighbour call', async () => {
+    calls.length = 0;
+    const codes = await Promise.all([
+      dsc().search({ view: 'listings', maxPriceCop: -1, page: 1, pageSize: 24 }).catch((e: { code?: string }) => e.code),
+      dsc().getCardDetail({ catalogEntryId: id('char') } as never).catch((e: { code?: string }) => e.code),
+    ]);
+    expect([codes, calls]).toEqual([['RequestValidationFailed', 'RequestValidationFailed'], []]);
+  });
+});

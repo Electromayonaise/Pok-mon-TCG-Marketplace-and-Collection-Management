@@ -77,4 +77,8 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 
 ## Deferred from: spec of Epic 6 (6.1–6.4) (2026-10-27)
 
-- `discovery.search` with `purchasableOnly` filters the listing's own facts in SQL, but the seller's verification comes from `getSellerKinds` after the statement, so a page that held an unverified business's rows comes back with fewer than 24 (decision log Impl-1 #31). An exact page needs the verification inside the statement, which `listings` cannot read (AD-1, AD-8). Revisit with the search UI (page 3.1), for example by paging on a cursor instead of a count.
+- `discovery.search` with `purchasableOnly` filters the listing's own facts in SQL, but the seller's verification comes from `getSellerKinds` after the statement, so a page that held an unverified business's rows comes back with fewer than 24 (decision log Impl-1 #31). An exact page needs the verification inside the statement, which `listings` cannot read (AD-1, AD-8). The same cause leaves gaps in each row's `rankKey`, and `SearchRanked` cites the filtered page's count (Epic 6 review). Revisit with the search UI (page 3.1), for example by paging on a cursor instead of a count.
+
+## Deferred from: code review of Epic 6 (6.1–6.4) (2026-10-27)
+
+- DSC-2 Q4 names a "no active listings" decision for a card with no listing in the area, and excluded rows "counted with `ListingLocationUnusable`", but `GetCardDetailResponse` has no decision field. Martín deferred the DTO change to the card page story (UI 2.2), which renders the empty state from `hasActiveListings` and `excluded.unusableLocation` (decision log Impl-1 #31).

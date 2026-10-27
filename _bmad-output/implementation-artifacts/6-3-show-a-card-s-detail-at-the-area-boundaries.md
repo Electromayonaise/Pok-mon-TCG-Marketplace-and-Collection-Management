@@ -73,3 +73,13 @@ context:
 - A provenance answer without the entry's item is an invariant breach (`Unexpected`), not a fabricated block.
 - TG-7: `[DSC-2.MEC]` is one run of both radii over real Postgres connections (the clause has no repetition count): 264 ms; `[DSC-2.MEC2]` 203 ms; `[DSC-2.Q1]` 243 ms (local Postgres 16).
 - `[DSC-2.P1]` (Story 6.4) is an early green at this commit (decision #23); the 6.4 commit restores the gate.
+
+### Review Findings
+
+Epic 6 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `e143f13..ced24e1` (code paths). Totals for the epic: 2 decisions, 6 patches, 2 deferrals, 9 dismissed. Martín resolved both decisions with the recommendation and approved every patch (decision log Impl-1 #31).
+
+- [x] [Review][Patch] `listingPriceCop` was the minimum over the 100 returned rows, so a cheaper listing ranked 101st was missed (AD-DSC-2 rule 4) [src/modules/listings/application/dsc.v2.ts:getCardDetail] — the statement now also reads `min("priceCop")` over every matching row in the area (`withMinPrice`)
+- [x] [Review][Patch] An in-process caller omitting `area` hit a TypeError (500) after `getEntry` [src/modules/listings/application/dsc.v2.ts:getCardDetail] — refused as `RequestValidationFailed` before any call; the docstring of `CARD_LISTINGS` now states both orders
+- [x] [Review][Defer] DSC-2 Q4 names a "no active listings" decision and a `ListingLocationUnusable` explanation, but `GetCardDetailResponse` has no decision field (a DTO change) — Martín: deferred to the card page story (UI 2.2); the page reads `hasActiveListings` and `excluded`
+- [x] [Review][Dismiss] `getSellerKinds` is called with an empty list — dismissed: DSC-2 Q1 fixes exactly three calls, and identity answers `[]` without a read
+- [x] [Review][Dismiss] The clock is not passed to the provenance read — dismissed: `GetPriceProvenanceRequest` has no instant; CAT-3 reads its own clock

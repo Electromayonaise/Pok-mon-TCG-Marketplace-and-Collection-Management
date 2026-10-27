@@ -36,7 +36,7 @@ const PAGE_SIZE = 24;
 const MAX_PAGE = 417;
 /** AD-DSC-2 rule 2: the threshold `matchEntryIds` answers `tooBroad` above. */
 const MATCH_THRESHOLD = 20_000;
-/** DSC-2: the most listings a card detail returns, nearest first. */
+/** DSC-2: the most listings a card detail returns, in DSC-1's order (nearest first with an area, cheapest first without). */
 const CARD_LISTINGS = 100;
 
 /** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
@@ -102,6 +102,7 @@ export class DscServiceV2 implements DscV2UseCases {
     if (input.area !== undefined) checkSearchArea(input.area);
     if (!Number.isInteger(input.page) || input.page < 1 || input.page > MAX_PAGE) rejectRequest([{ field: 'page', issue: `debe ser un entero entre 1 y ${MAX_PAGE}` }]);
     if (input.pageSize !== PAGE_SIZE) rejectRequest([{ field: 'pageSize', issue: `debe ser ${PAGE_SIZE}` }]);
+    if (input.maxPriceCop !== undefined && !(Number.isSafeInteger(input.maxPriceCop) && input.maxPriceCop >= 0)) rejectRequest([{ field: 'maxPriceCop', issue: 'debe ser un entero mayor o igual a 0' }]);
     let entryIds: CuidId[] | null = null;
     if (hasFilters(input.catalogFilters)) {
       const match = await this.deps.catalog.matchEntryIds({ filters: input.catalogFilters });
@@ -111,7 +112,7 @@ export class DscServiceV2 implements DscV2UseCases {
     const now = this.deps.clock.now().toISOString();
     const query: ListingQuery = {
       entryIds, area: input.area ?? null, maxPriceCop: input.maxPriceCop ?? null, conditions: input.condition?.length ? input.condition : null,
-      purchasableOnly: input.purchasableOnly ?? false, includeSoldOut: input.includeSoldOut ?? false, limit: PAGE_SIZE, offset: (input.page - 1) * PAGE_SIZE,
+      purchasableOnly: input.purchasableOnly ?? false, includeSoldOut: input.includeSoldOut ?? false, limit: PAGE_SIZE, offset: (input.page - 1) * PAGE_SIZE, withMinPrice: false,
     };
     const { rows, unusableLocation } = await this.reading((tx) => this.deps.repo.searchListings(tx, query));
     const ranked = rows.length === 0 ? [] : await this.rows(rows, now);
@@ -133,22 +134,24 @@ export class DscServiceV2 implements DscV2UseCases {
    * exactly three neighbour calls (AD-DSC-2 rule 1). The three prices stay separate fields (FR-CAT-6).
    */
   async getCardDetail(input: GetCardDetailRequest): Promise<GetCardDetailResponse> {
+    // The parser requires `area` (null for none); an in-process caller that omits it is refused before any call.
+    if (input.area === undefined) rejectRequest([{ field: 'area', issue: 'es obligatorio; usa null para no filtrar por zona' }]);
     const entry = await this.deps.catalog.getEntry({ catalogEntryId: input.catalogEntryId });
     if (input.area !== null) checkSearchArea(input.area);
     const now = this.deps.clock.now().toISOString();
     const query: ListingQuery = {
-      entryIds: [input.catalogEntryId], area: input.area, maxPriceCop: null, conditions: null, purchasableOnly: false, includeSoldOut: false, limit: CARD_LISTINGS, offset: 0,
+      entryIds: [input.catalogEntryId], area: input.area, maxPriceCop: null, conditions: null, purchasableOnly: false, includeSoldOut: false, limit: CARD_LISTINGS, offset: 0, withMinPrice: true,
     };
-    const { rows, unusableLocation } = await this.reading((tx) => this.deps.repo.searchListings(tx, query));
+    const { rows, unusableLocation, minPriceCop } = await this.reading((tx) => this.deps.repo.searchListings(tx, query));
     const [{ items }, listings] = await Promise.all([
       this.deps.catalog.getPriceProvenance({ catalogEntryIds: [input.catalogEntryId], period: 30 }),
       this.rows(rows, now),
     ]);
     const provenance = items.find((p) => p.catalogEntryId === input.catalogEntryId);
     if (provenance === undefined) throw new UnexpectedError(`listings.getCardDetail: catalog returned no provenance for ${input.catalogEntryId}`);
-    // Missing data is not an error (Q-fail): no listing in the area reads as a null listing price.
-    const listingPriceCop = listings.length === 0 ? null : Math.min(...listings.map((l) => l.priceCop));
-    return { entry, provenance, listingPriceCop, hasActiveListings: listings.length > 0, listings, excluded: { unusableLocation } };
+    // AD-DSC-2 rule 4: the lowest price over every active, available listing in the area, not only the
+    // first CARD_LISTINGS. Missing data is not an error (Q-fail): no listing reads as a null price.
+    return { entry, provenance, listingPriceCop: minPriceCop, hasActiveListings: listings.length > 0, listings, excluded: { unusableLocation } };
   }
 
   /** DSC-3: no read, no write, no clock (Q2, Q3). */

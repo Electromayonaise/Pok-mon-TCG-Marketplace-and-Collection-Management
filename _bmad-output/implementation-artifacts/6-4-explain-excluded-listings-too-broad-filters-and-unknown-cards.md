@@ -64,3 +64,9 @@ Once 6.2 and 6.3 are done, the 3 tests turn green and the red gate fails. Built 
 - Martín approved building this story with the epic (decision log Impl-1 #31). It leaves `impl2_scope` and does not count toward the 43 Impl-1 stories.
 - The 3 tests passed on the 6.3 tree with no change: no gap was found in 6.2's or 6.3's files.
 - The NFR-DSC-1 DoD line is met by 6.2's `[NFR-DSC-1.seed]` and `[NFR-DSC-1.scale]`; `nfr-evidence.md` marks the NFR Green — benchmark, so `epics.md` no longer prints it.
+
+### Review Findings
+
+Epic 6 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `e143f13..ced24e1` (code paths). Totals for the epic: 2 decisions, 6 patches, 2 deferrals, 9 dismissed. Martín resolved both decisions with the recommendation and approved every patch (decision log Impl-1 #31).
+
+- No finding is specific to this story; its three tests pass after the patches.

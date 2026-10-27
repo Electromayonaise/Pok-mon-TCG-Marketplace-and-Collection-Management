@@ -71,3 +71,9 @@ context:
 - Martín approved the four Epic 6 specs together (decision log Impl-1 #31).
 - `checkSearchArea` is exported from `dsc.v2.ts` so INV's availability port (Story 6.2) calls the same guard without a DSC dependency in its deps.
 - `boundingBox` (domain) gives AD-DSC-1 rule 2's prefilter a 0.1 % margin; a unit test checks it contains the four radius points.
+
+### Review Findings
+
+Epic 6 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `e143f13..ced24e1` (code paths). Totals for the epic: 2 decisions, 6 patches, 2 deferrals, 9 dismissed. Martín resolved both decisions with the recommendation and approved every patch (decision log Impl-1 #31).
+
+- [x] [Review][Dismiss] The SQL distance clamps `sqrt(…)` with `LEAST(1, …)` and the TypeScript reference does not — dismissed: only `h > 1` (near-antipodal rounding) differs, unreachable inside Colombia; the 1,000-pair parity test holds within 1e-6 km

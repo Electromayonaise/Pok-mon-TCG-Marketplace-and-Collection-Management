@@ -5,7 +5,7 @@ import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import { COLOMBIA_BBOX, type Condition, type CuidId, type IsoInstant } from '../../../shared-kernel/types.js';
 import { boundingBox, EARTH_RADIUS_KM, RADIUS_EPSILON_KM, type Area } from '../domain/dsc.js';
-import type { DscRepository, ListingQuery, RankedListingRow } from '../ports/dsc.v2.js';
+import type { DscRepository, ListingPage, ListingQuery, RankedListingRow } from '../ports/dsc.v2.js';
 import type { AvailabilityCandidate, InvRepository, ListingDetailRow, ListingHeader, ListingUnit, NewListingRow, ReserveFacts, ResolvedUnit } from '../ports/inv.v2.js';
 import type { IDiscoveryQuery, IInventoryUnitRepository, IListingRepository } from '../ports/listings.js';
 
@@ -326,18 +326,22 @@ function listingSearchSql(q: ListingQuery): { text: string; params: unknown[] } 
       FROM ${from} WHERE ${filters}${area === null ? '' : ` AND ${area.where}`}
       ORDER BY rank LIMIT $${params.push(q.limit)} OFFSET $${params.push(q.offset)}
     )
-    SELECT (SELECT count(*) FROM ${from} WHERE ${filters} AND ${UNUSABLE_SQL})::int AS "unusableLocation",
+    SELECT ${area === null ? '0' : `(SELECT count(*) FROM ${from} WHERE ${UNUSABLE_SQL} AND ${filters})`}::int AS "unusableLocation",
+           ${q.withMinPrice ? `(SELECT min(l."priceCop") FROM ${from} WHERE ${filters}${area === null ? '' : ` AND ${area.where}`})::text` : 'NULL::text'} AS "minPriceCop",
            COALESCE((SELECT json_agg(p ORDER BY p.rank) FROM page p), '[]'::json) AS rows`;
   return { text, params };
 }
 
 /** DSC's repository port over INV's tables, inside `listings` (AD-8; DSC owns no tables). */
 export class PgDscRepository implements DscRepository {
-  async searchListings(tx: Tx, q: ListingQuery): Promise<{ rows: RankedListingRow[]; unusableLocation: number }> {
+  async searchListings(tx: Tx, q: ListingQuery): Promise<ListingPage> {
     const { text, params } = listingSearchSql(q);
-    const { rows } = await tx.query<{ unusableLocation: number; rows: (Omit<RankedListingRow, 'priceCop' | 'rank'> & { priceCop: number | string; rank: number | string })[] }>(text, params);
+    const { rows } = await tx.query<{ unusableLocation: number; minPriceCop: string | null; rows: (Omit<RankedListingRow, 'priceCop' | 'rank'> & { priceCop: number | string; rank: number | string })[] }>(text, params);
     const row = rows[0]!;
-    return { unusableLocation: row.unusableLocation, rows: row.rows.map((r) => ({ ...r, priceCop: Number(r.priceCop), rank: Number(r.rank) })) };
+    return {
+      unusableLocation: row.unusableLocation, minPriceCop: row.minPriceCop === null ? null : Number(row.minPriceCop),
+      rows: row.rows.map((r) => ({ ...r, priceCop: Number(r.priceCop), rank: Number(r.rank) })),
+    };
   }
 }
 

@@ -1,8 +1,8 @@
 // NFR benchmark — DSC-1 search (NFR-DSC-1; contracts.md §4): `view=listings` with a 15 km area,
 // p95 ≤ 1,000 ms on the §3 seed and p95 ≤ 1,500 ms on a scale seed of 50,000 listings. PRD §7
 // protocol: Postgres 16, 50 warm-up and 500 measured calls, server-side handler time. The service is
-// composed as the composition root binds it (the real identity and catalog, no fakes). Each test
-// stays red for the right reason until its story is done: the first warm-up call throws NotImplementedError.
+// composed as the composition root binds it (the real identity and catalog, no fakes). Both tests are
+// bound to Story 6.2 (decision log Impl-1 #31), which is done, so `gate:nfr-red:impl1` requires them to pass.
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CatServiceV2 } from '../../../src/modules/catalog/index.js';

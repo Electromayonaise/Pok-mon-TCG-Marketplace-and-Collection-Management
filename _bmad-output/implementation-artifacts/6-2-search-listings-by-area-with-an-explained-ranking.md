@@ -91,8 +91,24 @@ context:
   - **NFR-DSC-1:** `[NFR-DSC-1.seed]` and `[NFR-DSC-1.scale]` are both bound to this story.
   - **`purchasableOnly`:** the statement filters the listing's own facts (business, unpaused, funded, available), and the page drops the rows of unverified sellers after `getSellerKinds`, so such a page can hold fewer than 24 rows (`deferred-work.md`).
 - The statement is one `WITH page AS (…) SELECT (count of unusable), json_agg(page)`: the count and the page read one snapshot (NFR-DSC-3), the bbox prefilter sits in the page's `WHERE` (the `(lat, lng)` index), and `row_number()` over the full order gives each row its `rankKey`. Ids order with `COLLATE "C"`, the same order as `compareRank`.
-- Without an area the order is `(soldOut, priceCop, id)` as contracts.md DSC-1 Q1 and `compareRank` state; unusable rows are then included with `distanceKm: null` and counted. AD-DSC-1 rule 4's "rank after the located rows" is not applied, since without a centre no row has a distance.
+- Without an area the order is `(soldOut, priceCop, id)` as contracts.md DSC-1 Q1 and `compareRank` state; unusable rows are then included with `distanceKm: null`, and after the close review they are not counted as excluded (`unusableLocation: 0`, decision #31). AD-DSC-1 rule 4's "rank after the located rows" is not applied, since without a centre no row has a distance.
 - `getAvailabilitySummary` checks the area with `checkSearchArea` and filters with the same predicates (`availabilityAreaSql`).
 - §13: `ListingRanked`, `SearchRanked` and `ListingLocationUnusable` join as stored-only rows with no placeholders (decision #16).
 - `src/modules/listings/application/dsc.v2.test.ts`: the AD-DSC-1 rule 3 parity over 1,000 deterministic Colombian pairs (max error ≤ 1e-6 km), the order without an area, sold-out rows, `purchasableOnly`, the `matchEntryIds` budget and an empty page.
-- Measured (local Postgres 16): `[NFR-DSC-1.seed]` p95 18.6 ms (p50 12.1), `[NFR-DSC-1.scale]` p95 89.9 ms (p50 51.6) at 50,000 listings.
+- Measured (local Postgres 16): `[NFR-DSC-1.seed]` p95 18.6 ms (p50 12.1), `[NFR-DSC-1.scale]` p95 89.9 ms (p50 51.6) at 50,000 listings; after the close review's patches, p95 19.0 ms and 97.2 ms.
+
+### Review Findings
+
+Epic 6 close review (2026-10-27, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `e143f13..ced24e1` (code paths). Totals for the epic: 2 decisions, 6 patches, 2 deferrals, 9 dismissed. Martín resolved both decisions with the recommendation and approved every patch (decision log Impl-1 #31).
+
+- [x] [Review][Decision → Patch] Without an area, listings with no usable location were returned and also counted as excluded, with an `excluded` decision whose text speaks of an area search [src/modules/listings/infra/pg.ts:listingSearchSql] — Martín: count only real exclusions; without an area `unusableLocation` is 0 and the decision is `SearchRanked`, the order stays `(soldOut, priceCop, id)` (contracts.md DSC-1 Q1)
+- [x] [Review][Patch] The meeting point was read in a second snapshot after the eligibility facts [src/modules/identity/application/idn.v2.ts:requireListingEligibility] — both reads now share one `reading()`
+- [x] [Review][Patch] `maxPriceCop` was not checked for in-process callers; a negative or fractional value reached the bigint cast as a 500 [src/modules/listings/application/dsc.v2.ts:search] — refused through `rejectRequest`
+- [x] [Review][Patch] No test pinned the SQL order to the domain's `compareRank` [src/modules/listings/application/dsc.v2.test.ts] — a 30-listing page is re-sorted with `compareRank` and must not move
+- [x] [Review][Patch] The benchmark header still said its tests stay red until the story is done [_bmad-output/test-artifacts/nfr/dsc1_latency.test.ts:1]
+- [x] [Review][Defer] `purchasableOnly` drops unverified sellers' rows after `LIMIT/OFFSET`: short pages, gaps in `rankKey`, and `SearchRanked.results` counting the filtered page [src/modules/listings/application/dsc.v2.ts:search] — deferred, already decided at the spec (decision log Impl-1 #31); `deferred-work.md` now names the `rankKey` gaps too
+- [x] [Review][Dismiss] The count is a scalar subquery, not `count(*) FILTER (…)` — dismissed: the `FILTER` form was tried and evaluates the correlated availability for every visible listing (the 50,000-listing benchmark went from 24 s to over 10 min); the `WHERE` form lets the planner test the location first, in the same statement and snapshot
+- [x] [Review][Dismiss] A window sort over every matching row on each search — dismissed: measured, p95 97 ms at 50,000 listings against 1,500 ms
+- [x] [Review][Dismiss] `InvalidLocation` could cite a meeting point the seller never typed — dismissed: the `"IndividualSellerProfile"` CHECK is the same ADD-§2.4 box, so a stored point always passes P5
+- [x] [Review][Dismiss] `hasFilters` would treat a boolean `false` as a filter — dismissed: `CatalogFilters` has no boolean field
+- [x] [Review][Dismiss] The benchmark times the service call, not the HTTP handler, and its scale seed shares units — dismissed: the same in-process protocol as every other NFR benchmark; the seed is test-only

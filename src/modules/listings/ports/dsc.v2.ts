@@ -56,6 +56,18 @@ export interface ListingQuery {
   includeSoldOut: boolean;
   limit: number;
   offset: number;
+  /** DSC-2 (AD-DSC-2 rule 4): also read the lowest price over every matching row, not only the page's. */
+  withMinPrice: boolean;
+}
+
+/**
+ * The statement's answer. `unusableLocation` counts the rows an area left out for their location
+ * (0 without an area, where they are returned; decision log Impl-1 #31); `minPriceCop` is null unless asked.
+ */
+export interface ListingPage {
+  rows: RankedListingRow[];
+  unusableLocation: number;
+  minPriceCop: number | null;
 }
 
 /** One ranked row as the statement reads it; `rank` is its 1-based position in the whole result. */
@@ -78,5 +90,5 @@ export interface RankedListingRow {
  */
 export interface DscRepository {
   /** DSC-1 Q1: one statement, one snapshot: the page and the unusable-location count. */
-  searchListings(tx: Tx, q: ListingQuery): Promise<{ rows: RankedListingRow[]; unusableLocation: number }>;
+  searchListings(tx: Tx, q: ListingQuery): Promise<ListingPage>;
 }
