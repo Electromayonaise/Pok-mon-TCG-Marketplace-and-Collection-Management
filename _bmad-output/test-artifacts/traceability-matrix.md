@@ -41,14 +41,14 @@
 | FR-IDN-6 | Messaging, review-target and seller-kind queries (CAP-18, CAP-7, CAP-1) | MSG-3, S-FR-IDN-6 | AD-IDN-1, AD-MSG-2 | 5 — `MSG-3.MEC`, `MSG-3.Q1`, `MSG-3.QF1` +2 | 2.5 (done), 9.1 (backlog) | red |
 | FR-IDN-7 | Authentication and admin gating (CAP-15, CAP-28) | S-FR-IDN-7 | AD-16, AD-IDN-3, AD-SYS-8 | 2 — `S-FR-IDN-7.f`, `S-FR-IDN-7.h` | 2.4 (done) | red |
 | FR-VER-1 | Submit a business application (CAP-15, CAP-5) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | 2.1 (done), 2.2 (done), 3.1 (done), 3.3 (done) | red |
-| FR-VER-2 | Admin review queue (CAP-15) | VER-3, S-FR-VER-2 | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 8 — `VER-3.I1`, `VER-3.I2`, `VER-3.I3` +5 | 3.4 (ready-for-dev), 3.5 (ready-for-dev) | red |
+| FR-VER-2 | Admin review queue (CAP-15) | VER-3, S-FR-VER-2 | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 8 — `VER-3.I1`, `VER-3.I2`, `VER-3.I3` +5 | 3.4 (ready-for-dev), 3.5 (done) | red |
 | FR-VER-3 | Approve (CAP-15, CAP-5) | VER-1 | AD-VER-1, AD-SYS-5, AD-SYS-2 | 7 — `VER-1.I1`, `VER-1.MEC`, `VER-1.P2` +4 | 3.2 (done), 3.3 (done) | red |
 | FR-VER-4 | Reject with a policy reason (CAP-15) | VER-1 | AD-VER-1, AD-SYS-5, AD-SYS-2 | 7 — `VER-1.I1`, `VER-1.MEC`, `VER-1.P2` +4 | 3.2 (done), 3.3 (done) | red |
 | FR-VER-5 | Access to legal identity only through admin review (CAP-15) | VER-3, S-FR-VER-5.audit | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 7 — `VER-3.I1`, `VER-3.I2`, `VER-3.I3` +4 | 3.4 (ready-for-dev) | red |
 | FR-VER-6 | Reapplication policy (CAP-15) | VER-2 | AD-SYS-8, AD-VER-3, AD-VER-1, AD-VER-2 | 7 — `VER-2.I1`, `VER-2.I2`, `VER-2.P1` +4 | 3.1 (done), 3.3 (done) | red |
-| FR-VER-7 | Applicant status view (CAP-15) | S-FR-VER-7 | AD-VER-3 | 2 — `S-FR-VER-7.f`, `S-FR-VER-7.h` | 3.5 (ready-for-dev) | red |
-| FR-VER-8 | Rejection-reason policy settings (CAP-15) | S-FR-VER-8, S-FR-VER-8.list | AD-VER-1 | 3 — `S-FR-VER-8.f`, `S-FR-VER-8.h`, `S-FR-VER-8.list.h` | 3.5 (ready-for-dev) | red |
-| FR-VER-9 | Business payment instructions for orders (CAP-20) | S-FR-VER-9 | AD-9 | 2 — `S-FR-VER-9.f`, `S-FR-VER-9.h` | 3.5 (ready-for-dev) | red |
+| FR-VER-7 | Applicant status view (CAP-15) | S-FR-VER-7 | AD-VER-3 | 2 — `S-FR-VER-7.f`, `S-FR-VER-7.h` | 3.5 (done) | red |
+| FR-VER-8 | Rejection-reason policy settings (CAP-15) | S-FR-VER-8, S-FR-VER-8.list | AD-VER-1 | 3 — `S-FR-VER-8.f`, `S-FR-VER-8.h`, `S-FR-VER-8.list.h` | 3.5 (done) | red |
+| FR-VER-9 | Business payment instructions for orders (CAP-20) | S-FR-VER-9 | AD-9 | 2 — `S-FR-VER-9.f`, `S-FR-VER-9.h` | 3.5 (done) | red |
 | FR-CAT-1 | Browse and filter the catalog by collector attributes (CAP-1, CAP-2) | S-FR-CAT-1 | AD-1 | 2 — `S-FR-CAT-1.f`, `S-FR-CAT-1.h` | 4.5 (backlog) | red |
 | FR-CAT-2 | One stable identity per card or product (CAP-2, CAP-16) | CAT-2, CAT-2.quarantine | AD-CAT-1, AD-7, AD-8 | 9 — `CAT-2.I1`, `CAT-2.I3`, `CAT-2.MEC` +6 | 4.1 (backlog), 4.2 (backlog), 4.3 (backlog) | red |
 | FR-CAT-3 | Feed ingestion with idempotent upsert and quarantine (CAP-2, CAP-3) | CAT-1, CAT-1.runs | AD-1, AD-CAT-1 | 5 — `CAT-1.I1`, `CAT-1.Q1`, `CAT-1.Q2` +2 | 4.1 (backlog), 4.3 (backlog) | red |

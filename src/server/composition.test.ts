@@ -1,5 +1,6 @@
 // The production composition over HTTP (decision log Impl-1 #24): a real Better Auth session on
-// the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2 and S-SYS.replay,
+// the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2, the supporting
+// VER contracts and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -41,6 +42,12 @@ const cookieFor = (token: string, secret: string) =>
 async function post(path: string, input: unknown, cookie?: string) {
   const headers: Record<string, string> = { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) };
   const res = await serveTrpc(new Request(`http://localhost/api/trpc/${path}`, { method: 'POST', headers, body: JSON.stringify(input) }), app.router, clock, { identity: app.identity });
+  return { status: res.status, json: (await res.json()) as { result?: { data: Record<string, unknown> }; error?: Record<string, unknown> } };
+}
+
+async function get(path: string, input: unknown, cookie: string) {
+  const url = `http://localhost/api/trpc/${path}?input=${encodeURIComponent(JSON.stringify(input))}`;
+  const res = await serveTrpc(new Request(url, { headers: { cookie } }), app.router, clock, { identity: app.identity });
   return { status: res.status, json: (await res.json()) as { result?: { data: Record<string, unknown> }; error?: Record<string, unknown> } };
 }
 
@@ -143,12 +150,6 @@ describe('access.traceCapabilities over HTTP (IDN-3, S-FR-IDN-7)', () => {
 });
 
 describe('the delivery and tick health over HTTP (S-SYS.tick, .deliveries, .health; Story 1.5)', () => {
-  async function get(path: string, input: unknown, cookie: string) {
-    const url = `http://localhost/api/trpc/${path}?input=${encodeURIComponent(JSON.stringify(input))}`;
-    const res = await serveTrpc(new Request(url, { headers: { cookie } }), app.router, clock, { identity: app.identity });
-    return { status: res.status, json: (await res.json()) as { result?: { data: Record<string, unknown> }; error?: Record<string, unknown> } };
-  }
-
   it('a signed-in non-admin is AdminOnly 403 on each read', async () => {
     await user(db, { id: id('camila') });
     const cookie = await signIn(id('camila'));
@@ -230,6 +231,36 @@ describe('verification.approve and verification.reject over HTTP (VER-1, S-FR-ID
     expect(status).toBe(200);
     expect(json.result?.data).toMatchObject({ status: 'Rejected', decision: { reasonCode: 'ApplicationRejected' } });
     expect(await rows(db, 'BusinessApplication')).toMatchObject([{ status: 'Rejected', rejectionReasonCode: 'DataMismatch', rejectionNote: 'El NIT no coincide' }]);
+  });
+});
+
+describe('the supporting verification procedures over HTTP (S-FR-VER-2, -7, -8, -9; Story 3.5)', () => {
+  it('a signed-in non-admin is AdminOnly 403 on the queue and on each reason procedure', async () => {
+    await user(db, { id: id('camila') });
+    const cookie = await signIn(id('camila'));
+    expect((await get('verification.queue', { cursor: null }, cookie)).status).toBe(403);
+    expect((await get('verification.reasons.list', {}, cookie)).json.error?.code).toBe('AdminOnly');
+    expect((await post('verification.reasons.setActive', { code: 'DataMismatch', active: false }, cookie)).json.error?.code).toBe('AdminOnly');
+  });
+
+  it('an admin reads the queue and edits a reason, and the change row names the session admin', async () => {
+    const applicationId = await business(db, id('andres'), 'Pending');
+    await admin(db);
+    const cookie = await signIn(id('admin'));
+    expect((await get('verification.queue', { cursor: null }, cookie)).json.result?.data).toMatchObject({ items: [{ applicationId }], nextCursor: null });
+    const upsert = await post('verification.reasons.upsert', { code: 'BlurryDocs', textEsCo: 'Los documentos no se leen bien.', policy: { barred: false, cooldownDays: 3 } }, cookie);
+    expect(upsert.json.result?.data).toEqual({ code: 'BlurryDocs', changed: true });
+    expect((await get('verification.reasons.list', {}, cookie)).json.result?.data).toMatchObject({ reasons: [{ code: 'BlurryDocs', active: true }] });
+    expect(await rows(db, 'RejectionReasonChange')).toMatchObject([{ code: 'BlurryDocs', adminId: id('admin') }]);
+  });
+
+  it('a business reads its own status and edits its own payment instructions', async () => {
+    await business(db, id('andres'), 'Approved');
+    const cookie = await signIn(id('andres'));
+    expect((await get('verification.myStatus', {}, cookie)).json.result?.data).toMatchObject({ status: 'Approved', decision: { reasonCode: 'VerificationApproved' } });
+    const instructions = { bankName: 'Davivienda', accountType: 'checking', accountNumber: '99887766554', holderName: 'Andrés Tienda', qrUploadKey: null };
+    expect((await post('verification.updatePaymentInstructions', { instructions }, cookie)).status).toBe(200);
+    expect(await rows(db, 'BusinessProfile')).toMatchObject([{ businessId: id('andres'), bankName: 'Davivienda' }]);
   });
 });
 

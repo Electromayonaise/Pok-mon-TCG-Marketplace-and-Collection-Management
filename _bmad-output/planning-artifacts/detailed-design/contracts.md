@@ -1291,6 +1291,11 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `ApplicationSubmitted` | — (stored only) | identity | `verification.submit` succeeded (VER-2 Q4; the rule of decision log Impl-1 #16) | "Tu solicitud de tienda quedó en revisión; te avisaremos cuando la decidamos." | no |
 | `ApplicationApproved` | — (stored only) | identity | `verification.approve` succeeded (VER-1 Q4; the rule of decision log Impl-1 #16) | "Aprobaste la solicitud; la tienda ya publica como verificada." | no |
 | `ApplicationRejected` | — (stored only) | identity | `verification.reject` succeeded (VER-1 Q4; the rule of decision log Impl-1 #16) | "Rechazaste la solicitud con el motivo {reasonCode}." | no |
+| `VerificationNone` | — (stored only) | identity | `verification.myStatus` with no application (S-FR-VER-7; ADD-§1.3) | "Aún no has enviado una solicitud de tienda." | no |
+| `VerificationPending` | — (stored only) | identity | `verification.myStatus`, latest `Pending` (S-FR-VER-7; ADD-§1.3) | "Estamos revisando tu tienda. Ya puedes publicar: tus publicaciones se ven sin la insignia de verificada y aún no se pueden comprar." | no |
+| `VerificationApproved` | — (stored only) | identity | `verification.myStatus`, latest `Approved` (S-FR-VER-7; ADD-§1.3) | "Tu tienda está verificada. Recarga tu saldo de comisión para empezar a vender." | no |
+| `VerificationRejected` | — (stored only) | identity | `verification.myStatus`, latest `Rejected` with a cooldown (S-FR-VER-7; ADD-§1.3) | "No pudimos verificar tu tienda (motivo {reasonCode}). Puedes volver a aplicar desde el {reapplyNotBefore}." | no |
+| `VerificationBarred` | — (stored only) | identity | `verification.myStatus`, latest `Rejected` and barred (S-FR-VER-7; ADD-§1.3) | "No pudimos verificar tu tienda (motivo {reasonCode}). Esta decisión es definitiva para esta cuenta." | no |
 | `CatalogEntryNotFound` | 404 | catalog | CAT-3 P2; DSC-2 P1 | "No encontramos esa carta o producto." | no |
 | `FeedRunInProgress` | 409 | catalog | CAT-1 Q-fail; `catalog.feed.continue` | "Ya hay una carga en curso desde las {startedAt}." | yes |
 | `InvalidItemRef` | 400 | listings | INV-2 P3; TRD-2 P3 | "La carta {itemRef} no existe o no corresponde al tipo elegido." | no |

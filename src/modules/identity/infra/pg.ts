@@ -6,12 +6,15 @@ import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { ApplicationStatus, AuthThrottleScope, CapabilityFacts, SellerTrack } from '../domain/idn.js';
-import type { LatestApplicationSnapshot, RejectionPolicy } from '../domain/ver.js';
+import type { LatestApplicationSnapshot, QueueKey, RejectionPolicy } from '../domain/ver.js';
 import type { PaymentInstructionsDTO } from '../dto/ver.dto.js';
 import type { IUserRepository } from '../ports/idn.js';
 import type { IdnRepository, IndividualProfileRow } from '../ports/idn.v2.js';
 import type { IBusinessApplicationRepository, IBusinessProfileRepository, IRejectionReasonRepository } from '../ports/ver.js';
-import type { ApplicationRow, ApplicationTransition, BusinessProfileRow, DecisionLogRow, DecisionState, VerRepository } from '../ports/ver.v2.js';
+import type {
+  ApplicationRow, ApplicationStatusRow, ApplicationTransition, BusinessProfileRow, DecisionLogRow, DecisionState, PaymentInstructionsRow,
+  QueueRow, RejectionReasonChangeRow, RejectionReasonRow, VerRepository,
+} from '../ports/ver.v2.js';
 
 export class PgUserRepository implements IUserRepository {
   constructor(protected readonly sql: Sql) {}
@@ -251,6 +254,107 @@ export class PgVerRepository implements Omit<VerRepository, keyof IdnRepository 
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [row.id, row.applicationId, row.adminId, row.decision, row.reasonCode, now],
     );
+  }
+
+  async readReviewQueue(tx: Tx, after: QueueKey | null, limit: number): Promise<QueueRow[]> {
+    // Two statements, not `OR $1 IS NULL`, so `business_application_queue` serves both pages.
+    const select = `SELECT id AS "applicationId", "businessName", city, "submittedAt" FROM "BusinessApplication" WHERE status = 'Pending'`;
+    const { rows } = after === null
+      ? await tx.query<Omit<QueueRow, 'submittedAt'> & { submittedAt: Date }>(
+        `${select} ORDER BY "submittedAt", id LIMIT $1`, [limit])
+      : await tx.query<Omit<QueueRow, 'submittedAt'> & { submittedAt: Date }>(
+        `${select} AND ("submittedAt", id) > ($1, $2) ORDER BY "submittedAt", id LIMIT $3`, [after.submittedAt, after.id, limit]);
+    return rows.map((r) => ({ ...r, submittedAt: r.submittedAt.toISOString() }));
+  }
+
+  async readApplicationStatus(tx: Tx, businessId: CuidId): Promise<ApplicationStatusRow | null> {
+    const { rows } = await tx.query<Omit<ApplicationStatusRow, 'reapplyNotBefore'> & { reapplyNotBefore: Date | null }>(
+      `SELECT id, status, "reapplyBarred", "reapplyNotBefore", "rejectionReasonCode" FROM "BusinessApplication"
+        WHERE "businessId" = $1 ORDER BY "submittedAt" DESC, id DESC LIMIT 1`,
+      [businessId],
+    );
+    const r = rows[0];
+    return r === undefined ? null : { ...r, reapplyNotBefore: iso(r.reapplyNotBefore) };
+  }
+
+  async listRejectionReasons(tx: Tx): Promise<RejectionReasonRow[]> {
+    const { rows } = await tx.query<RejectionReasonRow>(
+      `SELECT code, "textEsCo", barred, "cooldownDays", active FROM "RejectionReason" ORDER BY code`,
+    );
+    return rows;
+  }
+
+  async lockRejectionReason(tx: Tx, code: string): Promise<RejectionReasonRow | null> {
+    const { rows } = await tx.query<RejectionReasonRow>(
+      `SELECT code, "textEsCo", barred, "cooldownDays", active FROM "RejectionReason" WHERE code = $1 FOR UPDATE`,
+      [code],
+    );
+    return rows[0] ?? null;
+  }
+
+  async insertRejectionReason(tx: Tx, row: Omit<RejectionReasonRow, 'active'>, now: IsoInstant): Promise<boolean> {
+    const { rowCount } = await tx.query(
+      `INSERT INTO "RejectionReason" (code, "textEsCo", barred, "cooldownDays", active, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, true, $5, $5) ON CONFLICT (code) DO NOTHING RETURNING code`,
+      [row.code, row.textEsCo, row.barred, row.cooldownDays, now],
+    );
+    return rowCount === 1;
+  }
+
+  async updateRejectionReason(tx: Tx, row: Omit<RejectionReasonRow, 'active'>, now: IsoInstant): Promise<void> {
+    await tx.query(
+      `UPDATE "RejectionReason" SET "textEsCo" = $2, barred = $3, "cooldownDays" = $4, "updatedAt" = $5 WHERE code = $1`,
+      [row.code, row.textEsCo, row.barred, row.cooldownDays, now],
+    );
+  }
+
+  async lockActiveReasonCodes(tx: Tx): Promise<string[]> {
+    const { rows } = await tx.query<{ code: string }>(`SELECT code FROM "RejectionReason" WHERE active ORDER BY code FOR UPDATE`);
+    return rows.map((r) => r.code);
+  }
+
+  async setRejectionReasonActive(tx: Tx, code: string, active: boolean, now: IsoInstant): Promise<boolean> {
+    const { rowCount } = await tx.query(
+      `UPDATE "RejectionReason" SET active = $2, "updatedAt" = $3 WHERE code = $1 AND active <> $2 RETURNING code`,
+      [code, active, now],
+    );
+    return rowCount === 1;
+  }
+
+  async insertRejectionReasonChange(tx: Tx, row: RejectionReasonChangeRow, now: IsoInstant): Promise<void> {
+    await tx.query(
+      `INSERT INTO "RejectionReasonChange" (id, code, "adminId", before, after, "createdAt") VALUES ($1, $2, $3, $4, $5, $6)`,
+      [row.id, row.code, row.adminId, row.before === null ? null : JSON.stringify(row.before), JSON.stringify(row.after), now],
+    );
+  }
+
+  async updatePaymentInstructions(tx: Tx, businessId: CuidId, pay: PaymentInstructionsRow, now: IsoInstant): Promise<boolean> {
+    const { rowCount } = await tx.query(
+      `UPDATE "BusinessProfile" SET "bankName" = $2, "accountType" = $3, "accountNumber" = $4, "holderName" = $5, "updatedAt" = $6
+        WHERE "businessId" = $1 RETURNING "businessId"`,
+      [businessId, pay.bankName, pay.accountType, pay.accountNumber, pay.holderName, now],
+    );
+    return rowCount === 1;
+  }
+
+  async readPaymentInstructionsIfApproved(tx: Tx, businessId: CuidId): Promise<(PaymentInstructionsRow & { qrObjectKey: string | null }) | null> {
+    const { rows } = await tx.query<PaymentInstructionsRow & { qrObjectKey: string | null }>(
+      `SELECT p."bankName", p."accountType", p."accountNumber", p."holderName", p."qrObjectKey"
+         FROM "BusinessProfile" p
+        WHERE p."businessId" = $1
+          AND (SELECT a.status FROM "BusinessApplication" a WHERE a."businessId" = p."businessId"
+                ORDER BY a."submittedAt" DESC, a.id DESC LIMIT 1) = 'Approved'`,
+      [businessId],
+    );
+    return rows[0] ?? null;
+  }
+
+  async readLatestBusinessName(tx: Tx, businessId: CuidId): Promise<string | null> {
+    const { rows } = await tx.query<{ businessName: string }>(
+      `SELECT "businessName" FROM "BusinessApplication" WHERE "businessId" = $1 ORDER BY "submittedAt" DESC, id DESC LIMIT 1`,
+      [businessId],
+    );
+    return rows[0]?.businessName ?? null;
   }
 }
 

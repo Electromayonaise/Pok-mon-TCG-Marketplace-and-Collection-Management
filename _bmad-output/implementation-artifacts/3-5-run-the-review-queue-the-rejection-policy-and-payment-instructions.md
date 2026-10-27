@@ -2,7 +2,7 @@
 title: 'Story 3.5: Run the review queue, the rejection policy and payment instructions'
 type: 'feature'
 created: '2026-10-25'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: '140bd6a1b6b03ae0a7a56b826bc4ec3b9c326ef8'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -71,10 +71,10 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `contracts.md` §13 -- the five `Verification*` stored-only codes (es-CO from ADD-§1.3), plus any change code the writes need; regenerate
-- [ ] ports + infra -- queue (two statements), status, reasons (rule 6), profile upsert, instructions port, name
-- [ ] `application/ver.v2.ts` -- the 8 methods; unit tests for the rule 6 branches, the cursor and `status: 'none'`
-- [ ] `composition.ts` + test -- the six procedures
+- [x] `contracts.md` §13 -- the five `Verification*` stored-only codes (es-CO from ADD-§1.3), plus any change code the writes need; regenerate
+- [x] ports + infra -- queue (two statements), status, reasons (rule 6), profile upsert, instructions port, name
+- [x] `application/ver.v2.ts` -- the 8 methods; unit tests for the rule 6 branches, the cursor and `status: 'none'`
+- [x] `composition.ts` + test -- the six procedures
 
 **Acceptance Criteria:**
 - Given the 10 bound tests, when `ver_supporting.test.ts` runs, then they pass.
@@ -86,3 +86,21 @@ context:
 - `npm run lint` -- expected: 0 errors
 - `npm run test:unit` -- expected: all pass
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/ver_supporting.test.ts` -- expected: the 10 bound tests pass
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 3 at its close (decision #22).
+- The 10 bound tests pass. The 11th test in the file, `[S-FR-VER-5.audit.h]`, belongs to Story 3.4 and stays red until then. `gate:atdd-red:impl1` flags only `[VER-3.I2]`, as the second criterion expects.
+- **Codes:** §13 gained no change code. `RejectionReasonUnknown`, `LastActiveReasonRequired` and `NotBusinessAccount` already existed.
+- **Citations name the FR (`FR-VER-7`, `FR-VER-8`, `FR-VER-9`), not the contract id `S-FR-VER-n`.** The explanation contract only accepts `AD`, `FR` or `NFR` rule ids (`explainAssert`). The new unit tests caught the first draft, which cited `S-FR-VER-n`.
+- **Reasons:** `upsert` locks the row under `FOR UPDATE` and inserts with `ON CONFLICT DO NOTHING`. If a concurrent create wins the code, it re-locks and edits that row. `setActive(false)` follows rule 6 as specified. An already-active `setActive(true)` is a no-op. An unknown code is `RejectionReasonUnknown` (409). The change row and the audit row are written in one helper.
+- **Payment instructions:** `update` is an `UPDATE` of the existing `"BusinessProfile"`, not an upsert. Submission (VER-2) always creates the profile. A business-track account with no profile gets `NotBusinessAccount` with `{status: 'none'}`, the same as an individual seller. The audit data is `{bankName, accountType}` only.
+- **Queue:**
+  - Pages are fetched 26 rows at a time to tell whether a next page exists.
+  - The cursor is base64url JSON of the last row's `("submittedAt", id)`. Decoding accepts only the canonical ISO instant it writes and a cuid2 id.
+  - A foreign cursor gets `RequestValidationFailed` on `cursor`, the same issue text as Story 1.5's deliveries list.
+- **Deferred item (Story 1.5 review):** the VER queue was built with two keyset statements (first page, after a key) from the start, so it never had `OR $1 IS NULL`. Story 1.5's deliveries list still has that predicate. It stays deferred in `deferred-work.md` until volumes justify the split.
+- **Wiring:** the six procedures are in `resolvers()`. Admin procedures pass the session admin and authed ones pass the session user as `businessId`. `composition.test.ts` adds three HTTP cases. Its `get` helper moved to module scope.
+- **Unit tests:**
+  - `ver.v2.test.ts`: every rule-6 branch, upsert create, no-op and barred edit, field-by-field shape refusals, `AdminOnly`, queue paging with id tie-breaks, the foreign cursor, the `none` and barred copies, and the payment-instruction edges.
+  - `ver-domain.test.ts`: `verificationCopy` and the cursor codec.

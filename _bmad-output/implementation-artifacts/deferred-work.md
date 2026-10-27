@@ -10,7 +10,7 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 
 ## Deferred from: code review of 1-5-show-admins-the-delivery-and-tick-health (2026-10-25)
 
-- The `OR $1 IS NULL` keyset predicate may keep the planner off the partial index on large tables. Volumes are tiny; measure before splitting the statement.
+- The `OR $1 IS NULL` keyset predicate may keep the planner off the partial index on large tables. Volumes are tiny; measure before splitting the statement. (Story 3.5's review queue uses two statements from the start; the deliveries list still has the predicate.)
 - No test for the stuck list's second page, nor that a refused cursor reads nothing. The failed list covers the keyset; the decoder throws before the read.
 - `TickSilent` renders "(sin dato)" when no tick ever ran. Wording polish for the admin UI story.
 

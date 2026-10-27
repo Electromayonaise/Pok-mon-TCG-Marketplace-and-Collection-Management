@@ -39,12 +39,19 @@ import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
+import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId } from '../../../shared-kernel/types.js';
-import { CURRENT_CONSENT_VERSION, evaluateSubmission, isValidCc, isValidNit, rejectionSnapshot } from '../domain/ver.js';
-import type { ApplicationTransition } from '../ports/ver.v2.js';
+import {
+  CURRENT_CONSENT_VERSION, decodeQueueCursor, encodeQueueCursor, evaluateSubmission, isValidCc, isValidNit, rejectionSnapshot, verificationCopy,
+} from '../domain/ver.js';
+import type { PaymentInstructionsInput } from '../dto/ver.v2.dto.js';
+import type { ApplicationTransition, RejectionReasonRow } from '../ports/ver.v2.js';
 import { IdnServiceV2 } from './idn.v2.js';
 
 const raise = raiserFor('identity');
+
+/** S-FR-VER-2: the review queue's page size. */
+const QUEUE_PAGE = 25;
 
 /** AD-SYS-8 rule 6: the 5 MiB cap and the magic bytes of the three accepted document types. */
 const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
@@ -210,40 +217,150 @@ export class VerServiceV2 implements VerV2UseCases {
     throw new NotImplementedError('identity.getApplicationForReview');
   }
 
-  async listReviewQueue(_input: ListReviewQueueRequest): Promise<ListReviewQueueResponse> {
-    throw new NotImplementedError('identity.listReviewQueue');
+  /** S-FR-VER-2: admin only; `Pending` by `("submittedAt", id)`, one row past the page to know a next one exists. Zero writes. */
+  async listReviewQueue(input: ListReviewQueueRequest): Promise<ListReviewQueueResponse> {
+    const { repo, transactions } = this.deps;
+    return transactions.run(async (tx) => {
+      await requireAdmin(this.deps, tx, input.adminId);
+      const after = input.cursor === null ? null : decodeQueueCursor(input.cursor);
+      if (input.cursor !== null && after === null) rejectRequest([{ field: 'cursor', issue: 'no corresponde a una página de esta lista' }]);
+      const rows = await repo.readReviewQueue(tx, after, QUEUE_PAGE + 1);
+      const items = rows.slice(0, QUEUE_PAGE);
+      const last = items.at(-1);
+      const nextCursor = rows.length > QUEUE_PAGE && last ? encodeQueueCursor({ submittedAt: last.submittedAt, id: last.applicationId }) : null;
+      return { items, nextCursor };
+    }, { readOnly: true });
   }
 
-  async getMyApplicationStatus(_input: GetMyApplicationStatusRequest): Promise<GetMyApplicationStatusResponse> {
-    throw new NotImplementedError('identity.getMyApplicationStatus');
+  /** S-FR-VER-7: built only from the latest application's snapshot (AD-VER-3). Zero writes. */
+  async getMyApplicationStatus(input: GetMyApplicationStatusRequest): Promise<GetMyApplicationStatusResponse> {
+    const { repo, transactions, clock } = this.deps;
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      const latest = await repo.readApplicationStatus(tx, input.businessId);
+      const code = verificationCopy(latest);
+      const inputs: Citation['inputs'] = latest === null
+        ? { status: 'none' }
+        : { status: latest.status, applicationId: latest.id, reasonCode: latest.rejectionReasonCode, reapplyNotBefore: latest.reapplyNotBefore };
+      const decision: Decision = {
+        outcome: 'allowed',
+        reasonCode: code,
+        humanMessage: renderMessage(code, inputs),
+        citations: [{ rule: 'FR-VER-7', inputs }],
+        occurredAt: now,
+      };
+      return {
+        status: latest?.status ?? 'none', applicationId: latest?.id ?? null,
+        reapplyNotBefore: latest?.reapplyNotBefore ?? null, barred: latest?.reapplyBarred ?? false, decision,
+      };
+    }, { readOnly: true });
   }
 
-  async upsertRejectionReason(_input: UpsertRejectionReasonRequest): Promise<UpsertRejectionReasonResponse> {
-    throw new NotImplementedError('identity.upsertRejectionReason');
+  /** S-FR-VER-8.upsert: text and policy only, never `active` (AEC-09); a change row and an audit row per effective change. */
+  async upsertRejectionReason(input: UpsertRejectionReasonRequest): Promise<UpsertRejectionReasonResponse> {
+    checkReasonShape(input);
+    const { repo, transactions, clock } = this.deps;
+    const { adminId, code, textEsCo, policy } = input;
+    const next = { code, textEsCo, barred: policy.barred, cooldownDays: policy.barred ? null : policy.cooldownDays };
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      await requireAdmin(this.deps, tx, adminId);
+      let before = await repo.lockRejectionReason(tx, code);
+      if (before === null && (await repo.insertRejectionReason(tx, next, now))) {
+        await this.recordReasonChange(tx, adminId, null, { ...next, active: true }, now);
+        return { code, changed: true };
+      }
+      // A concurrent create won the code; edit the row it committed.
+      before ??= (await repo.lockRejectionReason(tx, code))!;
+      if (before.textEsCo === next.textEsCo && before.barred === next.barred && before.cooldownDays === next.cooldownDays) return { code, changed: false };
+      await repo.updateRejectionReason(tx, next, now);
+      await this.recordReasonChange(tx, adminId, before, { ...next, active: before.active }, now);
+      return { code, changed: true };
+    });
   }
 
-  async setRejectionReasonActive(_input: SetRejectionReasonActiveRequest): Promise<SetRejectionReasonActiveResponse> {
-    throw new NotImplementedError('identity.setRejectionReasonActive');
+  /**
+   * S-FR-VER-8.active, AD-VER-1 rule 6: a deactivation locks every active row in code order, so of
+   * two concurrent deactivations of the last two reasons the second sees one row and is refused.
+   */
+  async setRejectionReasonActive(input: SetRejectionReasonActiveRequest): Promise<SetRejectionReasonActiveResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { adminId, code, active } = input;
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      await requireAdmin(this.deps, tx, adminId);
+      if (!active) {
+        const activeCodes = await repo.lockActiveReasonCodes(tx);
+        // AEC-08: an absent or inactive code writes no change row.
+        if (!activeCodes.includes(code)) return { code, active, changed: false };
+        if (activeCodes.length === 1) return raise('LastActiveReasonRequired', [{ rule: 'AD-VER-1', inputs: { code } }]);
+      }
+      const before = await repo.lockRejectionReason(tx, code);
+      if (before === null) return raise('RejectionReasonUnknown', [{ rule: 'FR-VER-8', inputs: { reasonCode: code } }]);
+      if (before.active === active) return { code, active, changed: false };
+      await repo.setRejectionReasonActive(tx, code, active, now);
+      await this.recordReasonChange(tx, adminId, before, { ...before, active }, now);
+      return { code, active, changed: true };
+    });
   }
 
-  async updatePaymentInstructions(_input: UpdatePaymentInstructionsRequest): Promise<UpdatePaymentInstructionsResponse> {
-    throw new NotImplementedError('identity.updatePaymentInstructions');
+  private async recordReasonChange(tx: Tx, adminId: CuidId, before: RejectionReasonRow | null, after: RejectionReasonRow, now: string): Promise<void> {
+    const { repo, ids, audit } = this.deps;
+    await repo.insertRejectionReasonChange(tx, { id: ids.next(), code: after.code, adminId, before, after }, now);
+    await audit.record(tx, {
+      actorId: adminId, actorKind: 'admin', module: 'identity', action: 'verification.rejectionReason.changed',
+      aggregateType: 'RejectionReason', aggregateId: after.code, decisionCode: null,
+      data: { created: before === null, active: after.active, barred: after.barred, cooldownDays: after.cooldownDays }, at: now,
+    });
   }
 
-  async getBusinessPaymentInstructions(_input: GetBusinessPaymentInstructionsRequest): Promise<GetBusinessPaymentInstructionsResponse> {
-    throw new NotImplementedError('identity.getBusinessPaymentInstructions');
+  /** S-FR-VER-9: a business edits its payment instructions; the audit row omits the account number. An order keeps its snapshot (AD-9). */
+  async updatePaymentInstructions(input: UpdatePaymentInstructionsRequest): Promise<UpdatePaymentInstructionsResponse> {
+    const pay: Partial<UpdatePaymentInstructionsRequest['instructions']> = input.instructions ?? {};
+    const issues = paymentIssues(pay, 'instructions');
+    if (blank(pay.bankName)) issues.unshift({ field: 'instructions.bankName', issue: 'es obligatorio' });
+    const [first, ...rest] = issues;
+    if (first) rejectRequest([first, ...rest]);
+    const { repo, transactions, clock, audit } = this.deps;
+    const { businessId, instructions } = input;
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      const { sellerTrack, latestApplicationStatus } = await repo.readTrackAndLatestStatus(tx, businessId);
+      const { bankName, accountType, accountNumber, holderName } = instructions;
+      if (sellerTrack !== 'business' || !(await repo.updatePaymentInstructions(tx, businessId, { bankName, accountType, accountNumber, holderName }, now))) {
+        return raise('NotBusinessAccount', [{ rule: 'FR-VER-9', inputs: { status: latestApplicationStatus ?? 'none' } }]);
+      }
+      await audit.record(tx, {
+        actorId: businessId, actorKind: 'user', module: 'identity', action: 'verification.paymentInstructions.updated',
+        aggregateType: 'BusinessProfile', aggregateId: businessId, decisionCode: null, data: { bankName, accountType }, at: now,
+      });
+      return { updatedAt: now };
+    });
   }
 
-  async getBusinessName(_input: GetBusinessNameRequest): Promise<GetBusinessNameResponse> {
-    throw new NotImplementedError('identity.getBusinessName');
+  /** S-FR-VER-9.get: only an `Approved` business has instructions to show a buyer. */
+  async getBusinessPaymentInstructions(input: GetBusinessPaymentInstructionsRequest): Promise<GetBusinessPaymentInstructionsResponse> {
+    const { repo, transactions } = this.deps;
+    return transactions.run((tx) => repo.readPaymentInstructionsIfApproved(tx, input.businessId), { readOnly: true });
+  }
+
+  /** P-VER.name: the latest application's name, or null. */
+  async getBusinessName(input: GetBusinessNameRequest): Promise<GetBusinessNameResponse> {
+    const { repo, transactions } = this.deps;
+    return { businessName: await transactions.run((tx) => repo.readLatestBusinessName(tx, input.businessId), { readOnly: true }) };
   }
 
   async requireMessagingEligibility(_input: RequireMessagingEligibilityRequest): Promise<RequireMessagingEligibilityResponse> {
     throw new NotImplementedError('identity.requireMessagingEligibility');
   }
 
-  async listRejectionReasons(_input: ListRejectionReasonsRequest): Promise<ListRejectionReasonsResponse> {
-    throw new NotImplementedError('identity.listRejectionReasons');
+  /** S-FR-VER-8.list: admin only; every reason, active or not, by code. */
+  async listRejectionReasons(input: ListRejectionReasonsRequest): Promise<ListRejectionReasonsResponse> {
+    const { repo, transactions } = this.deps;
+    return transactions.run(async (tx) => {
+      await requireAdmin(this.deps, tx, input.adminId);
+      return { reasons: await repo.listRejectionReasons(tx) };
+    }, { readOnly: true });
   }
 
   async listLegalIdentityAccess(_input: ListLegalIdentityAccessRequest): Promise<ListLegalIdentityAccessResponse> {
@@ -282,14 +399,44 @@ function checkSubmissionShape(input: SubmitApplicationRequest): void {
   check(input.documentUploadKeys.length <= 3, 'documentUploadKeys', 'admite como máximo 3 documentos');
   check(isHttpsUrl(input.externalPresenceUrl), 'externalPresenceUrl', 'debe ser un enlace https de hasta 2048 caracteres');
   check(lengthIn(input.city, 2, 60), 'city', 'debe tener entre 2 y 60 caracteres');
-  check(pay.accountType === 'savings' || pay.accountType === 'checking', 'paymentInstructions.accountType', 'debe ser ahorros o corriente');
-  check(/^[0-9]{6,20}$/.test(pay.accountNumber!), 'paymentInstructions.accountNumber', 'debe tener entre 6 y 20 dígitos');
-  check(lengthIn(pay.holderName!, 2, 80), 'paymentInstructions.holderName', 'debe tener entre 2 y 80 caracteres');
-  // An unpromoted client key could name another account's object (AD-SYS-8 rule 5.3).
-  check(pay.qrUploadKey == null, 'paymentInstructions.qrUploadKey', 'el código QR de pago aún no se puede adjuntar');
+  issues.push(...paymentIssues(pay, 'paymentInstructions'));
   check(input.consentVersion === CURRENT_CONSENT_VERSION, 'consentVersion', 'no es la versión vigente del aviso de privacidad');
   const [first, ...rest] = issues;
   if (first) rejectRequest([first, ...rest]);
+}
+
+/** VER-2 P2 and S-FR-VER-9: the payment fields' formats, shared by a submission and a later edit. */
+function paymentIssues(pay: Partial<PaymentInstructionsInput>, prefix: string): RequestIssue[] {
+  const issues: RequestIssue[] = [];
+  const check = (ok: boolean, field: string, issue: string) => { if (!ok) issues.push({ field: `${prefix}.${field}`, issue }); };
+  check(pay.accountType === 'savings' || pay.accountType === 'checking', 'accountType', 'debe ser ahorros o corriente');
+  check(typeof pay.accountNumber === 'string' && /^[0-9]{6,20}$/.test(pay.accountNumber), 'accountNumber', 'debe tener entre 6 y 20 dígitos');
+  check(typeof pay.holderName === 'string' && lengthIn(pay.holderName, 2, 80), 'holderName', 'debe tener entre 2 y 80 caracteres');
+  // An unpromoted client key could name another account's object (AD-SYS-8 rule 5.3).
+  check(pay.qrUploadKey == null, 'qrUploadKey', 'el código QR de pago aún no se puede adjuntar');
+  return issues;
+}
+
+/** S-FR-VER-8 P: the formats zod leaves to the service (the code pattern, the text length, an integer cooldown). */
+function checkReasonShape(input: UpsertRejectionReasonRequest): void {
+  const issues: RequestIssue[] = [];
+  const check = (ok: boolean, field: string, issue: string) => { if (!ok) issues.push({ field, issue }); };
+  check(typeof input.code === 'string' && /^[A-Z][A-Za-z]+$/.test(input.code), 'code', 'debe empezar en mayúscula y tener solo letras');
+  check(typeof input.textEsCo === 'string' && lengthIn(input.textEsCo, 10, 300), 'textEsCo', 'debe tener entre 10 y 300 caracteres');
+  const policy = input.policy;
+  if (policy?.barred === false) {
+    check(Number.isInteger(policy.cooldownDays) && policy.cooldownDays >= 0 && policy.cooldownDays <= 365, 'policy.cooldownDays', 'debe ser un número entero de días entre 0 y 365');
+  } else {
+    check(policy?.barred === true, 'policy.barred', 'debe indicar si el rechazo es definitivo');
+  }
+  const [first, ...rest] = issues;
+  if (first) rejectRequest([first, ...rest]);
+}
+
+/** AD-16: admin-only operations check the flag in the service too, not only in the procedure builder. */
+async function requireAdmin(deps: VerV2Deps, tx: Tx, adminId: CuidId): Promise<void> {
+  const facts = await deps.repo.readCapabilityFacts(tx, adminId);
+  if (!facts?.isAdmin) raise('AdminOnly', [{ rule: 'AD-16', inputs: { isAdmin: false } }]);
 }
 
 function isHttpsUrl(value: string): boolean {

@@ -50,7 +50,8 @@ export interface AppDeps {
 /**
  * The procedures whose contracts the done stories implement: IDN-1.ingress (Story 2.1),
  * IDN-3 (Story 2.5), S-SYS.replay (Story 1.3), S-SYS.tick, .deliveries, .health
- * (Story 1.5), VER-2 (Story 3.1) and VER-1 (Story 3.2). Every other procedure stays NotImplemented until its story wires it.
+ * (Story 1.5), VER-2 (Story 3.1), VER-1 (Story 3.2) and S-FR-VER-2, -7, -8, -9 (Story 3.5). Every other
+ * procedure stays NotImplemented until its story wires it.
  */
 function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
   return {
@@ -60,6 +61,12 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; adminEvents: Admin
     'verification.approve': ({ applicationId }, adminId) => s.ver.decideApplication({ applicationId, decision: { kind: 'approve' }, adminId }),
     'verification.reject': ({ applicationId, reasonCode, note }, adminId) =>
       s.ver.decideApplication({ applicationId, decision: { kind: 'reject', reasonCode, note }, adminId }),
+    'verification.queue': ({ cursor }, adminId) => s.ver.listReviewQueue({ cursor, adminId }),
+    'verification.myStatus': (_input, businessId) => s.ver.getMyApplicationStatus({ businessId }),
+    'verification.reasons.list': (_input, adminId) => s.ver.listRejectionReasons({ adminId }),
+    'verification.reasons.upsert': (input, adminId) => s.ver.upsertRejectionReason({ ...input, adminId }),
+    'verification.reasons.setActive': (input, adminId) => s.ver.setRejectionReasonActive({ ...input, adminId }),
+    'verification.updatePaymentInstructions': ({ instructions }, businessId) => s.ver.updatePaymentInstructions({ instructions, businessId }),
     'admin.events.replay': (input, adminId) => s.adminEvents.replayEventDelivery({ ...input, adminId }),
     'admin.jobs.tickHealth': (_input, adminId) => s.adminEvents.getTickHealth({ adminId }),
     'admin.events.deliveries': (input, adminId) => s.adminEvents.listDeliveries({ ...input, adminId }),

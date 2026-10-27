@@ -39,6 +39,11 @@ export const MESSAGES = {
   ApplicationSubmitted: 'Tu solicitud de tienda quedó en revisión; te avisaremos cuando la decidamos.',
   ApplicationApproved: 'Aprobaste la solicitud; la tienda ya publica como verificada.',
   ApplicationRejected: 'Rechazaste la solicitud con el motivo {reasonCode}.',
+  VerificationNone: 'Aún no has enviado una solicitud de tienda.',
+  VerificationPending: 'Estamos revisando tu tienda. Ya puedes publicar: tus publicaciones se ven sin la insignia de verificada y aún no se pueden comprar.',
+  VerificationApproved: 'Tu tienda está verificada. Recarga tu saldo de comisión para empezar a vender.',
+  VerificationRejected: 'No pudimos verificar tu tienda (motivo {reasonCode}). Puedes volver a aplicar desde el {reapplyNotBefore}.',
+  VerificationBarred: 'No pudimos verificar tu tienda (motivo {reasonCode}). Esta decisión es definitiva para esta cuenta.',
   CatalogEntryNotFound: 'No encontramos esa carta o producto.',
   FeedRunInProgress: 'Ya hay una carga en curso desde las {startedAt}.',
   InvalidItemRef: 'La carta {itemRef} no existe o no corresponde al tipo elegido.',
@@ -104,6 +109,6 @@ export const MESSAGES = {
   DuplicateReview: 'Ya reseñaste a este vendedor; puedes editar tu reseña.',
   ReviewNotFound: 'No encontramos esa reseña.',
   Unexpected: 'Algo falló de nuestro lado; no se aplicó ningún cambio.',
-} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected', string>;
+} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected' | 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred', string>;
 
 export type MessageCode = keyof typeof MESSAGES;

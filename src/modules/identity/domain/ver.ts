@@ -75,3 +75,42 @@ export function rejectionSnapshot(policy: RejectionPolicy, now: Date): Rejection
   if (policy.barred) return { reapplyBarred: true, reapplyNotBefore: null };
   return { reapplyBarred: false, reapplyNotBefore: new Date(now.getTime() + (policy.cooldownDays ?? 0) * DAY_MS) };
 }
+
+/** S-FR-VER-7: the ADD-§1.3 copy keys, one per row of the status table plus `none`. */
+export type VerificationCopy = 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred';
+
+/** S-FR-VER-7: judged only from the latest application's snapshot, never the current reason (AD-VER-3). */
+export function verificationCopy(latest: Pick<LatestApplicationSnapshot, 'status' | 'reapplyBarred'> | null): VerificationCopy {
+  if (latest === null) return 'VerificationNone';
+  if (latest.status === 'Pending') return 'VerificationPending';
+  if (latest.status === 'Approved') return 'VerificationApproved';
+  return latest.reapplyBarred ? 'VerificationBarred' : 'VerificationRejected';
+}
+
+/** S-FR-VER-2: the review queue's sort key, `("submittedAt", id)` of a page's last row. */
+export interface QueueKey {
+  submittedAt: string;
+  id: string;
+}
+
+const QUEUE_ID = /^[a-z][0-9a-z]{23}$/;
+
+/** The opaque cursor of a queue page: base64url JSON of its last row's sort key. */
+export function encodeQueueCursor(key: QueueKey): string {
+  return Buffer.from(JSON.stringify(['queue', key.submittedAt, key.id])).toString('base64url');
+}
+
+/** A cursor `encodeQueueCursor` issued, else null; the instant must be the canonical ISO form it writes. */
+export function decodeQueueCursor(cursor: string): QueueKey | null {
+  let parts: unknown = null;
+  try {
+    parts = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parts) || parts.length !== 3 || parts[0] !== 'queue') return null;
+  const [, submittedAt, id] = parts as unknown[];
+  if (typeof submittedAt !== 'string' || !/^(?!0000)\d{4}-/.test(submittedAt) || Number.isNaN(Date.parse(submittedAt))) return null;
+  if (new Date(submittedAt).toISOString() !== submittedAt || typeof id !== 'string' || !QUEUE_ID.test(id)) return null;
+  return { submittedAt, id };
+}

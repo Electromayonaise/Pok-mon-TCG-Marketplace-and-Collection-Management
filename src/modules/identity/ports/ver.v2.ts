@@ -21,7 +21,7 @@ export interface VerV2Deps {
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { ApplicationStatus } from '../domain/idn.js';
-import type { AccountType, LatestApplicationSnapshot, RejectionPolicy } from '../domain/ver.js';
+import type { AccountType, LatestApplicationSnapshot, QueueKey, RejectionPolicy } from '../domain/ver.js';
 import type { IdnRepository } from './idn.v2.js';
 
 /** VER-2 Q2: one `"BusinessApplication"` row as a submission inserts it (Pending, consent snapshot). */
@@ -82,6 +82,73 @@ export interface VerRepository extends IdnRepository {
   transitionApplication(tx: Tx, applicationId: CuidId, adminId: CuidId, transition: ApplicationTransition, now: IsoInstant): Promise<{ businessId: CuidId; businessName: string } | null>;
   /** VER-1 Q3: the append-only row; `UNIQUE ("applicationId")` is the second guard (AD-VER-1 rule 4). */
   insertDecisionLog(tx: Tx, row: DecisionLogRow, now: IsoInstant): Promise<void>;
+  /** S-FR-VER-2: Pending rows after `after` by `("submittedAt", id)`; no legal-identity column (AD-VER-2 rule 1). */
+  readReviewQueue(tx: Tx, after: QueueKey | null, limit: number): Promise<QueueRow[]>;
+  /** S-FR-VER-7: the latest application's snapshot and reason code; never the current reason (AD-VER-3). */
+  readApplicationStatus(tx: Tx, businessId: CuidId): Promise<ApplicationStatusRow | null>;
+  /** S-FR-VER-8.list: every reason, by code. */
+  listRejectionReasons(tx: Tx): Promise<RejectionReasonRow[]>;
+  /** S-FR-VER-8.upsert: the reason under `FOR UPDATE`, so two edits serialize. */
+  lockRejectionReason(tx: Tx, code: string): Promise<RejectionReasonRow | null>;
+  /** S-FR-VER-8.upsert: a new active reason; false when a concurrent create won the code. */
+  insertRejectionReason(tx: Tx, row: Omit<RejectionReasonRow, 'active'>, now: IsoInstant): Promise<boolean>;
+  /** S-FR-VER-8.upsert: the text and policy; `active` is never written here (AEC-09). */
+  updateRejectionReason(tx: Tx, row: Omit<RejectionReasonRow, 'active'>, now: IsoInstant): Promise<void>;
+  /** AD-VER-1 rule 6: every active code, locked in code order. */
+  lockActiveReasonCodes(tx: Tx): Promise<string[]>;
+  /** S-FR-VER-8.active: the reason flipped to `active`; false when absent or already so. */
+  setRejectionReasonActive(tx: Tx, code: string, active: boolean, now: IsoInstant): Promise<boolean>;
+  /** S-FR-VER-8: the append-only change row; `before` is null on creation. */
+  insertRejectionReasonChange(tx: Tx, row: RejectionReasonChangeRow, now: IsoInstant): Promise<void>;
+  /** S-FR-VER-9: the payment fields of an existing profile; false when the business has none. */
+  updatePaymentInstructions(tx: Tx, businessId: CuidId, pay: PaymentInstructionsRow, now: IsoInstant): Promise<boolean>;
+  /** S-FR-VER-9.get: the instructions while the latest application is Approved, else null. */
+  readPaymentInstructionsIfApproved(tx: Tx, businessId: CuidId): Promise<(PaymentInstructionsRow & { qrObjectKey: string | null }) | null>;
+  /** P-VER.name: the latest application's name. */
+  readLatestBusinessName(tx: Tx, businessId: CuidId): Promise<string | null>;
+}
+
+/** S-FR-VER-2: one queue row. */
+export interface QueueRow {
+  applicationId: CuidId;
+  businessName: string;
+  city: string;
+  submittedAt: IsoInstant;
+}
+
+/** S-FR-VER-7: the snapshot the status is built from. */
+export interface ApplicationStatusRow {
+  id: CuidId;
+  status: ApplicationStatus;
+  reapplyBarred: boolean;
+  reapplyNotBefore: IsoInstant | null;
+  rejectionReasonCode: string | null;
+}
+
+/** S-FR-VER-8: one `"RejectionReason"` row; `cooldownDays` is null exactly when `barred`. */
+export interface RejectionReasonRow {
+  code: string;
+  textEsCo: string;
+  barred: boolean;
+  cooldownDays: number | null;
+  active: boolean;
+}
+
+/** S-FR-VER-8: the before/after values of one effective change. */
+export interface RejectionReasonChangeRow {
+  id: CuidId;
+  code: string;
+  adminId: CuidId;
+  before: RejectionReasonRow | null;
+  after: RejectionReasonRow;
+}
+
+/** S-FR-VER-9: the editable payment fields of `"BusinessProfile"`. */
+export interface PaymentInstructionsRow {
+  bankName: string;
+  accountType: AccountType;
+  accountNumber: string;
+  holderName: string;
 }
 
 /** VER-1 P3: who moved the application out of Pending, and when; both null while Pending. */

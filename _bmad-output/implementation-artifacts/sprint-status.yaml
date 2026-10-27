@@ -73,7 +73,7 @@ development_status:
   3-2-decide-an-application-exactly-once: done
   3-3-refuse-incomplete-unsafe-and-premature-applications: done
   3-4-guard-and-audit-every-legal-identity-read: ready-for-dev
-  3-5-run-the-review-queue-the-rejection-policy-and-payment-instructions: ready-for-dev
+  3-5-run-the-review-queue-the-rejection-policy-and-payment-instructions: done
   epic-3-retrospective: optional
   epic-4: backlog
   4-1-start-and-continue-a-catalog-feed-run: backlog
