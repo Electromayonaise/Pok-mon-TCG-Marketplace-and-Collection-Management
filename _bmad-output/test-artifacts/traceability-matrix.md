@@ -50,9 +50,9 @@
 | FR-VER-8 | Rejection-reason policy settings (CAP-15) | S-FR-VER-8, S-FR-VER-8.list | AD-VER-1 | 3 — `S-FR-VER-8.f`, `S-FR-VER-8.h`, `S-FR-VER-8.list.h` | 3.5 (done) | red |
 | FR-VER-9 | Business payment instructions for orders (CAP-20) | S-FR-VER-9 | AD-9 | 2 — `S-FR-VER-9.f`, `S-FR-VER-9.h` | 3.5 (done) | red |
 | FR-CAT-1 | Browse and filter the catalog by collector attributes (CAP-1, CAP-2) | S-FR-CAT-1 | AD-1 | 2 — `S-FR-CAT-1.f`, `S-FR-CAT-1.h` | 4.5 (ready-for-dev) | red |
-| FR-CAT-2 | One stable identity per card or product (CAP-2, CAP-16) | CAT-2, CAT-2.quarantine | AD-CAT-1, AD-7, AD-8 | 9 — `CAT-2.I1`, `CAT-2.I3`, `CAT-2.MEC` +6 | 4.1 (done), 4.2 (done), 4.3 (ready-for-dev) | red |
-| FR-CAT-3 | Feed ingestion with idempotent upsert and quarantine (CAP-2, CAP-3) | CAT-1, CAT-1.runs | AD-1, AD-CAT-1 | 5 — `CAT-1.I1`, `CAT-1.Q1`, `CAT-1.Q2` +2 | 4.1 (done), 4.3 (ready-for-dev) | red |
-| FR-CAT-4 | Attribute changes keep the identity (CAP-2) | CAT-2, CAT-2.quarantine | AD-CAT-1, AD-7, AD-8 | 9 — `CAT-2.I1`, `CAT-2.I3`, `CAT-2.MEC` +6 | 4.1 (done), 4.2 (done), 4.3 (ready-for-dev) | red |
+| FR-CAT-2 | One stable identity per card or product (CAP-2, CAP-16) | CAT-2, CAT-2.quarantine | AD-CAT-1, AD-7, AD-8 | 9 — `CAT-2.I1`, `CAT-2.I3`, `CAT-2.MEC` +6 | 4.1 (done), 4.2 (done), 4.3 (done) | red |
+| FR-CAT-3 | Feed ingestion with idempotent upsert and quarantine (CAP-2, CAP-3) | CAT-1, CAT-1.runs | AD-1, AD-CAT-1 | 5 — `CAT-1.I1`, `CAT-1.Q1`, `CAT-1.Q2` +2 | 4.1 (done), 4.3 (done) | red |
+| FR-CAT-4 | Attribute changes keep the identity (CAP-2) | CAT-2, CAT-2.quarantine | AD-CAT-1, AD-7, AD-8 | 9 — `CAT-2.I1`, `CAT-2.I3`, `CAT-2.MEC` +6 | 4.1 (done), 4.2 (done), 4.3 (done) | red |
 | FR-CAT-5 | Reference prices as a distinct value object (CAP-3) | CAT-3 | AD-CAT-2, AD-SYS-6, AD-SYS-7 | 5 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +2 | 4.4 (ready-for-dev) | red |
 | FR-CAT-6 | Price provenance for the card detail (CAP-3) | CAT-3, DSC-2 | AD-CAT-2, AD-SYS-6, AD-SYS-7, AD-1 | 9 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +6 | 4.4 (ready-for-dev), 6.3 (backlog), 6.4 (backlog) | red |
 | FR-CAT-7 | Freshness and feed outage (CAP-3) | CAT-3 | AD-CAT-2, AD-SYS-6, AD-SYS-7 | 5 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +2 | 4.4 (ready-for-dev) | red |

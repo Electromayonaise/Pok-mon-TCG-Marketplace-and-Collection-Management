@@ -78,7 +78,7 @@ development_status:
   epic-4: in-progress
   4-1-start-and-continue-a-catalog-feed-run: done
   4-2-keep-a-card-s-id-through-renames-and-reprints: done
-  4-3-refuse-a-second-live-run-and-quarantine-changed-kinds: ready-for-dev
+  4-3-refuse-a-second-live-run-and-quarantine-changed-kinds: done
   4-4-never-fabricate-a-price: ready-for-dev
   4-5-browse-the-catalog-and-answer-neighbours-catalog-queries: ready-for-dev
   epic-4-retrospective: optional
@@ -165,10 +165,11 @@ impl1_delivery:
 # and their ATDD tests stay red for the right reason. Exceptions: 2-4 was built early
 # with the Epic 2 batch (its spec, approved 2026-10-25), so it is done above; 3-3 and
 # 3-4 are built with the whole of Epic 3 (decision log Impl-1 #27). 3-3 and 3-4 are done
-# and have left this list (decision log Impl-1 #27).
+# and have left this list (decision log Impl-1 #27). 4-3 is built with the whole of Epic 4,
+# because Stories 4.1 and 4.2 turn its tests green; it is done and has left this list
+# (spec approved 2026-10-27; recorded in decision log Impl-1 #29).
 impl2_scope:
   - 2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins
-  - 4-3-refuse-a-second-live-run-and-quarantine-changed-kinds
   - 5-3-refuse-invalid-listings
   - 5-4-refuse-unpurchasable-and-over-quantity-reservations
   - 5-5-pause-withdraw-and-restore-listings-from-commission-and-verification-events

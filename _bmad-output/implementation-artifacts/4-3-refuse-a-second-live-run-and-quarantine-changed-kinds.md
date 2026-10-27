@@ -2,7 +2,7 @@
 title: 'Story 4.3: Refuse a second live run and quarantine changed kinds'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'd552afa'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -58,8 +58,8 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] run the 3 tests on the 4.2 tree; fix any gap in the 4.1 or 4.2 files
-- [ ] `sprint-status.yaml` -- 4.3 `done`, out of `impl2_scope`
+- [x] run the 3 tests on the 4.2 tree; fix any gap in the 4.1 or 4.2 files
+- [x] `sprint-status.yaml` -- 4.3 `done`, out of `impl2_scope`
 
 **Acceptance Criteria:**
 - Given 4.1, 4.2 and 4.3 `done`, when `npm run test:ci` runs, then every gate is green, including `gate:atdd-red:impl1`.
@@ -69,3 +69,13 @@ context:
 **Commands:**
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/cat_contracts.test.ts` -- expected: the 14 tests of 4.1–4.3 pass
 - `npm run test:ci` -- expected: exit 0
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 4 at its close (decision #22).
+- The 3 bound tests passed on the Story 4.2 tree (commit `d05e880`) with no change. No gap needed a fix in the files of 4.1 or 4.2.
+- Each refusal and where it is built:
+  - `[CAT-1.QF1]`: the savepoint insert in `startFeedRun`. A 23505 re-reads the live run and raises `FeedRunInProgress` with `{runId, startedAt}`. The transaction rolls back, so the refused start leaves no audit row (Story 4.1).
+  - `[CAT-2.ingress.f]`: the lease claim in `continueFeedRun` matches 0 rows, so the holder's lease and token are never written. The re-read raises `FeedRunInProgress` (Story 4.1).
+  - `[CAT-2.QF1]`: the kind check before the upsert in `upsert` (Stories 4.1 and 4.2). The unit test "a kind change with new attributes writes neither the attributes nor a revision" covers the attributes and the revision.
+- 4.3 leaves `impl2_scope` with a note in `sprint-status.yaml`. Like 2.4, 3.3 and 3.4, it is `done` early and does not count toward the 43 Impl-1 stories.
