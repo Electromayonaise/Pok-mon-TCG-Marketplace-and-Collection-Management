@@ -1349,6 +1349,10 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `OrderNotCancellable` | 409 | orders | S-FR-ORD-7 | "El pedido {orderId} ya está {status}; no se puede cancelar." | no |
 | `OrderNoLongerActive` | 409 | orders | ORD-2 P4; ORD-3 P5; ORD-4 P3 | "El pedido {orderId} {status} el {at}." | no |
 | `TooManyOpenOrders` | 409 | orders | ORD-1 P4 | "Paga o cancela primero: {openOrderIds}." | no |
+| `OrderCreated` | — (stored only) | orders | ORD-1 Q4: the purchase created an `AwaitingPayment` order, citing `{ orderId, qty, totalCop, expiresAt }` (FR-ORD-1; the rule of decision log Impl-1 #16) | "Tu pedido quedó creado. Transfiere el total a la tienda y sube el comprobante antes de que venza en 48 horas." | no |
+| `ComprobanteAttached` | — (stored only) | orders | S-FR-ORD-2.upload: the comprobante was attached before "paid" (FR-ORD-2; the rule of decision log Impl-1 #16) | "Guardamos tu comprobante. Cuando hayas pagado, confirma el pago del pedido." | no |
+| `ComprobanteUrlIssued` | — (stored only) | orders | S-FR-ORD-2.url: a signed URL for the comprobante, valid 600 s (AD-14; the rule of decision log Impl-1 #16) | "El enlace al comprobante vence en 10 minutos." | no |
+| `ComprobanteNotUploaded` | — (stored only) | orders | S-FR-ORD-2.url: the order has no comprobante yet, so `url` is null (FR-ORD-2; the rule of decision log Impl-1 #16) | "Este pedido aún no tiene comprobante." | no |
 | `TopUpAmountInvalid` | 400 | commission | S-FR-COM-2 | "La recarga debe estar entre $20.000 y $10.000.000 COP." | no |
 | `TopUpNotPending` | 409 | commission | COM-2 P3 | "Esta recarga ya fue {status} por {decidedBy} el {decidedAt}." | no |
 | `TopUpNotVisibleToCaller` | 403 | commission | S-FR-COM-2 | "No encontramos esa recarga." | no |

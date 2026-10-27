@@ -35,6 +35,7 @@ export interface VerV2UseCases {
 // </gen-solu2-api>
 
 import type { Citation, Decision } from '../../../shared-kernel/decision.js';
+import { ambientTx } from '../../../shared-kernel/db.js';
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
@@ -402,8 +403,10 @@ export class VerServiceV2 implements VerV2UseCases {
 
   /** S-FR-VER-9.get: only an `Approved` business has instructions to show a buyer. */
   async getBusinessPaymentInstructions(input: GetBusinessPaymentInstructionsRequest): Promise<GetBusinessPaymentInstructionsResponse> {
-    const { repo, transactions } = this.deps;
-    return transactions.run((tx) => repo.readPaymentInstructionsIfApproved(tx, input.businessId), { readOnly: true });
+    // AD-SYS-4 rule 9: ORD-1 Q2.4 calls this inside the order's transaction, so it reads on that one.
+    const tx = ambientTx();
+    const read = (t: Tx) => this.deps.repo.readPaymentInstructionsIfApproved(t, input.businessId);
+    return tx ? read(tx) : this.deps.transactions.run(read, { readOnly: true });
   }
 
   /** P-VER.name: the latest application's name, or null. */

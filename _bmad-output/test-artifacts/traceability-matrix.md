@@ -25,7 +25,7 @@
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
-| NFR evidence status | Green — ATDD: 19; Green — benchmark: 6; Green — gate: 8; Red — ATDD: 22; Red — benchmark: 2; Deferred — launch: 2; Planned — story DoD: 8 |
+| NFR evidence status | Green — ATDD: 20; Green — benchmark: 8; Green — gate: 8; Red — ATDD: 21; Deferred — launch: 3; Planned — story DoD: 8 |
 | Contract clauses / test ids | 112 / 380 (368 red, 12 green) |
 | Gate problems | 0 |
 
@@ -74,8 +74,8 @@
 | FR-DSC-5 | Deterministic ranking with an explanation for each row (CAP-1) | DSC-1 | AD-DSC-2, AD-5, AD-DSC-1, AD-12 | 7 — `DSC-1.I1`, `DSC-1.I2`, `DSC-1.I4` +4 | 6.2 (done), 6.4 (done) | red |
 | FR-DSC-6 | Moderation and state exclusion take effect immediately (CAP-28, CAP-1) | DSC-1 | AD-DSC-2, AD-5, AD-DSC-1, AD-12 | 7 — `DSC-1.I1`, `DSC-1.I2`, `DSC-1.I4` +4 | 6.2 (done), 6.4 (done) | red |
 | FR-DSC-7 | Card detail composition (CAP-3, CAP-2) | DSC-2 | AD-SYS-7, AD-1, AD-DSC-2, AD-DSC-1 | 4 — `DSC-2.MEC`, `DSC-2.MEC2`, `DSC-2.P1` +1 | 6.3 (done), 6.4 (done) | red |
-| FR-ORD-1 | Purchase and reserve at creation (CAP-17) | ORD-1 | AD-ORD-1, AD-ORD-2, AD-SYS-7, AD-9 | 6 — `ORD-1.I2`, `ORD-1.I4`, `ORD-1.P3` +3 | 7.1 (backlog), 7.3 (backlog) | red |
-| FR-ORD-2 | Upload or replace the comprobante (CAP-20) | S-FR-ORD-2, S-FR-ORD-2.url | AD-SYS-8, AD-ORD-3, AD-17, AD-14 | 3 — `S-FR-ORD-2.f`, `S-FR-ORD-2.h`, `S-FR-ORD-2.url.h` | 7.1 (backlog) | red |
+| FR-ORD-1 | Purchase and reserve at creation (CAP-17) | ORD-1 | AD-ORD-1, AD-ORD-2, AD-SYS-7, AD-9 | 6 — `ORD-1.I2`, `ORD-1.I4`, `ORD-1.P3` +3 | 7.1 (done), 7.3 (backlog) | red |
+| FR-ORD-2 | Upload or replace the comprobante (CAP-20) | S-FR-ORD-2, S-FR-ORD-2.url | AD-SYS-8, AD-ORD-3, AD-17, AD-14 | 3 — `S-FR-ORD-2.f`, `S-FR-ORD-2.h`, `S-FR-ORD-2.url.h` | 7.1 (done) | red |
 | FR-ORD-3 | Buyer confirms "I paid" (CAP-20, CAP-22) | ORD-2 | AD-ORD-3, AD-ORD-2, AD-15, AD-SYS-5 | 7 — `ORD-2.I2`, `ORD-2.MEC`, `ORD-2.P1` +4 | 7.2 (backlog), 7.4 (backlog) | red |
 | FR-ORD-4 | Business confirms payment received (CAP-20, CAP-22) | ORD-3 | AD-ORD-2, AD-2, AD-SYS-2, AD-15 | 6 — `ORD-3.I3`, `ORD-3.MEC`, `ORD-3.P2` +3 | 7.2 (backlog), 7.4 (backlog) | red |
 | FR-ORD-5 | Buyer confirms item received; the order closes (CAP-22, CAP-27) | ORD-4 | AD-ORD-2, AD-2, AD-ORD-3 | 5 — `ORD-4.MEC`, `ORD-4.P2`, `ORD-4.P3` +2 | 7.2 (backlog), 7.4 (backlog) | red |
@@ -144,7 +144,7 @@
 | NFR-SYS-6 | Post-commit events are exactly-once in effect | — | `NFR-SYS-6.sweep`, `SYS-2.R6`, `SYS-2.R4` | 3 | Green — benchmark |
 | NFR-SYS-7 | Server-side authorization | — | `SYS-8.R2`, `SYS-8.R2.static` | 2 | Green — ATDD |
 | NFR-SYS-8 | Admin audit trail | IDN-3 | `IDN-3.Q1`, `REP-2.Q1`, `SYS-R2` +1 | 9 | Green — ATDD (identity, VER, the grants); Red — ATDD (`[REP-2.Q1]`) |
-| NFR-SYS-9 | Latency baseline | — | `NFR-ORD-2.p95` | 1 | Red — benchmark |
+| NFR-SYS-9 | Latency baseline | — | `NFR-ORD-2.p95` | 1 | Green — benchmark |
 | NFR-SYS-10 | Concurrency proofs run on PostgreSQL | — | `INV-1.I1`, `TRD-1.MEC`, `REP-3.MEC` | 3 | Green — ATDD (`[INV-1.I1]`); Red — ATDD (`[TRD-1.MEC]`, `[REP-3.MEC]`) |
 | NFR-SYS-11 | Accessibility | — | — | 0 | Deferred — launch |
 | NFR-SYS-12 | Platform personal-data consent | — | — | 0 | Green — gate |
@@ -175,8 +175,8 @@
 | NFR-DSC-1 | view=listings with a 15 km area responds in p95 ≤ 1,000 ms on the §3 seed and in | DSC-1 | `NFR-DSC-1.seed`, `NFR-DSC-1.scale` | 9 | Green — benchmark |
 | NFR-DSC-2 | distance error is ≤ 1 m against the haversine reference for 1,000 random Colombi | DSC-1 | `DSC-1.I4` | 7 | Green — ATDD |
 | NFR-DSC-3 | ordering is deterministic | DSC-1 | `DSC-1.R1` | 7 | Green — ATDD |
-| NFR-ORD-2 | order creation (including the reservation) responds in p95 ≤ 800 ms | ORD-1 | `NFR-ORD-2.p95` | 7 | Red — benchmark |
-| NFR-ORD-3 | 0 funds-held states or payment-gateway calls | — | `ORD-1.I4`, `SYS-6.R4` | 2 | Green — gate (`[SYS-6.R4]`); Red — ATDD (`[ORD-1.I4]`) |
+| NFR-ORD-2 | order creation (including the reservation) responds in p95 ≤ 800 ms | ORD-1 | `NFR-ORD-2.p95` | 7 | Green — benchmark (creation); Deferred — launch (the upload's transfer time needs the production storage) |
+| NFR-ORD-3 | 0 funds-held states or payment-gateway calls | — | `ORD-1.I4`, `SYS-6.R4` | 2 | Green — gate (`[SYS-6.R4]`); Green — ATDD (`[ORD-1.I4]`) |
 | NFR-ORD-4 | the stalled-order gap is documented in UI copy | — | `S-FR-ORD-10.h` | 1 | Red — ATDD |
 | NFR-COM-2 | reconciliation is exact over a randomised sequence of 10,000 top-ups and deducti | COM-1, COM-3 | `COM-3.Q1`, `COM-3.I1` | 14 | Red — ATDD |
 | NFR-COM-3 | the deduction handler runs in p95 ≤ 200 ms | COM-1, COM-2 | — | 16 | Planned — story DoD |
@@ -198,7 +198,7 @@
 | AD | Invariant | Enforcement point | Tests that turn red on violation | Story | Status |
 |---|---|---|---|---|---|
 | AD-1 | Module dependency graph is AD-1's | Each module imports only neighbours' `index.ts`; `catalog` imports no module; admin guard lives in `server/trpc` | `SYS-AD1` | 1.4 (done) | green |
-| AD-2 | Three facts, no custody | Fact CHECKs on `"Order"`; no balance/escrow/payment column | `ORD-2.I2`, `ORD-1.I4` | 7.1 (backlog), 7.2 (backlog) | red |
+| AD-2 | Three facts, no custody | Fact CHECKs on `"Order"`; no balance/escrow/payment column | `ORD-2.I2`, `ORD-1.I4` | 7.1 (done), 7.2 (backlog) | red |
 | AD-3 | Commission balance is the single source of purchasability | Fail-closed `SellerCommissionState` read `FOR SHARE` at listing insert; projection seq gate | `INV-2.I2`, `INV-3.I2` | 5.1 (done), 5.5 (done) | red |
 | AD-4 | Trading is a one-way flow off `listings` | `CHECK (sellerKindAtCreation='individual' OR NOT openToTrade)`; `getTradeability` / `reserveForTrade` ports | `INV-2.I4`, `TRD-1.I1` | 5.3 (done), 10.3 (backlog) | red |
 | AD-5 | One location query path | One SQL builder with no seller-kind branch | `DSC-1.I1` | 6.2 (done) | red |
@@ -213,7 +213,7 @@
 | AD-14 | Signed URLs, 10-minute TTL | `ObjectStorage.sign(key, 600)` | `VER-3.I3` | 3.4 (done) | red |
 | AD-15 | Business sees an order from `buyerPaidConfirmedAt` | One visibility predicate | `ORD-3.I3`, `ORD-3.MEC` | 7.2 (backlog) | red |
 | AD-16 | Roles derived server-side | `deriveCapabilities`; no role-like input key | `IDN-2.I1`, `SYS-8.R2` | 1.1 (done), 2.3 (done) | red |
-| AD-17 | Comprobante is regulated data | `regulated.ts` + redactor; promotion through quarantine | `S-FR-ORD-2.f`, `SYS-8.R4` | 1.2 (done), 7.1 (backlog) | red |
+| AD-17 | Comprobante is regulated data | `regulated.ts` + redactor; promotion through quarantine | `S-FR-ORD-2.f`, `SYS-8.R4` | 1.2 (done), 7.1 (done) | red |
 | AD-18 | Exclusivity by rejecting the second state-granting action | Conditional `UPDATE "User"."sellerTrack"`; composite FKs | `IDN-1.MEC` | 2.2 (done) | red |
 | AD-19 | Atomic decrement; balance may go negative | Account `UPDATE … RETURNING`; no refusal path | `COM-1.MEC` | 8.2 (backlog) | red |
 | AD-SYS-1 | One Decision shape and one code registry | `codes.ts`; error formatter; `explain_assert` | `SYS-1.R6` | 1.1 (done) | red |
@@ -238,9 +238,9 @@
 | AD-INV-3 | Fail-closed purchasability, newer facts only | Seq gate; `AppliedApplicationDecision` | `INV-3.I1`, `S-FR-INV-8.f` | 5.5 (done) | red |
 | AD-DSC-1 | SQL distance equals the TS reference | One haversine expression; `+ 1e-6` inclusive bound | `DSC-1.I4`, `DSC-2.MEC` | 6.2 (done), 6.3 (done) | red |
 | AD-DSC-2 | At most 3 neighbour calls per request | Composition in `listings` | `DSC-2.Q1` | 6.3 (done) | red |
-| AD-ORD-1 | Creation serialized per buyer | `orders:buyer` advisory lock + derived count | `ORD-1.I2` | 7.1 (backlog) | red |
+| AD-ORD-1 | Creation serialized per buyer | `orders:buyer` advisory lock + derived count | `ORD-1.I2` | 7.1 (done) | red |
 | AD-ORD-2 | Facts set once; expiry derived and materialized once | `IS NULL` predicates; `expiresAt > now` | `ORD-2.MEC`, `ORD-4.MEC` | 7.2 (backlog) | red |
-| AD-ORD-3 | One visibility predicate; locked comprobante | Visibility SQL; comprobante update predicate | `ORD-3.I3`, `S-FR-ORD-2.f` | 7.1 (backlog), 7.2 (backlog) | red |
+| AD-ORD-3 | One visibility predicate; locked comprobante | Visibility SQL; comprobante update predicate | `ORD-3.I3`, `S-FR-ORD-2.f` | 7.1 (done), 7.2 (backlog) | red |
 | AD-COM-1 | One atomic account update + one ledger entry | `UPDATE … RETURNING`; `UNIQUE (businessId, seq)` | `COM-3.I1` | 8.5 (backlog) | red |
 | AD-COM-2 | Deduction keyed by `orderId`, priced at the trigger time | Partial unique; rate by `commissionTriggeredAt` | `COM-1.I1` | 8.2 (backlog) | red |
 | AD-COM-3 | Top-ups have one domain path | `WHERE status='Pending'`; unique TopUp entry | `COM-2.I1` | 8.3 (backlog) | red |
@@ -282,7 +282,7 @@
 | R-17 A module imports a neighbour past its `index.ts`, or along an edge … | P1 | SYS | Static (fitness) | `SYS-AD1` | 1.4 (done) | green |
 | R-18 A module writes another module's tables, or the app role rewrites a… | P1 | SYS | Static + integration | `SYS-AD8`, `SYS-R2`, `SYS-R2.grants` | 1.2 (done), 1.4 (done) | green + red |
 | R-19 A wall-clock read makes a test or a deadline non-deterministic | P1 | SYS | Static (fitness) | `SYS-6.R1`, `SYS-6.R4` | 1.4 (done) | green |
-| R-20 Purchase (`createOrder`) misses its 800 ms p95 under the §3 seed | P1 | ORD | NFR benchmark | `NFR-ORD-2.p95` | 7.1 (backlog) | red |
+| R-20 Purchase (`createOrder`) misses its 800 ms p95 under the §3 seed | P1 | ORD | NFR benchmark | `NFR-ORD-2.p95` | 7.1 (done) | red |
 
 ## 6. Contract clauses
 

@@ -42,9 +42,67 @@ export interface OrdV2Deps {
 }
 // </gen-solu2-api>
 
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import type { ListingSnapshotDTO, ReservationRefDTO } from '../../listings/index.js';
+import type { OrderPaymentInstructionsDTO } from '../dto/ord.v2.dto.js';
+import type { OrderFacts } from '../domain/ord.js';
+
+/** An order as a command or a read sees it; the comprobante key never leaves the service (AD-17). */
+export interface OrderRow extends OrderFacts {
+  id: CuidId;
+  buyerId: CuidId;
+  businessId: CuidId;
+  listingId: CuidId;
+  listingSnapshot: ListingSnapshotDTO;
+  qty: number;
+  unitPriceCop: number;
+  totalCop: number;
+  reservationRef: ReservationRefDTO;
+  comprobanteUploadedAt: Date | null;
+  createdAt: Date;
+}
+
+/** ORD-1 Q2.5: the row a purchase inserts. */
+export interface NewOrderRow {
+  id: CuidId;
+  buyerId: CuidId;
+  businessId: CuidId;
+  listingId: CuidId;
+  listingSnapshot: ListingSnapshotDTO;
+  qty: number;
+  unitPriceCop: number;
+  totalCop: number;
+  paymentInstructions: OrderPaymentInstructionsDTO;
+  reservationRef: ReservationRefDTO;
+  expiresAt: IsoInstant;
+  now: IsoInstant;
+}
+
 /**
  * Repository port of ORD (review A-4): the only way its application service reads or writes
- * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * its own tables (AD-8). Every method takes the transaction it runs in; `infra/pg.ts` implements them.
  */
-export interface OrdRepository {}
+export interface OrdRepository {
+  /** AD-ORD-1 rule 2.1: `pg_advisory_xact_lock(orders:buyer:<buyerId>)`. */
+  lockBuyer(tx: Tx, buyerId: CuidId): Promise<void>;
+  /** AD-ORD-1 rule 2.2: the buyer's open orders by the derived predicate, in id order. */
+  openOrders(tx: Tx, buyerId: CuidId, now: IsoInstant): Promise<{ id: CuidId; businessId: CuidId }[]>;
+  /** ORD-1 Q2.5. */
+  insertOrder(tx: Tx, row: NewOrderRow): Promise<void>;
+  /**
+   * AD-ORD-2 rule 7: unpaid, unterminated orders with `expiresAt <= now`, oldest expiry first; with
+   * `unitIds`, only those whose reservation holds one of them.
+   */
+  dueOrderIds(tx: Tx, unitIds: CuidId[] | null, now: IsoInstant, limit: number): Promise<CuidId[]>;
+  /** AD-ORD-2 rule 6: the conditional expiry; the reservation to release, or null when 0 rows changed. */
+  expireOrder(tx: Tx, orderId: CuidId, now: IsoInstant): Promise<ReservationRefDTO | null>;
+  /** AD-ORD-3 rule 1: the order through the one visibility predicate, or null. */
+  readVisibleOrder(tx: Tx, orderId: CuidId, actorId: CuidId): Promise<OrderRow | null>;
+  /** The order's comprobante key, for the service's storage calls only (AD-17). */
+  comprobanteKeyOf(tx: Tx, orderId: CuidId): Promise<string | null>;
+  /**
+   * AD-ORD-3 rule 2.3: sets the comprobante while the order is the buyer's, unpaid and active;
+   * the previous key, or `undefined` when 0 rows changed.
+   */
+  attachComprobante(tx: Tx, orderId: CuidId, buyerId: CuidId, key: string, now: IsoInstant): Promise<{ previousKey: string | null } | undefined>;
+}

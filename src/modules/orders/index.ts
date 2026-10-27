@@ -8,6 +8,8 @@ export type * from './dto/ord.dto.js';
 export type * from './dto/ord.v2.dto.js';
 export type { OrdUseCases } from './application/ord.js';
 export type { ListingsForOrders } from './ports/ord.js';
+/** The Solu-2 Postgres adapter of `OrdRepository`, for the composition that builds the one `repo` (R-14). */
+export { PgOrdRepository } from './infra/pg.js';
 
 export interface OrdersWiring {
   sql: Sql;

@@ -38,14 +38,228 @@ export interface OrdV2UseCases {
 }
 // </gen-solu2-api>
 
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import type { Citation, Decision } from '../../../shared-kernel/decision.js';
+import { ambientTx } from '../../../shared-kernel/db.js';
+import { DomainError, NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
+import type { Tx } from '../../../shared-kernel/ports.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest } from '../../../shared-kernel/request.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import { comprobanteUploadPrefix, deriveStatus, MAX_COMPROBANTE_BYTES, openOrderOverflow, sniffComprobanteType, UNPAID_ORDER_TTL_MS, type OrderStatus } from '../domain/ord.js';
+import type { OrderRow } from '../ports/ord.v2.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('orders');
+
+/** AD-ORD-2 rule 7: the `orders.create` pre-step expires at most 20 orders of the listing's units. */
+const PRE_STEP_LIMIT = 20;
+/** AD-14: a signed comprobante URL lives exactly 600 s. */
+const SIGNED_URL_TTL = 600;
+
+/** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
+function explained(code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant, outcome: Decision['outcome'] = 'allowed'): Decision {
+  return { outcome, reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
+}
+
+/** The instant a terminated order ended, for `OrderNoLongerActive` (AD-ORD-2 rule 3). */
+function endedAt(row: OrderRow): Date {
+  return row.cancelledAt ?? row.expiredAt ?? row.expiresAt;
+}
+
+/** Every method not yet built throws NotImplementedError until its story is done (red for the right reason). */
 export class OrdServiceV2 implements OrdV2UseCases {
   constructor(protected readonly deps: OrdV2Deps) {}
 
-  async createOrder(_input: CreateOrderRequest): Promise<CreateOrderResponse> {
-    throw new NotImplementedError('orders.createOrder');
+  /**
+   * AD-SYS-4 rule 9: reads on the caller's open transaction when there is one, otherwise in one
+   * read-only transaction of its own.
+   */
+  private async reading<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+    const tx = ambientTx();
+    return tx ? fn(tx) : this.deps.transactions.run(fn, { readOnly: true });
+  }
+
+  /** AD-ORD-3 rule 1: a miss cites nothing about the order, so a foreign id and an unknown id give one body (S-2). */
+  private notVisible(): never {
+    return raise('OrderNotVisibleToCaller', [{ rule: 'AD-ORD-3 rule 1', inputs: { visible: false } }]);
+  }
+
+  private notOwned(orderId: CuidId, rule: string): never {
+    return raise('OrderNotOwnedByCaller', [{ rule, inputs: { orderId } }]);
+  }
+
+  private noLongerActive(row: OrderRow, status: OrderStatus, rule: string): never {
+    return raise('OrderNoLongerActive', [{ rule, inputs: { orderId: row.id, status, at: endedAt(row).toISOString() } }]);
+  }
+
+  /**
+   * AD-ORD-2 rule 6, in the caller's `tx`: the conditional expiry, and on 1 row the one release of
+   * its reservation and a `system` audit row. The released unit count, or null when 0 rows changed.
+   */
+  private async expireInTx(tx: Tx, orderId: CuidId, now: IsoInstant): Promise<number | null> {
+    const { repo, listings, audit } = this.deps;
+    const reservationRef = await repo.expireOrder(tx, orderId, now);
+    if (reservationRef === null) return null;
+    const { releasedUnits } = await listings.releaseReservation(tx, { reservationRef });
+    await audit.record(tx, {
+      actorId: null, actorKind: 'system', module: 'orders', action: 'orders.order.expired',
+      aggregateType: 'Order', aggregateId: orderId, decisionCode: null, data: { cancelReason: 'Unpaid', releasedUnits }, at: now,
+    });
+    return releasedUnits;
+  }
+
+  /** AD-ORD-2 rule 7 (S-FR-ORD-8): one batch of due orders, one transaction per order. */
+  private async expireBatch(unitIds: CuidId[] | null, now: IsoInstant, limit: number): Promise<{ due: number; expired: number; released: number }> {
+    const { repo, transactions } = this.deps;
+    const due = await transactions.run((tx) => repo.dueOrderIds(tx, unitIds, now, limit), { readOnly: true });
+    let expired = 0;
+    let released = 0;
+    for (const orderId of due) {
+      const units = await transactions.run((tx) => this.expireInTx(tx, orderId, now));
+      if (units === null) continue;
+      expired++;
+      released += units;
+    }
+    return { due: due.length, expired, released };
+  }
+
+  /**
+   * ORD-1 (AD-ORD-1): P2, P3 and the expiry pre-step before the transaction; then the buyer's lock,
+   * P4, the reserve (P5), the payment instructions and the insert in one. P1 `canBuy` is the procedure builder's.
+   */
+  async createOrder(input: CreateOrderRequest): Promise<CreateOrderResponse> {
+    const { repo, transactions, clock, ids, audit, listings, identity } = this.deps;
+    const { listingId, qty, buyerId } = input;
+    if (!Number.isInteger(qty) || qty < 1) rejectRequest([{ field: 'qty', issue: 'debe ser un número entero mayor o igual a 1' }]);
+    const at = clock.now();
+    const now = at.toISOString();
+    const listing = await listings.getListingForPurchase({ listingId });
+    if (listing.sellerId === buyerId) raise('SelfPurchaseNotAllowed', [{ rule: 'FR-ORD-1', inputs: { listingId } }]);
+    const { unitIds } = await listings.getInventoryUnitIds({ listingId });
+    if (unitIds.length > 0) await this.expireBatch(unitIds, now, PRE_STEP_LIMIT);
+    return transactions.run(async (tx) => {
+      await repo.lockBuyer(tx, buyerId);
+      const blocking = openOrderOverflow(await repo.openOrders(tx, buyerId, now), listing.sellerId);
+      if (blocking) raise('TooManyOpenOrders', [{ rule: 'FR-ORD-1', inputs: { openOrderIds: blocking.join(', ') } }]);
+      const { reservationRef, snapshot } = await listings.reserveForPurchase(tx, { listingId, qty, buyerId });
+      const instructions = await identity.getBusinessPaymentInstructions({ businessId: listing.sellerId });
+      if (instructions === null) throw new UnexpectedError(`Unexpected: business ${listing.sellerId} sold listing ${listingId} with no payment instructions`);
+      const orderId = ids.next();
+      const totalCop = snapshot.unitPriceCop * qty;
+      const expiresAt = new Date(at.getTime() + UNPAID_ORDER_TTL_MS).toISOString();
+      const paymentInstructions = {
+        bankName: instructions.bankName, accountType: instructions.accountType, accountNumber: instructions.accountNumber,
+        holderName: instructions.holderName, qrObjectKey: instructions.qrObjectKey,
+      };
+      await repo.insertOrder(tx, {
+        id: orderId, buyerId, businessId: listing.sellerId, listingId, listingSnapshot: snapshot, qty, unitPriceCop: snapshot.unitPriceCop, totalCop,
+        paymentInstructions, reservationRef, expiresAt, now,
+      });
+      await audit.record(tx, {
+        actorId: buyerId, actorKind: 'user', module: 'orders', action: 'orders.order.created',
+        aggregateType: 'Order', aggregateId: orderId, decisionCode: 'OrderCreated', data: { listingId, qty, totalCop }, at: now,
+      });
+      const decision = explained('OrderCreated', [{ rule: 'FR-ORD-1', inputs: { orderId, qty, totalCop, expiresAt } }], now);
+      return { orderId, status: 'AwaitingPayment' as const, totalCop, paymentInstructions, expiresAt, decision };
+    });
+  }
+
+  /** The buyer's order while its comprobante may still change (S-FR-ORD-2): visible, theirs, unpaid and active. */
+  private async comprobanteTarget(tx: Tx, orderId: CuidId, buyerId: CuidId, at: Date): Promise<OrderRow> {
+    const row = await this.deps.repo.readVisibleOrder(tx, orderId, buyerId);
+    if (row === null) return this.notVisible();
+    if (row.buyerId !== buyerId) return this.notOwned(orderId, 'FR-ORD-2');
+    if (row.buyerPaidConfirmedAt !== null) {
+      raise('ComprobanteLocked', [{ rule: 'AD-ORD-3 rule 2', inputs: { orderId, buyerPaidConfirmedAt: row.buyerPaidConfirmedAt.toISOString() } }]);
+    }
+    const status = deriveStatus(row, at);
+    if (status === 'Cancelled' || status === 'Expired') this.noLongerActive(row, status, 'FR-ORD-2');
+    return row;
+  }
+
+  /** S-FR-ORD-2.ticket (AD-SYS-8 rule 5.1): a direct-upload ticket under the buyer's own prefix. */
+  async createComprobanteUpload(input: CreateComprobanteUploadRequest): Promise<CreateComprobanteUploadResponse> {
+    const { clock, ids, storage } = this.deps;
+    const at = clock.now();
+    await this.reading((tx) => this.comprobanteTarget(tx, input.orderId, input.buyerId, at));
+    const uploadKey = `${comprobanteUploadPrefix(input.buyerId)}${ids.next()}`;
+    const { signedUrl, token } = await storage.createUploadTicket(uploadKey);
+    return { uploadKey, signedUrl, token };
+  }
+
+  /**
+   * AD-SYS-8 rules 5.3 and 6: the buyer's quarantine object, checked for size, magic bytes and a
+   * clean scan, copied to `order-comprobantes` under a new key. Returns the new key.
+   */
+  private async promoteComprobante(buyerId: CuidId, uploadKey: string): Promise<string> {
+    const { storage, scanner, ids } = this.deps;
+    const refuse = (cause: 'missing' | 'size' | 'magic' | 'scanner'): never => raise('ComprobanteInvalidFile', [{ rule: 'AD-SYS-8', inputs: { cause } }]);
+    const bytes = uploadKey.startsWith(comprobanteUploadPrefix(buyerId)) ? await storage.get('upload-quarantine', uploadKey) : null;
+    if (bytes === null) return refuse('missing');
+    if (bytes.length > MAX_COMPROBANTE_BYTES) return refuse('size');
+    const declared = sniffComprobanteType(bytes);
+    if (declared === null) return refuse('magic');
+    const scan = await scanner.scan(bytes, declared);
+    if (scan.verdict !== 'clean') return refuse('scanner');
+    const key = `order-comprobantes/${ids.next()}`;
+    await storage.put('order-comprobantes', key, scan.sanitized ?? bytes, declared);
+    return key;
+  }
+
+  /**
+   * S-FR-ORD-2.upload (AD-ORD-3 rule 2): promote, then the conditional update. A refusal deletes the
+   * new object; after the commit the previous object and the quarantine object go, best effort.
+   */
+  async uploadComprobante(input: UploadComprobanteRequest): Promise<UploadComprobanteResponse> {
+    const { repo, transactions, clock, audit, storage } = this.deps;
+    const { orderId, buyerId, uploadKey } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    await this.reading((tx) => this.comprobanteTarget(tx, orderId, buyerId, at));
+    const key = await this.promoteComprobante(buyerId, uploadKey);
+    let previousKey: string | null;
+    try {
+      previousKey = await transactions.run(async (tx) => {
+        const attached = await repo.attachComprobante(tx, orderId, buyerId, key, now);
+        if (attached === undefined) {
+          // 0 rows: the order was paid or terminated after the first read; the re-read names which.
+          await this.comprobanteTarget(tx, orderId, buyerId, at);
+          throw new UnexpectedError(`Unexpected: the comprobante of order ${orderId} did not attach, yet the order may still change`);
+        }
+        await audit.record(tx, {
+          actorId: buyerId, actorKind: 'user', module: 'orders', action: 'orders.comprobante.attached',
+          aggregateType: 'Order', aggregateId: orderId, decisionCode: 'ComprobanteAttached', data: { replacedPrevious: attached.previousKey !== null }, at: now,
+        });
+        return attached.previousKey;
+      });
+    } catch (error) {
+      const cleanup = [storage.delete('order-comprobantes', key)];
+      if (error instanceof DomainError) cleanup.push(storage.delete('upload-quarantine', uploadKey));
+      await Promise.allSettled(cleanup);
+      throw error;
+    }
+    // Best effort: the attach has committed, so a failed delete must not fail it.
+    await Promise.allSettled([
+      storage.delete('upload-quarantine', uploadKey),
+      ...(previousKey !== null && previousKey !== key ? [storage.delete('order-comprobantes', previousKey)] : []),
+    ]);
+    const decision = explained('ComprobanteAttached', [{ rule: 'FR-ORD-2', inputs: { orderId } }], now);
+    return { orderId, comprobanteUploadedAt: now, replacedPrevious: previousKey !== null, decision };
+  }
+
+  /** S-FR-ORD-2.url (AD-14, AD-17): a 600 s signed URL for an order visible to the actor, or `url: null` before any upload. */
+  async getComprobanteUrl(input: GetComprobanteUrlRequest): Promise<GetComprobanteUrlResponse> {
+    const { repo, clock, storage } = this.deps;
+    const now = clock.now().toISOString();
+    const key = await this.reading(async (tx) => {
+      if ((await repo.readVisibleOrder(tx, input.orderId, input.actorId)) === null) return this.notVisible();
+      return repo.comprobanteKeyOf(tx, input.orderId);
+    });
+    const citations: [Citation] = [{ rule: 'FR-ORD-2', inputs: { orderId: input.orderId } }];
+    if (key === null) return { url: null, expiresAt: null, decision: explained('ComprobanteNotUploaded', citations, now) };
+    const { url, expiresAt } = await storage.sign('order-comprobantes', key, SIGNED_URL_TTL);
+    return { url, expiresAt, decision: explained('ComprobanteUrlIssued', citations, now) };
   }
 
   async confirmPaid(_input: ConfirmPaidRequest): Promise<ConfirmPaidResponse> {
@@ -58,14 +272,6 @@ export class OrdServiceV2 implements OrdV2UseCases {
 
   async confirmItemReceived(_input: ConfirmItemReceivedRequest): Promise<ConfirmItemReceivedResponse> {
     throw new NotImplementedError('orders.confirmItemReceived');
-  }
-
-  async createComprobanteUpload(_input: CreateComprobanteUploadRequest): Promise<CreateComprobanteUploadResponse> {
-    throw new NotImplementedError('orders.createComprobanteUpload');
-  }
-
-  async uploadComprobante(_input: UploadComprobanteRequest): Promise<UploadComprobanteResponse> {
-    throw new NotImplementedError('orders.uploadComprobante');
   }
 
   async getOrder(_input: GetOrderRequest): Promise<GetOrderResponse> {
@@ -98,9 +304,5 @@ export class OrdServiceV2 implements OrdV2UseCases {
 
   async setSupportContact(_input: SetSupportContactRequest): Promise<SetSupportContactResponse> {
     throw new NotImplementedError('orders.setSupportContact');
-  }
-
-  async getComprobanteUrl(_input: GetComprobanteUrlRequest): Promise<GetComprobanteUrlResponse> {
-    throw new NotImplementedError('orders.getComprobanteUrl');
   }
 }

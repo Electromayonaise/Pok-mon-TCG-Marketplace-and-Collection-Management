@@ -1,7 +1,8 @@
 // The production composition over HTTP (decision log Impl-1 #24): a real Better Auth session on
 // the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2, VER-3, the supporting
 // VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
-// (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2), the seller's inventory (S-FR-INV-2, -9, -10), the discovery reads (DSC-1, DSC-2) and S-SYS.replay,
+// (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2), the seller's inventory (S-FR-INV-2, -9, -10), the discovery reads (DSC-1, DSC-2),
+// the order and its comprobante (ORD-1, S-FR-ORD-2) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -10,7 +11,7 @@ import { PrismaClient } from '../../generated/prisma/client.js';
 import { VirtualClock } from '../../test-support/clock.js';
 import { useTestDatabase } from '../../test-support/db.js';
 import { FixtureFeedSource, FixtureFxRateSource, InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
-import { admin, at, business, catalogEntry, DAY, feedRun, HOUR, id, individualSeller, ins, listing, observation, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
+import { admin, at, business, catalogEntry, DAY, feedRun, HOUR, id, individualSeller, ins, listing, observation, purchasableListing, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
 import { createAuth } from './auth.js';
 import { compose } from './composition.js';
 import { betterAuthSessions } from './sessions.js';
@@ -474,6 +475,33 @@ describe('discovery.cardDetail over HTTP (DSC-2; Story 6.3)', () => {
       provenance: { lastTransactionReference: { cop: 52_000 } }, listings: [{ sellerKind: 'individual', pickupAvailable: true }] });
     const missing = await get('discovery.cardDetail', { catalogEntryId: id('ghost'), area: null }, '');
     expect([missing.status, missing.json.error?.code]).toEqual([404, 'CatalogEntryNotFound']);
+  });
+});
+
+describe('orders.create and the comprobante over HTTP (ORD-1, S-FR-ORD-2; Story 7.1)', () => {
+  it('without a session it is NotAuthenticated 401; an unverified email is EmailNotVerified 403 (the canBuy builder), and no order exists', async () => {
+    await purchasableListing(db, { businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar'), entryId: id('char'), quantity: 3 });
+    await user(db, { id: id('camila'), emailVerified: false });
+    const anonymous = await post('orders.create', { listingId: id('lchar'), qty: 1 });
+    const unverified = await post('orders.create', { listingId: id('lchar'), qty: 1 }, await signIn(id('camila')));
+    expect([anonymous.status, anonymous.json.error?.code, unverified.status, unverified.json.error?.code]).toEqual([401, 'NotAuthenticated', 403, 'EmailNotVerified']);
+    expect(await rows(db, 'Order')).toHaveLength(0);
+  });
+
+  it('a buyer orders through the real listings and identity, uploads a comprobante and reads its URL; the order is the session user\'s', async () => {
+    await purchasableListing(db, { businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar'), entryId: id('char'), quantity: 3 });
+    await user(db, { id: id('camila') });
+    const cookie = await signIn(id('camila'));
+    const created = await post('orders.create', { listingId: id('lchar'), qty: 2 }, cookie);
+    expect([created.status, created.json.result?.data]).toEqual([200, expect.objectContaining({ status: 'AwaitingPayment', totalCop: 90_000 })]);
+    const orderId = created.json.result?.data.orderId as string;
+    expect(await rows(db, 'Order')).toMatchObject([{ id: orderId, buyerId: id('camila'), businessId: id('andres') }]);
+    const ticket = (await post('orders.createComprobanteUpload', { orderId }, cookie)).json.result?.data as { uploadKey: string };
+    storage.simulateDirectUpload(ticket.uploadKey, new Uint8Array([0xff, 0xd8, 0xff, 1, 0xff, 0xd9]), 'image/jpeg');
+    expect((await post('orders.uploadComprobante', { orderId, uploadKey: ticket.uploadKey }, cookie)).json.result?.data).toMatchObject({ replacedPrevious: false });
+    expect((await get('orders.comprobanteUrl', { orderId }, cookie)).json.result?.data).toMatchObject({ expiresAt: at(600_000) });
+    const own = await post('orders.create', { listingId: id('lchar'), qty: 1 }, await signIn(id('andres')));
+    expect([own.status, own.json.error?.code]).toEqual([409, 'SelfPurchaseNotAllowed']);
   });
 });
 
