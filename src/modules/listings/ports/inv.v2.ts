@@ -93,6 +93,32 @@ export interface ReserveFacts extends ListingHeader {
   units: ListingUnit[];
 }
 
+/** S-FR-INV-10: one listing as its detail reads it, with availability computed at read (AD-INV-1 rule 2). */
+export interface ListingDetailRow extends ListingHeader {
+  title: string | null;
+  /** The catalog entry of a single listing's unit; null for a bundle. */
+  unitEntryId: CuidId | null;
+  priceCop: number;
+  openToTrade: boolean;
+  paused: boolean;
+  hiddenReason: string | null;
+  withdrawn: boolean;
+  deactivated: boolean;
+  hidden: boolean;
+  version: number;
+  projection: ProjectionState;
+  availability: number;
+  createdAt: IsoInstant;
+}
+
+/** P-INV.availability: a visible single listing with stock that may count, before the verification term. */
+export interface AvailabilityCandidate {
+  catalogEntryId: CuidId;
+  sellerId: CuidId;
+  sellerKindAtCreation: 'business' | 'individual';
+  priceCop: number;
+}
+
 /**
  * Repository port of INV (review A-4): the only way its application service reads or writes
  * its own tables (AD-8). Every method takes the transaction it runs in; `infra/pg.ts` implements them.
@@ -133,6 +159,18 @@ export interface InvRepository {
   withdrawForRejection(tx: Tx, sellerId: CuidId, applicationId: CuidId, now: IsoInstant): Promise<number>;
   /** FR-INV-8: clears only the withdrawals made for `ApplicationRejected`; the rows changed. */
   restoreFromRejection(tx: Tx, sellerId: CuidId, now: IsoInstant): Promise<number>;
+  /** S-FR-INV-2: the bundle's components, after its `"Listing"` row. */
+  insertBundleComponents(tx: Tx, listingId: CuidId, sellerId: CuidId, components: { inventoryUnitId: CuidId; catalogEntryId: CuidId; condition: Condition; perBundleQty: number }[], now: IsoInstant): Promise<void>;
+  /** S-FR-INV-10.get: the listing's detail, or null. */
+  readListingDetail(tx: Tx, listingId: CuidId): Promise<ListingDetailRow | null>;
+  /** S-FR-INV-10.mine: the seller's listings newest first by `("createdAt", id)`, after the keyset when given. */
+  listSellerListings(tx: Tx, sellerId: CuidId, after: { createdAt: IsoInstant; id: CuidId } | null, limit: number): Promise<ListingDetailRow[]>;
+  /** S-FR-INV-9.update: the conditional write on `version`; the new version, or null when it moved. */
+  updateListingFields(tx: Tx, listingId: CuidId, expectedVersion: number, changes: { priceCop?: number; description?: string; openToTrade?: boolean }, now: IsoInstant): Promise<number | null>;
+  /** S-FR-INV-9.active: sets or clears `deactivatedAt` when it is not already so; the new version, or null for a no-op. */
+  setDeactivated(tx: Tx, listingId: CuidId, deactivated: boolean, now: IsoInstant): Promise<number | null>;
+  /** P-INV.availability: the candidates of `entryIds` (the SQL twin of AD-INV-3 rule 2, without the verification term). */
+  availabilityCandidates(tx: Tx, entryIds: CuidId[]): Promise<AvailabilityCandidate[]>;
   /** P-INV.units: the unit ids of a single listing or a bundle, in id order; [] for an unknown id. */
   listingUnitIds(tx: Tx, listingId: CuidId): Promise<CuidId[]>;
 }

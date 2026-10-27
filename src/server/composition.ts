@@ -105,7 +105,7 @@ export interface AppDeps {
  * The procedures whose contracts the done stories implement: IDN-1.ingress (Story 2.1),
  * IDN-3 (Story 2.5), S-SYS.replay (Story 1.3), S-SYS.tick, .deliveries, .health
  * (Story 1.5), VER-2 (Story 3.1), VER-1 (Story 3.2), VER-3 and S-FR-VER-5.audit (Story 3.4) and
- * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), CAT-3 and S-FR-CAT-8.fetch (Story 4.4), S-FR-CAT-1 (Story 4.5), and INV-2 (Story 5.1). Every other procedure stays NotImplemented until its story wires it.
+ * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), CAT-3 and S-FR-CAT-8.fetch (Story 4.4), S-FR-CAT-1 (Story 4.5), INV-2 (Story 5.1), and S-FR-INV-2, -9 and -10 (Story 5.6). Every other procedure stays NotImplemented until its story wires it.
  */
 function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2; inv: InvServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
   return {
@@ -133,6 +133,14 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
     'catalog.fx.retry': () => s.cat.fetchTrm({ trigger: 'admin' }),
     'catalog.feed.quarantine': ({ runId, reasonCode, cursor }, actorId) => s.cat.listQuarantinedRows({ actorId, runId, cursor, ...(reasonCode ? { reasonCode } : {}) }),
     'inventory.create': (input, sellerId) => s.inv.createListing({ ...input, sellerId }),
+    'inventory.createBundle': (input, sellerId) => s.inv.createBundle({ ...input, sellerId }),
+    // A public procedure has no session actor: a reader is never the owner here (the owner reads through `inventory.mine`).
+    'inventory.get': ({ listingId }) => s.inv.getListing({ listingId, actorId: null }),
+    'inventory.mine': ({ cursor }, sellerId) => s.inv.listMyListings({ sellerId, cursor }),
+    'inventory.update': ({ listingId, expectedVersion, changes }, actorId) => s.inv.updateListing({ actorId, listingId, expectedVersion, changes: defined(changes) }),
+    'inventory.restock': ({ listingId, delta }, actorId) => s.inv.restockListing({ actorId, listingId, delta }),
+    'inventory.deactivate': ({ listingId }, actorId) => s.inv.setListingActive({ actorId, listingId, active: false }),
+    'inventory.reactivate': ({ listingId }, actorId) => s.inv.setListingActive({ actorId, listingId, active: true }),
     'admin.events.replay': (input, adminId) => s.adminEvents.replayEventDelivery({ ...input, adminId }),
     'admin.jobs.tickHealth': (_input, adminId) => s.adminEvents.getTickHealth({ adminId }),
     'admin.events.deliveries': (input, adminId) => s.adminEvents.listDeliveries({ ...input, adminId }),

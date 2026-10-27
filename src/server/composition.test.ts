@@ -1,7 +1,7 @@
 // The production composition over HTTP (decision log Impl-1 #24): a real Better Auth session on
 // the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2, VER-3, the supporting
 // VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
-// (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2) and S-SYS.replay,
+// (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2), the seller's inventory (S-FR-INV-2, -9, -10) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -408,6 +408,41 @@ describe('inventory.create over HTTP (INV-2; Story 5.1)', () => {
     expect((await post('inventory.create', listingInput, cookie)).json.result?.data).toMatchObject({ state: 'Paused' });
     const refused = await post('inventory.create', { ...listingInput, openToTrade: true }, cookie);
     expect([refused.status, refused.json.error?.code]).toEqual([409, 'OpenToTradeNotAllowed']);
+  });
+});
+
+describe('the seller\'s inventory procedures over HTTP (S-FR-INV-2, -9, -10; Story 5.6)', () => {
+  it('a seller bundles, restocks, edits, deactivates and lists; a buyer reads only the visible listing', async () => {
+    await individualSeller(db, id('valentina'));
+    await catalogEntry(db, id('char'));
+    await catalogEntry(db, id('pika'));
+    const cookie = await signIn(id('valentina'));
+    const listingInput = { itemRef: id('char'), condition: 'NM', priceCop: 45_000, quantity: 3, location: null, description: '', openToTrade: true };
+    const listingId = (await post('inventory.create', listingInput, cookie)).json.result?.data.listingId as string;
+    const bundle = await post('inventory.createBundle', { title: 'Lote', priceCop: 80_000, location: null, description: '',
+      components: [{ itemRef: id('char'), condition: 'NM', perBundleQty: 1, quantity: 9 }, { itemRef: id('pika'), condition: 'LP', perBundleQty: 2, quantity: 4 }] }, cookie);
+    expect(bundle.json.result?.data).toMatchObject({ state: 'Active', availability: 2 });
+    expect((await post('inventory.restock', { listingId, delta: 2 }, cookie)).json.result?.data).toMatchObject({ availability: 5 });
+    expect((await post('inventory.update', { listingId, expectedVersion: 0, changes: { priceCop: 50_000 } }, cookie)).json.result?.data).toMatchObject({ version: 1 });
+    const stale = await post('inventory.update', { listingId, expectedVersion: 0, changes: { priceCop: 51_000 } }, cookie);
+    expect([stale.status, stale.json.error?.code]).toEqual([400, 'RequestValidationFailed']);
+    expect((await get('inventory.get', { listingId }, '')).json.result?.data).toMatchObject({ state: 'Active', priceCop: 50_000, availability: 5 });
+    expect((await post('inventory.deactivate', { listingId }, cookie)).json.result?.data).toMatchObject({ version: 2 });
+    const hidden = await get('inventory.get', { listingId }, '');
+    expect([hidden.status, hidden.json.error?.code]).toEqual([404, 'ListingNotFound']);
+    const mine = (await get('inventory.mine', { cursor: null }, cookie)).json.result?.data as { items: { state: string }[]; nextCursor: string | null };
+    expect([mine.items.map((i) => i.state).sort(), mine.nextCursor]).toEqual([['Active', 'Deactivated'], null]);
+    expect((await post('inventory.reactivate', { listingId }, cookie)).json.result?.data).toMatchObject({ version: 3 });
+  });
+
+  it('another seller restocking is ListingNotOwnedByCaller 403, and the unit is unchanged', async () => {
+    await individualSeller(db, id('valentina'));
+    await individualSeller(db, id('mateo'));
+    await catalogEntry(db, id('char'));
+    const listingId = (await post('inventory.create', { itemRef: id('char'), condition: 'NM', priceCop: 45_000, quantity: 3, location: null, description: '', openToTrade: false }, await signIn(id('valentina')))).json.result?.data.listingId;
+    const refused = await post('inventory.restock', { listingId, delta: 2 }, await signIn(id('mateo')));
+    expect([refused.status, refused.json.error?.code]).toEqual([403, 'ListingNotOwnedByCaller']);
+    expect(await rows(db, 'InventoryUnit')).toMatchObject([{ quantity: 3 }]);
   });
 });
 

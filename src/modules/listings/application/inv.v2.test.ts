@@ -5,7 +5,7 @@ import { PgTransactionRunner, useTestDatabase } from '../../../../test-support/d
 import { PG } from '../../../../test-support/env.js';
 import { caught, citedInputs } from '../../../../test-support/errors.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
-import { business, catalogEntry, commissionState, fake, id, listing, purchasableListing, rows, unit, wiring } from '../../../../test-support/solu2/fixtures.js';
+import { business, catalogEntry, commissionState, fake, id, listing, purchasableListing, rows, T0, unit, wiring } from '../../../../test-support/solu2/fixtures.js';
 import { CatServiceV2 } from '../../catalog/index.js';
 import { IdnServiceV2 } from '../../identity/index.js';
 import type { CatalogFeedSource, FxRateSource } from '../../../shared-kernel/external.js';
@@ -90,7 +90,7 @@ describe('the listings subscribers (INV-3, S-FR-INV-8, AD-INV-3 rules 4–5)', (
 
   it('Replenished resumes the paused listings and audits once as the system', async () => {
     await andres(2);
-    await db.query(`UPDATE "Listing" SET "pausedAt" = now()`);
+    await db.query(`UPDATE "Listing" SET "pausedAt" = $1`, [T0]);
     const result = await db.transactions.run((tx) => inventory().applyCommissionProjection(tx, { type: 'CommissionBalanceReplenished', businessId: id('andres'), ledgerSeq: 9, balanceAfter: 50_000 }));
     expect(result).toEqual({ applied: true, listingsChanged: 1 });
     expect(await rows(db, 'audit_events', `action = 'listings.commissionProjection.applied'`)).toMatchObject([{ actorKind: 'system', actorId: null }]);
@@ -116,5 +116,69 @@ describe('the listings subscribers (INV-3, S-FR-INV-8, AD-INV-3 rules 4–5)', (
       ]);
       expect(await rows(db, 'Listing', '"withdrawnAt" IS NOT NULL')).toHaveLength(0);
     }
+  });
+});
+
+describe('managing listings (S-FR-INV-2, -9, -10)', () => {
+  it('an update with no change, or opening a business listing to trade, is refused with zero writes', async () => {
+    await andres(2);
+    const inv = inventory();
+    expect(codeOf(await caught(() => inv.updateListing({ actorId: id('andres'), listingId: id('lchar'), expectedVersion: 0, changes: {} })))).toBe('RequestValidationFailed');
+    expect(codeOf(await caught(() => inv.updateListing({ actorId: id('andres'), listingId: id('lchar'), expectedVersion: 0, changes: { openToTrade: true } })))).toBe('OpenToTradeNotAllowed');
+    expect(codeOf(await caught(() => inv.updateListing({ actorId: id('andres'), listingId: id('lchar'), expectedVersion: 0, changes: { priceCop: 999 } })))).toBe('InvalidPrice');
+    expect(await rows(db, 'Listing')).toMatchObject([{ version: 0, priceCop: '45000' }]);
+  });
+
+  it('a negative restock beyond the stock is InsufficientQuantity; a bundle restock and a zero delta are refused', async () => {
+    await andres(2);
+    await listing(db, { id: id('lb'), sellerId: id('andres'), kind: 'bundle', title: 'Lote', priceCop: 90_000 });
+    const inv = inventory();
+    const short = await caught(() => inv.restockListing({ actorId: id('andres'), listingId: id('lchar'), delta: -3 }));
+    expect([codeOf(short), citedInputs(short)]).toEqual(['InsufficientQuantity', { requested: 3, available: 2 }]);
+    expect(codeOf(await caught(() => inv.restockListing({ actorId: id('andres'), listingId: id('lb'), delta: 1 })))).toBe('RequestValidationFailed');
+    expect(codeOf(await caught(() => inv.restockListing({ actorId: id('andres'), listingId: id('lchar'), delta: 0 })))).toBe('RequestValidationFailed');
+    expect((await inv.restockListing({ actorId: id('andres'), listingId: id('lchar'), delta: -2 })).availability).toBe(0);
+  });
+
+  it('deactivating twice is an explained no-op with one audit row; the owner still reads it, a buyer does not', async () => {
+    await andres(2);
+    const inv = inventory();
+    expect((await inv.setListingActive({ actorId: id('andres'), listingId: id('lchar'), active: false })).decision.outcome).toBe('withdrawn');
+    expect((await inv.setListingActive({ actorId: id('andres'), listingId: id('lchar'), active: false })).decision.outcome).toBe('allowedWithNotice');
+    expect(await rows(db, 'audit_events', `action = 'listings.listing.deactivated'`)).toHaveLength(1);
+    expect((await inv.getListing({ listingId: id('lchar'), actorId: id('andres') })).state).toBe('Deactivated');
+    expect(codeOf(await caught(() => inv.getListing({ listingId: id('lchar'), actorId: null })))).toBe('ListingNotFound');
+  });
+
+  it('the owner list pages 25 newest first behind a cursor; a forged cursor is refused', async () => {
+    await business(db, id('andres'), 'Approved');
+    await commissionState(db, id('andres'));
+    await catalogEntry(db, id('char'));
+    await unit(db, { id: id('uchar'), sellerId: id('andres'), catalogEntryId: id('char'), quantity: 1 });
+    for (let k = 0; k < 27; k++) await listing(db, { id: id(`l${String(k).padStart(2, '0')}`), sellerId: id('andres'), unitId: id('uchar') });
+    const inv = inventory();
+    const first = await inv.listMyListings({ sellerId: id('andres'), cursor: null });
+    const second = await inv.listMyListings({ sellerId: id('andres'), cursor: first.nextCursor });
+    expect([first.items.length, second.items.length, second.nextCursor]).toEqual([25, 2, null]);
+    expect(new Set([...first.items, ...second.items].map((i) => i.listingId)).size).toBe(27);
+    expect(first.items[0]?.title).toBe(`Carta ${id('char').slice(0, 6)}`);
+    expect(codeOf(await caught(() => inv.listMyListings({ sellerId: id('andres'), cursor: 'bm90LWEtY3Vyc29y' })))).toBe('RequestValidationFailed');
+  });
+
+  it('a business listing is no trade unit: NotIndividualSellerListing, nothing moves', async () => {
+    await andres(2);
+    const error = await caught(() => db.transactions.run((tx) => inventory().reserveForTrade(tx, { listingId: id('lchar'), qty: 1 })));
+    expect(codeOf(error)).toBe('NotIndividualSellerListing');
+    expect((await rows<{ quantity: number }>(db, 'InventoryUnit'))[0]?.quantity).toBe(2);
+  });
+
+  it('the availability summary counts a funded Approved business, keeps input order, and refuses duplicates and an area until DSC-3', async () => {
+    await andres(2);
+    const inv = inventory();
+    expect(await inv.getAvailabilitySummary({ catalogEntryIds: [id('ghost'), id('char')], area: null })).toEqual({
+      items: [{ catalogEntryId: id('ghost'), lowestPriceCop: null, availableCount: 0 }, { catalogEntryId: id('char'), lowestPriceCop: 45_000, availableCount: 1 }],
+    });
+    expect(codeOf(await caught(() => inv.getAvailabilitySummary({ catalogEntryIds: [id('char'), id('char')], area: null })))).toBe('RequestValidationFailed');
+    expect(codeOf(await caught(() => inv.getAvailabilitySummary({ catalogEntryIds: [id('char')], area: { lat: 4.7, lng: -74, radiusKm: 10 } })))).toBe('NotImplementedError');
   });
 });

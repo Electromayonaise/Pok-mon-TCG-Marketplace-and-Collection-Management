@@ -4,7 +4,7 @@
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { Condition, CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import type { InvRepository, ListingHeader, ListingUnit, NewListingRow, ReserveFacts, ResolvedUnit } from '../ports/inv.v2.js';
+import type { AvailabilityCandidate, InvRepository, ListingDetailRow, ListingHeader, ListingUnit, NewListingRow, ReserveFacts, ResolvedUnit } from '../ports/inv.v2.js';
 import type { IDiscoveryQuery, IInventoryUnitRepository, IListingRepository } from '../ports/listings.js';
 
 export class PgListingRepository implements IListingRepository {
@@ -54,6 +54,16 @@ const LISTING_UNITS = `
   UNION ALL SELECT b."inventoryUnitId", b."perBundleQty" FROM "BundleComponent" b WHERE b."listingId" = l.id`;
 /** AD-INV-1 rule 2 in SQL: listing `l`'s availability, computed at read; integer division floors a non-negative quantity. */
 const AVAILABILITY_SQL = `(SELECT COALESCE(MIN(u.quantity / x.per), 0)::int FROM (${LISTING_UNITS}) x JOIN "InventoryUnit" u ON u.id = x.unit)`;
+
+/** S-FR-INV-10: a listing's detail columns over `"Listing" l`, its unit `u` and its projection `c`. */
+const DETAIL_COLUMNS = `l.id, l."sellerId", l."sellerKindAtCreation", l.kind, (l."hiddenAt" IS NULL AND l."withdrawnAt" IS NULL AND l."deactivatedAt" IS NULL) AS visible,
+  l.title, u."catalogEntryId" AS "unitEntryId", l."priceCop"::text AS "priceCop", l."openToTrade", l."pausedAt" IS NOT NULL AS paused, l."hiddenReason",
+  l."hiddenAt" IS NOT NULL AS hidden, l."withdrawnAt" IS NOT NULL AS withdrawn, l."deactivatedAt" IS NOT NULL AS deactivated, l.version,
+  CASE WHEN c."businessId" IS NULL THEN 'absent' WHEN c.paused THEN 'paused' ELSE 'funded' END AS projection,
+  ${AVAILABILITY_SQL} AS availability, l."createdAt"`;
+const DETAIL_FROM = `"Listing" l LEFT JOIN "InventoryUnit" u ON u.id = l."inventoryUnitId" LEFT JOIN "SellerCommissionState" c ON c."businessId" = l."sellerId"`;
+type DetailRow = Omit<ListingDetailRow, 'priceCop' | 'createdAt'> & { priceCop: string; createdAt: Date };
+const detail = (r: DetailRow): ListingDetailRow => ({ ...r, priceCop: Number(r.priceCop), createdAt: r.createdAt.toISOString() });
 
 /** INV's repository port over `_bmad-output/planning-artifacts/detailed-design/schemas` (AD-8). */
 export class PgInvRepository implements InvRepository {
@@ -190,6 +200,63 @@ export class PgInvRepository implements InvRepository {
       [sellerId, now],
     );
     return rowCount;
+  }
+
+  async insertBundleComponents(tx: Tx, listingId: CuidId, sellerId: CuidId, components: { inventoryUnitId: CuidId; catalogEntryId: CuidId; condition: Condition; perBundleQty: number }[], now: IsoInstant): Promise<void> {
+    for (const c of components) {
+      await tx.query(
+        `INSERT INTO "BundleComponent" ("listingId", "inventoryUnitId", "sellerId", "catalogEntryId", condition, "perBundleQty", "createdAt") VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [listingId, c.inventoryUnitId, sellerId, c.catalogEntryId, c.condition, c.perBundleQty, now],
+      );
+    }
+  }
+
+  async readListingDetail(tx: Tx, listingId: CuidId): Promise<ListingDetailRow | null> {
+    const { rows } = await tx.query<DetailRow>(`SELECT ${DETAIL_COLUMNS} FROM ${DETAIL_FROM} WHERE l.id = $1`, [listingId]);
+    return rows[0] ? detail(rows[0]) : null;
+  }
+
+  async listSellerListings(tx: Tx, sellerId: CuidId, after: { createdAt: IsoInstant; id: CuidId } | null, limit: number): Promise<ListingDetailRow[]> {
+    // Two statements, never `OR $2 IS NULL`, so each keeps its own plan (deferred-work, Story 1.5).
+    const { rows } = after === null
+      ? await tx.query<DetailRow>(`SELECT ${DETAIL_COLUMNS} FROM ${DETAIL_FROM} WHERE l."sellerId" = $1 ORDER BY l."createdAt" DESC, l.id DESC LIMIT $2`, [sellerId, limit])
+      : await tx.query<DetailRow>(
+        `SELECT ${DETAIL_COLUMNS} FROM ${DETAIL_FROM} WHERE l."sellerId" = $1 AND (l."createdAt", l.id) < ($2::timestamptz, $3) ORDER BY l."createdAt" DESC, l.id DESC LIMIT $4`,
+        [sellerId, after.createdAt, after.id, limit],
+      );
+    return rows.map(detail);
+  }
+
+  async updateListingFields(tx: Tx, listingId: CuidId, expectedVersion: number, changes: { priceCop?: number; description?: string; openToTrade?: boolean }, now: IsoInstant): Promise<number | null> {
+    const params: unknown[] = [listingId, expectedVersion, now];
+    const sets = ['version = version + 1', '"updatedAt" = $3'];
+    if (changes.priceCop !== undefined) sets.push(`"priceCop" = $${params.push(changes.priceCop)}`);
+    if (changes.description !== undefined) sets.push(`description = $${params.push(changes.description)}`);
+    if (changes.openToTrade !== undefined) sets.push(`"openToTrade" = $${params.push(changes.openToTrade)}`);
+    const { rows } = await tx.query<{ version: number }>(`UPDATE "Listing" SET ${sets.join(', ')} WHERE id = $1 AND version = $2 RETURNING version`, params);
+    return rows[0]?.version ?? null;
+  }
+
+  async setDeactivated(tx: Tx, listingId: CuidId, deactivated: boolean, now: IsoInstant): Promise<number | null> {
+    const { rows } = await tx.query<{ version: number }>(
+      deactivated
+        ? `UPDATE "Listing" SET "deactivatedAt" = $2, version = version + 1, "updatedAt" = $2 WHERE id = $1 AND "deactivatedAt" IS NULL RETURNING version`
+        : `UPDATE "Listing" SET "deactivatedAt" = NULL, version = version + 1, "updatedAt" = $2 WHERE id = $1 AND "deactivatedAt" IS NOT NULL RETURNING version`,
+      [listingId, now],
+    );
+    return rows[0]?.version ?? null;
+  }
+
+  async availabilityCandidates(tx: Tx, entryIds: CuidId[]): Promise<AvailabilityCandidate[]> {
+    const { rows } = await tx.query<Omit<AvailabilityCandidate, 'priceCop'> & { priceCop: string }>(
+      `SELECT u."catalogEntryId", l."sellerId", l."sellerKindAtCreation", l."priceCop"::text AS "priceCop"
+       FROM "Listing" l JOIN "InventoryUnit" u ON u.id = l."inventoryUnitId" LEFT JOIN "SellerCommissionState" c ON c."businessId" = l."sellerId"
+       WHERE l.kind = 'single' AND u."catalogEntryId" = ANY($1) AND u.quantity >= 1
+         AND l."hiddenAt" IS NULL AND l."withdrawnAt" IS NULL AND l."deactivatedAt" IS NULL
+         AND (l."sellerKindAtCreation" = 'individual' OR (l."pausedAt" IS NULL AND c.paused = false))`,
+      [entryIds],
+    );
+    return rows.map((r) => ({ ...r, priceCop: Number(r.priceCop) }));
   }
 
   async listingUnitIds(tx: Tx, listingId: CuidId): Promise<CuidId[]> {

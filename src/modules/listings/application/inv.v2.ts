@@ -55,9 +55,12 @@ import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest } from '../../../shared-kernel/request.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import { conditionFitsKind, createdState, isValidLocation, isValidPrice, pausedAtInsert, purchasable, type ProjectionState } from '../domain/inv.js';
-import type { ListingSnapshotDTO } from '../dto/inv.v2.dto.js';
-import type { ReserveFacts } from '../ports/inv.v2.js';
+import {
+  availability, conditionFitsKind, createdState, decodeListingCursor, detailState, encodeListingCursor, isValidLocation, isValidPrice, ownerCheck, pausedAtInsert, purchasable,
+  type ListingDetailState, type ProjectionState, type VerificationStatus,
+} from '../domain/inv.js';
+import type { ListingDetailDTO, ListingSnapshotDTO } from '../dto/inv.v2.dto.js';
+import type { ListingDetailRow, ReserveFacts } from '../ports/inv.v2.js';
 
 const raise = raiserFor('listings');
 
@@ -70,6 +73,25 @@ const MAX_DESCRIPTION = 1_000;
 /** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
 function explained(outcome: Decision['outcome'], code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
   return { outcome, reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
+}
+
+/** S-FR-INV-10.mine: the page size. */
+const MY_LISTINGS_PAGE = 25;
+/** S-FR-INV-2: 1–20 components (the parser's bound, repeated for in-process callers). */
+const MAX_COMPONENTS = 20;
+/** P-INV.availability: at most 500 distinct ids. */
+const MAX_IDS = 500;
+
+/** S-FR-INV-10: the decision a listing's state reads with. */
+function detailDecision(state: ListingDetailState, row: ListingDetailRow, now: IsoInstant): Decision {
+  switch (state) {
+    case 'Hidden': return explained('hidden', 'ListingHidden', [{ rule: 'FR-INV-10', inputs: { reasonCode: row.hiddenReason } }], now);
+    case 'Withdrawn': return explained('withdrawn', 'ListingWithdrawn', [{ rule: 'FR-INV-8', inputs: { withdrawnReason: 'ApplicationRejected' } }], now);
+    case 'Deactivated': return explained('withdrawn', 'ListingDeactivated', [{ rule: 'FR-INV-9', inputs: { deactivated: true } }], now);
+    case 'Paused': return explained('paused', 'ListingPausedBalanceExhausted', [{ rule: 'FR-INV-7', inputs: { projection: row.projection, paused: row.paused } }], now);
+    case 'Unverified': return explained('unverified', 'ListingUnverified', [{ rule: 'FR-INV-7', inputs: { verification: 'Pending' } }], now);
+    case 'Active': return explained('allowed', 'ListingActive', [{ rule: 'FR-INV-10', inputs: { availability: row.availability } }], now);
+  }
 }
 
 /** INV-2 Q4: the decision that matches a new listing's state. */
@@ -212,6 +234,232 @@ export class InvServiceV2 implements InvV2UseCases {
     return { applied: true, ignored: false, listingsChanged };
   }
 
+  /** The seller's verification for the detail state; individuals have none to read. */
+  private async verificationOf(row: Pick<ListingDetailRow, 'sellerId' | 'sellerKindAtCreation'>): Promise<VerificationStatus | null> {
+    return row.sellerKindAtCreation === 'business' ? (await this.deps.identity.getSellerVerification({ sellerId: row.sellerId })).status : null;
+  }
+
+  /** S-FR-INV-10: rows to DTOs; single listings take their title from catalog in one batch. */
+  private async details(rows: ListingDetailRow[], verification: (row: ListingDetailRow) => Promise<VerificationStatus | null>): Promise<ListingDetailDTO[]> {
+    const entryIds = [...new Set(rows.flatMap((r) => (r.unitEntryId ? [r.unitEntryId] : [])))];
+    const names = new Map(entryIds.length ? (await this.deps.catalog.getEntries({ catalogEntryIds: entryIds })).entries.map((e) => [e.catalogEntryId, e.name]) : []);
+    const now = this.deps.clock.now().toISOString();
+    const out: ListingDetailDTO[] = [];
+    for (const row of rows) {
+      const state = detailState({ ...row, verification: await verification(row) });
+      out.push({
+        listingId: row.id, sellerId: row.sellerId, kind: row.kind, title: row.title ?? names.get(row.unitEntryId ?? '') ?? '', priceCop: row.priceCop,
+        availability: row.availability, openToTrade: row.openToTrade, state, decision: detailDecision(state, row, now),
+      });
+    }
+    return out;
+  }
+
+  /** S-FR-INV-9 P: the owner acts; anyone else reads an invisible listing exactly like an unknown id (S-2). */
+  private async ownedListing(listingId: CuidId, actorId: CuidId): Promise<ListingDetailRow> {
+    const row = await this.reading((tx) => this.deps.repo.readListingDetail(tx, listingId));
+    const check = ownerCheck(row, actorId);
+    if (check === 'notFound') return this.notFound('AD-12');
+    if (check === 'notOwner') raise('ListingNotOwnedByCaller', [{ rule: 'FR-INV-9', inputs: { owner: false } }]);
+    return row!;
+  }
+
+  /** S-FR-INV-9: the change response, with availability read after the write. */
+  private async changed(tx: Tx, listingId: CuidId, decision: Decision): Promise<ListingChangeResponse> {
+    const row = (await this.deps.repo.readListingDetail(tx, listingId))!;
+    return { listingId, version: row.version, availability: row.availability, decision };
+  }
+
+  /**
+   * S-FR-INV-2: INV-2's eligibility and checks per component, then one transaction that resolves each
+   * unit in `(itemRef, condition)` order, reads the projection `FOR SHARE`, and inserts the bundle.
+   */
+  async createBundle(input: CreateBundleRequest): Promise<CreateBundleResponse> {
+    const { repo, transactions, clock, ids, audit, identity, catalog } = this.deps;
+    const { listingKind, verified } = await identity.requireListingEligibility({ userId: input.sellerId });
+    const { components } = input;
+    if (components.length === 0) raise('EmptyComponentList', [{ rule: 'FR-INV-2', inputs: { components: 0 } }]);
+    if (components.length > MAX_COMPONENTS) rejectRequest([{ field: 'components', issue: `debe tener como máximo ${MAX_COMPONENTS} cartas` }]);
+    const title = input.title;
+    if ([...title].length < 1 || [...title].length > 120) rejectRequest([{ field: 'title', issue: 'debe tener entre 1 y 120 caracteres' }]);
+    for (const c of components) {
+      if (!Number.isInteger(c.perBundleQty) || c.perBundleQty < 1 || c.perBundleQty > 4) rejectRequest([{ field: 'components.perBundleQty', issue: 'debe ser un entero entre 1 y 4' }]);
+      if (!Number.isInteger(c.quantity) || c.quantity < 1 || c.quantity > 999) rejectRequest([{ field: 'components.quantity', issue: 'debe ser un entero entre 1 y 999' }]);
+    }
+    if (new Set(components.map((c) => `${c.itemRef}|${c.condition}`)).size !== components.length) rejectRequest([{ field: 'components', issue: 'no puede repetir una carta en la misma condición' }]);
+    const { resolved } = await catalog.resolveItemRefs({ refs: [...new Set(components.map((c) => c.itemRef))] });
+    const kinds = new Map(resolved.map((r) => [r.ref, r.kind]));
+    for (const c of components) {
+      const kind = kinds.get(c.itemRef) ?? null;
+      if (kind === null) raise('InvalidItemRef', [{ rule: 'FR-INV-1', inputs: { itemRef: c.itemRef, kind, condition: c.condition } }]);
+      if (kind === 'sealedProduct') raise('SealedProductInBundle', [{ rule: 'AD-INV-1 rule 5', inputs: { itemRef: c.itemRef } }]);
+    }
+    this.checkPriceAndLocation(input.priceCop, input.location);
+    if ([...input.description].length > MAX_DESCRIPTION) rejectRequest([{ field: 'description', issue: `debe tener como máximo ${MAX_DESCRIPTION} caracteres` }]);
+    const ordered = [...components].sort((a, b) => (a.itemRef === b.itemRef ? (a.condition < b.condition ? -1 : 1) : a.itemRef < b.itemRef ? -1 : 1));
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      const units = [];
+      for (const c of ordered) {
+        const unit = await repo.resolveUnit(tx, { id: ids.next(), sellerId: input.sellerId, catalogEntryId: c.itemRef, condition: c.condition, quantity: c.quantity, now });
+        units.push({ ...unit, component: c });
+      }
+      const projection = listingKind === 'business' ? projectionOf(await repo.readProjectionForShare(tx, input.sellerId)) : null;
+      const paused = pausedAtInsert(listingKind, projection);
+      const listingId = ids.next();
+      await repo.insertListing(tx, {
+        id: listingId, sellerId: input.sellerId, sellerKindAtCreation: listingKind, kind: 'bundle', inventoryUnitId: null, title,
+        priceCop: input.priceCop, location: input.location, description: input.description, openToTrade: false, pausedAt: paused ? now : null, now,
+      });
+      await repo.insertBundleComponents(tx, listingId, input.sellerId, units.map((u) => ({ inventoryUnitId: u.id, catalogEntryId: u.component.itemRef, condition: u.component.condition, perBundleQty: u.component.perBundleQty })), now);
+      const state = createdState({ paused, listingKind, verified });
+      const verification = listingKind === 'business' ? (verified ? 'Approved' : 'Pending') : 'none';
+      const citations: [Citation, ...Citation[]] = [{ rule: 'FR-INV-7', inputs: { verification, projection } }];
+      for (const u of units) {
+        if (!u.created) citations.push({ rule: 'FR-INV-1', inputs: { inventoryUnitId: u.id, existingQuantity: u.quantity, ignoredQuantity: u.component.quantity } });
+      }
+      const decision = creationDecision(state, citations, now);
+      await audit.record(tx, {
+        actorId: input.sellerId, actorKind: 'user', module: 'listings', action: 'listings.listing.created', aggregateType: 'Listing', aggregateId: listingId,
+        decisionCode: decision.reasonCode, data: { listingId, kind: 'bundle', components: units.length, state }, at: now,
+      });
+      return { listingId, state, availability: availability('bundle', units.map((u) => ({ quantity: u.quantity, perBundleQty: u.component.perBundleQty }))), decision };
+    });
+  }
+
+  /** S-FR-INV-10.get: the owner sees any state with its reason; anyone else a visible listing, or ListingNotFound. */
+  async getListing(input: GetListingRequest): Promise<GetListingResponse> {
+    const row = await this.reading((tx) => this.deps.repo.readListingDetail(tx, input.listingId));
+    if (row === null || (row.sellerId !== input.actorId && !row.visible)) return this.notFound('AD-12');
+    return (await this.details([row], (r) => this.verificationOf(r)))[0]!;
+  }
+
+  /** S-FR-INV-10.mine: every listing of the seller, newest first, 25 per page behind a keyset cursor. */
+  async listMyListings(input: ListMyListingsRequest): Promise<ListMyListingsResponse> {
+    const after = input.cursor === null ? null : decodeListingCursor(input.cursor);
+    if (input.cursor !== null && after === null) rejectRequest([{ field: 'cursor', issue: 'no es un cursor válido' }]);
+    const rows = await this.reading((tx) => this.deps.repo.listSellerListings(tx, input.sellerId, after, MY_LISTINGS_PAGE + 1));
+    const page = rows.slice(0, MY_LISTINGS_PAGE);
+    let verification: Promise<VerificationStatus | null> | undefined;
+    const items = await this.details(page, (r) => (verification ??= this.verificationOf(r)));
+    const last = page[page.length - 1];
+    return { items, nextCursor: rows.length > MY_LISTINGS_PAGE && last ? encodeListingCursor(last.createdAt, last.id) : null };
+  }
+
+  /** S-FR-INV-9.update: the owner's conditional edit on `version`; a stale version is refused (decision log Impl-1 #30). */
+  async updateListing(input: UpdateListingRequest): Promise<ListingChangeResponse> {
+    const { repo, transactions, clock, audit } = this.deps;
+    const listing = await this.ownedListing(input.listingId, input.actorId);
+    const { changes } = input;
+    if (changes.priceCop === undefined && changes.description === undefined && changes.openToTrade === undefined) rejectRequest([{ field: 'changes', issue: 'no trae ningún cambio' }]);
+    if (changes.openToTrade && listing.sellerKindAtCreation === 'business') raise('OpenToTradeNotAllowed', [{ rule: 'AD-4', inputs: { listingKind: 'business', openToTrade: true } }]);
+    if (changes.priceCop !== undefined && !isValidPrice(changes.priceCop)) raise('InvalidPrice', [{ rule: 'FR-INV-1', inputs: { priceCop: changes.priceCop } }]);
+    if (changes.description !== undefined && [...changes.description].length > MAX_DESCRIPTION) rejectRequest([{ field: 'description', issue: `debe tener como máximo ${MAX_DESCRIPTION} caracteres` }]);
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      const version = await repo.updateListingFields(tx, input.listingId, input.expectedVersion, changes, now);
+      if (version === null) rejectRequest([{ field: 'expectedVersion', issue: 'la publicación cambió; vuelve a cargarla' }]);
+      const fields = Object.keys(changes).sort().join(',');
+      await audit.record(tx, {
+        actorId: input.actorId, actorKind: 'user', module: 'listings', action: 'listings.listing.updated', aggregateType: 'Listing', aggregateId: input.listingId,
+        decisionCode: 'ListingUpdated', data: { version, fields }, at: now,
+      });
+      return this.changed(tx, input.listingId, explained('allowed', 'ListingUpdated', [{ rule: 'FR-INV-9', inputs: { version, fields } }], now));
+    });
+  }
+
+  /** S-FR-INV-9.restock (AD-INV-1 rule 4): `+δ` adds; `−δ` is the conditional decrement. Every listing of the unit follows. */
+  async restockListing(input: RestockListingRequest): Promise<ListingChangeResponse> {
+    const { repo, transactions, clock, audit } = this.deps;
+    const listing = await this.ownedListing(input.listingId, input.actorId);
+    const { delta } = input;
+    if (!Number.isSafeInteger(delta) || delta === 0) rejectRequest([{ field: 'delta', issue: 'debe ser un entero distinto de cero' }]);
+    if (listing.kind === 'bundle') rejectRequest([{ field: 'listingId', issue: 'un lote no se reabastece; reabastece cada carta en su publicación' }]);
+    const facts = await this.reading((tx) => repo.readReserveFacts(tx, input.listingId));
+    const unitId = facts!.units[0]!.inventoryUnitId;
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      if (delta > 0) await repo.incrementUnit(tx, unitId, delta, now);
+      else if (!(await repo.decrementUnit(tx, unitId, -delta, now))) {
+        raise('InsufficientQuantity', [{ rule: 'AD-INV-1 rule 4', inputs: { requested: -delta, available: (await repo.unitQuantity(tx, unitId)) ?? 0 } }]);
+      }
+      await audit.record(tx, {
+        actorId: input.actorId, actorKind: 'user', module: 'listings', action: 'listings.unit.restocked', aggregateType: 'InventoryUnit', aggregateId: unitId,
+        decisionCode: 'ListingRestocked', data: { listingId: input.listingId, delta }, at: now,
+      });
+      return this.changed(tx, input.listingId, explained('allowed', 'ListingRestocked', [{ rule: 'AD-INV-1 rule 4', inputs: { inventoryUnitId: unitId, delta } }], now));
+    });
+  }
+
+  /** S-FR-INV-9.active: deactivate, or reactivate after re-checking IDN-2. A state that already holds is an explained no-op. */
+  async setListingActive(input: SetListingActiveRequest): Promise<ListingChangeResponse> {
+    const { repo, transactions, clock, audit, identity } = this.deps;
+    await this.ownedListing(input.listingId, input.actorId);
+    if (input.active) await identity.requireListingEligibility({ userId: input.actorId });
+    return transactions.run(async (tx) => {
+      const now = clock.now().toISOString();
+      const version = await repo.setDeactivated(tx, input.listingId, !input.active, now);
+      const code = input.active ? 'ListingActive' : 'ListingDeactivated';
+      const citations: [Citation, ...Citation[]] = [{ rule: 'FR-INV-9', inputs: { active: input.active, changed: version !== null } }];
+      if (version === null) return this.changed(tx, input.listingId, explained('allowedWithNotice', code, citations, now));
+      await audit.record(tx, {
+        actorId: input.actorId, actorKind: 'user', module: 'listings', action: input.active ? 'listings.listing.reactivated' : 'listings.listing.deactivated',
+        aggregateType: 'Listing', aggregateId: input.listingId, decisionCode: code, data: { version }, at: now,
+      });
+      return this.changed(tx, input.listingId, explained(input.active ? 'allowed' : 'withdrawn', code, citations, now));
+    });
+  }
+
+  /** P-INV.trade (AD-INV-2): INV-1's decrement for an individual listing, in the caller's `tx`. */
+  async reserveForTrade(tx: Tx, input: ReserveForTradeRequest): Promise<ReserveForTradeResponse> {
+    const { repo, clock } = this.deps;
+    if (input.qty !== 1) throw new UnexpectedError(`Unexpected: reserveForTrade qty ${String(input.qty)} is not 1 (P-INV.trade)`);
+    const now = clock.now().toISOString();
+    const listing = await repo.readReserveFacts(tx, input.listingId);
+    if (listing === null || !listing.visible) return this.notFound('AD-INV-2 rule 2');
+    if (listing.sellerKindAtCreation !== 'individual') raise('NotIndividualSellerListing', [{ rule: 'AD-INV-2 rule 2', inputs: { sellerKind: 'business' } }]);
+    const units = await this.decrement(tx, listing.units, 1, now);
+    return { reservationRef: { listingId: listing.id, units }, exhaustedListingIds: await repo.exhaustedListingIds(tx, units.map((u) => u.inventoryUnitId)) };
+  }
+
+  /** P-INV.tradeability (AD-4): a visible listing open to trade, with its availability, in the ambient `tx`. */
+  async getTradeability(tx: Tx, input: GetTradeabilityRequest): Promise<GetTradeabilityResponse> {
+    const listing = await this.deps.repo.readReserveFacts(tx, input.listingId);
+    if (listing === null || !listing.visible) return this.notFound('AD-4');
+    if (!listing.openToTrade) raise('ListingNotOpenToTrade', [{ rule: 'AD-4', inputs: { openToTrade: false } }]);
+    const available = availability(listing.kind, listing.units);
+    return { sellerId: listing.sellerId, availability: available, decision: explained('allowed', 'ListingOpenToTrade', [{ rule: 'AD-4', inputs: { availability: available } }], this.deps.clock.now().toISOString()) };
+  }
+
+  /**
+   * P-INV.availability (AD-INV-3 rule 2): per id, the visible single listings with stock that are
+   * individual, or business and purchasable; the verification term once per distinct seller.
+   */
+  async getAvailabilitySummary(input: GetAvailabilitySummaryRequest): Promise<GetAvailabilitySummaryResponse> {
+    const ids = input.catalogEntryIds;
+    if (ids.length < 1 || ids.length > MAX_IDS) rejectRequest([{ field: 'catalogEntryIds', issue: `debe tener entre 1 y ${MAX_IDS} elementos` }]);
+    if (new Set(ids).size !== ids.length) rejectRequest([{ field: 'catalogEntryIds', issue: 'no puede repetir elementos' }]);
+    if (input.area !== null) throw new NotImplementedError('listings.getAvailabilitySummary.area (DSC-3, Story 6.1)');
+    return this.reading(async (tx) => {
+      const candidates = await this.deps.repo.availabilityCandidates(tx, ids);
+      const sellers = [...new Set(candidates.filter((c) => c.sellerKindAtCreation === 'business').map((c) => c.sellerId))];
+      const approved = new Set<CuidId>();
+      for (const sellerId of sellers) if ((await this.deps.identity.getSellerVerification({ sellerId })).status === 'Approved') approved.add(sellerId);
+      const counted = candidates.filter((c) => c.sellerKindAtCreation === 'individual' || approved.has(c.sellerId));
+      return {
+        items: ids.map((catalogEntryId) => {
+          const prices = counted.filter((c) => c.catalogEntryId === catalogEntryId).map((c) => c.priceCop);
+          return { catalogEntryId, lowestPriceCop: prices.length ? Math.min(...prices) : null, availableCount: prices.length };
+        }),
+      };
+    });
+  }
+
+  /** P-INV.refs (AD-1, OQ-6): catalog's answer under listings' name, so trading never imports catalog. */
+  async resolveItemRefs(input: ItemRefsRequest): Promise<ItemRefsResponse> {
+    return this.deps.catalog.resolveItemRefs(input);
+  }
+
   /** P-INV.purchase (ORD-1 P2): a visible listing's seller and kind, read on the ambient transaction. */
   async getListingForPurchase(input: GetListingForPurchaseRequest): Promise<GetListingForPurchaseResponse> {
     const header = await this.reading((tx) => this.deps.repo.readListingHeader(tx, input.listingId));
@@ -277,30 +525,6 @@ export class InvServiceV2 implements InvV2UseCases {
     });
   }
 
-  async createBundle(_input: CreateBundleRequest): Promise<CreateBundleResponse> {
-    throw new NotImplementedError('listings.createBundle');
-  }
-
-  async getListing(_input: GetListingRequest): Promise<GetListingResponse> {
-    throw new NotImplementedError('listings.getListing');
-  }
-
-  async listMyListings(_input: ListMyListingsRequest): Promise<ListMyListingsResponse> {
-    throw new NotImplementedError('listings.listMyListings');
-  }
-
-  async updateListing(_input: UpdateListingRequest): Promise<ListingChangeResponse> {
-    throw new NotImplementedError('listings.updateListing');
-  }
-
-  async restockListing(_input: RestockListingRequest): Promise<ListingChangeResponse> {
-    throw new NotImplementedError('listings.restockListing');
-  }
-
-  async setListingActive(_input: SetListingActiveRequest): Promise<ListingChangeResponse> {
-    throw new NotImplementedError('listings.setListingActive');
-  }
-
   async setListingHidden(_input: SetListingHiddenRequest): Promise<SetListingHiddenResponse> {
     throw new NotImplementedError('listings.setListingHidden');
   }
@@ -309,19 +533,4 @@ export class InvServiceV2 implements InvV2UseCases {
     throw new NotImplementedError('listings.listListingModerationLog');
   }
 
-  async reserveForTrade(_tx: Tx, _input: ReserveForTradeRequest): Promise<ReserveForTradeResponse> {
-    throw new NotImplementedError('listings.reserveForTrade');
-  }
-
-  async getTradeability(_tx: Tx, _input: GetTradeabilityRequest): Promise<GetTradeabilityResponse> {
-    throw new NotImplementedError('listings.getTradeability');
-  }
-
-  async getAvailabilitySummary(_input: GetAvailabilitySummaryRequest): Promise<GetAvailabilitySummaryResponse> {
-    throw new NotImplementedError('listings.getAvailabilitySummary');
-  }
-
-  async resolveItemRefs(_input: ItemRefsRequest): Promise<ItemRefsResponse> {
-    throw new NotImplementedError('listings.resolveItemRefs');
-  }
 }

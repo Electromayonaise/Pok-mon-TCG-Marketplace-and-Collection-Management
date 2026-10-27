@@ -58,15 +58,15 @@
 | FR-CAT-7 | Freshness and feed outage (CAP-3) | CAT-3 | AD-CAT-2, AD-SYS-6, AD-SYS-7 | 5 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +2 | 4.4 (done) | red |
 | FR-CAT-8 | Official exchange rate (TRM) (CAP-3, CAP-9) | S-FR-CAT-8 | AD-CAT-3 | 2 — `S-FR-CAT-8.f`, `S-FR-CAT-8.h` | 4.4 (done) | red |
 | FR-INV-1 | Create a card or sealed-product listing (CAP-4, CAP-5, CAP-19) | INV-2 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 11 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +8 | 5.1 (done), 5.3 (done) | red |
-| FR-INV-2 | Create a bundle (CAP-4, CAP-16) | S-FR-INV-2 | AD-INV-1 | 2 — `S-FR-INV-2.f`, `S-FR-INV-2.h` | 5.6 (backlog) | red |
+| FR-INV-2 | Create a bundle (CAP-4, CAP-16) | S-FR-INV-2 | AD-INV-1 | 2 — `S-FR-INV-2.f`, `S-FR-INV-2.h` | 5.6 (done) | red |
 | FR-INV-3 | Reserve inventory atomically in the caller's transaction (CAP-17, CAP-25) | INV-1 | AD-6, AD-INV-1, AD-INV-2, AD-SYS-5 | 9 — `INV-1.I1`, `INV-1.I3`, `INV-1.MEC` +6 | 5.2 (done), 5.4 (done) | red |
-| FR-INV-4 | Shared-quantity reconciliation (CAP-4, CAP-16) | INV-2, S-FR-INV-4 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 13 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +10 | 5.1 (done), 5.3 (done), 5.6 (backlog) | red |
+| FR-INV-4 | Shared-quantity reconciliation (CAP-4, CAP-16) | INV-2, S-FR-INV-4 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 13 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +10 | 5.1 (done), 5.3 (done), 5.6 (done) | red |
 | FR-INV-5 | Release a reservation (CAP-17, CAP-25) | S-FR-INV-5 | AD-INV-2 | 2 — `S-FR-INV-5.f`, `S-FR-INV-5.h` | 5.2 (done) | red |
 | FR-INV-6 | Aborted caller transaction restores quantity (CAP-17, CAP-25) | INV-1 | AD-6, AD-INV-1, AD-INV-2, AD-SYS-5 | 9 — `INV-1.I1`, `INV-1.I3`, `INV-1.MEC` +6 | 5.2 (done), 5.4 (done) | red |
 | FR-INV-7 | Purchasability, verified badge and commission pause (CAP-5, CAP-21) | INV-2, INV-3 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 15 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +12 | 5.1 (done), 5.3 (done), 5.5 (done) | red |
 | FR-INV-8 | Withdraw on rejection, restore on approval (CAP-5, CAP-15) | S-FR-INV-8 | AD-INV-3 | 2 — `S-FR-INV-8.f`, `S-FR-INV-8.h` | 5.5 (done) | red |
-| FR-INV-9 | Edit, restock and deactivate (CAP-4) | S-FR-INV-9 | AD-INV-1, AD-SYS-5 | 2 — `S-FR-INV-9.f`, `S-FR-INV-9.h` | 5.6 (backlog) | red |
-| FR-INV-10 | Listing detail and owner view (CAP-4, CAP-28) | S-FR-INV-10 | AD-12 | 2 — `S-FR-INV-10.f`, `S-FR-INV-10.h` | 5.6 (backlog) | red |
+| FR-INV-9 | Edit, restock and deactivate (CAP-4) | S-FR-INV-9 | AD-INV-1, AD-SYS-5 | 2 — `S-FR-INV-9.f`, `S-FR-INV-9.h` | 5.6 (done) | red |
+| FR-INV-10 | Listing detail and owner view (CAP-4, CAP-28) | S-FR-INV-10 | AD-12 | 2 — `S-FR-INV-10.f`, `S-FR-INV-10.h` | 5.6 (done) | red |
 | FR-DSC-1 | One browse query for both seller kinds (CAP-1, CAP-2) | DSC-3, DSC-1 | AD-DSC-1, AD-5, AD-DSC-2, AD-12 | 11 — `DSC-3.I1`, `DSC-3.Q1`, `DSC-3.QF1` +8 | 6.1 (backlog), 6.2 (backlog), 6.4 (backlog) | red |
 | FR-DSC-2 | Correct geodesic distance and an inclusive boundary (CAP-1) | DSC-1 | AD-DSC-2, AD-5, AD-DSC-1, AD-12 | 7 — `DSC-1.I1`, `DSC-1.I2`, `DSC-1.I4` +4 | 6.2 (backlog), 6.4 (backlog) | red |
 | FR-DSC-3 | Unusable locations are excluded and explained (CAP-1) | DSC-1 | AD-DSC-2, AD-5, AD-DSC-1, AD-12 | 7 — `DSC-1.I1`, `DSC-1.I2`, `DSC-1.I4` +4 | 6.2 (backlog), 6.4 (backlog) | red |

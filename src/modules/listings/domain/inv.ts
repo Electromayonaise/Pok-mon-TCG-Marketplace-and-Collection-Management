@@ -67,3 +67,44 @@ export function createdState(o: { paused: boolean; listingKind: 'business' | 'in
   if (o.paused) return 'Paused';
   return o.listingKind === 'business' && !o.verified ? 'Unverified' : 'Active';
 }
+
+export type ListingDetailState = 'Active' | 'Unverified' | 'Paused' | 'Hidden' | 'Withdrawn' | 'Deactivated';
+
+/**
+ * S-FR-INV-10: the state a listing reports, most severe first. A business listing is Paused while its
+ * `pausedAt` is set or its projection is not funded (AD-3), and Unverified while its seller is not Approved.
+ */
+export function detailState(f: {
+  hidden: boolean; withdrawn: boolean; deactivated: boolean; paused: boolean;
+  sellerKindAtCreation: 'business' | 'individual'; projection: ProjectionState; verification: VerificationStatus | null;
+}): ListingDetailState {
+  if (f.hidden) return 'Hidden';
+  if (f.withdrawn) return 'Withdrawn';
+  if (f.deactivated) return 'Deactivated';
+  if (f.sellerKindAtCreation === 'individual') return 'Active';
+  if (f.paused || f.projection !== 'funded') return 'Paused';
+  return f.verification === 'Approved' ? 'Active' : 'Unverified';
+}
+
+/**
+ * S-FR-INV-9, S-FR-INV-10 (S-2): who may act on a listing. A non-owner never learns that an
+ * invisible listing exists: it reads exactly like an unknown id.
+ */
+export function ownerCheck(listing: { sellerId: string; visible: boolean } | null, actorId: string | null): 'owner' | 'notFound' | 'notOwner' {
+  if (listing === null) return 'notFound';
+  if (listing.sellerId === actorId) return 'owner';
+  return listing.visible ? 'notOwner' : 'notFound';
+}
+
+/** S-FR-INV-10.mine: the keyset `("createdAt", id)` of the last row, opaque to the client. */
+export function encodeListingCursor(createdAt: string, id: string): string {
+  return Buffer.from(`${createdAt}|${id}`, 'utf8').toString('base64url');
+}
+
+/** The cursor's keyset, or null when it is not one this service issued. */
+export function decodeListingCursor(cursor: string): { createdAt: string; id: string } | null {
+  const [createdAt, id, ...rest] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
+  if (rest.length > 0 || !createdAt || !id || !/^[a-z][0-9a-z]{23}$/.test(id)) return null;
+  const at = Date.parse(createdAt);
+  return Number.isNaN(at) || new Date(at).toISOString() !== createdAt ? null : { createdAt, id };
+}

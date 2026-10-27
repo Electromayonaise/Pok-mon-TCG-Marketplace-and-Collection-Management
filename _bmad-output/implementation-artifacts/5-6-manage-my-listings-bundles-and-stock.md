@@ -2,7 +2,7 @@
 title: 'Story 5.6: Manage my listings, bundles and stock'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'ab3430b'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -111,10 +111,10 @@ Wire the eight `inventory.*` seller procedures that remain. `inventory.admin.*` 
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] domain + unit tests; repository; the ten operations
-- [ ] §13 rows, generator, the procedures with HTTP cases
-- [ ] `deferred-work.md` -- the `area` of P-INV.availability
-- [ ] `sprint-status.yaml` -- 5.6 `done`; `gen:trace:solu2`
+- [x] domain + unit tests; repository; the ten operations
+- [x] §13 rows, generator, the procedures with HTTP cases
+- [x] `deferred-work.md` -- the `area` of P-INV.availability
+- [x] `sprint-status.yaml` -- 5.6 `done`; `gen:trace:solu2`
 
 **Acceptance Criteria:**
 - Given 5.6 `done`, when the 12 bound tests run, then they pass, and `npm run test:ci` is green.
@@ -128,3 +128,18 @@ Wire the eight `inventory.*` seller procedures that remain. `inventory.admin.*` 
 ## Implementation Notes
 
 - Code review is batched with the rest of Epic 5 at its close (decision #22).
+- **Availability is never stored.** The detail and owner reads compute it in the same SQL subquery Story 5.2 uses for `exhaustedListingIds`. A single listing's title is its catalog entry's name, read in one `getEntries` batch per page.
+- **The detail state** (domain `detailState`), most severe first: Hidden, Withdrawn, Deactivated; then, for a business, Paused (a set `pausedAt`, or a projection not `funded`, AD-3), Unverified (verification not `Approved`), Active. An individual listing is Active once visible.
+- **Decision outcomes:** `hidden`, `withdrawn` (also for Deactivated), `paused`, `unverified`, `allowed`. `ListingHidden` cites `reasonCode` instead of interpolating it, because a reason such as `MisleadingListing` would put a PascalCase token in the text (AD-SYS-1 rule 6).
+- **Owner checks** (domain `ownerCheck`): an unknown listing, and an invisible listing read by someone else, raise the same `ListingNotFound` citing `{ visible: false }` under `AD-12`. The two bodies are identical but for `occurredAt` (S-2).
+- **Restock never locks `"Listing"`.** The listing's owner and unit are immutable, so the write touches only the unit (lock position 3). A bundle is refused: each card is restocked through its own listing.
+- **A stale `expectedVersion`** is `RequestValidationFailed` on `expectedVersion`, as Martín chose (decision log Impl-1 #30).
+- **`setListingActive`:** a state that already holds is an `allowedWithNotice` no-op with no audit row. Reactivation re-checks IDN-2 before writing.
+- **`getAvailabilitySummary`:**
+  - its SQL twin reads the stored terms of AD-INV-3 rule 2 (visibility, stock, `pausedAt`, a funded projection);
+  - the verification term is composed in TypeScript, one `getSellerVerification` per distinct business;
+  - bundles are not counted;
+  - a non-null `area` throws `NotImplementedError` until DSC-3 (`deferred-work.md`).
+- **`inventory.get` is public**, so the HTTP reader is never the owner. The owner reads hidden and deactivated listings through `inventory.mine`.
+- **Fixed with this story:** Story 5.5's unit test set `pausedAt` with SQL `now()`, which the `[SYS-6.R1]` fitness test refuses. It now writes `T0`.
+- **`test:ci` on this tree:** 352 ATDD tests, 144 green for done stories, 0 not as expected; 10 NFR tests, 9 green.
