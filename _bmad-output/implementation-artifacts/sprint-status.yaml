@@ -79,7 +79,7 @@ development_status:
   4-1-start-and-continue-a-catalog-feed-run: done
   4-2-keep-a-card-s-id-through-renames-and-reprints: done
   4-3-refuse-a-second-live-run-and-quarantine-changed-kinds: done
-  4-4-never-fabricate-a-price: ready-for-dev
+  4-4-never-fabricate-a-price: done
   4-5-browse-the-catalog-and-answer-neighbours-catalog-queries: ready-for-dev
   epic-4-retrospective: optional
   epic-5: backlog

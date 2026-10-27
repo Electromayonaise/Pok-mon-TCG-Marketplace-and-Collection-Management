@@ -4,22 +4,24 @@
 // (AD-CAT-2 rules 1–2). listFeedRuns (CAT-1.runs): paging and a foreign cursor.
 // upsertCatalogEntry (CAT-2): the revision's before and after, and a KindChanged row that writes
 // no revision. listQuarantinedRows (CAT-2.quarantine): the reason filter, paging, a cursor from
-// another run and an unknown run.
+// another run and an unknown run. getPriceProvenance (CAT-3): input order, no observation, a zero
+// baseline, duplicate ids. fetchTrm and getFxRate (S-FR-CAT-8, AD-CAT-3): a stored row, an
+// identical and a mismatched re-fetch, a throwing source, and a date with no rate at all.
 import { describe, expect, it } from 'vitest';
 import type { CatalogFeedSource, FeedSourceRow } from '../../../shared-kernel/external.js';
 import { useTestDatabase } from '../../../../test-support/db.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
 import { caught, httpOf } from '../../../../test-support/errors.js';
 import { FixtureFeedSource, FixtureFxRateSource } from '../../../../test-support/simulated/index.js';
-import { admin, at, DAY, feedRun, HOUR, id, ins, rows, wiring } from '../../../../test-support/solu2/fixtures.js';
+import { admin, at, catalogEntry, DAY, explainAssert, feedRun, HOUR, id, ins, observation, rows, wiring } from '../../../../test-support/solu2/fixtures.js';
 import type { ValidFeedRow } from '../dto/cat.v2.dto.js';
 import { CatServiceV2 } from './cat.v2.js';
 
 const db = useTestDatabase();
 
-function setup(feed: CatalogFeedSource = new FixtureFeedSource({ current: [], previous: [], defects: [], renamed: [] })) {
+function setup(feed: CatalogFeedSource = new FixtureFeedSource({ current: [], previous: [], defects: [], renamed: [] }), fx = new FixtureFxRateSource([])) {
   const w = wiring(db);
-  return { w, cat: new CatServiceV2({ ...w, feed, fx: new FixtureFxRateSource([]) }) };
+  return { w, fx, cat: new CatServiceV2({ ...w, feed, fx }) };
 }
 const card = (n: number, o: FeedSourceRow = {}): FeedSourceRow => ({ externalKey: `sv1-${n}`, setCode: 'SV1', number: String(n), name: `Carta ${n}`, kind: 'card', eraCode: 'SV', ...o });
 const feedOf = (current: FeedSourceRow[]) => new FixtureFeedSource({ current, previous: [], defects: [], renamed: [] });
@@ -164,5 +166,75 @@ describe('CatServiceV2.listQuarantinedRows (CAT-2.quarantine)', () => {
     const first = await list(cat);
     expect(codeOf(await caught(() => list(cat, { runId: id('r2'), cursor: first.nextCursor })))).toBe('RequestValidationFailed');
     expect(codeOf(await caught(() => list(cat, { runId: id('ghost') })))).toBe('RequestValidationFailed');
+  });
+});
+
+describe('CatServiceV2.getPriceProvenance (CAT-3)', () => {
+  it('answers in input order: no observation reads null, and a zero baseline gives no trend', async () => {
+    await catalogEntry(db, id('none'));
+    await catalogEntry(db, id('zero'));
+    await feedRun(db, id('run1'));
+    await observation(db, { id: id('o1'), catalogEntryId: id('zero'), cop: 0, observedAt: at(-40 * DAY), runId: id('run1') });
+    await observation(db, { id: id('o2'), catalogEntryId: id('zero'), cop: 5_000, observedAt: at(-HOUR), runId: id('run1') });
+    const { items } = await setup().cat.getPriceProvenance({ catalogEntryIds: [id('zero'), id('none')], period: 30 });
+    expect(items.map((i) => i.catalogEntryId)).toEqual([id('zero'), id('none')]);
+    expect(items[0]).toMatchObject({ freshness: 'fresh', trend: { referencePriceAtStart: { cop: 0 }, changePercentHundredths: null } });
+    explainAssert(items[0]!.trend.decision, { code: 'TrendNoBaseline', rule: 'FR-CAT-6' });
+    expect(items[1]).toMatchObject({ lastTransactionReference: null, freshness: null, trend: { changePercentHundredths: null } });
+    explainAssert(items[1]!.decision, { code: 'ReferencePriceMissing', outcome: 'allowed', rule: 'FR-CAT-5' });
+  });
+
+  it('refuses duplicate ids, and cites every unknown id', async () => {
+    await catalogEntry(db, id('pika'));
+    const { cat } = setup();
+    expect(codeOf(await caught(() => cat.getPriceProvenance({ catalogEntryIds: [id('pika'), id('pika')], period: 30 })))).toBe('RequestValidationFailed');
+    const error = await caught(() => cat.getPriceProvenance({ catalogEntryIds: [id('pika'), id('g1'), id('g2')], period: 7 }));
+    explainAssert(error, { code: 'CatalogEntryNotFound', rule: 'FR-CAT-5', inputs: { missingIds: `${id('g1')},${id('g2')}`, missingCount: 2 } });
+  });
+});
+
+describe('CatServiceV2.fetchTrm and getFxRate (S-FR-CAT-8, AD-CAT-3)', () => {
+  const RATE = { valor: '4130.005', validFrom: '2026-10-01', validTo: '2026-10-01' };
+  const yesterday = () => ins(db, 'FxRate', { id: id('fx0'), copPerUsdCentavos: 412_337, validFrom: '2026-09-30', validTo: '2026-09-30', source: 'fixture', fetchedAt: at(-DAY) }, 'created');
+
+  it("stores the source's row as delivered, rounded half-up to centavos, with one audit row", async () => {
+    const { cat } = setup(undefined, new FixtureFxRateSource([RATE]));
+    expect((await cat.fetchTrm({ trigger: 'daily-morning' })).outcome).toBe('stored');
+    expect(await db.query(`SELECT "copPerUsdCentavos"::text AS c, "validFrom"::text AS f FROM "FxRate"`)).toEqual([{ c: '413001', f: '2026-10-01' }]);
+    expect(await rows(db, 'audit_events', `action = 'catalog.fxRate.stored'`)).toHaveLength(1);
+    expect(await cat.getFxRate({ date: '2026-10-01' })).toMatchObject({ copPerUsdCentavos: 413_001, stale: false, decision: { reasonCode: 'FxRateCovered' } });
+  });
+
+  it('a weekend range that overlaps a stored day with another value keeps the stored row and is logged', async () => {
+    await ins(db, 'FxRate', { id: id('fx1'), copPerUsdCentavos: 412_900, validFrom: '2026-09-29', validTo: '2026-09-30', source: 'fixture', fetchedAt: at(-DAY) }, 'created');
+    const { cat } = setup(undefined, new FixtureFxRateSource([{ ...RATE, validFrom: '2026-09-29' }]));
+    const result = await cat.fetchTrm({ trigger: 'tick' });
+    expect(result.outcome).toBe('mismatchKept');
+    explainAssert(result.decision, { code: 'FxRateSourceMismatch', rule: 'AD-CAT-3 rule 4', inputs: { storedCopPerUsdCentavos: 412_900, storedValidFrom: '2026-09-29' } });
+    expect(await rows(db, 'FxRate')).toHaveLength(1);
+    expect(await rows(db, 'audit_events', `action = 'catalog.fxRate.sourceMismatch'`)).toHaveLength(1);
+  });
+
+  it('a re-fetch that races a stored identical row is alreadyCovered and writes nothing', async () => {
+    const fx = new FixtureFxRateSource([RATE]);
+    const racing = { getRateCovering: async (date: string) => {
+      const r = await fx.getRateCovering(date);
+      await ins(db, 'FxRate', { id: id('fxr'), copPerUsdCentavos: 413_001, validFrom: '2026-10-01', validTo: '2026-10-01', source: 'fixture', fetchedAt: at(0) }, 'created');
+      return r;
+    } };
+    const w = wiring(db);
+    const result = await new CatServiceV2({ ...w, feed: new FixtureFeedSource({ current: [], previous: [], defects: [], renamed: [] }), fx: racing }).fetchTrm({ trigger: 'admin' });
+    expect(result.outcome).toBe('alreadyCovered');
+    expect(await rows(db, 'FxRate')).toHaveLength(1);
+    expect(await rows(db, 'audit_events')).toHaveLength(0);
+  });
+
+  it('a source that throws is sourceUnavailable, and a date with no rate at all is Unexpected', async () => {
+    const { cat } = setup(undefined, { getRateCovering: async () => { throw new Error('timeout'); } } as unknown as FixtureFxRateSource);
+    expect((await cat.fetchTrm({ trigger: 'tick' })).outcome).toBe('sourceUnavailable');
+    expect(await rows(db, 'FxRate')).toHaveLength(0);
+    expect(codeOf(await caught(() => cat.getFxRate({ date: '2026-10-01' })))).toBe('Unexpected');
+    await yesterday();
+    expect(await cat.getFxRate({ date: '2026-10-03' })).toMatchObject({ validFrom: '2026-09-30', stale: true });
   });
 });

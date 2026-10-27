@@ -25,8 +25,8 @@
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
-| NFR evidence status | Red — ATDD: 36; Red — benchmark: 4; Green — gate: 7; Deferred — launch: 2; Planned — story DoD: 11; Green — benchmark: 1 |
-| Contract clauses / test ids | 112 / 373 (361 red, 12 green) |
+| NFR evidence status | Green — ATDD: 12; Green — benchmark: 4; Green — gate: 8; Red — ATDD: 26; Red — benchmark: 3; Deferred — launch: 2; Planned — story DoD: 10 |
+| Contract clauses / test ids | 112 / 375 (363 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -53,10 +53,10 @@
 | FR-CAT-2 | One stable identity per card or product (CAP-2, CAP-16) | CAT-2, CAT-2.quarantine | AD-CAT-1, AD-7, AD-8 | 9 — `CAT-2.I1`, `CAT-2.I3`, `CAT-2.MEC` +6 | 4.1 (done), 4.2 (done), 4.3 (done) | red |
 | FR-CAT-3 | Feed ingestion with idempotent upsert and quarantine (CAP-2, CAP-3) | CAT-1, CAT-1.runs | AD-1, AD-CAT-1 | 5 — `CAT-1.I1`, `CAT-1.Q1`, `CAT-1.Q2` +2 | 4.1 (done), 4.3 (done) | red |
 | FR-CAT-4 | Attribute changes keep the identity (CAP-2) | CAT-2, CAT-2.quarantine | AD-CAT-1, AD-7, AD-8 | 9 — `CAT-2.I1`, `CAT-2.I3`, `CAT-2.MEC` +6 | 4.1 (done), 4.2 (done), 4.3 (done) | red |
-| FR-CAT-5 | Reference prices as a distinct value object (CAP-3) | CAT-3 | AD-CAT-2, AD-SYS-6, AD-SYS-7 | 5 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +2 | 4.4 (ready-for-dev) | red |
-| FR-CAT-6 | Price provenance for the card detail (CAP-3) | CAT-3, DSC-2 | AD-CAT-2, AD-SYS-6, AD-SYS-7, AD-1 | 9 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +6 | 4.4 (ready-for-dev), 6.3 (backlog), 6.4 (backlog) | red |
-| FR-CAT-7 | Freshness and feed outage (CAP-3) | CAT-3 | AD-CAT-2, AD-SYS-6, AD-SYS-7 | 5 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +2 | 4.4 (ready-for-dev) | red |
-| FR-CAT-8 | Official exchange rate (TRM) (CAP-3, CAP-9) | S-FR-CAT-8 | AD-CAT-3 | 2 — `S-FR-CAT-8.f`, `S-FR-CAT-8.h` | 4.4 (ready-for-dev) | red |
+| FR-CAT-5 | Reference prices as a distinct value object (CAP-3) | CAT-3 | AD-CAT-2, AD-SYS-6, AD-SYS-7 | 5 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +2 | 4.4 (done) | red |
+| FR-CAT-6 | Price provenance for the card detail (CAP-3) | CAT-3, DSC-2 | AD-CAT-2, AD-SYS-6, AD-SYS-7, AD-1 | 9 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +6 | 4.4 (done), 6.3 (backlog), 6.4 (backlog) | red |
+| FR-CAT-7 | Freshness and feed outage (CAP-3) | CAT-3 | AD-CAT-2, AD-SYS-6, AD-SYS-7 | 5 — `CAT-3.I1`, `CAT-3.P2`, `CAT-3.Q1` +2 | 4.4 (done) | red |
+| FR-CAT-8 | Official exchange rate (TRM) (CAP-3, CAP-9) | S-FR-CAT-8 | AD-CAT-3 | 2 — `S-FR-CAT-8.f`, `S-FR-CAT-8.h` | 4.4 (done) | red |
 | FR-INV-1 | Create a card or sealed-product listing (CAP-4, CAP-5, CAP-19) | INV-2 | AD-INV-1, AD-6, AD-INV-3, AD-3 | 11 — `INV-2.I1`, `INV-2.I2`, `INV-2.I4` +8 | 5.1 (backlog), 5.3 (backlog) | red |
 | FR-INV-2 | Create a bundle (CAP-4, CAP-16) | S-FR-INV-2 | AD-INV-1 | 2 — `S-FR-INV-2.f`, `S-FR-INV-2.h` | 5.6 (backlog) | red |
 | FR-INV-3 | Reserve inventory atomically in the caller's transaction (CAP-17, CAP-25) | INV-1 | AD-6, AD-INV-1, AD-INV-2, AD-SYS-5 | 9 — `INV-1.I1`, `INV-1.I3`, `INV-1.MEC` +6 | 5.2 (backlog), 5.4 (backlog) | red |
@@ -136,22 +136,22 @@
 
 | NFR | Title | Contract clauses | Evidence artifact | Tests | Evidence status |
 |---|---|---|---|---|---|
-| NFR-SYS-1 | Explainability coverage | — | `SYS-1.R6`, `SYS-1.R6.s2` | 2 | Red — ATDD |
-| NFR-SYS-2 | Regulated data never leaks | — | `NFR-SYS-8.canary`, `SYS-8.R4`, `SYS-8.R4.redact` +1 | 4 | Red — benchmark |
+| NFR-SYS-1 | Explainability coverage | — | `SYS-1.R6`, `SYS-1.R6.s2` | 2 | Green — ATDD |
+| NFR-SYS-2 | Regulated data never leaks | — | `NFR-SYS-8.canary`, `SYS-8.R4`, `SYS-8.R4.redact` +1 | 4 | Green — benchmark |
 | NFR-SYS-3 | Independent executability | — | `SYS-6.R4` | 1 | Green — gate |
 | NFR-SYS-4 | Virtual time | — | `SYS-6.R1`, `SYS-6.R1.probe` | 2 | Green — gate |
 | NFR-SYS-5 | Money-shape safety | — | `VAL-1.I1`, `COM-1.I3` | 2 | Red — ATDD |
-| NFR-SYS-6 | Post-commit events are exactly-once in effect | — | `NFR-SYS-6.sweep`, `SYS-2.R6`, `SYS-2.R4` | 3 | Red — benchmark |
-| NFR-SYS-7 | Server-side authorization | — | `SYS-8.R2`, `SYS-8.R2.static` | 2 | Red — ATDD |
-| NFR-SYS-8 | Admin audit trail | IDN-3 | `IDN-3.Q1`, `REP-2.Q1`, `SYS-R2` +1 | 9 | Red — ATDD |
+| NFR-SYS-6 | Post-commit events are exactly-once in effect | — | `NFR-SYS-6.sweep`, `SYS-2.R6`, `SYS-2.R4` | 3 | Green — benchmark |
+| NFR-SYS-7 | Server-side authorization | — | `SYS-8.R2`, `SYS-8.R2.static` | 2 | Green — ATDD |
+| NFR-SYS-8 | Admin audit trail | IDN-3 | `IDN-3.Q1`, `REP-2.Q1`, `SYS-R2` +1 | 9 | Green — ATDD (identity, VER, the grants); Red — ATDD (`[REP-2.Q1]`) |
 | NFR-SYS-9 | Latency baseline | — | `NFR-ORD-2.p95` | 1 | Red — benchmark |
 | NFR-SYS-10 | Concurrency proofs run on PostgreSQL | — | `INV-1.I1`, `TRD-1.MEC`, `REP-3.MEC` | 3 | Red — ATDD |
 | NFR-SYS-11 | Accessibility | — | — | 0 | Deferred — launch |
 | NFR-SYS-12 | Platform personal-data consent | — | — | 0 | Green — gate |
-| NFR-SYS-13 | Error-code integrity | — | `SYS-1.R2`, `SYS-1.R6` | 2 | Red — ATDD |
-| NFR-SYS-14 | Abuse baseline | — | `S-FR-IDN-7.f`, `MSG-2.R1` | 2 | Red — ATDD |
-| NFR-IDN-2 | (mandatory edge case): | IDN-1 | `IDN-1.MEC`, `IDN-1.I1` | 7 | Red — ATDD |
-| NFR-VER-1 | (mandatory edge case): | VER-1 | `VER-1.MEC` | 7 | Red — ATDD |
+| NFR-SYS-13 | Error-code integrity | — | `SYS-1.R2`, `SYS-1.R6` | 2 | Green — ATDD |
+| NFR-SYS-14 | Abuse baseline | — | `S-FR-IDN-7.f`, `MSG-2.R1` | 2 | Green — ATDD (`[S-FR-IDN-7.f]`, the count only: no sign-in records a failure yet, decision log Impl-1 #26); Red — ATDD (`[MSG-2.R1]`) |
+| NFR-IDN-2 | (mandatory edge case): | IDN-1 | `IDN-1.MEC`, `IDN-1.I1` | 7 | Green — ATDD |
+| NFR-VER-1 | (mandatory edge case): | VER-1 | `VER-1.MEC` | 7 | Green — ATDD |
 | NFR-INV-1 | (Annex scenario 3): | INV-1 | `INV-1.I1` | 9 | Red — ATDD |
 | NFR-INV-3 | (mandatory edge case): | INV-1 | `INV-1.MEC` | 9 | Red — ATDD |
 | NFR-ORD-1 | (mandatory edge case): | ORD-2, ORD-3, ORD-4 | `ORD-3.MEC`, `ORD-4.MEC`, `ORD-2.MEC` | 18 | Red — ATDD |
@@ -163,20 +163,20 @@
 | NFR-REP-1 | (mandatory edge case): | REP-1, REP-2, REP-3 | `REP-1.MEC`, `REP-3.MEC` | 22 | Red — ATDD |
 | NFR-IDN-1 | getCapabilities | — | — | 0 | Planned — story DoD |
 | NFR-IDN-3 | 0 procedures accept a client-supplied role | — | `SYS-8.R2.static`, `SYS-8.R2` | 2 | Green — gate |
-| NFR-VER-2 | 100% of legalIdentity reads and denials are audited | VER-3 | `VER-3.I1`, `VER-3.I2`, `IDN-3.I1` | 7 | Red — ATDD |
+| NFR-VER-2 | 100% of legalIdentity reads and denials are audited | VER-3 | `VER-3.I1`, `VER-3.I2`, `IDN-3.I1` | 7 | Green — ATDD |
 | NFR-VER-3 | the review queue | VER-3 | `NFR-VER-3.queue`, `NFR-VER-3.sign` | 8 | Green — benchmark |
-| NFR-VER-4 | document uploads are ≤ 5 MB per file and at most 3 files | — | `VER-2.P3`, `VER-2.P5` | 2 | Red — ATDD (size); Deferred — launch (transfer) |
-| NFR-CAT-1 | FR-CAT-1 over 10,000 entries in p95 ≤ 1,000 ms | CAT-3 | — | 5 | Planned — story DoD |
-| NFR-CAT-2 | a 10,000-row ingestion run completes in ≤ 120 s | CAT-2 | `CAT-2.I1`, `CAT-2.MEC` | 9 | Red — ATDD |
-| NFR-CAT-3 | 0 fabricated prices | CAT-3 | `CAT-3.I1`, `CAT-3.Q4`, `S-FR-CAT-8.f` | 6 | Red — ATDD |
-| NFR-CAT-4 | The daily TRM job runs outside request paths | — | `S-FR-CAT-8.h`, `S-FR-CAT-8.f` | 2 | Red — ATDD |
+| NFR-VER-4 | document uploads are ≤ 5 MB per file and at most 3 files | — | `VER-2.P3`, `VER-2.P5` | 2 | Green — ATDD (size); Deferred — launch (transfer) |
+| NFR-CAT-1 | FR-CAT-1 over 10,000 entries in p95 ≤ 1,000 ms | CAT-3 | `NFR-CAT-1.provenance`, `NFR-CAT-1.browse` | 7 | Green — benchmark (provenance); Red — benchmark (browse) |
+| NFR-CAT-2 | a 10,000-row ingestion run completes in ≤ 120 s | CAT-2 | `CAT-2.I1`, `CAT-2.MEC` | 9 | Green — ATDD |
+| NFR-CAT-3 | 0 fabricated prices | CAT-3 | `CAT-3.I1`, `CAT-3.Q4`, `S-FR-CAT-8.f` | 6 | Green — ATDD |
+| NFR-CAT-4 | The daily TRM job runs outside request paths | — | `S-FR-CAT-8.h`, `S-FR-CAT-8.f` | 2 | Green — ATDD |
 | NFR-INV-2 | a mixed race of purchases and trades gives the same result as NFR-INV-1. | INV-1 | `INV-1.I3`, `TRD-1.MEC` | 10 | Red — ATDD |
 | NFR-INV-4 | a single reservation completes in p95 ≤ 150 ms (a bundle of 20 components in p95 | INV-1, INV-2 | — | 20 | Planned — story DoD |
 | NFR-DSC-1 | view=listings with a 15 km area responds in p95 ≤ 1,000 ms on the §3 seed and in | DSC-1 | — | 7 | Planned — story DoD |
 | NFR-DSC-2 | distance error is ≤ 1 m against the haversine reference for 1,000 random Colombi | DSC-1 | `DSC-1.I4` | 7 | Red — ATDD |
 | NFR-DSC-3 | ordering is deterministic | DSC-1 | `DSC-1.R1` | 7 | Red — ATDD |
 | NFR-ORD-2 | order creation (including the reservation) responds in p95 ≤ 800 ms | ORD-1 | `NFR-ORD-2.p95` | 7 | Red — benchmark |
-| NFR-ORD-3 | 0 funds-held states or payment-gateway calls | — | `ORD-1.I4`, `SYS-6.R4` | 2 | Red — ATDD |
+| NFR-ORD-3 | 0 funds-held states or payment-gateway calls | — | `ORD-1.I4`, `SYS-6.R4` | 2 | Green — gate (`[SYS-6.R4]`); Red — ATDD (`[ORD-1.I4]`) |
 | NFR-ORD-4 | the stalled-order gap is documented in UI copy | — | `S-FR-ORD-10.h` | 1 | Red — ATDD |
 | NFR-COM-2 | reconciliation is exact over a randomised sequence of 10,000 top-ups and deducti | COM-1, COM-3 | `COM-3.Q1`, `COM-3.I1` | 14 | Red — ATDD |
 | NFR-COM-3 | the deduction handler runs in p95 ≤ 200 ms | COM-1, COM-2 | — | 16 | Planned — story DoD |
@@ -231,8 +231,8 @@
 | AD-VER-2 | Legal identity has one reader; reads and denials logged | `legalIdentityRepository`; access log | `VER-3.I1` | 3.4 (done) | red |
 | AD-VER-3 | One pending application; reapplication from the snapshot | Partial unique `(businessId) WHERE Pending` | `VER-2.I1` | 3.1 (done) | red |
 | AD-CAT-1 | Resumable leased ingestion | Partial unique `Running`; lease token | `CAT-1.I1`, `CAT-2.I1` | 4.1 (done), 4.2 (done) | red |
-| AD-CAT-2 | Observations immutable, aged at read | Append-only observations; `stale` computed | `CAT-3.I1` | 4.4 (ready-for-dev) | red |
-| AD-CAT-3 | TRM never invented | `EXCLUDE` on validity ranges; no gap row | `S-FR-CAT-8.f` | 4.4 (ready-for-dev) | red |
+| AD-CAT-2 | Observations immutable, aged at read | Append-only observations; `stale` computed | `CAT-3.I1` | 4.4 (done) | red |
+| AD-CAT-3 | TRM never invented | `EXCLUDE` on validity ranges; no gap row | `S-FR-CAT-8.f` | 4.4 (done) | red |
 | AD-INV-1 | One unit per (seller, item, condition) | `UNIQUE (sellerId, catalogEntryId, condition)` | `INV-2.I1` | 5.1 (backlog) | red |
 | AD-INV-2 | Reserve and release in the caller's transaction | `tx` parameter; ascending conditional decrement | `INV-1.MEC` | 5.2 (backlog) | red |
 | AD-INV-3 | Fail-closed purchasability, newer facts only | Seq gate; `AppliedApplicationDecision` | `INV-3.I1`, `S-FR-INV-8.f` | 5.5 (backlog) | red |

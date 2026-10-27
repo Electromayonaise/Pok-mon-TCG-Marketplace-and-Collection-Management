@@ -66,7 +66,7 @@ export interface AppDeps {
  * The procedures whose contracts the done stories implement: IDN-1.ingress (Story 2.1),
  * IDN-3 (Story 2.5), S-SYS.replay (Story 1.3), S-SYS.tick, .deliveries, .health
  * (Story 1.5), VER-2 (Story 3.1), VER-1 (Story 3.2), VER-3 and S-FR-VER-5.audit (Story 3.4) and
- * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) and CAT-2.quarantine (Story 4.2). Every other procedure stays NotImplemented until its story wires it.
+ * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), and CAT-3 and S-FR-CAT-8.fetch (Story 4.4). Every other procedure stays NotImplemented until its story wires it.
  */
 function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
   return {
@@ -89,6 +89,8 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
     'catalog.feed.start': (_input, actorId) => s.cat.startFeedRun({ actorId }),
     'catalog.feed.continue': ({ runId }, actorId) => s.cat.continueFeedRun({ actorId, runId }),
     'catalog.feed.runs': ({ cursor }, actorId) => s.cat.listFeedRuns({ actorId, cursor }),
+    'catalog.provenance': (input) => s.cat.getPriceProvenance(input),
+    'catalog.fx.retry': () => s.cat.fetchTrm({ trigger: 'admin' }),
     'catalog.feed.quarantine': ({ runId, reasonCode, cursor }, actorId) => s.cat.listQuarantinedRows({ actorId, runId, cursor, ...(reasonCode ? { reasonCode } : {}) }),
     'admin.events.replay': (input, adminId) => s.adminEvents.replayEventDelivery({ ...input, adminId }),
     'admin.jobs.tickHealth': (_input, adminId) => s.adminEvents.getTickHealth({ adminId }),

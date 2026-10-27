@@ -1,7 +1,8 @@
 // The pure CAT core: ADD-§8.1 row validation (rules 1–5), the number sort key, the ADD-§2.1 USD →
-// COP conversion, the Bogotá date, the CAT-2 attribute diff and the runs cursor.
+// COP conversion, the Bogotá date, the CAT-2 attribute diff and the runs cursor; the ADD-§2.2
+// change percentage, the FR-CAT-7 staleness boundary and the ADD-§6 TRM parse.
 import { describe, expect, it } from 'vitest';
-import { bogotaDate, copFromUsd, decodeQuarantineCursor, decodeRunCursor, encodeQuarantineCursor, diffAttributes, encodeRunCursor, numberSort, validateRow, type RawFeedRow } from './domain/cat.js';
+import { bogotaDate, changePercent, copFromUsd, isStale, parseTrm, decodeQuarantineCursor, decodeRunCursor, encodeQuarantineCursor, diffAttributes, encodeRunCursor, numberSort, validateRow, type RawFeedRow } from './domain/cat.js';
 
 const NOW = '2026-10-01T15:00:00.000Z';
 const row = (o: RawFeedRow = {}): RawFeedRow => ({ externalKey: 'sv1-025', setCode: 'SV1', number: '025', name: 'Pikachu', kind: 'card', eraCode: 'SV', ...o });
@@ -74,5 +75,34 @@ describe('the quarantine cursor', () => {
     const key = { runId: 'r00000000000000000000001', rowNumber: 50 };
     expect(decodeQuarantineCursor(encodeQuarantineCursor(key))).toEqual(key);
     expect(decodeQuarantineCursor(encodeRunCursor({ startedAt: NOW, id: key.runId }))).toBeNull();
+  });
+});
+
+describe('changePercent (ADD-§2.2)', () => {
+  it.each([[40_000, 45_000, 1250], [30_000, 29_999, 0], [3, 4, 3333], [3, 2, -3333], [8, 7, -1250], [0, 5, null], [null, 5, null]] as const)(
+    'base %s, now %s → %s hundredths', (base, now, expected) => {
+      expect(changePercent(base, now)).toBe(expected);
+    });
+
+  it('rounds half away from zero on both signs', () => {
+    expect([changePercent(20_000, 20_001), changePercent(20_000, 19_999), changePercent(200_000, 200_001)]).toEqual([1, -1, 0]);
+  });
+});
+
+describe('isStale (FR-CAT-7)', () => {
+  it('is stale strictly past 36 h', () => {
+    expect(isStale('2026-09-30T03:00:00.000Z', NOW, 36)).toBe(false);
+    expect(isStale('2026-09-30T02:59:59.999Z', NOW, 36)).toBe(true);
+  });
+});
+
+describe('parseTrm (ADD-§6)', () => {
+  it.each([['4012.37', 401_237], ['4012.3', 401_230], ['4012', 401_200], ['4012.375', 401_238], ['4012.374', 401_237], [' 4123.37 ', 412_337]] as const)(
+    '%s is %i centavos', (valor, centavos) => {
+      expect(parseTrm(valor)).toBe(centavos);
+    });
+
+  it('refuses anything that is not a positive decimal', () => {
+    for (const valor of ['', '4.012,37', '-4012', '0', 'abc', '4012.']) expect(parseTrm(valor)).toBeNull();
   });
 });

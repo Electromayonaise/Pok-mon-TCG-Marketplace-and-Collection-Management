@@ -116,6 +116,36 @@ export function bogotaDate(instant: string | Date): string {
   return new Date(ms - 5 * 3_600_000).toISOString().slice(0, 10);
 }
 
+/**
+ * ADD-§2.2 in hundredths of a percent: `n = Δ × 10 000`, `q = (|n| × 2 + base) // (2 × base)`,
+ * signed, so it rounds half away from zero. Null with no base or `base = 0` (TrendNoBaseline).
+ */
+export function changePercent(base: number | null, now: number): number | null {
+  if (base === null || base === 0) return null;
+  const n = (BigInt(now) - BigInt(base)) * 10_000n;
+  const b = BigInt(base);
+  const q = ((n < 0n ? -n : n) * 2n + b) / (2n * b);
+  return Number(n < 0n ? -q : q);
+}
+
+/** FR-CAT-7: stale when strictly older than the threshold; exactly the threshold is fresh. */
+export function isStale(observedAt: string, now: string, thresholdHours: number): boolean {
+  return Date.parse(now) - Date.parse(observedAt) > thresholdHours * 3_600_000;
+}
+
+/**
+ * ADD-§6, AD-CAT-3 rule 3: the TRM `valor` decimal string in centavos, never through a float;
+ * past 2 decimals it rounds half-up. Null when `valor` is no positive decimal.
+ */
+export function parseTrm(valor: string): number | null {
+  const m = /^(\d+)(?:\.(\d+))?$/.exec(valor.trim());
+  if (!m) return null;
+  const [, whole, frac = ''] = m;
+  let centavos = BigInt(whole!) * 100n + BigInt((frac + '00').slice(0, 2));
+  if (frac.length > 2 && frac[2]! >= '5') centavos += 1n;
+  return centavos > 0n && centavos <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(centavos) : null;
+}
+
 /** The nine attributes CAT-2 Q1 may update; never `id`, `externalKey`, `kind` or `createdAt`. */
 export const UPSERT_ATTRIBUTES = ['setId', 'name', 'number', 'numberSort', 'pokemon', 'colour', 'style', 'artist', 'imageUrl'] as const;
 

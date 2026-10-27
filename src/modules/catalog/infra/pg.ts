@@ -5,8 +5,8 @@ import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoDate, IsoInstant } from '../../../shared-kernel/types.js';
 import type { RunKey } from '../domain/cat.js';
-import type { FeedRunDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
-import type { BatchCounts, CatRepository, FeedRunStatus, ObservationRow, QuarantineListRow, QuarantineRow, RunState, StoredEntry } from '../ports/cat.v2.js';
+import type { FeedRunDTO, ObservedPriceDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
+import type { BatchCounts, CatRepository, FeedRunStatus, FxRateRow, ObservationRow, QuarantineListRow, QuarantineRow, RunState, StoredEntry } from '../ports/cat.v2.js';
 import type { ReferencePriceDTO } from '../dto/cat.dto.js';
 import type { ICatalogEntryRepository, IFeedRunRepository, IReferencePriceRepository } from '../ports/cat.js';
 
@@ -45,6 +45,17 @@ export class PgReferencePriceRepository implements IReferencePriceRepository {
 type RunRow = { runId: CuidId; status: FeedRunStatus; cursor: number; startedAt: Date; leaseUntil: Date | null };
 const RUN_COLUMNS = `id AS "runId", status, cursor, "startedAt", "leaseUntil"`;
 const runState = (r: RunRow): RunState => ({ ...r, startedAt: r.startedAt.toISOString(), leaseUntil: r.leaseUntil?.toISOString() ?? null });
+
+/** An observation's columns as stored; BIGINT and DATE are read as text, so nothing is parsed or rounded on the way (AD-CAT-2 rule 5). */
+const OBSERVED_COLUMNS = `"usdCents"::text AS "usdCents", cop::text AS cop, "observedAt", source, "copDerivation", "fxRateDate"::text AS "fxRateDate"`;
+type ObservedRow = { usdCents: string | null; cop: string; observedAt: Date; source: string; copDerivation: ObservedPriceDTO['copDerivation']; fxRateDate: string | null };
+const observed = (r: ObservedRow): ObservedPriceDTO => ({
+  usdCents: r.usdCents === null ? null : Number(r.usdCents), cop: Number(r.cop), observedAt: r.observedAt.toISOString(),
+  source: r.source, copDerivation: r.copDerivation, fxRateDate: r.fxRateDate,
+});
+const FX_COLUMNS = `"copPerUsdCentavos"::text AS "copPerUsdCentavos", "validFrom"::text AS "validFrom", "validTo"::text AS "validTo"`;
+type FxRow = { copPerUsdCentavos: string; validFrom: string; validTo: string };
+const fxRate = (r: FxRow | undefined): FxRateRow | null => (r ? { ...r, copPerUsdCentavos: Number(r.copPerUsdCentavos) } : null);
 
 /** CAT's repository port over `_bmad-output/planning-artifacts/detailed-design/schemas` (AD-8). */
 export class PgCatRepository implements CatRepository {
@@ -209,6 +220,55 @@ export class PgCatRepository implements CatRepository {
       params,
     );
     return rows;
+  }
+
+  async existingEntryIds(tx: Tx, ids: CuidId[]): Promise<Set<CuidId>> {
+    const { rows } = await tx.query<{ id: CuidId }>(`SELECT id FROM "CatalogEntry" WHERE id = ANY($1)`, [ids]);
+    return new Set(rows.map((r) => r.id));
+  }
+
+  async latestObservations(tx: Tx, ids: CuidId[], asOf: IsoInstant): Promise<Map<CuidId, ObservedPriceDTO>> {
+    const { rows } = await tx.query<ObservedRow & { catalogEntryId: CuidId }>(
+      `SELECT DISTINCT ON ("catalogEntryId") "catalogEntryId", ${OBSERVED_COLUMNS} FROM "ReferencePriceObservation"
+       WHERE "catalogEntryId" = ANY($1) AND "observedAt" <= $2 ORDER BY "catalogEntryId", "observedAt" DESC, source, id`,
+      [ids, asOf],
+    );
+    return new Map(rows.map((r) => [r.catalogEntryId, observed(r)]));
+  }
+
+  async readRateCovering(tx: Tx, date: IsoDate): Promise<FxRateRow | null> {
+    const { rows } = await tx.query<FxRow>(`SELECT ${FX_COLUMNS} FROM "FxRate" WHERE "validFrom" <= $1::date AND "validTo" >= $1::date`, [date]);
+    return fxRate(rows[0]);
+  }
+
+  async readRateBefore(tx: Tx, date: IsoDate): Promise<FxRateRow | null> {
+    const { rows } = await tx.query<FxRow>(`SELECT ${FX_COLUMNS} FROM "FxRate" WHERE "validTo" < $1::date ORDER BY "validTo" DESC LIMIT 1`, [date]);
+    return fxRate(rows[0]);
+  }
+
+  async insertFxRate(tx: Tx, r: FxRateRow & { id: CuidId; source: string }, now: IsoInstant): Promise<boolean> {
+    await tx.query('SAVEPOINT cat_insert_fx');
+    try {
+      await tx.query(
+        `INSERT INTO "FxRate" (id, "copPerUsdCentavos", "validFrom", "validTo", source, "fetchedAt", "createdAt") VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+        [r.id, r.copPerUsdCentavos, r.validFrom, r.validTo, r.source, now],
+      );
+    } catch (error) {
+      const pgError = error as { code?: string; constraint?: string };
+      if (pgError.code !== '23P01' || pgError.constraint !== 'fx_rate_no_overlap') throw error;
+      await tx.query('ROLLBACK TO SAVEPOINT cat_insert_fx');
+      return false;
+    }
+    await tx.query('RELEASE SAVEPOINT cat_insert_fx');
+    return true;
+  }
+
+  async readOverlappingRate(tx: Tx, validFrom: IsoDate, validTo: IsoDate): Promise<FxRateRow | null> {
+    const { rows } = await tx.query<FxRow>(
+      `SELECT ${FX_COLUMNS} FROM "FxRate" WHERE daterange("validFrom", "validTo", '[]') && daterange($1::date, $2::date, '[]') ORDER BY "validFrom" LIMIT 1`,
+      [validFrom, validTo],
+    );
+    return fxRate(rows[0]);
   }
 
   async insertObservation(tx: Tx, o: ObservationRow, now: IsoInstant): Promise<void> {

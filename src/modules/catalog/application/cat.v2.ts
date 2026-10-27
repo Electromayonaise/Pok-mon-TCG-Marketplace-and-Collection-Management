@@ -41,17 +41,18 @@ export interface CatV2UseCases {
 }
 // </gen-solu2-api>
 
-import type { Decision } from '../../../shared-kernel/decision.js';
+import type { Citation, Decision } from '../../../shared-kernel/decision.js';
 import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
+import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest } from '../../../shared-kernel/request.js';
 import type { FeedSourceRow } from '../../../shared-kernel/external.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import {
-  bogotaDate, copFromUsd, decodeQuarantineCursor, decodeRunCursor, diffAttributes, encodeQuarantineCursor, encodeRunCursor, numberSort, observedAtOf, validateRow, type FeedRowPrice,
+  bogotaDate, changePercent, copFromUsd, decodeQuarantineCursor, decodeRunCursor, diffAttributes, encodeQuarantineCursor, encodeRunCursor, isStale, numberSort, observedAtOf, parseTrm, validateRow, type FeedRowPrice,
 } from '../domain/cat.js';
-import type { ValidFeedRow } from '../dto/cat.v2.dto.js';
+import type { PriceProvenanceDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
 import type { BatchCounts, RunState } from '../ports/cat.v2.js';
 
 const raise = raiserFor('catalog');
@@ -69,7 +70,24 @@ const RUNS_PAGE = 25;
 /** CAT-2.quarantine: the page size. */
 const QUARANTINE_PAGE = 50;
 
+/** FR-CAT-7: the freshness threshold (configuration, default 36). */
+const FRESHNESS_HOURS = 36;
+/** P1 of CAT-3 and of the batch ports: at most 500 ids. */
+const MAX_IDS = 500;
+const DAY_MS = 86_400_000;
+
 const plus = (instant: Date, ms: number): IsoInstant => new Date(instant.getTime() + ms).toISOString();
+/** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
+function explained(outcome: Decision['outcome'], code: MessageCode, rule: string, inputs: Citation['inputs'], now: IsoInstant): Decision {
+  return { outcome, reasonCode: code, humanMessage: renderMessage(code, inputs), citations: [{ rule, inputs }], occurredAt: now };
+}
+
+/** P1 of CAT-3 and of the batch ports: 1–500 distinct ids, refused through the kernel otherwise. */
+function boundedIds(field: string, ids: readonly string[]): void {
+  if (ids.length < 1 || ids.length > MAX_IDS) rejectRequest([{ field, issue: `debe tener entre 1 y ${MAX_IDS} elementos` }]);
+  if (new Set(ids).size !== ids.length) rejectRequest([{ field, issue: 'no puede repetir elementos' }]);
+}
+
 const NO_COUNTS: BatchCounts = { created: 0, updated: 0, unchanged: 0, quarantined: 0, deferredNoFx: 0 };
 
 /** Every method not yet done throws NotImplementedError (red for the right reason). */
@@ -107,12 +125,7 @@ export class CatServiceV2 implements CatV2UseCases {
         actorId: input.actorId, actorKind: 'admin', module: 'catalog', action: 'catalog.feedRun.started',
         aggregateType: 'FeedIngestionRun', aggregateId: runId, decisionCode: 'FeedRunStarted', data: { runId }, at: now,
       });
-      const inputs = { runId };
-      const decision: Decision = {
-        outcome: 'allowed', reasonCode: 'FeedRunStarted', humanMessage: renderMessage('FeedRunStarted', inputs),
-        citations: [{ rule: 'AD-CAT-1 rule 1', inputs }], occurredAt: now,
-      };
-      return { runId, startedAt: now, decision };
+      return { runId, startedAt: now, decision: explained('allowed', 'FeedRunStarted', 'AD-CAT-1 rule 1', { runId }, now) };
     });
   }
 
@@ -283,20 +296,111 @@ export class CatServiceV2 implements CatV2UseCases {
     });
   }
 
-  async getPriceProvenance(_input: GetPriceProvenanceRequest): Promise<GetPriceProvenanceResponse> {
-    throw new NotImplementedError('catalog.getPriceProvenance');
+  /**
+   * CAT-3, AD-CAT-2 rules 3–5: the latest observation and the baseline, two indexed reads; stale
+   * is computed at read, and every returned price is one stored row unchanged. Zero writes.
+   */
+  async getPriceProvenance(input: GetPriceProvenanceRequest): Promise<GetPriceProvenanceResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { catalogEntryIds: ids, period } = input;
+    boundedIds('catalogEntryIds', ids);
+    const at = clock.now();
+    const now = at.toISOString();
+    const periodStart = plus(at, -period * DAY_MS);
+    return transactions.run(async (tx) => {
+      const known = await repo.existingEntryIds(tx, ids);
+      const missing = ids.filter((id) => !known.has(id));
+      if (missing.length > 0) raise('CatalogEntryNotFound', [{ rule: 'FR-CAT-5', inputs: { missingIds: missing.join(','), missingCount: missing.length } }]);
+      const latest = await repo.latestObservations(tx, ids, now);
+      const baselines = await repo.latestObservations(tx, ids, periodStart);
+      const items = ids.map((catalogEntryId): PriceProvenanceDTO => {
+        const last = latest.get(catalogEntryId) ?? null;
+        const base = baselines.get(catalogEntryId) ?? null;
+        const change = last === null ? null : changePercent(base?.cop ?? null, last.cop);
+        const trend = change === null
+          ? explained('allowed', 'TrendNoBaseline', 'FR-CAT-6', { periodStart }, now)
+          : explained('allowed', 'TrendComputed', 'FR-CAT-6', { periodStart, changePercentHundredths: change }, now);
+        let freshness: PriceProvenanceDTO['freshness'] = null;
+        let decision = explained('allowed', 'ReferencePriceMissing', 'FR-CAT-5', { catalogEntryId }, now);
+        if (last !== null) {
+          const inputs = { observedAt: last.observedAt, thresholdHours: FRESHNESS_HOURS };
+          freshness = isStale(last.observedAt, now, FRESHNESS_HOURS) ? 'stale' : 'fresh';
+          decision = freshness === 'stale'
+            ? explained('stale', 'ReferencePriceStale', 'FR-CAT-7', inputs, now)
+            : explained('allowed', 'ReferencePriceFresh', 'FR-CAT-7', inputs, now);
+        }
+        return {
+          catalogEntryId, lastTransactionReference: last, freshness, decision,
+          trend: { period, referencePriceAtStart: base, changePercentHundredths: change, decision: trend },
+        };
+      });
+      return { items };
+    });
   }
 
   async browseCatalog(_input: BrowseCatalogRequest): Promise<BrowseCatalogResponse> {
     throw new NotImplementedError('catalog.browseCatalog');
   }
 
-  async fetchTrm(_input: FetchTrmRequest): Promise<FetchTrmResponse> {
-    throw new NotImplementedError('catalog.fetchTrm');
+  /**
+   * S-FR-CAT-8.fetch, AD-CAT-3 rules 1–4: a no-op on a covered day; otherwise the source's row as
+   * delivered. The source is called outside any transaction, and nothing is written for a gap.
+   */
+  async fetchTrm(input: FetchTrmRequest): Promise<FetchTrmResponse> {
+    const { repo, transactions, clock, ids, audit, fx } = this.deps;
+    const now = clock.now().toISOString();
+    const today = bogotaDate(now);
+    const rule = 'FR-CAT-8';
+    if ((await transactions.run((tx) => repo.readRateCovering(tx, today))) !== null) {
+      return { outcome: 'alreadyCovered', decision: explained('allowed', 'FxRateAlreadyCovered', rule, { today, trigger: input.trigger }, now) };
+    }
+    const unavailable = (): FetchTrmResponse =>
+      ({ outcome: 'sourceUnavailable', decision: explained('allowedWithNotice', 'FxRateSourceUnavailable', rule, { today, trigger: input.trigger }, now) });
+    let delivered: Awaited<ReturnType<typeof fx.getRateCovering>>;
+    try {
+      delivered = await fx.getRateCovering(today);
+    } catch {
+      return unavailable();
+    }
+    const centavos = delivered === null ? null : parseTrm(delivered.valor);
+    if (delivered === null || centavos === null) return unavailable();
+    const row = { copPerUsdCentavos: centavos, validFrom: delivered.validFrom, validTo: delivered.validTo };
+    return transactions.run(async (tx) => {
+      const id = ids.next();
+      const inputs = { validFrom: row.validFrom, validTo: row.validTo, copPerUsdCentavos: centavos };
+      if (await repo.insertFxRate(tx, { ...row, id, source: delivered.source }, now)) {
+        await audit.record(tx, {
+          actorId: null, actorKind: 'system', module: 'catalog', action: 'catalog.fxRate.stored',
+          aggregateType: 'FxRate', aggregateId: id, decisionCode: 'FxRateStored', data: { ...inputs, trigger: input.trigger }, at: now,
+        });
+        return { outcome: 'stored' as const, decision: explained('allowed', 'FxRateStored', rule, inputs, now) };
+      }
+      const stored = await repo.readOverlappingRate(tx, row.validFrom, row.validTo);
+      if (stored !== null && stored.copPerUsdCentavos === row.copPerUsdCentavos && stored.validFrom === row.validFrom && stored.validTo === row.validTo) {
+        return { outcome: 'alreadyCovered' as const, decision: explained('allowed', 'FxRateAlreadyCovered', rule, { today, trigger: input.trigger }, now) };
+      }
+      const mismatch = { ...inputs, storedCopPerUsdCentavos: stored?.copPerUsdCentavos ?? null, storedValidFrom: stored?.validFrom ?? null };
+      await audit.record(tx, {
+        actorId: null, actorKind: 'system', module: 'catalog', action: 'catalog.fxRate.sourceMismatch',
+        aggregateType: 'FxRate', aggregateId: id, decisionCode: 'FxRateSourceMismatch', data: { ...mismatch, trigger: input.trigger }, at: now,
+      });
+      return { outcome: 'mismatchKept' as const, decision: explained('allowedWithNotice', 'FxRateSourceMismatch', 'AD-CAT-3 rule 4', mismatch, now) };
+    });
   }
 
-  async getFxRate(_input: GetFxRateRequest): Promise<GetFxRateResponse> {
-    throw new NotImplementedError('catalog.getFxRate');
+  /** S-FR-CAT-8.rate, AD-CAT-3 rule 5: the covering rate, else the latest earlier one, stale. Never writes. */
+  async getFxRate(input: GetFxRateRequest): Promise<GetFxRateResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const now = clock.now().toISOString();
+    const { date } = input;
+    return transactions.run(async (tx) => {
+      const covering = await repo.readRateCovering(tx, date);
+      if (covering !== null) return { ...covering, stale: false, decision: explained('allowed', 'FxRateCovered', 'FR-CAT-8', { date, validFrom: covering.validFrom }, now) };
+      const earlier = await repo.readRateBefore(tx, date);
+      // The DTO has no null: every deployment stores a rate on its first fetch (Story 4.4 spec).
+      if (earlier === null) throw new UnexpectedError(`no TRM is stored on or before ${date}`);
+      return { ...earlier, stale: true, decision: explained('stale', 'FxRateCarriedForward', 'FR-CAT-8', { date, validFrom: earlier.validFrom }, now) };
+    });
   }
 
   async getEntry(_input: GetEntryRequest): Promise<GetEntryResponse> {

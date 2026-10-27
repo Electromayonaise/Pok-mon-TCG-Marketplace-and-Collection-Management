@@ -21,7 +21,7 @@ export interface CatV2Deps {
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoDate, IsoInstant } from '../../../shared-kernel/types.js';
 import type { CatalogKind, CopDerivation, QuarantineReason, RunKey } from '../domain/cat.js';
-import type { FeedRunDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
+import type { FeedRunDTO, ObservedPriceDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
 
 export type FeedRunStatus = 'Running' | 'Completed' | 'Failed';
 
@@ -71,6 +71,13 @@ export interface QuarantineListRow {
   rowNumber: number;
   externalKey: string | null;
   reasonCode: string;
+}
+
+/** One stored `"FxRate"` row (AD-CAT-3). */
+export interface FxRateRow {
+  copPerUsdCentavos: number;
+  validFrom: IsoDate;
+  validTo: IsoDate;
 }
 
 export interface ObservationRow {
@@ -123,6 +130,21 @@ export interface CatRepository {
   quarantineRow(tx: Tx, row: QuarantineRow, now: IsoInstant): Promise<void>;
   /** CAT-2.quarantine: by `rowNumber` after `afterRow`, optionally one reason; never `rawRow`. */
   listQuarantined(tx: Tx, runId: CuidId, reasonCode: string | null, afterRow: number | null, limit: number): Promise<QuarantineListRow[]>;
+  /** CAT-3 P2: which of `ids` exist. */
+  existingEntryIds(tx: Tx, ids: CuidId[]): Promise<Set<CuidId>>;
+  /**
+   * AD-CAT-2 rule 4: per entry, the latest observation with `"observedAt" ≤ asOf`, by `DISTINCT ON`
+   * ordered `("observedAt" DESC, source, id)`; entries with none are absent.
+   */
+  latestObservations(tx: Tx, ids: CuidId[], asOf: IsoInstant): Promise<Map<CuidId, ObservedPriceDTO>>;
+  /** AD-CAT-3 rule 5: the row whose `[validFrom, validTo]` covers `date`. */
+  readRateCovering(tx: Tx, date: IsoDate): Promise<FxRateRow | null>;
+  /** AD-CAT-3 rule 5: the latest row that ended before `date` (the carried-forward rate). */
+  readRateBefore(tx: Tx, date: IsoDate): Promise<FxRateRow | null>;
+  /** AD-CAT-3 rule 4: false when `fx_rate_no_overlap` refused it (23P01); the savepoint keeps `tx` usable. */
+  insertFxRate(tx: Tx, row: FxRateRow & { id: CuidId; source: string }, now: IsoInstant): Promise<boolean>;
+  /** AD-CAT-3 rule 4: a stored row whose range overlaps `[validFrom, validTo]`. */
+  readOverlappingRate(tx: Tx, validFrom: IsoDate, validTo: IsoDate): Promise<FxRateRow | null>;
   /** AD-CAT-2: `ON CONFLICT DO NOTHING` on `reference_price_once`. */
   insertObservation(tx: Tx, row: ObservationRow, now: IsoInstant): Promise<void>;
 }

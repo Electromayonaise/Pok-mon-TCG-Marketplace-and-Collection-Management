@@ -47,6 +47,17 @@ export const MESSAGES = {
   CatalogEntryNotFound: 'No encontramos esa carta o producto.',
   FeedRunInProgress: 'Ya hay una carga en curso desde las {startedAt}.',
   FeedRunStarted: 'La carga del catálogo empezó; sigue llamando a continuar hasta que termine.',
+  ReferencePriceFresh: 'El precio de referencia es una observación guardada de las últimas 36 horas.',
+  ReferencePriceStale: 'El precio de referencia tiene más de 36 horas; lo mostramos como desactualizado.',
+  ReferencePriceMissing: 'Aún no tenemos un precio de referencia para esta carta o producto.',
+  TrendComputed: 'La tendencia compara el último precio guardado con el del inicio del periodo.',
+  TrendNoBaseline: 'No hay un precio guardado al inicio del periodo, así que no calculamos la tendencia.',
+  FxRateCovered: 'Usamos la TRM oficial vigente para esa fecha.',
+  FxRateCarriedForward: 'Aún no tenemos la TRM de esa fecha; usamos la última publicada y la marcamos como desactualizada.',
+  FxRateStored: 'Guardamos la TRM oficial tal como la publicó la fuente.',
+  FxRateAlreadyCovered: 'La TRM de hoy ya estaba guardada; no consultamos la fuente.',
+  FxRateSourceUnavailable: 'La fuente de la TRM no respondió; mantenemos la última tasa publicada como desactualizada.',
+  FxRateSourceMismatch: 'La fuente publicó otro valor para una fecha ya guardada; conservamos el valor guardado y lo reportamos.',
   InvalidItemRef: 'La carta {itemRef} no existe o no corresponde al tipo elegido.',
   InvalidPrice: 'El precio debe estar entre $1.000 y $100.000.000 COP.',
   InvalidLocation: 'El punto de encuentro debe estar en Colombia.',
@@ -110,6 +121,6 @@ export const MESSAGES = {
   DuplicateReview: 'Ya reseñaste a este vendedor; puedes editar tu reseña.',
   ReviewNotFound: 'No encontramos esa reseña.',
   Unexpected: 'Algo falló de nuestro lado; no se aplicó ningún cambio.',
-} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected' | 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred' | 'FeedRunStarted', string>;
+} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected' | 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred' | 'FeedRunStarted' | 'ReferencePriceFresh' | 'ReferencePriceStale' | 'ReferencePriceMissing' | 'TrendComputed' | 'TrendNoBaseline' | 'FxRateCovered' | 'FxRateCarriedForward' | 'FxRateStored' | 'FxRateAlreadyCovered' | 'FxRateSourceUnavailable' | 'FxRateSourceMismatch', string>;
 
 export type MessageCode = keyof typeof MESSAGES;

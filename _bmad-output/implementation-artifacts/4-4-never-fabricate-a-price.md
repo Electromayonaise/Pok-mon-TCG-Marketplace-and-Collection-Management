@@ -2,7 +2,7 @@
 title: 'Story 4.4: Never fabricate a price'
 type: 'feature'
 created: '2026-10-27'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: 'd552afa'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -96,12 +96,12 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] domain -- `changePercent` with the four ADD-§2.2 vectors, `parseTrm`, `bogotaDate`; unit tests
-- [ ] `contracts.md` §13 -- the templates and the new stored-only codes; regenerate
-- [ ] ports + infra + service -- the three operations; unit tests for the mismatch and the 23P01 identical row
-- [ ] `composition.ts` + test -- the two procedures
-- [ ] `epics.source.mjs` + regenerate -- the NFR-CAT-1 ids; `cat1_latency.test.ts`; `nfr-evidence.md` refreshed
-- [ ] `deferred-work.md` -- the TRM adapter and the jobs route
+- [x] domain -- `changePercent` with the four ADD-§2.2 vectors, `parseTrm`, `bogotaDate`; unit tests
+- [x] `contracts.md` §13 -- the templates and the new stored-only codes; regenerate
+- [x] ports + infra + service -- the three operations; unit tests for the mismatch and the 23P01 identical row
+- [x] `composition.ts` + test -- the two procedures
+- [x] `epics.source.mjs` + regenerate -- the NFR-CAT-1 ids; `cat1_latency.test.ts`; `nfr-evidence.md` refreshed
+- [x] `deferred-work.md` -- the TRM adapter and the jobs route
 
 **Acceptance Criteria:**
 - Given the 7 bound tests and `[NFR-CAT-1.provenance]`, when they run, then they pass.
@@ -114,3 +114,26 @@ context:
 - `npm run test:unit` -- expected: all pass
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/cat_contracts.test.ts` -- expected: the 21 tests of 4.1–4.4 pass
 - `npx vitest run --project solu2-nfr _bmad-output/test-artifacts/nfr/cat1_latency.test.ts -t provenance` -- expected: p95 ≤ 300 ms
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 4 at its close (decision #22).
+- **Provenance:**
+  - two calls of `PgCatRepository.latestObservations`, one at `now` and one at `now − period`: `DISTINCT ON ("catalogEntryId")` over `reference_price_as_of`;
+  - BIGINT and DATE columns are read as text and converted once, so a returned price is the stored row unchanged (I1). No type parser is configured on the pool;
+  - P2 cites `{missingIds, missingCount}`; duplicate ids are refused before any read.
+- **Trend:** `changePercent` is the ADD-§2.2 BigInt formula. A missing baseline and a zero baseline both give `null` with `TrendNoBaseline`.
+- **TRM fetch:**
+  - the covered-day check and the insert are two transactions, and the source call runs between them, outside any transaction;
+  - the insert's 23P01 rolls back to a savepoint and re-reads the overlapping row. An identical range and value give `alreadyCovered`; anything else gives `mismatchKept` plus a `catalog.fxRate.sourceMismatch` audit row;
+  - audit rows are `actorKind: 'system'`, because `FetchTrmRequest` carries no actor. The admin retry is visible in `data.trigger`.
+- **§13:** templates for the 4 catalog DecisionCodes that had none, and 7 new stored-only codes (`ReferencePriceFresh`, `ReferencePriceMissing`, `TrendComputed`, `FxRateCovered`, `FxRateStored`, `FxRateAlreadyCovered`, `FxRateSourceUnavailable`). No template has a placeholder.
+- **NFR-CAT-1:**
+  - `cat1_latency.test.ts` holds both halves. `[NFR-CAT-1.provenance]` measured p50 4.9 ms and p95 11.9 ms (threshold 300) on the local Postgres 16, 2026-10-27;
+  - `[NFR-CAT-1.browse]` stays red for the right reason until Story 4.5;
+  - the binding is in `epics.source.mjs`, and `epics.md` is regenerated (375 tests).
+- `nfr-evidence.md` was refreshed as a whole (the Epic 3 deferral), with a new "Green — ATDD" status.
+- Unit tests:
+  - `cat-domain.test.ts`: the ADD-§2.2 vectors and the rounding on both signs, the 36 h boundary, the `parseTrm` vectors and refusals;
+  - `cat.v2.test.ts`: input order, no observation, a zero baseline, duplicate ids, every missing id cited, a stored rate, a mismatched weekend range, a racing identical row, a throwing source, and a date with no rate at all;
+  - two HTTP cases: the public provenance and the admin retry.

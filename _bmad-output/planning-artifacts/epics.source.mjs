@@ -222,14 +222,14 @@ export default {
         {
           title: 'Never fabricate a price', kind: 'Failure-state',
           as: 'As Camila, I want every reference price to be a stored observation with its age, so that I never see an invented price (NFR-CAT-3).',
-          ops: ['CAT-3', 'S-FR-CAT-8.fetch', 'S-FR-CAT-8.rate'], tests: ['CAT-3.Q1', 'CAT-3.Q4', 'CAT-3.Q5', 'CAT-3.P2', 'CAT-3.I1', 'S-FR-CAT-8.h', 'S-FR-CAT-8.f'], depends: ['4.2'],
+          ops: ['CAT-3', 'S-FR-CAT-8.fetch', 'S-FR-CAT-8.rate'], tests: ['CAT-3.Q1', 'CAT-3.Q4', 'CAT-3.Q5', 'CAT-3.P2', 'CAT-3.I1', 'S-FR-CAT-8.h', 'S-FR-CAT-8.f', 'NFR-CAT-1.provenance'], depends: ['4.2'],
           happy: ['a card has a 30-day baseline of 40,000 and a latest observation of 45,000.', 'Camila reads its provenance.', '+12.50 % with the source and observation time; two sources at one instant give one stored row chosen by source order, never an average.'],
           failure: ['the latest observation is older than 36 h, there is no baseline, the id is unknown, or the TRM source is down.', 'the read or the daily TRM fetch runs.', 'the price is labelled stale (`ReferencePriceStale`), the trend is null (`TrendNoBaseline`), `CatalogEntryNotFound` (404), or no FX row is written and today\'s rate is yesterday\'s, stale (`FxRateCarriedForward`).'],
         },
         {
           title: 'Browse the catalog and answer neighbours\' catalog queries', kind: 'Supporting',
           as: 'As Camila browsing, and as the modules that read the catalog, I want stable, bounded catalog queries, so that discovery, listings and collections agree on one catalog.',
-          ops: ['S-FR-CAT-1', 'P-CAT.entry', 'P-CAT.entries', 'P-CAT.match', 'P-CAT.refs', 'P-CAT.asOf', 'P-CAT.history', 'P-CAT.sets'], tests: ['S-FR-CAT-1.h', 'S-FR-CAT-1.f', 'P-CAT.entry.h', 'P-CAT.entries.h', 'P-CAT.match.h', 'P-CAT.refs.h', 'P-CAT.asOf.h', 'P-CAT.history.h', 'P-CAT.sets.h'], depends: ['4.2'],
+          ops: ['S-FR-CAT-1', 'P-CAT.entry', 'P-CAT.entries', 'P-CAT.match', 'P-CAT.refs', 'P-CAT.asOf', 'P-CAT.history', 'P-CAT.sets'], tests: ['S-FR-CAT-1.h', 'S-FR-CAT-1.f', 'P-CAT.entry.h', 'P-CAT.entries.h', 'P-CAT.match.h', 'P-CAT.refs.h', 'P-CAT.asOf.h', 'P-CAT.history.h', 'P-CAT.sets.h', 'NFR-CAT-1.browse'], depends: ['4.2'],
           happy: ['the catalog holds Pikachu cards in two sets.', 'Camila filters by pokemon.', 'only matches, in `(setId, numberSort, id)` order; neighbours read entries, refs, prices as of an instant, history and set summaries through the ports.'],
           failure: ['a filter names an unknown set, a match covers 20,001 entries, or an id is unknown.', 'browse or a neighbour port runs.', 'an empty page with total 0, `tooBroad`, and the unknown id listed in `missing`, never thrown.'],
         },

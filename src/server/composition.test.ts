@@ -1,6 +1,7 @@
 // The production composition over HTTP (decision log Impl-1 #24): a real Better Auth session on
 // the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2, VER-3, the supporting
-// VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs) and S-SYS.replay,
+// VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
+// (CAT-3, S-FR-CAT-8.fetch) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -8,8 +9,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '../../generated/prisma/client.js';
 import { VirtualClock } from '../../test-support/clock.js';
 import { useTestDatabase } from '../../test-support/db.js';
-import { FixtureFeedSource, InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
-import { admin, at, business, DAY, feedRun, id, ins, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
+import { FixtureFeedSource, FixtureFxRateSource, InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
+import { admin, at, business, catalogEntry, DAY, feedRun, HOUR, id, ins, observation, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
 import { createAuth } from './auth.js';
 import { compose } from './composition.js';
 import { betterAuthSessions } from './sessions.js';
@@ -28,7 +29,8 @@ let sessions = 0;
 beforeAll(() => {
   const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000' });
   const ok = async () => undefined;
-  app = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { commission: ok, listings: ok, collections: ok }, storage, scanner: new SimulatedScanner(), feed });
+  app = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { commission: ok, listings: ok, collections: ok }, storage, scanner: new SimulatedScanner(), feed,
+    fx: new FixtureFxRateSource([{ valor: '4130.00', validFrom: '2026-10-01', validTo: '2026-10-01' }]) });
 });
 
 /** A live `"Session"` row and the cookie Better Auth signs for it (HMAC-SHA256 of the token). */
@@ -335,6 +337,28 @@ describe('the catalog feed over HTTP (CAT-1, CAT-2.ingress, CAT-1.runs; Story 4.
     await feedRun(db, id('run1'), { status: 'Running', startedAt: at(-DAY / 2) });
     const { status, json } = await post('catalog.feed.start', {}, await signIn(id('admin')));
     expect([status, json.error?.code]).toEqual([409, 'FeedRunInProgress']);
+  });
+});
+
+describe('the reference prices over HTTP (CAT-3, S-FR-CAT-8.fetch; Story 4.4)', () => {
+  it('anyone reads the provenance without a session; an unknown id is CatalogEntryNotFound 404', async () => {
+    await catalogEntry(db, id('char'));
+    await feedRun(db, id('run1'));
+    await observation(db, { id: id('o1'), catalogEntryId: id('char'), cop: 45_000, observedAt: at(-HOUR), runId: id('run1') });
+    const read = await get('catalog.provenance', { catalogEntryIds: [id('char')], period: 30 }, '');
+    expect([read.status, read.json.result?.data]).toEqual([200, { items: [expect.objectContaining({ freshness: 'fresh', lastTransactionReference: expect.objectContaining({ cop: 45_000 }) })] }]);
+    const missing = await get('catalog.provenance', { catalogEntryIds: [id('ghost')], period: 30 }, '');
+    expect([missing.status, missing.json.error?.code]).toEqual([404, 'CatalogEntryNotFound']);
+  });
+
+  it('an admin retries the TRM fetch and today\'s rate is stored once; a non-admin is AdminOnly 403', async () => {
+    await admin(db);
+    await user(db, { id: id('camila') });
+    expect((await post('catalog.fx.retry', {}, await signIn(id('camila')))).status).toBe(403);
+    const cookie = await signIn(id('admin'));
+    expect((await post('catalog.fx.retry', {}, cookie)).json.result?.data).toMatchObject({ outcome: 'stored' });
+    expect((await post('catalog.fx.retry', {}, cookie)).json.result?.data).toMatchObject({ outcome: 'alreadyCovered' });
+    expect(await rows(db, 'FxRate')).toHaveLength(1);
   });
 });
 
