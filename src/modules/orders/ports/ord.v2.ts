@@ -42,9 +42,100 @@ export interface OrdV2Deps {
 }
 // </gen-solu2-api>
 
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import type { ListingSnapshotDTO, ReservationRefDTO } from '../../listings/index.js';
+import type { AdminFactsReader } from '../../identity/index.js';
+import type { OrderPaymentInstructionsDTO, SupportContactDTO } from '../dto/ord.v2.dto.js';
+import type { OrderFacts } from '../domain/ord.js';
+
+/** An order as a command or a read sees it; the comprobante key never leaves the service (AD-17). */
+export interface OrderRow extends OrderFacts {
+  id: CuidId;
+  buyerId: CuidId;
+  businessId: CuidId;
+  listingId: CuidId;
+  listingSnapshot: ListingSnapshotDTO;
+  qty: number;
+  unitPriceCop: number;
+  totalCop: number;
+  reservationRef: ReservationRefDTO;
+  comprobanteUploadedAt: Date | null;
+  createdAt: Date;
+}
+
+/** ORD-1 Q2.5: the row a purchase inserts. */
+export interface NewOrderRow {
+  id: CuidId;
+  buyerId: CuidId;
+  businessId: CuidId;
+  listingId: CuidId;
+  listingSnapshot: ListingSnapshotDTO;
+  qty: number;
+  unitPriceCop: number;
+  totalCop: number;
+  paymentInstructions: OrderPaymentInstructionsDTO;
+  reservationRef: ReservationRefDTO;
+  expiresAt: IsoInstant;
+  now: IsoInstant;
+}
+
+/** S-FR-ORD-10.lookup: the ids an admin may search by; at least one is given. */
+export interface OrderLookupQuery { orderId?: CuidId; buyerId?: CuidId; businessId?: CuidId }
+
 /**
- * Repository port of ORD (review A-4): the only way its application service reads or writes
- * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * The repository the ORD service receives (R-14): its own tables, and identity's admin flag, which
+ * identity's own guard reads in the order's transaction (AD-16; decision log Impl-1 #32).
  */
-export interface OrdRepository {}
+export type OrdRepository = OrdTablesRepository & AdminFactsReader;
+
+/**
+ * Repository port of ORD's own tables (review A-4): the only way its application service reads or
+ * writes them (AD-8). Every method takes the transaction it runs in; `infra/pg.ts` implements them.
+ */
+export interface OrdTablesRepository {
+  /** AD-ORD-1 rule 2.1: `pg_advisory_xact_lock(orders:buyer:<buyerId>)`. */
+  lockBuyer(tx: Tx, buyerId: CuidId): Promise<void>;
+  /** AD-ORD-1 rule 2.2: the buyer's open orders by the derived predicate, in id order. */
+  openOrders(tx: Tx, buyerId: CuidId, now: IsoInstant): Promise<{ id: CuidId; businessId: CuidId }[]>;
+  /** ORD-1 Q2.5. */
+  insertOrder(tx: Tx, row: NewOrderRow): Promise<void>;
+  /**
+   * AD-ORD-2 rule 7: unpaid, unterminated orders with `expiresAt <= now`, oldest expiry first; with
+   * `unitIds`, only those whose reservation holds one of them.
+   */
+  dueOrderIds(tx: Tx, unitIds: CuidId[] | null, now: IsoInstant, limit: number): Promise<CuidId[]>;
+  /** AD-ORD-2 rule 6: the conditional expiry; the reservation to release, or null when 0 rows changed. */
+  expireOrder(tx: Tx, orderId: CuidId, now: IsoInstant): Promise<ReservationRefDTO | null>;
+  /** AD-ORD-3 rule 1: the order through the one visibility predicate, or null. */
+  readVisibleOrder(tx: Tx, orderId: CuidId, actorId: CuidId): Promise<OrderRow | null>;
+  /** The order's comprobante key, for the service's storage calls only (AD-17). */
+  comprobanteKeyOf(tx: Tx, orderId: CuidId): Promise<string | null>;
+  /**
+   * AD-ORD-3 rule 2.3: sets the comprobante while the order is the buyer's, unpaid and active;
+   * the previous key, or `undefined` when 0 rows changed.
+   */
+  attachComprobante(tx: Tx, orderId: CuidId, buyerId: CuidId, key: string, now: IsoInstant): Promise<{ previousKey: string | null } | undefined>;
+  /** ORD-2 Q1 (AD-ORD-2 rule 1): the conditional "paid"; false when 0 rows changed. */
+  setBuyerPaid(tx: Tx, orderId: CuidId, buyerId: CuidId, now: IsoInstant): Promise<boolean>;
+  /** ORD-3 Q1 (AD-ORD-2 rule 2): the conditional business fact; the order as it now stands, or null when 0 rows changed. */
+  setSellerReceived(tx: Tx, orderId: CuidId, businessId: CuidId, now: IsoInstant): Promise<OrderRow | null>;
+  /** ORD-4 Q1 (AD-ORD-2 rule 2): the conditional item fact; the order as it now stands, or null when 0 rows changed. */
+  setItemReceived(tx: Tx, orderId: CuidId, buyerId: CuidId, now: IsoInstant): Promise<OrderRow | null>;
+  /** S-FR-ORD-7 (AD-ORD-2 rule 6): the buyer's conditional cancel while active; the reservation to release, or null. */
+  cancelOrder(tx: Tx, orderId: CuidId, buyerId: CuidId, now: IsoInstant): Promise<ReservationRefDTO | null>;
+  /**
+   * S-FR-ORD-6.list: the actor's purchases, or the sales the visibility predicate shows them, newest
+   * first by `("createdAt", id)`, after the keyset when given.
+   */
+  listOrders(tx: Tx, actorId: CuidId, side: 'purchases' | 'sales', after: { createdAt: IsoInstant; id: CuidId } | null, limit: number): Promise<OrderRow[]>;
+  /** S-FR-ORD-9 (AD-ORD-3 rule 4): whether the pair has a closed order, and the facts of its newest order. */
+  closedPurchase(tx: Tx, buyerId: CuidId, businessId: CuidId): Promise<{ closed: boolean; latest: OrderFacts | null }>;
+  /** S-FR-ORD-10.lookup: the orders matching every given id, newest first; no write path to `"Order"`. */
+  lookupOrders(tx: Tx, query: OrderLookupQuery, limit: number): Promise<OrderRow[]>;
+  /** S-FR-ORD-10.lookup (AD-ORD-3 rule 3): the append-only lookup row. */
+  insertLookupLog(tx: Tx, log: { id: CuidId; adminId: CuidId; query: OrderLookupQuery; resultOrderIds: CuidId[]; now: IsoInstant }): Promise<void>;
+  /** S-FR-ORD-10.get: the singleton, or null before any admin set it; with `forUpdate`, under the `orders:supportContact` lock for the change. */
+  readSupportContact(tx: Tx, forUpdate: boolean): Promise<SupportContactDTO | null>;
+  /** S-FR-ORD-10.set: upserts the singleton and appends the change row. */
+  writeSupportContact(tx: Tx, change: { id: CuidId; adminId: CuidId; before: SupportContactDTO | null; after: SupportContactDTO; now: IsoInstant }): Promise<void>;
+}

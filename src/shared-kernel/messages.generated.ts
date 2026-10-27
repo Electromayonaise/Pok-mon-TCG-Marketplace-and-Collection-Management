@@ -97,6 +97,20 @@ export const MESSAGES = {
   OrderNotCancellable: 'El pedido {orderId} ya está {status}; no se puede cancelar.',
   OrderNoLongerActive: 'El pedido {orderId} {status} el {at}.',
   TooManyOpenOrders: 'Paga o cancela primero: {openOrderIds}.',
+  OrderCreated: 'Tu pedido quedó creado. Transfiere el total a la tienda y sube el comprobante antes de que venza en 48 horas.',
+  ComprobanteAttached: 'Guardamos tu comprobante. Cuando hayas pagado, confirma el pago del pedido.',
+  ComprobanteUrlIssued: 'El enlace al comprobante vence en 10 minutos.',
+  ComprobanteNotUploaded: 'Este pedido aún no tiene comprobante.',
+  OrderPaidConfirmed: 'Confirmaste el pago. La tienda ya puede ver el pedido y confirmar que recibió el dinero.',
+  OrderPaymentReceived: 'Confirmaste que recibiste el pago del pedido.',
+  OrderItemReceived: 'Confirmaste que recibiste el producto; el pedido quedó cerrado.',
+  OrderAwaitingPayment: 'El pedido espera el pago: transfiere el total, sube el comprobante y confirma el pago antes de que venza.',
+  OrderPaid: 'El comprador confirmó el pago; falta que la tienda confirme que lo recibió.',
+  OrderAwaitingBusiness: 'La tienda lleva 7 días sin confirmar el pago; escribe al contacto de soporte de la plataforma.',
+  OrderPaymentConfirmed: 'La tienda confirmó que recibió el pago; falta que el comprador confirme que recibió el producto.',
+  OrderCompleted: 'El comprador confirmó que recibió el producto; el pedido está cerrado.',
+  OrderCancelled: 'El comprador canceló el pedido antes de pagarlo.',
+  OrderExpired: 'El pedido venció sin que se confirmara el pago.',
   TopUpAmountInvalid: 'La recarga debe estar entre $20.000 y $10.000.000 COP.',
   TopUpNotPending: 'Esta recarga ya fue {status} por {decidedBy} el {decidedAt}.',
   TopUpNotVisibleToCaller: 'No encontramos esa recarga.',
@@ -132,6 +146,6 @@ export const MESSAGES = {
   DuplicateReview: 'Ya reseñaste a este vendedor; puedes editar tu reseña.',
   ReviewNotFound: 'No encontramos esa reseña.',
   Unexpected: 'Algo falló de nuestro lado; no se aplicó ningún cambio.',
-} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected' | 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred' | 'FeedRunStarted' | 'ReferencePriceFresh' | 'ReferencePriceStale' | 'ReferencePriceMissing' | 'TrendComputed' | 'TrendNoBaseline' | 'FxRateCovered' | 'FxRateCarriedForward' | 'FxRateStored' | 'FxRateAlreadyCovered' | 'FxRateSourceUnavailable' | 'FxRateSourceMismatch' | 'ListingActive' | 'ListingPausedBalanceExhausted' | 'ListingHidden' | 'ListingWithdrawn' | 'ListingDeactivated' | 'ListingUpdated' | 'ListingRestocked' | 'ListingOpenToTrade' | 'ListingRanked' | 'SearchRanked' | 'ListingLocationUnusable', string>;
+} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected' | 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred' | 'FeedRunStarted' | 'ReferencePriceFresh' | 'ReferencePriceStale' | 'ReferencePriceMissing' | 'TrendComputed' | 'TrendNoBaseline' | 'FxRateCovered' | 'FxRateCarriedForward' | 'FxRateStored' | 'FxRateAlreadyCovered' | 'FxRateSourceUnavailable' | 'FxRateSourceMismatch' | 'ListingActive' | 'ListingPausedBalanceExhausted' | 'ListingHidden' | 'ListingWithdrawn' | 'ListingDeactivated' | 'ListingUpdated' | 'ListingRestocked' | 'ListingOpenToTrade' | 'ListingRanked' | 'SearchRanked' | 'ListingLocationUnusable' | 'OrderCreated' | 'ComprobanteAttached' | 'ComprobanteUrlIssued' | 'ComprobanteNotUploaded' | 'OrderPaidConfirmed' | 'OrderPaymentReceived' | 'OrderItemReceived' | 'OrderAwaitingPayment' | 'OrderPaid' | 'OrderAwaitingBusiness' | 'OrderPaymentConfirmed' | 'OrderCompleted' | 'OrderCancelled' | 'OrderExpired', string>;
 
 export type MessageCode = keyof typeof MESSAGES;

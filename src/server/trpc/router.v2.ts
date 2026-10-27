@@ -21,9 +21,11 @@ export interface ProcedureShape {
 
 /**
  * A wired resolver: the parsed wire input and the session actor. The actor is the builder's,
- * never the input's (AD-SYS-8 rule 2); a `public` procedure gets none.
+ * never the input's (AD-SYS-8 rule 2); a `public` procedure gets none. A procedure with no input
+ * schema (`orders.supportContact.get`) gets `undefined`.
  */
-export type Resolvers = { [P in keyof typeof INPUTS]?: (input: z.infer<(typeof INPUTS)[P]>, actorId: CuidId) => Promise<unknown> };
+export type Resolvers = { [P in keyof typeof INPUTS]?: (input: z.infer<(typeof INPUTS)[P]>, actorId: CuidId) => Promise<unknown> }
+  & { [P in Exclude<(typeof PROCEDURES)[number]['procedure'], keyof typeof INPUTS>]?: (input: undefined, actorId: CuidId) => Promise<unknown> };
 
 const BUILDERS = { public: publicProcedure, authed: authedProcedure, canBuy: canBuyProcedure, admin: adminProcedure };
 const inputs: Partial<Record<string, z.ZodObject>> = INPUTS;

@@ -43,7 +43,7 @@ Concurrency proofs are a separate measure: 50 real connections × 100 repetition
 - **Reliability:** NFR-SYS-6 (`[NFR-SYS-6.sweep]`).
 - **Security:** NFR-SYS-2 (`[NFR-SYS-8.canary]`, `[SYS-8.R4]`).
 
-All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NFR-SYS-6 and NFR-SYS-2 are now green with Epic 1; NFR-ORD-2 stays red until Story 7.1.
+All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NFR-SYS-6 and NFR-SYS-2 turned green with Epic 1, and NFR-ORD-2 with Story 7.1.
 
 **Refresh.** The table was refreshed as a whole on 2026-10-27 (Epic 4; the Epic 3 review deferral): every row whose named tests all belong to done stories moved off "Red". Each later epic refreshes the rows its stories turn green.
 
@@ -59,7 +59,7 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 | NFR-SYS-6 | Reliability | 0 lost events; each subscriber effect exactly once after a crash between commit and dispatch | 500 undispatched events + 20 half-attempted deliveries drained by the sweeper alone | `[NFR-SYS-6.sweep]`, `[SYS-2.R6]`, `[SYS-2.R4]` | Green — benchmark |
 | NFR-SYS-7 | Security | Every non-public procedure derives the actor from the session; 0 client-claimed roles | Router introspection against the registry; static OpenAPI scan | `[SYS-8.R2]`, `[SYS-8.R2.static]` | Green — ATDD |
 | NFR-SYS-8 | Security (audit) | 100 % of admin actions write an append-only record | Audit-row assertions in each admin contract; revoked UPDATE/DELETE grants | `[IDN-3.Q1]`, `[REP-2.Q1]`, `[SYS-R2]`, `[SYS-R2.grants]` | Green — ATDD (identity, VER, the grants); Red — ATDD (`[REP-2.Q1]`) |
-| NFR-SYS-9 | Performance | Commands p95 ≤ 800 ms; interactive reads p95 ≤ 1,000 ms at N = 1 | PRD §7 protocol, one benchmark per command family | `[NFR-ORD-2.p95]` (the first); the rest per story DoD | Red — benchmark |
+| NFR-SYS-9 | Performance | Commands p95 ≤ 800 ms; interactive reads p95 ≤ 1,000 ms at N = 1 | PRD §7 protocol, one benchmark per command family | `[NFR-ORD-2.p95]` (the first), then the module benchmarks under *Measured*; the rest per story DoD | Green — benchmark |
 | NFR-SYS-10 | Reliability | Concurrency proofs on Postgres, ≥ 50 connections, 100 repetitions | Test pool of 60 connections; `race()` barrier; real `FOR UPDATE` | `[INV-1.I1]`, `[TRD-1.MEC]`, `[REP-3.MEC]` | Green — ATDD (`[INV-1.I1]`); Red — ATDD (`[TRD-1.MEC]`, `[REP-3.MEC]`) |
 | NFR-SYS-11 | Accessibility | WCAG 2.2 AA on R and D surfaces | axe-core + a keyboard walk on the built pages | — | Deferred — launch |
 | NFR-SYS-12 | Compliance | No account without a recorded consent and its version | `User.signupConsentAt` / `signupConsentVersion` NOT NULL; the seed proves every account carries both | `[SEED.profile]` | Green — gate |
@@ -88,10 +88,10 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 | NFR-DSC-1 | Performance | `view=listings`, 15 km, p95 ≤ 1,000 ms (§3 seed), ≤ 1,500 ms at 50,000 listings | PRD §7 protocol on the §3 seed, and on the §3 seed grown to 50,000 listings (`view=listings`; the DTO has no `view=entries`) | `[NFR-DSC-1.seed]`, `[NFR-DSC-1.scale]` | Green — benchmark |
 | NFR-DSC-2 | Correctness | Distance error ≤ 1 m vs haversine | SQL vs TypeScript reference | `[DSC-1.I4]` | Green — ATDD |
 | NFR-DSC-3 | Determinism | 10 identical runs, 0 ordering differences | Repeated and concurrent equal searches | `[DSC-1.R1]` | Green — ATDD |
-| NFR-ORD-1 | Reliability (MEC) | Out-of-order and duplicate confirmations safe, 100 repetitions | Confirmation sequences and races | `[ORD-3.MEC]`, `[ORD-4.MEC]`, `[ORD-2.MEC]` | Red — ATDD |
-| NFR-ORD-2 | Performance | `createOrder` incl. reservation p95 ≤ 800 ms; comprobante upload ≤ 10 s at 10 Mbps | PRD §7 protocol on composed services over the §3 seed | `[NFR-ORD-2.p95]` | Red — benchmark |
-| NFR-ORD-3 | Security / scope | 0 funds-held states or gateway calls | Schema check; network guard | `[ORD-1.I4]`, `[SYS-6.R4]` | Green — gate (`[SYS-6.R4]`); Red — ATDD (`[ORD-1.I4]`) |
-| NFR-ORD-4 | Usability | A paid order unconfirmed for 7 days shows the waiting state and the support contact | UI-state gate (page states backed by the order view); support-contact read | `[S-FR-ORD-10.h]`; `gate:ui:solu2` | Red — ATDD |
+| NFR-ORD-1 | Reliability (MEC) | Out-of-order and duplicate confirmations safe, 100 repetitions | Confirmation sequences and races | `[ORD-3.MEC]`, `[ORD-4.MEC]`, `[ORD-2.MEC]` | Green — ATDD |
+| NFR-ORD-2 | Performance | `createOrder` incl. reservation p95 ≤ 800 ms; comprobante upload ≤ 10 s at 10 Mbps | PRD §7 protocol on composed services over the §3 seed | `[NFR-ORD-2.p95]` | Green — benchmark (creation); Deferred — launch (the upload's transfer time needs the production storage) |
+| NFR-ORD-3 | Security / scope | 0 funds-held states or gateway calls | Schema check; network guard | `[ORD-1.I4]`, `[SYS-6.R4]` | Green — gate (`[SYS-6.R4]`); Green — ATDD (`[ORD-1.I4]`) |
+| NFR-ORD-4 | Usability | A paid order unconfirmed for 7 days shows the waiting state and the support contact | UI-state gate (page states backed by the order view); support-contact read | `[S-FR-ORD-10.h]`; `gate:ui:solu2` | Green — ATDD (the support contact and the 7-day notice, `OrderAwaitingBusiness`); the page copy belongs to UI 6.2 |
 | NFR-COM-1 | Reliability (MEC) | 100 repetitions: each order charged once, Exhausted published once | Two orders at one instant plus a duplicate event | `[COM-1.MEC]`, `[COM-1.MEC2]` | Red — ATDD |
 | NFR-COM-2 | Correctness | Reconciliation difference 0 pesos over 10,000 operations, 20 % duplicates | Reconcile over the ledger; seq-gap detection | `[COM-3.Q1]`, `[COM-3.I1]` | Red — ATDD |
 | NFR-COM-3 | Performance | Deduction handler p95 ≤ 200 ms; top-up confirmation ≤ 800 ms | PRD §7 protocol | — | Planned — story DoD |
@@ -117,13 +117,12 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 
 | Status | NFRs |
 |---|---|
-| Green — benchmark | 6 (NFR-SYS-2, NFR-SYS-6, NFR-VER-3, NFR-CAT-1, NFR-INV-4, NFR-DSC-1) |
-| Green — ATDD (wholly or in part) | 21 (NFR-SYS-1, -7, -8, -10, -13, -14, NFR-IDN-2, NFR-VER-1, -2, -4, NFR-CAT-2, -3, -4, NFR-INV-1, -2, -3, NFR-DSC-2, -3, NFR-TRD-3; NFR-SYS-8, -10, -14, NFR-INV-2 and NFR-TRD-3 in part) |
+| Green — benchmark (wholly or in part) | 8 (NFR-SYS-2, NFR-SYS-6, NFR-SYS-9, NFR-VER-3, NFR-CAT-1, NFR-INV-4, NFR-DSC-1, NFR-ORD-2) |
+| Green — ATDD (wholly or in part) | 24 (NFR-SYS-1, -7, -8, -10, -13, -14, NFR-IDN-2, NFR-VER-1, -2, -4, NFR-CAT-2, -3, -4, NFR-INV-1, -2, -3, NFR-DSC-2, -3, NFR-ORD-1, -3, -4, NFR-TRD-3; NFR-SYS-8, -10, -14, NFR-INV-2 and NFR-TRD-3 in part) |
 | Green — gate (wholly or in part) | 8 (NFR-SYS-3, NFR-SYS-4, NFR-SYS-12, NFR-IDN-3, NFR-MSG-3, NFR-COL-3, NFR-REP-3, NFR-ORD-3) |
-| Red — benchmark | 2 (NFR-SYS-9, NFR-ORD-2) |
-| Red — ATDD (wholly or in part) | 22 |
+| Red — ATDD (wholly or in part) | 19 |
 | Planned — story DoD (wholly or in part) | 8: the latency NFRs without a benchmark yet. Each gets one in its story, with the shared harness |
-| Deferred — launch | 2: NFR-SYS-11 (WCAG audit), and NFR-VER-4's transfer time on a shaped 10 Mbps link |
+| Deferred — launch | 3: NFR-SYS-11 (WCAG audit), and the transfer times of NFR-VER-4 and NFR-ORD-2 on a shaped 10 Mbps link |
 
 Rows marked "in part" are counted under each of their statuses, so the summary adds up to more than 56. No NFR is left without a named artifact or an owner phase.
 
@@ -142,3 +141,4 @@ Each benchmark writes its figures (milliseconds, n = 500) to `.vitest-results/`.
 | NFR-INV-4 | `[NFR-INV-4.create]` | `nfr-inv-4-create.json` | 2.1 | 4.3 | p95 ≤ 800 | 2026-10-27, Story 5.1, individual sellers and funded businesses on the §3 seed, half new units and half links, local Postgres 16 |
 | NFR-DSC-1 | `[NFR-DSC-1.seed]` | `nfr-dsc-1-seed.json` | 12.1 | 19.0 | p95 ≤ 1,000 | 2026-10-27, Epic 6 review, 15 km around Bogotá, pages 1–3, the §3 seed, local Postgres 16 |
 | NFR-DSC-1 | `[NFR-DSC-1.scale]` | `nfr-dsc-1-scale.json` | 57.7 | 97.2 | p95 ≤ 1,500 | 2026-10-27, Epic 6 review, the same searches on the §3 seed grown to 50,000 listings around the four cities, local Postgres 16 |
+| NFR-ORD-2 | `[NFR-ORD-2.p95]` | `nfr-ord-2.json` | 6.5 | 11.0 | p95 ≤ 800 | 2026-10-27, Epic 7 review, `createOrder` with the real listings and identity on the §3 seed, buyers with no open seed order, one order per buyer and business (decision log Impl-1 #32), local Postgres 16 |

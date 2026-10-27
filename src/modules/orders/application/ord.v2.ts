@@ -38,69 +38,545 @@ export interface OrdV2UseCases {
 }
 // </gen-solu2-api>
 
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import type { Citation, Decision } from '../../../shared-kernel/decision.js';
+import { ambientTx } from '../../../shared-kernel/db.js';
+import { DomainError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
+import type { OrderClosedLineV1 } from '../../../shared-kernel/events.js';
+import type { Tx } from '../../../shared-kernel/ports.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import {
+  closedLines, comprobanteUploadPrefix, decodeOrderCursor, isComprobanteUploadKey, deriveStatus, encodeOrderCursor, expiryUnmaterialized, itemReceivedLoserCode, MAX_COMPROBANTE_BYTES,
+  openOrderOverflow, orderView, paidLoserCode, paymentReceivedLoserCode, sniffComprobanteType, UNPAID_ORDER_TTL_MS, type OrderStatus,
+} from '../domain/ord.js';
+import type { OrderViewDTO } from '../dto/ord.v2.dto.js';
+import type { OrderLookupQuery, OrderRow } from '../ports/ord.v2.js';
+import { requireAdmin } from '../../identity/index.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('orders');
+
+/** AD-ORD-2 rule 7: the `orders.create` pre-step expires at most 20 orders of the listing's units. */
+const PRE_STEP_LIMIT = 20;
+/** AD-14: a signed comprobante URL lives exactly 600 s. */
+const SIGNED_URL_TTL = 600;
+/** S-FR-ORD-8: the tick and the crons expire batches of 200 for up to 50 s. */
+const JOB_BATCH = 200;
+const JOB_BUDGET_MS = 50_000;
+/** S-FR-ORD-6.list: the page size. */
+const ORDERS_PAGE = 25;
+/** S-FR-ORD-10.lookup: at most 50 orders per lookup. */
+const LOOKUP_LIMIT = 50;
+/** The `"SupportContactSetting"` CHECKs, repeated for in-process callers. */
+const SUPPORT_EMAIL = /^[^@\s]+@[^@\s]+$/;
+const E164 = /^\+[1-9][0-9]{7,14}$/;
+
+/** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
+function explained(code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant, outcome: Decision['outcome'] = 'allowed'): Decision {
+  return { outcome, reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
+}
+
+/** Every refusal a 0-row fact update can map to (AD-ORD-2 rule 3). */
+type LoserCode = NonNullable<ReturnType<typeof paidLoserCode> | ReturnType<typeof paymentReceivedLoserCode> | ReturnType<typeof itemReceivedLoserCode>>;
+
+/** The three facts (AD-2): the rule each cites, its stored instant, and the mapping of its 0-row update. */
+type Fact = 'buyerPaid' | 'sellerReceived' | 'itemReceived';
+const FACTS: Record<Fact, { rule: string; at: (row: OrderRow) => Date | null; loser: (row: OrderRow, actorId: CuidId, now: Date) => LoserCode | null }> = {
+  buyerPaid: { rule: 'FR-ORD-3', at: (r) => r.buyerPaidConfirmedAt, loser: (r, actor, now) => paidLoserCode(r, r.buyerId === actor, now) },
+  sellerReceived: { rule: 'FR-ORD-4', at: (r) => r.sellerReceivedConfirmedAt, loser: (r, actor, now) => paymentReceivedLoserCode(r, r.businessId === actor, now) },
+  itemReceived: { rule: 'FR-ORD-5', at: (r) => r.buyerItemReceivedConfirmedAt, loser: (r, actor, now) => itemReceivedLoserCode(r, r.buyerId === actor, now) },
+};
+
+/** The instant a terminated order ended, for `OrderNoLongerActive` (AD-ORD-2 rule 3). */
+function endedAt(row: OrderRow): Date {
+  return row.cancelledAt ?? row.expiredAt ?? row.expiresAt;
+}
+
+/** ORD's Solu-2 use cases (contracts.md §6, §15). */
 export class OrdServiceV2 implements OrdV2UseCases {
   constructor(protected readonly deps: OrdV2Deps) {}
 
-  async createOrder(_input: CreateOrderRequest): Promise<CreateOrderResponse> {
-    throw new NotImplementedError('orders.createOrder');
+  /**
+   * AD-SYS-4 rule 9: reads on the caller's open transaction when there is one, otherwise in one
+   * read-only transaction of its own.
+   */
+  private async reading<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+    const tx = ambientTx();
+    return tx ? fn(tx) : this.deps.transactions.run(fn, { readOnly: true });
   }
 
-  async confirmPaid(_input: ConfirmPaidRequest): Promise<ConfirmPaidResponse> {
-    throw new NotImplementedError('orders.confirmPaid');
+  /** AD-ORD-3 rule 1: a miss cites nothing about the order, so a foreign id and an unknown id give one body (S-2). */
+  private notVisible(): never {
+    return raise('OrderNotVisibleToCaller', [{ rule: 'AD-15', inputs: { visible: false } }]);
   }
 
-  async confirmPaymentReceived(_input: ConfirmPaymentReceivedRequest): Promise<ConfirmPaymentReceivedResponse> {
-    throw new NotImplementedError('orders.confirmPaymentReceived');
+  private notOwned(orderId: CuidId, rule: string): never {
+    return raise('OrderNotOwnedByCaller', [{ rule, inputs: { orderId } }]);
   }
 
-  async confirmItemReceived(_input: ConfirmItemReceivedRequest): Promise<ConfirmItemReceivedResponse> {
-    throw new NotImplementedError('orders.confirmItemReceived');
+  private noLongerActive(row: OrderRow, status: OrderStatus, rule: string): never {
+    return raise('OrderNoLongerActive', [{ rule, inputs: { orderId: row.id, status, at: endedAt(row).toISOString() } }]);
   }
 
-  async createComprobanteUpload(_input: CreateComprobanteUploadRequest): Promise<CreateComprobanteUploadResponse> {
-    throw new NotImplementedError('orders.createComprobanteUpload');
+  /**
+   * AD-ORD-2 rule 6, in the caller's `tx`: the conditional expiry, and on 1 row the one release of
+   * its reservation and a `system` audit row. The released unit count, or null when 0 rows changed.
+   */
+  private async expireInTx(tx: Tx, orderId: CuidId, now: IsoInstant): Promise<number | null> {
+    const { repo, listings, audit } = this.deps;
+    const reservationRef = await repo.expireOrder(tx, orderId, now);
+    if (reservationRef === null) return null;
+    const { releasedUnits } = await listings.releaseReservation(tx, { reservationRef });
+    await audit.record(tx, {
+      actorId: null, actorKind: 'system', module: 'orders', action: 'orders.order.expired',
+      aggregateType: 'Order', aggregateId: orderId, decisionCode: null, data: { cancelReason: 'Unpaid', releasedUnits }, at: now,
+    });
+    return releasedUnits;
   }
 
-  async uploadComprobante(_input: UploadComprobanteRequest): Promise<UploadComprobanteResponse> {
-    throw new NotImplementedError('orders.uploadComprobante');
+  /** AD-ORD-2 rule 7 (S-FR-ORD-8): one batch of due orders, one transaction per order. */
+  private async expireBatch(unitIds: CuidId[] | null, now: IsoInstant, limit: number): Promise<{ due: number; expired: number; released: number }> {
+    const { repo, transactions } = this.deps;
+    const due = await transactions.run((tx) => repo.dueOrderIds(tx, unitIds, now, limit), { readOnly: true });
+    let expired = 0;
+    let released = 0;
+    for (const orderId of due) {
+      const units = await transactions.run((tx) => this.expireInTx(tx, orderId, now));
+      if (units === null) continue;
+      expired++;
+      released += units;
+    }
+    return { due: due.length, expired, released };
   }
 
-  async getOrder(_input: GetOrderRequest): Promise<GetOrderResponse> {
-    throw new NotImplementedError('orders.getOrder');
+  /**
+   * ORD-1 (AD-ORD-1): P2, P3 and the expiry pre-step before the transaction; then the buyer's lock,
+   * P4, the reserve (P5), the payment instructions and the insert in one. P1 `canBuy` is the procedure builder's.
+   */
+  async createOrder(input: CreateOrderRequest): Promise<CreateOrderResponse> {
+    const { repo, transactions, clock, ids, audit, listings, identity } = this.deps;
+    const { listingId, qty, buyerId } = input;
+    if (!Number.isInteger(qty) || qty < 1) rejectRequest([{ field: 'qty', issue: 'debe ser un número entero mayor o igual a 1' }]);
+    const at = clock.now();
+    const now = at.toISOString();
+    const listing = await listings.getListingForPurchase({ listingId });
+    if (listing.sellerId === buyerId) raise('SelfPurchaseNotAllowed', [{ rule: 'FR-ORD-1', inputs: { listingId } }]);
+    const { unitIds } = await listings.getInventoryUnitIds({ listingId });
+    if (unitIds.length > 0) await this.expireBatch(unitIds, now, PRE_STEP_LIMIT);
+    return transactions.run(async (tx) => {
+      await repo.lockBuyer(tx, buyerId);
+      const blocking = openOrderOverflow(await repo.openOrders(tx, buyerId, now), listing.sellerId);
+      if (blocking) raise('TooManyOpenOrders', [{ rule: 'FR-ORD-1', inputs: { openOrderIds: blocking.join(', ') } }]);
+      const { reservationRef, snapshot } = await listings.reserveForPurchase(tx, { listingId, qty, buyerId });
+      const instructions = await identity.getBusinessPaymentInstructions({ businessId: listing.sellerId });
+      if (instructions === null) throw new UnexpectedError(`Unexpected: business ${listing.sellerId} sold listing ${listingId} with no payment instructions`);
+      const orderId = ids.next();
+      const totalCop = snapshot.unitPriceCop * qty;
+      const expiresAt = new Date(at.getTime() + UNPAID_ORDER_TTL_MS).toISOString();
+      const paymentInstructions = {
+        bankName: instructions.bankName, accountType: instructions.accountType, accountNumber: instructions.accountNumber,
+        holderName: instructions.holderName, qrObjectKey: instructions.qrObjectKey,
+      };
+      await repo.insertOrder(tx, {
+        id: orderId, buyerId, businessId: listing.sellerId, listingId, listingSnapshot: snapshot, qty, unitPriceCop: snapshot.unitPriceCop, totalCop,
+        paymentInstructions, reservationRef, expiresAt, now,
+      });
+      await audit.record(tx, {
+        actorId: buyerId, actorKind: 'user', module: 'orders', action: 'orders.order.created',
+        aggregateType: 'Order', aggregateId: orderId, decisionCode: 'OrderCreated', data: { listingId, qty, totalCop }, at: now,
+      });
+      const decision = explained('OrderCreated', [{ rule: 'FR-ORD-1', inputs: { orderId, qty, totalCop, expiresAt } }], now);
+      return { orderId, status: 'AwaitingPayment' as const, totalCop, paymentInstructions, expiresAt, decision };
+    });
   }
 
-  async listOrders(_input: ListOrdersRequest): Promise<ListOrdersResponse> {
-    throw new NotImplementedError('orders.listOrders');
+  /** The buyer's order while its comprobante may still change (S-FR-ORD-2): visible, theirs, unpaid and active. */
+  private async comprobanteTarget(tx: Tx, orderId: CuidId, buyerId: CuidId, at: Date): Promise<OrderRow> {
+    const row = await this.deps.repo.readVisibleOrder(tx, orderId, buyerId);
+    if (row === null) return this.notVisible();
+    if (row.buyerId !== buyerId) return this.notOwned(orderId, 'FR-ORD-2');
+    if (row.buyerPaidConfirmedAt !== null) {
+      raise('ComprobanteLocked', [{ rule: 'AD-ORD-3 rule 2', inputs: { orderId, buyerPaidConfirmedAt: row.buyerPaidConfirmedAt.toISOString() } }]);
+    }
+    const status = deriveStatus(row, at);
+    if (status === 'Cancelled' || status === 'Expired') this.noLongerActive(row, status, 'FR-ORD-2');
+    return row;
   }
 
-  async cancelOrder(_input: CancelOrderRequest): Promise<CancelOrderResponse> {
-    throw new NotImplementedError('orders.cancelOrder');
+  /** S-FR-ORD-2.ticket (AD-SYS-8 rule 5.1): a direct-upload ticket under the buyer's own prefix. */
+  async createComprobanteUpload(input: CreateComprobanteUploadRequest): Promise<CreateComprobanteUploadResponse> {
+    const { clock, ids, storage } = this.deps;
+    const at = clock.now();
+    await this.reading((tx) => this.comprobanteTarget(tx, input.orderId, input.buyerId, at));
+    const uploadKey = `${comprobanteUploadPrefix(input.buyerId)}${ids.next()}`;
+    const { signedUrl, token } = await storage.createUploadTicket(uploadKey);
+    return { uploadKey, signedUrl, token };
   }
 
-  async expireDueOrders(_input: ExpireDueOrdersRequest): Promise<ExpireDueOrdersResponse> {
-    throw new NotImplementedError('orders.expireDueOrders');
+  /**
+   * AD-SYS-8 rules 5.3 and 6: the buyer's quarantine object, checked for size, magic bytes and a
+   * clean scan, copied to `order-comprobantes` under a new key. Returns the new key.
+   */
+  private async promoteComprobante(buyerId: CuidId, uploadKey: string): Promise<string> {
+    const { storage, scanner, ids } = this.deps;
+    const refuse = (cause: 'missing' | 'size' | 'magic' | 'scanner'): never => raise('ComprobanteInvalidFile', [{ rule: 'AD-SYS-8', inputs: { cause } }]);
+    const bytes = isComprobanteUploadKey(uploadKey, buyerId) ? await storage.get('upload-quarantine', uploadKey) : null;
+    if (bytes === null) return refuse('missing');
+    if (bytes.length > MAX_COMPROBANTE_BYTES) return refuse('size');
+    const declared = sniffComprobanteType(bytes);
+    if (declared === null) return refuse('magic');
+    const scan = await scanner.scan(bytes, declared);
+    if (scan.verdict !== 'clean') return refuse('scanner');
+    const key = `order-comprobantes/${ids.next()}`;
+    await storage.put('order-comprobantes', key, scan.sanitized ?? bytes, declared);
+    return key;
   }
 
-  async hasClosedPurchase(_input: HasClosedPurchaseRequest): Promise<HasClosedPurchaseResponse> {
-    throw new NotImplementedError('orders.hasClosedPurchase');
+  /**
+   * S-FR-ORD-2.upload (AD-ORD-3 rule 2): promote, then the conditional update. A refusal deletes the
+   * new object; after the commit the previous object and the quarantine object go, best effort.
+   */
+  async uploadComprobante(input: UploadComprobanteRequest): Promise<UploadComprobanteResponse> {
+    const { repo, transactions, clock, audit, storage } = this.deps;
+    const { orderId, buyerId, uploadKey } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    // A refusal deletes the buyer's own quarantine object, as on the 0-row re-read below; a key outside the buyer's prefix is never touched.
+    const discardUpload = () => (isComprobanteUploadKey(uploadKey, buyerId) ? storage.delete('upload-quarantine', uploadKey) : Promise.resolve());
+    try {
+      await this.reading((tx) => this.comprobanteTarget(tx, orderId, buyerId, at));
+    } catch (error) {
+      if (error instanceof DomainError) await Promise.allSettled([discardUpload()]);
+      throw error;
+    }
+    const key = await this.promoteComprobante(buyerId, uploadKey);
+    let previousKey: string | null;
+    try {
+      previousKey = await transactions.run(async (tx) => {
+        const attached = await repo.attachComprobante(tx, orderId, buyerId, key, now);
+        if (attached === undefined) {
+          // 0 rows: the order was paid or terminated after the first read; the re-read names which.
+          await this.comprobanteTarget(tx, orderId, buyerId, at);
+          throw new UnexpectedError(`Unexpected: the comprobante of order ${orderId} did not attach, yet the order may still change`);
+        }
+        await audit.record(tx, {
+          actorId: buyerId, actorKind: 'user', module: 'orders', action: 'orders.comprobante.attached',
+          aggregateType: 'Order', aggregateId: orderId, decisionCode: 'ComprobanteAttached', data: { replacedPrevious: attached.previousKey !== null }, at: now,
+        });
+        return attached.previousKey;
+      });
+    } catch (error) {
+      const cleanup = [storage.delete('order-comprobantes', key)];
+      if (error instanceof DomainError) cleanup.push(discardUpload());
+      await Promise.allSettled(cleanup);
+      throw error;
+    }
+    // Best effort: the attach has committed, so a failed delete must not fail it.
+    await Promise.allSettled([
+      storage.delete('upload-quarantine', uploadKey),
+      ...(previousKey !== null ? [storage.delete('order-comprobantes', previousKey)] : []),
+    ]);
+    const decision = explained('ComprobanteAttached', [{ rule: 'FR-ORD-2', inputs: { orderId } }], now);
+    return { orderId, comprobanteUploadedAt: now, replacedPrevious: previousKey !== null, decision };
   }
 
-  async adminLookupOrders(_input: AdminLookupOrdersRequest): Promise<AdminLookupOrdersResponse> {
-    throw new NotImplementedError('orders.adminLookupOrders');
+  /** S-FR-ORD-2.url (AD-14, AD-17): a 600 s signed URL for an order visible to the actor, or `url: null` before any upload. */
+  async getComprobanteUrl(input: GetComprobanteUrlRequest): Promise<GetComprobanteUrlResponse> {
+    const { repo, clock, storage } = this.deps;
+    const now = clock.now().toISOString();
+    const key = await this.reading(async (tx) => {
+      if ((await repo.readVisibleOrder(tx, input.orderId, input.actorId)) === null) return this.notVisible();
+      return repo.comprobanteKeyOf(tx, input.orderId);
+    });
+    const citations: [Citation] = [{ rule: 'FR-ORD-2', inputs: { orderId: input.orderId } }];
+    if (key === null) return { url: null, expiresAt: null, decision: explained('ComprobanteNotUploaded', citations, now) };
+    const { url, expiresAt } = await storage.sign('order-comprobantes', key, SIGNED_URL_TTL);
+    return { url, expiresAt, decision: explained('ComprobanteUrlIssued', citations, now) };
   }
 
+  /**
+   * AD-ORD-2 rules 3–4: the refusal of a 0-row fact update, mapped from the order as `tx` re-reads it
+   * through the visibility predicate. An unpaid order past `expiresAt` is first materialized as
+   * expired in `tx`; that refusal is returned, not thrown, so the caller commits the expiry before
+   * raising it. Every other refusal is thrown and writes nothing.
+   */
+  private async refuseFact(tx: Tx, row: OrderRow | null, code: LoserCode | null, fact: Fact, at: Date): Promise<() => never> {
+    if (row === null) return this.notVisible();
+    const orderId = row.id;
+    const { rule } = FACTS[fact];
+    switch (code) {
+      case null: throw new UnexpectedError(`Unexpected: a ${fact} update on order ${orderId} changed 0 rows twice, yet nothing refuses it`);
+      case 'OrderNotOwnedByCaller': return this.notOwned(orderId, rule);
+      case 'ComprobanteNotYetUploaded': return raise(code, [{ rule, inputs: { orderId } }]);
+      case 'ComprobanteMissingOnConfirm': return raise(code, [{ rule, inputs: { orderId } }]);
+      case 'OrderConfirmationOutOfOrder': return raise(code, [{ rule, inputs: { orderId, buyerPaidConfirmedAt: null } }]);
+      case 'OrderAlreadyConfirmedByRole': return raise(code, [{ rule, inputs: { orderId, confirmedAt: FACTS[fact].at(row)?.toISOString() ?? null } }]);
+      case 'OrderNoLongerActive': {
+        const status = deriveStatus(row, at);
+        if (expiryUnmaterialized(row, at)) await this.expireInTx(tx, orderId, at.toISOString());
+        return () => this.noLongerActive(row, status, rule);
+      }
+    }
+  }
+
+  /**
+   * AD-ORD-2 rule 3: the conditional update, and on 0 rows the re-read and its mapping. A re-read that
+   * finds nothing to refuse means a transaction committed between the two statements (a comprobante
+   * attached as "paid" ran), so the update runs once more before the refusal is final.
+   */
+  private async settleFact<T>(tx: Tx, fact: Fact, actorId: CuidId, orderId: CuidId, at: Date, update: () => Promise<T | null>): Promise<T | (() => never)> {
+    for (let attempt = 0; ; attempt++) {
+      const done = await update();
+      if (done !== null) return done;
+      const row = await this.deps.repo.readVisibleOrder(tx, orderId, actorId);
+      const code = row && FACTS[fact].loser(row, actorId, at);
+      if (code !== null || attempt === 1) return this.refuseFact(tx, row, code, fact, at);
+    }
+  }
+
+  /** ORD-2 (AD-ORD-2 rules 1, 3, 4): the buyer's "paid", set once while the order is active and has a comprobante. */
+  async confirmPaid(input: ConfirmPaidRequest): Promise<ConfirmPaidResponse> {
+    const { repo, transactions, clock, audit } = this.deps;
+    const { orderId, buyerId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    const outcome = await transactions.run(async (tx) => {
+      const paid = await this.settleFact(tx, 'buyerPaid', buyerId, orderId, at, async () => ((await repo.setBuyerPaid(tx, orderId, buyerId, now)) ? true : null));
+      if (paid !== true) return paid;
+      await audit.record(tx, {
+        actorId: buyerId, actorKind: 'user', module: 'orders', action: 'orders.fact.buyerPaid',
+        aggregateType: 'Order', aggregateId: orderId, decisionCode: 'OrderPaidConfirmed', data: { orderId }, at: now,
+      });
+      return null;
+    });
+    if (outcome) return outcome();
+    const decision = explained('OrderPaidConfirmed', [{ rule: 'FR-ORD-3', inputs: { orderId, buyerPaidConfirmedAt: now } }], now);
+    return { orderId, buyerPaidConfirmedAt: now, status: 'Paid', decision };
+  }
+
+  /**
+   * ORD-3 (AD-ORD-2 rules 2, 5; AD-15): the business's fact, set once on a paid order, with one
+   * `OrderPaymentConfirmedByBusiness` for commission in the same transaction.
+   */
+  async confirmPaymentReceived(input: ConfirmPaymentReceivedRequest): Promise<ConfirmPaymentReceivedResponse> {
+    const { repo, transactions, clock, audit, outbox } = this.deps;
+    const { orderId, businessId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    const outcome = await transactions.run(async (tx) => {
+      const row = await this.settleFact(tx, 'sellerReceived', businessId, orderId, at, () => repo.setSellerReceived(tx, orderId, businessId, now));
+      if (typeof row === 'function') return row;
+      const snapshot = row.listingSnapshot;
+      await outbox.enqueue(tx, 'OrderPaymentConfirmedByBusiness', orderId, {
+        orderId, businessId, buyerId: row.buyerId, totalCop: row.totalCop,
+        lines: [{ listingId: row.listingId, itemRef: snapshot.itemRef, title: snapshot.title, qty: row.qty, unitPriceCop: row.unitPriceCop }],
+        sellerReceivedConfirmedAt: now, buyerItemReceivedConfirmedAt: row.buyerItemReceivedConfirmedAt?.toISOString() ?? null,
+      });
+      await audit.record(tx, {
+        actorId: businessId, actorKind: 'user', module: 'orders', action: 'orders.fact.sellerReceived',
+        aggregateType: 'Order', aggregateId: orderId, decisionCode: 'OrderPaymentReceived', data: { orderId }, at: now,
+      });
+      return row.buyerItemReceivedConfirmedAt !== null ? 'Closed' as const : 'PaymentConfirmed' as const;
+    });
+    if (typeof outcome === 'function') return outcome();
+    const decision = explained('OrderPaymentReceived', [{ rule: 'FR-ORD-4', inputs: { orderId, sellerReceivedConfirmedAt: now } }], now);
+    return { orderId, sellerReceivedConfirmedAt: now, status: outcome, decision };
+  }
+
+  /**
+   * ORD-4 (AD-ORD-2 rules 2, 5): the buyer's item fact, the only one that closes an order, with one
+   * `OrderClosed` for commission and collections in the same transaction.
+   */
+  async confirmItemReceived(input: ConfirmItemReceivedRequest): Promise<ConfirmItemReceivedResponse> {
+    const { repo, transactions, clock, audit, outbox } = this.deps;
+    const { orderId, buyerId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    const outcome = await transactions.run(async (tx) => {
+      const row = await this.settleFact(tx, 'itemReceived', buyerId, orderId, at, () => repo.setItemReceived(tx, orderId, buyerId, now));
+      if (typeof row === 'function') return row;
+      // A single listing's snapshot always names its catalog entry (INV-1 Q2), so every line has an item.
+      const lines = closedLines(row.listingSnapshot, row.qty) as OrderClosedLineV1[];
+      await outbox.enqueue(tx, 'OrderClosed', orderId, {
+        orderId, buyerId, businessId: row.businessId, totalCop: row.totalCop, lines,
+        sellerReceivedConfirmedAt: row.sellerReceivedConfirmedAt?.toISOString() ?? null, buyerItemReceivedConfirmedAt: now,
+      });
+      await audit.record(tx, {
+        actorId: buyerId, actorKind: 'user', module: 'orders', action: 'orders.fact.itemReceived',
+        aggregateType: 'Order', aggregateId: orderId, decisionCode: 'OrderItemReceived', data: { orderId }, at: now,
+      });
+      return null;
+    });
+    if (outcome) return outcome();
+    const decision = explained('OrderItemReceived', [{ rule: 'FR-ORD-5', inputs: { orderId, buyerItemReceivedConfirmedAt: now } }], now);
+    return { orderId, buyerItemReceivedConfirmedAt: now, status: 'Closed', decision };
+  }
+
+  /** S-FR-ORD-6: an order as `actorId` sees it, with its status derived at read (AD-ORD-2 rule 8) and explained. */
+  private view(row: OrderRow, actorId: CuidId, at: Date): OrderViewDTO {
+    const { status, code, rule, at: factAt } = orderView(row, at);
+    return {
+      orderId: row.id, role: row.buyerId === actorId ? 'buyer' : 'business', status, listingTitle: row.listingSnapshot.title, qty: row.qty, totalCop: row.totalCop,
+      expiresAt: row.expiresAt.toISOString(), buyerPaidConfirmedAt: row.buyerPaidConfirmedAt?.toISOString() ?? null,
+      sellerReceivedConfirmedAt: row.sellerReceivedConfirmedAt?.toISOString() ?? null, buyerItemReceivedConfirmedAt: row.buyerItemReceivedConfirmedAt?.toISOString() ?? null,
+      decision: explained(code, [{ rule, inputs: { orderId: row.id, at: factAt.toISOString() } }], at.toISOString(), code === 'OrderAwaitingBusiness' ? 'allowedWithNotice' : 'allowed'),
+    };
+  }
+
+  /** S-FR-ORD-6.get (AD-ORD-3 rule 1, AD-15): zero writes. */
+  async getOrder(input: GetOrderRequest): Promise<GetOrderResponse> {
+    const at = this.deps.clock.now();
+    const row = await this.reading((tx) => this.deps.repo.readVisibleOrder(tx, input.orderId, input.actorId));
+    return row === null ? this.notVisible() : this.view(row, input.actorId, at);
+  }
+
+  /** S-FR-ORD-6.list: the buyer's purchases, or the business's paid sales, 25 per page newest first. Zero writes. */
+  async listOrders(input: ListOrdersRequest): Promise<ListOrdersResponse> {
+    const { repo, clock } = this.deps;
+    const after = input.cursor === null ? null : decodeOrderCursor(input.cursor);
+    if (input.cursor !== null && after === null) rejectRequest([{ field: 'cursor', issue: 'no es un cursor de esta lista' }]);
+    const at = clock.now();
+    const rows = await this.reading((tx) => repo.listOrders(tx, input.actorId, input.side, after, ORDERS_PAGE + 1));
+    const page = rows.slice(0, ORDERS_PAGE);
+    const last = page.at(-1);
+    return {
+      items: page.map((r) => this.view(r, input.actorId, at)),
+      nextCursor: rows.length > ORDERS_PAGE && last ? encodeOrderCursor(last.createdAt.toISOString(), last.id) : null,
+    };
+  }
+
+  /**
+   * S-FR-ORD-7 (AD-ORD-2 rule 6): the buyer's conditional cancel while active, then the one release
+   * and an audit row. An order past `expiresAt` is materialized as expired first, and that commits.
+   */
+  async cancelOrder(input: CancelOrderRequest): Promise<CancelOrderResponse> {
+    const { repo, transactions, clock, audit, listings } = this.deps;
+    const { orderId, buyerId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    const notCancellable = (status: OrderStatus): never => raise('OrderNotCancellable', [{ rule: 'FR-ORD-7', inputs: { orderId, status } }]);
+    const outcome = await transactions.run(async (tx) => {
+      let reservationRef = await repo.cancelOrder(tx, orderId, buyerId, now);
+      for (let attempt = 0; reservationRef === null; attempt++) {
+        const row = await repo.readVisibleOrder(tx, orderId, buyerId);
+        if (row === null) return this.notVisible();
+        if (row.buyerId !== buyerId) return this.notOwned(orderId, 'FR-ORD-7');
+        if (expiryUnmaterialized(row, at)) {
+          await this.expireInTx(tx, orderId, now);
+          return () => notCancellable('Expired');
+        }
+        const status = deriveStatus(row, at);
+        // Still cancellable on the re-read: a commit landed between the two statements, so try once more.
+        if (status !== 'AwaitingPayment' || attempt === 1) return notCancellable(status);
+        reservationRef = await repo.cancelOrder(tx, orderId, buyerId, now);
+      }
+      const { releasedUnits } = await listings.releaseReservation(tx, { reservationRef });
+      await audit.record(tx, {
+        actorId: buyerId, actorKind: 'user', module: 'orders', action: 'orders.order.cancelled',
+        aggregateType: 'Order', aggregateId: orderId, decisionCode: 'OrderCancelled', data: { cancelReason: 'BuyerCancelled', releasedUnits }, at: now,
+      });
+      return null;
+    });
+    if (outcome) return outcome();
+    const decision = explained('OrderCancelled', [{ rule: 'FR-ORD-7', inputs: { orderId, at: now } }], now);
+    return { orderId, status: 'Cancelled', cancelledAt: now, decision };
+  }
+
+  /**
+   * S-FR-ORD-8 (AD-ORD-2 rules 6–7): materializes due expiries, one transaction per order. A listing's
+   * units take one batch of 20; `'all'` takes batches of 200 until one comes back short or 50 s of
+   * Clock time have passed. The due query and the expiry share one predicate, so a batch others
+   * expired first is followed by orders still due. Correct whether or not it ever runs (AD-SYS-6 rule 5).
+   */
+  async expireDueOrders(input: ExpireDueOrdersRequest): Promise<ExpireDueOrdersResponse> {
+    const { clock } = this.deps;
+    const start = clock.now();
+    const now = start.toISOString();
+    if (input.scope !== 'all') {
+      const { expired, released } = await this.expireBatch(input.scope.listingUnitIds, now, PRE_STEP_LIMIT);
+      return { expired, released };
+    }
+    let expired = 0;
+    let released = 0;
+    for (;;) {
+      const batch = await this.expireBatch(null, now, JOB_BATCH);
+      expired += batch.expired;
+      released += batch.released;
+      if (batch.due < JOB_BATCH || clock.now().getTime() - start.getTime() >= JOB_BUDGET_MS) break;
+    }
+    return { expired, released };
+  }
+
+  /** S-FR-ORD-9 (AD-ORD-3 rule 4): "completed" means the item fact, never "paid" (AD-2). Zero writes. */
+  async hasClosedPurchase(input: HasClosedPurchaseRequest): Promise<HasClosedPurchaseResponse> {
+    const at = this.deps.clock.now();
+    const { closed, latest } = await this.reading((tx) => this.deps.repo.closedPurchase(tx, input.buyerId, input.businessId));
+    return { closed, latestState: latest === null ? null : deriveStatus(latest, at) };
+  }
+
+  /**
+   * S-FR-ORD-10.lookup (AD-ORD-3 rule 3): identity's admin guard, the read, and one append-only
+   * `"OrderLookupLog"` row in one transaction. No write path to `"Order"`.
+   */
+  async adminLookupOrders(input: AdminLookupOrdersRequest): Promise<AdminLookupOrdersResponse> {
+    const { repo, transactions, clock, ids, audit } = this.deps;
+    const { adminId } = input;
+    const query: OrderLookupQuery = {
+      ...(input.query.orderId ? { orderId: input.query.orderId } : {}),
+      ...(input.query.buyerId ? { buyerId: input.query.buyerId } : {}),
+      ...(input.query.businessId ? { businessId: input.query.businessId } : {}),
+    };
+    const at = clock.now();
+    const now = at.toISOString();
+    return transactions.run(async (tx) => {
+      await requireAdmin(repo, tx, adminId);
+      if (Object.keys(query).length === 0) rejectRequest([{ field: 'query', issue: 'indica un pedido, un comprador o una tienda' }]);
+      const rows = await repo.lookupOrders(tx, query, LOOKUP_LIMIT);
+      const resultOrderIds = rows.map((r) => r.id);
+      const logId = ids.next();
+      await repo.insertLookupLog(tx, { id: logId, adminId, query, resultOrderIds, now });
+      await audit.record(tx, {
+        actorId: adminId, actorKind: 'admin', module: 'orders', action: 'orders.lookup.performed',
+        aggregateType: 'OrderLookupLog', aggregateId: logId, decisionCode: null, data: { results: resultOrderIds.length }, at: now,
+      });
+      // An admin is neither party: each row reads as its buyer sees it.
+      return { orders: rows.map((r) => this.view(r, r.buyerId, at)) };
+    });
+  }
+
+  /**
+   * S-FR-ORD-10.get: the public support contact. Before any admin sets it there is none, and the
+   * DTO has no null, so the read is `Unexpected` (decision log Impl-1 #32; `deferred-work.md`).
+   */
   async getSupportContact(): Promise<SupportContactDTO> {
-    throw new NotImplementedError('orders.getSupportContact');
+    const contact = await this.reading((tx) => this.deps.repo.readSupportContact(tx, false));
+    if (contact === null) throw new UnexpectedError('Unexpected: no support contact is set (S-FR-ORD-10.set has never run)');
+    return contact;
   }
 
-  async setSupportContact(_input: SetSupportContactRequest): Promise<SetSupportContactResponse> {
-    throw new NotImplementedError('orders.setSupportContact');
-  }
-
-  async getComprobanteUrl(_input: GetComprobanteUrlRequest): Promise<GetComprobanteUrlResponse> {
-    throw new NotImplementedError('orders.getComprobanteUrl');
+  /** S-FR-ORD-10.set: identity's admin guard, then the singleton, its change row and an audit row, in one transaction. */
+  async setSupportContact(input: SetSupportContactRequest): Promise<SetSupportContactResponse> {
+    const { repo, transactions, clock, ids, audit } = this.deps;
+    const { adminId, contact } = input;
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      await requireAdmin(repo, tx, adminId);
+      const issues: RequestIssue[] = [];
+      if (!SUPPORT_EMAIL.test(contact.email)) issues.push({ field: 'contact.email', issue: 'debe ser un correo electrónico' });
+      if (contact.whatsappE164 !== null && !E164.test(contact.whatsappE164)) issues.push({ field: 'contact.whatsappE164', issue: 'debe ser un número en formato internacional, como +573001234567' });
+      const [first, ...rest] = issues;
+      if (first) rejectRequest([first, ...rest]);
+      const before = await repo.readSupportContact(tx, true);
+      const after = { email: contact.email, whatsappE164: contact.whatsappE164 };
+      const changeId = ids.next();
+      await repo.writeSupportContact(tx, { id: changeId, adminId, before, after, now });
+      await audit.record(tx, {
+        actorId: adminId, actorKind: 'admin', module: 'orders', action: 'orders.supportContact.set',
+        aggregateType: 'SupportContactChange', aggregateId: changeId, decisionCode: null, data: { replaced: before !== null }, at: now,
+      });
+      return { updatedAt: now };
+    });
   }
 }

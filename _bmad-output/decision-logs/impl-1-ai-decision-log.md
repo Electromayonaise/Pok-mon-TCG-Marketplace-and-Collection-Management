@@ -22,6 +22,7 @@
 | #18 | `[CORRECTED]` | Solu-2 `test-support/solu2/fitness.ts` `sqlWrites` counts `FOR UPDATE` as an `UPDATE` of the next word | A row lock is a read; the `[SYS-AD8.probe]` proves it | Martín |
 | #19 | `[CORRECTED]` | Solu-2 `importViolations` checks module edges only, and the es-CO catalog lives in the tRPC adapter (`src/server/trpc`) | The catalog moves to the shared kernel; the scanner flags any kernel or module import of `src/server` | Martín |
 | #20 | `[CORRECTED]` | Solu-2 `wiring()` binds the simulated `SqlOutboxV2`, which stores payloads without the AD-SYS-8 redactor | `wiring()` binds the production `PgOutboxV2` | Martín |
+| #32 | `[CORRECTED]` | Solu-2 `[NFR-ORD-2.p95]` spreads 550 purchases over `buyerId(5 + k % 218)` and every funded listing, ignoring ORD-1 P4 and the seed's open orders | Only the Given changes: buyers with an open seed order are set aside, and a buyer's k-th call goes to its k-th business | Martín |
 
 ---
 
@@ -574,4 +575,56 @@
     - `[DSC-2.MEC]` one run of both radii in 264 ms.
 - **Environment note:** Docker did not run in this session either. The preinstalled `postgresql-16` cluster on port 55432 with `max_connections=200`, `fsync=off` and `full_page_writes=off` ran `npm run test:ci` in about 2 minutes.
 - **Artifact changed:** `src/modules/listings/**`, `src/modules/identity/{dto,application,ports,infra}/` (`meetingPoint`), `src/server/composition.ts` (+ test), `test-support/solu2/fixtures.ts`, `_bmad-output/planning-artifacts/detailed-design/contracts.md` (§13, three stored-only rows), `_bmad-output/planning-artifacts/epics.source.mjs` and `epics.md`, `_bmad-output/test-artifacts/nfr/dsc1_latency.test.ts`, `_bmad-output/test-artifacts/nfr-evidence.md`, `deferred-work.md`, the four Epic 6 story files, and `sprint-status.yaml` (6.4 out of `impl2_scope`; `epic-6: done`).
+- **Decided by:** Martín.
+
+### 32. Epic 7 is built whole, the admin check uses identity's own guard, the benchmark's Given respects ORD-1 P4, its close review cites every open order, and the epic is signed (Governance)
+
+- **Phase:** 3 (Epic 7 planning at `f595122`, then the close review over `f595122..e1018fb`).
+- **Persona/Skill:** `bmad-quick-dev`, epic-batched (#22), then `bmad-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor).
+- **Prompt (summary):** Three rounds.
+  - **The specs.** Martín approved the five Epic 7 specs together. With them came three choices:
+    - **Scope.** Stories 7.3 and 7.4 are in `impl2_scope`, but their ten bound tests check clauses that 7.1 and 7.2 must build:
+      - `[ORD-1.P3]` runs before the reserve, or the insert fails on `order_no_self_purchase`;
+      - `[ORD-1.I2]` requires every loser to be `TooManyOpenOrders`;
+      - ORD-2/3/4's 0-row re-read is what `[ORD-2.MEC]`, `[ORD-3.MEC]`, `[ORD-3.R1]` and `[ORD-4.MEC]` require.
+
+      Built without them, they would fail for a reason other than NotImplemented.
+    - **`AdminOnly`.** `[S-FR-ORD-10.f]` expects `AdminOnly` from the service. Its fake identity provides only `getBusinessPaymentInstructions`, and `orders` may not raise identity's code.
+    - **An unset support contact.** `orders.supportContact.get` is public, and `SupportContactDTO` has no null.
+  - **The benchmark.** `[NFR-ORD-2.p95]`, bound to Story 7.1, failed with `TooManyOpenOrders`. Its calls ignored the 1-per-business limit of ORD-1 P4 (OQ-11), and it used buyers the seed leaves with an open order.
+  - **The close review.** It left 1 decision, 12 patches, 5 deferrals and 10 dismissed findings. The decision: AD-ORD-3 rule 3 says the admin lookup shows the order's `EventDelivery` rows. `AdminLookupOrdersResponse` has no such field, and no flag when it truncates at 50.
+- **AI output (summary):** The agent recommended:
+  - **(recommended)** Build the whole epic, as 2.4, 3.3, 3.4, 4.3, 5.3, 5.4, 5.5 and 6.4 were (#26, #27, #29, #30, #31), committing in the order 7.1, 7.3, 7.2, 7.4, 7.5. 7.3 and 7.4 are proof-only, each committed right after the story it proves (#23). They leave `impl2_scope` and do not count toward the 43 Impl-1 stories. The 7.2 and 7.4 commits stay red locally on `[ORD-2.I2]` and `[ORD-2.MEC]` until 7.5, because those tests call 7.5's cancel and expiry job. The alternatives were a gate exception, or postponing ORD (R-06, P0).
+  - **(recommended)** identity exports its own admin guard, `requireAdmin(repo, tx, adminId)`, moved out of `ver.v2.ts`. ORD's `repo` type is its own tables plus identity's `AdminFactsReader`, which the one repository (R-14) already carries. Identity reads its own table and raises its own code inside the order's transaction. No bound test or `operations.json` changes. The alternatives were a `requireAdmin` on the `IdentityForOrd` port, which changes the bound fakes, or the router's admin builder only, which leaves `[S-FR-ORD-10.f]` red.
+  - **(recommended)** An unset support contact is `Unexpected` (500) until an admin sets it, and the launch checklist sets it (`deferred-work.md`). The alternatives were a nullable DTO, or a default from a new environment variable.
+  - **(recommended)** Change only the benchmark's Given. Buyers with an open seed order are set aside, and a buyer's k-th call goes to its k-th business. What is measured and the threshold stay the same. The alternatives were dropping the per-business limit, against ORD-1 P4 and `[ORD-1.I2]`, or unbinding the benchmark from 7.1.
+  - **(recommended)** Defer the lookup's deliveries and truncation flag to the admin console story. The admin already reads deliveries through `admin.events.deliveries`. The alternative was a DTO change now, which would also read a kernel table.
+  - Apply all 12 patches.
+- **Human decision:** ACCEPT every recommendation, and sign the Epic 7 gate (#5).
+- **Reason:** `done` keeps meaning what the bound tests prove, and the gate needs no exception. The admin check stays identity's own, with no change to a bound test or a contract. The benchmark now measures what NFR-ORD-2 asks, under the contract as written. The patches close real defects and spec deviations without changing a DTO.
+- **Also decided (the patches):**
+  - `TooManyOpenOrders` cites every open order at either limit, as ORD-1 P4 and the frozen 7.3 spec say.
+  - `OrderNotVisibleToCaller` cites `AD-15`, as the frozen 7.2 spec says.
+  - A fact update or cancel whose re-read finds nothing to refuse runs the conditional update once more. A commit that lands between the two statements, such as an upload, would otherwise answer 500.
+  - Each fact's rule, stored instant and loser mapping come from one `FACTS` table, not from rule-string comparisons.
+  - A comprobante key must be exactly the buyer's prefix plus one id segment. A refusal from the first check now deletes the buyer's quarantine object too.
+  - The first support-contact changes serialize on `pg_advisory_xact_lock(orders:supportContact)`, since a missing row has nothing to lock.
+  - The lookup and support-contact audit rows name the log row and the change row.
+  - `expireDueOrders` stops only on a short batch or after 50 s.
+  - A dead key comparison is gone.
+  - An HTTP case proves `orders.create` on a pool of 1.
+  - The benchmark asserts its Given (enough free buyers, and a listing in every business).
+- **Also in this epic:**
+  - `getBusinessPaymentInstructions` reads on the ambient transaction (AD-SYS-4 rule 9).
+  - `Resolvers` accepts procedures with no input schema, so `orders.supportContact.get` is wired.
+  - The src tests of `orders` compose INV from `test-support/solu2/services.ts`. `[SYS-AD1]` scans the tests in `src/` too, and orders → catalog is not an AD-1 edge.
+  - §13 gains 14 stored-only rows with no placeholders: `OrderCreated`, `ComprobanteAttached`, `ComprobanteUrlIssued`, `ComprobanteNotUploaded`, `OrderPaidConfirmed`, `OrderPaymentReceived`, `OrderItemReceived`, `OrderAwaitingPayment`, `OrderPaid`, `OrderAwaitingBusiness`, `OrderPaymentConfirmed`, `OrderCompleted`, `OrderCancelled` and `OrderExpired`.
+  - Thirteen `orders.*` procedures are wired. `expireDueOrders` has no jobs route yet (`deferred-work.md`).
+  - The measured figures (local Postgres 16):
+    - `[NFR-ORD-2.p95]` p95 11.0 ms (p50 6.5);
+    - `[ORD-2.MEC]` 100 repetitions in 571 ms;
+    - `[ORD-3.MEC]` 201 ms;
+    - `[ORD-4.MEC]` 182 ms.
+- **Environment note:** Docker did not run in this session either. The preinstalled `postgresql-16` cluster on port 55432 (`max_connections=200`, `fsync=off`, `full_page_writes=off`) ran `npm run test:ci` in about 2 minutes.
+- **Artifact changed:** `src/modules/orders/**`, `src/modules/identity/{application,index}` (`admin.ts`, the ambient payment instructions), `src/server/composition.ts` (+ test), `src/server/trpc/router.v2.ts`, `test-support/solu2/{fixtures,services}.ts`, `_bmad-output/planning-artifacts/detailed-design/contracts.md` (§13, 14 stored-only rows), `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts`, `_bmad-output/test-artifacts/nfr-evidence.md`, `deferred-work.md`, the five Epic 7 story files, and `sprint-status.yaml` (7.3 and 7.4 out of `impl2_scope`; `epic-7: done`).
 - **Decided by:** Martín.
