@@ -122,7 +122,7 @@ export const MESSAGES = {
   MessagingEligible: 'Esta tienda está verificada; puedes escribirle.',
   RecipientNotYetVerified: 'Esta tienda aún no ha sido verificada por TEZG.',
   MessageSent: 'Mensaje enviado.',
-  ContactMessageGenerated: 'Tu mensaje está listo; ábrelo en WhatsApp o cópialo.',
+  ContactMessageGenerated: 'Tu mensaje está listo; ábrelo en el chat o cópialo.',
   TopUpAmountInvalid: 'La recarga debe estar entre $20.000 y $10.000.000 COP.',
   TopUpNotPending: 'Esta recarga ya fue {status} por {decidedBy} el {decidedAt}.',
   TopUpNotVisibleToCaller: 'No encontramos esa recarga.',

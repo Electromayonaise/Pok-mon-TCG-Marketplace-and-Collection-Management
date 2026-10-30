@@ -7,7 +7,7 @@ import { PgTransactionRunner, useTestDatabase } from '../../../../test-support/d
 import { PG } from '../../../../test-support/env.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
 import { caught, citedInputs } from '../../../../test-support/errors.js';
-import { business, conversation, id, rows, user, wiring } from '../../../../test-support/solu2/fixtures.js';
+import { admin, business, conversation, id, rows, user, wiring } from '../../../../test-support/solu2/fixtures.js';
 import { IdnServiceV2, VerServiceV2 } from '../../identity/index.js';
 import type { TransactionRunner } from '../../../shared-kernel/ports.js';
 import type { SendMessageRequest } from '../dto/msg.v2.dto.js';
@@ -81,7 +81,8 @@ describe('MsgServiceV2.sendMessage (MSG-1)', () => {
     await business(db, id('andres'), 'Pending');
     const msg = messaging();
     const first = await msg.sendMessage(send());
-    await db.query(`UPDATE "BusinessApplication" SET status = 'Approved', "decidedBy" = $1, "decidedAt" = now() WHERE "businessId" = $2`, [id('admin'), id('andres')]);
+    await admin(db);
+    await new VerServiceV2(wiring(db)).decideApplication({ applicationId: id(`app${id('andres').slice(0, 8)}`), decision: { kind: 'approve' }, adminId: id('admin') });
     expect(await msg.sendMessage(send())).toMatchObject({ messageId: first.messageId, seq: 1, decision: { reasonCode: 'RecipientNotYetVerified' } });
     expect(await rows(db, 'audit_events', `action = 'messaging.message.sent'`)).toHaveLength(1);
   });
