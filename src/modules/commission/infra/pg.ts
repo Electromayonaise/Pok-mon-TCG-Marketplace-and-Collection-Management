@@ -1,11 +1,12 @@
 // Driven adapters (persistence) — commission. The Solu-1 stubs below are bound to the retired migration
 // 006_create_commission.sql (git 853449c:docs/solu-1/planning/schemas/); the Solu-2 PgComRepository at
 // the end is bound to _bmad-output/planning-artifacts/detailed-design/schemas.
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { CommissionAccountDTO } from '../dto/com.dto.js';
 import type { ICommissionAccountRepository, ICommissionLedgerRepository, ITopUpRepository } from '../ports/com.js';
+import type { CommissionTrigger } from '../domain/com.js';
 import type { AccountRow, ComTablesRepository, LedgerLineRow, TopUpRow } from '../ports/com.v2.js';
 
 export class PgCommissionLedgerRepository implements ICommissionLedgerRepository {
@@ -67,6 +68,46 @@ export class PgComRepository implements ComTablesRepository {
     const { rows } = await tx.query<Raw<LedgerLineRow, 'seq' | 'amountCop' | 'balanceAfter'>>(
       `SELECT ${LINE_COLUMNS} FROM "CommissionLedgerEntry" WHERE "businessId" = $1 ORDER BY seq DESC LIMIT $2`, [businessId, limit]);
     return rows.map(line);
+  }
+
+  async rateAt(tx: Tx, at: IsoInstant): Promise<number> {
+    const { rows } = await tx.query<{ rateBps: number }>(
+      `SELECT "rateBps" FROM "CommissionRateSetting" WHERE "effectiveFrom" <= $1 ORDER BY "effectiveFrom" DESC LIMIT 1`, [at]);
+    if (!rows[0]) throw new UnexpectedError(`Unexpected: no "CommissionRateSetting" is in force at ${at}; the seed row is missing (AD-COM-2 rule 6)`);
+    return rows[0].rateBps;
+  }
+
+  async deductionExists(tx: Tx, orderId: CuidId): Promise<boolean> {
+    const { rows } = await tx.query(`SELECT 1 FROM "CommissionLedgerEntry" WHERE "orderId" = $1 AND kind = 'Deduction'`, [orderId]);
+    return rows.length > 0;
+  }
+
+  async savepoint(tx: Tx, name: string, action: 'set' | 'rollback' | 'release'): Promise<void> {
+    if (!/^[a-z_]+$/.test(name)) throw new UnexpectedError(`Unexpected: savepoint name ${name}`);
+    await tx.query(action === 'set' ? `SAVEPOINT ${name}` : action === 'rollback' ? `ROLLBACK TO SAVEPOINT ${name}` : `RELEASE SAVEPOINT ${name}`);
+  }
+
+  async applyBalanceChange(tx: Tx, businessId: CuidId, delta: bigint, now: IsoInstant): Promise<{ balanceAfter: bigint; ledgerSeq: bigint } | null> {
+    const { rows } = await tx.query<{ balanceAfter: string; ledgerSeq: string }>(
+      `UPDATE "CommissionAccount" SET "balanceCop" = "balanceCop" + $2::bigint, "ledgerSeq" = "ledgerSeq" + 1,
+         state = CASE WHEN "balanceCop" + $2::bigint > 0 THEN 'Funded' ELSE 'Exhausted' END, "updatedAt" = $3, version = version + 1
+       WHERE "businessId" = $1 RETURNING "balanceCop"::text AS "balanceAfter", "ledgerSeq"::text AS "ledgerSeq"`,
+      [businessId, delta.toString(), now],
+    );
+    return rows[0] ? { balanceAfter: BigInt(rows[0].balanceAfter), ledgerSeq: BigInt(rows[0].ledgerSeq) } : null;
+  }
+
+  async insertDeduction(tx: Tx, e: {
+    id: CuidId; businessId: CuidId; seq: bigint; amountCop: bigint; orderId: CuidId; rateBps: number; baseCop: bigint;
+    trigger: CommissionTrigger; commissionTriggeredAt: IsoInstant; balanceAfter: bigint; now: IsoInstant;
+  }): Promise<boolean> {
+    const { rows } = await tx.query(
+      `INSERT INTO "CommissionLedgerEntry" (id, "businessId", seq, kind, "amountCop", "orderId", "rateBps", "baseCop", trigger, "commissionTriggeredAt", "balanceAfter", "createdAt")
+       VALUES ($1, $2, $3, 'Deduction', $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT ("orderId") WHERE kind = 'Deduction' DO NOTHING RETURNING id`,
+      [e.id, e.businessId, e.seq.toString(), e.amountCop.toString(), e.orderId, e.rateBps, e.baseCop.toString(), e.trigger, e.commissionTriggeredAt, e.balanceAfter.toString(), e.now],
+    );
+    return rows.length === 1;
   }
 
   async insertTopUp(tx: Tx, r: { id: CuidId; businessId: CuidId; amountCop: number; transferReference: string; proofObjectKey: string; now: IsoInstant }): Promise<void> {

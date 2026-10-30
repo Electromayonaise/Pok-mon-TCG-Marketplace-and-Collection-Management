@@ -105,7 +105,7 @@ development_status:
   epic-7-retrospective: optional
   epic-8: in-progress
   8-1-open-the-commission-account-and-request-top-ups: done
-  8-2-charge-each-order-exactly-once: ready-for-dev
+  8-2-charge-each-order-exactly-once: done
   8-3-confirm-or-reject-a-top-up: ready-for-dev
   8-4-refuse-invalid-top-ups-and-decided-requests: ready-for-dev
   8-5-reconcile-ledgers-and-report-never-repair-discrepancies: backlog

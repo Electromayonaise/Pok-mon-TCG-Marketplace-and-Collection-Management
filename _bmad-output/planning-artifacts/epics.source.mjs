@@ -378,7 +378,7 @@ export default {
         {
           title: 'Charge each order exactly once', kind: 'MEC',
           as: 'As the platform, I want each order charged exactly once at the rate in force, whichever confirmation arrives first, so that balances are exact (Annex A MEC, R-07).',
-          ops: ['COM-1'], tests: ['COM-1.Q1', 'COM-1.Q3', 'COM-1.I1', 'COM-1.I3', 'COM-1.I4', 'COM-1.MEC', 'COM-1.MEC2'], depends: ['8.1', '7.2'],
+          ops: ['COM-1'], tests: ['COM-1.Q1', 'COM-1.Q3', 'COM-1.I1', 'COM-1.I3', 'COM-1.I4', 'COM-1.MEC', 'COM-1.MEC2', 'NFR-COM-3.deduction'], depends: ['8.1', '7.2'],
           happy: ['Andrés\'s account is funded, and a business confirmation for 45,000 arrives.', 'the deduction applies.', '8 % = 3,600, with one ledger line carrying its pricing and an audit row; crossing to ≤ 0 publishes one Exhausted.'],
           failure: ['two orders owing 3,600 each, confirmed at one instant against 5,000, plus a duplicate; both order events for one order delivered concurrently; 100 repetitions each.', 'commission applies them.', '−2,200 with two lines and one Exhausted; one line and one decrement per order; 12,345 × 800 bps is exactly 988, and storage refuses any other amount.'],
         },

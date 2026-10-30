@@ -3,7 +3,7 @@
 // VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
 // (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2), the seller's inventory (S-FR-INV-2, -9, -10), the discovery reads (DSC-1, DSC-2),
 // the order, its comprobante, its three facts and its supporting reads (ORD-1 to ORD-4, S-FR-ORD-2, -6, -7, -10), the business's
-// commission account and top-ups (S-FR-COM-1 through a replay, S-FR-COM-2, -9) and S-SYS.replay,
+// commission account, its deductions and its top-ups (S-FR-COM-1 and COM-1 through a replay, S-FR-COM-2, -9) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -583,23 +583,35 @@ describe('the order reads, cancel, lookup and support contact over HTTP (S-FR-OR
   });
 });
 
-describe('the commission account and top-ups over HTTP (S-FR-COM-1, -2, -9; Story 8.1)', () => {
-  it('a replayed approval opens the account through the real commission handler, once', async () => {
+describe('the commission account and top-ups over HTTP (S-FR-COM-1, -2, -9, COM-1; Stories 8.1, 8.2)', () => {
+  /** A failed commission delivery of `type`, replayed by an admin through an app that keeps the real commission handler (the shared app binds an inert one). */
+  async function replayToCommission(type: 'BusinessApplicationApproved' | 'OrderClosed', aggregateId: string, payload: object): Promise<string> {
     await admin(db);
-    await business(db, id('andres'), 'Approved');
-    // The shared app binds an inert commission handler; this one keeps the real one.
     const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000' });
     const real = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { collections: async () => undefined } });
-    const payload = { applicationId: id('app1'), businessId: id('andres'), businessName: 'Cartas Andrés', approvedAt: at(-DAY), approvedBy: id('admin') };
-    await ins(db, 'OutboxEvent', { id: id('ev1'), type: 'BusinessApplicationApproved', aggregateId: id('app1'), schemaVersion: 1, payload: JSON.stringify(payload) }, 'created');
+    await ins(db, 'OutboxEvent', { id: id('ev1'), type, aggregateId, schemaVersion: 1, payload: JSON.stringify(payload) }, 'created');
     await ins(db, 'EventDelivery', { eventId: id('ev1'), subscriber: 'commission', status: 'failed', attempts: 3, lastErrorCode: 'DeliveryAttemptsExhausted', firstFailedAt: at(-DAY), lastFailedAt: at(-DAY) });
     const request = new Request('http://localhost/api/trpc/admin.events.replay', {
       method: 'POST', headers: { 'content-type': 'application/json', cookie: await signIn(id('admin')) }, body: JSON.stringify({ eventId: id('ev1'), subscriber: 'commission' }),
     });
     const res = await serveTrpc(request, real.router, clock, { identity: real.identity });
-    expect(((await res.json()) as { result?: { data: { status: string } } }).result?.data.status).toBe('delivered');
+    return ((await res.json()) as { result?: { data: { status: string } } }).result?.data.status ?? 'error';
+  }
+
+  it('a replayed approval opens the account through the real commission handler, once', async () => {
+    await business(db, id('andres'), 'Approved');
+    const payload = { applicationId: id('app1'), businessId: id('andres'), businessName: 'Cartas Andrés', approvedAt: at(-DAY), approvedBy: id('admin') };
+    expect(await replayToCommission('BusinessApplicationApproved', id('app1'), payload)).toBe('delivered');
     expect(await rows(db, 'CommissionAccount')).toMatchObject([{ businessId: id('andres'), balanceCop: '0', state: 'Exhausted', ledgerSeq: '0' }]);
     expect(await rows(db, 'OutboxEvent', `type = 'CommissionBalanceExhausted'`)).toMatchObject([{ payload: { businessId: id('andres'), ledgerSeq: 0, balanceAfter: 0 } }]);
+  });
+
+  it('a replayed OrderClosed charges the order once through the real commission handler (Story 8.2)', async () => {
+    await business(db, id('andres'), 'Approved');
+    await commissionAccount(db, id('andres'), 50_000);
+    const payload = { orderId: id('o1'), buyerId: id('camila'), businessId: id('andres'), totalCop: 45_000, lines: [], sellerReceivedConfirmedAt: null, buyerItemReceivedConfirmedAt: at(-HOUR) };
+    expect(await replayToCommission('OrderClosed', id('o1'), payload)).toBe('delivered');
+    expect(await rows(db, 'CommissionLedgerEntry')).toMatchObject([{ kind: 'Deduction', orderId: id('o1'), amountCop: '3600', trigger: 'buyerClosed', balanceAfter: '46400' }]);
   });
 
   it('a business requests a top-up with a proof and reads its account and its requests; the session names the business', async () => {

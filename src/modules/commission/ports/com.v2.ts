@@ -83,6 +83,22 @@ export interface ComTablesRepository {
   readAccount(tx: Tx, businessId: CuidId): Promise<AccountRow | null>;
   /** S-FR-COM-9: the newest ledger lines first, at most `limit`. */
   newestLedgerLines(tx: Tx, businessId: CuidId, limit: number): Promise<LedgerLineRow[]>;
+  /** COM-1 Q1 (AD-COM-2 rule 6): the rate of the setting with the greatest `"effectiveFrom" <= at`; the seed row guarantees one. */
+  rateAt(tx: Tx, at: IsoInstant): Promise<number>;
+  /** COM-1 Q2 (AD-COM-2 rule 2): the non-locking check for the order's deduction. */
+  deductionExists(tx: Tx, orderId: CuidId): Promise<boolean>;
+  /** COM-1 Q2.1: `SAVEPOINT`, and its rollback or release, inside the handler's `tx`. */
+  savepoint(tx: Tx, name: string, action: 'set' | 'rollback' | 'release'): Promise<void>;
+  /**
+   * AD-COM-1 rule 1: the one atomic account update by `delta`; the balance after and the new
+   * `ledgerSeq`, or null when the account does not exist.
+   */
+  applyBalanceChange(tx: Tx, businessId: CuidId, delta: bigint, now: IsoInstant): Promise<{ balanceAfter: bigint; ledgerSeq: bigint } | null>;
+  /** AD-COM-1 rule 2, AD-COM-2 rule 3: the deduction entry `ON CONFLICT ("orderId") DO NOTHING`; false when a concurrent delivery won. */
+  insertDeduction(tx: Tx, e: {
+    id: CuidId; businessId: CuidId; seq: bigint; amountCop: bigint; orderId: CuidId; rateBps: number; baseCop: bigint;
+    trigger: CommissionTrigger; commissionTriggeredAt: IsoInstant; balanceAfter: bigint; now: IsoInstant;
+  }): Promise<boolean>;
   /** S-FR-COM-2.request: the Pending row; the balance is untouched. */
   insertTopUp(tx: Tx, r: { id: CuidId; businessId: CuidId; amountCop: number; transferReference: string; proofObjectKey: string; now: IsoInstant }): Promise<void>;
   /** S-FR-COM-2.mine: the business's own requests, newest first by `("submittedAt", id)`, after the keyset when given. */

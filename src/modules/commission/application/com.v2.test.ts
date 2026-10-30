@@ -114,3 +114,31 @@ describe('listMyTopUps and getMyCommissionAccount (S-FR-COM-2.mine, S-FR-COM-9)'
     });
   });
 });
+
+describe('applyOrderDeduction (COM-1)', () => {
+  const ev = (o: Partial<{ orderId: string; totalCop: number; seller: string | null; item: string | null }> = {}) => ({
+    type: 'OrderClosed' as const, orderId: o.orderId ?? id('o1'), businessId: id('andres'), totalCop: o.totalCop ?? 45_000,
+    sellerReceivedConfirmedAt: o.seller === undefined ? null : o.seller, buyerItemReceivedConfirmedAt: o.item === undefined ? at(-HOUR) : o.item,
+  });
+  const deduct = (e: ReturnType<typeof ev>) => db.transactions.run((tx) => commission().com.applyOrderDeduction(tx, e));
+
+  it('a buyerClosed trigger cites FR-COM-4 in the audit row, and a zero amount still writes its entry with no crossing', async () => {
+    await shop(5_000);
+    expect(await deduct(ev())).toMatchObject({ outcome: 'charged', trigger: 'buyerClosed', amountCop: 3_600 });
+    expect(await rows(db, 'audit_events', `action = 'commission.deduction.applied'`)).toMatchObject([{ data: { rule: 'FR-COM-4', trigger: 'buyerClosed' } }]);
+    expect(await deduct(ev({ orderId: id('o2'), totalCop: 6 }))).toEqual({ outcome: 'charged', amountCop: 0, balanceAfter: 1_400, ledgerSeq: 2, trigger: 'buyerClosed', crossing: null });
+    expect(await rows(db, 'CommissionLedgerEntry', `"orderId" = $1`, [id('o2')])).toMatchObject([{ amountCop: '0', seq: '2' }]);
+  });
+
+  it('a payload with neither fact is Unexpected and writes nothing', async () => {
+    await shop(5_000);
+    expect(codeOf(await caught(() => deduct(ev({ item: null }))))).toBe('Unexpected');
+    expect(await rows(db, 'CommissionLedgerEntry')).toHaveLength(0);
+  });
+
+  it('a deduction from ≤ 0 crosses nothing and publishes nothing', async () => {
+    await shop(-100);
+    expect(await deduct(ev())).toMatchObject({ balanceAfter: -3_700, crossing: null });
+    expect(await rows(db, 'OutboxEvent')).toHaveLength(0);
+  });
+});

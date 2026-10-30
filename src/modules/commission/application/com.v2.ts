@@ -41,7 +41,7 @@ export interface ComV2UseCases {
 
 import type { Citation, Decision } from '../../../shared-kernel/decision.js';
 import { ambientTx } from '../../../shared-kernel/db.js';
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
@@ -49,7 +49,7 @@ import { rejectRequest } from '../../../shared-kernel/request.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import { isAdmin, requireBusinessAccount } from '../../identity/index.js';
 import {
-  decodeKeyset, encodeKeyset, isLowBalance, isTopUpProofUploadKey, isValidTopUpAmount, LOW_BALANCE_THRESHOLD_COP, MAX_PROOF_BYTES, neededToResume,
+  commissionOf, commissionTrigger, crossing, decodeKeyset, encodeKeyset, isLowBalance, isTopUpProofUploadKey, isValidTopUpAmount, LOW_BALANCE_THRESHOLD_COP, MAX_PROOF_BYTES, neededToResume,
   sniffProofType, topUpProofUploadPrefix,
 } from '../domain/com.js';
 import type { LedgerLineDTO, TopUpRowDTO } from '../dto/com.v2.dto.js';
@@ -63,6 +63,8 @@ const SIGNED_URL_TTL = 600;
 const TOP_UPS_PAGE = 25;
 /** S-FR-COM-9: the newest ledger lines the account page shows (decision log Impl-1 #33). */
 const ACCOUNT_LEDGER_LINES = 50;
+/** COM-1 Q2.1: the savepoint a lost race rolls back to. */
+const DEDUCTION_SAVEPOINT = 'apply_deduction';
 /** The `"TopUpRequest"` CHECK on `transferReference`, repeated for in-process callers. */
 const MIN_REFERENCE = 4;
 const MAX_REFERENCE = 40;
@@ -70,6 +72,14 @@ const MAX_REFERENCE = 40;
 /** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
 function explained(code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant, outcome: Decision['outcome'] = 'allowed'): Decision {
   return { outcome, reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
+}
+
+/** A payload instant, or null; an unparseable one is a programming error. */
+function instant(value: IsoInstant | null): Date | null {
+  if (value === null) return null;
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) throw new UnexpectedError(`Unexpected: ${value} is not an instant`);
+  return at;
 }
 
 /** A `bigint` amount that fits the DTO's `number` (AD-SYS-7: money is exact up to 2^53). */
@@ -129,8 +139,52 @@ export class ComServiceV2 implements ComV2UseCases {
     return decodeKeyset(cursor) ?? rejectRequest([{ field: 'cursor', issue: 'no es un cursor de esta lista' }]);
   }
 
-  async applyOrderDeduction(_tx: Tx, _input: ApplyOrderDeductionRequest): Promise<ApplyOrderDeductionResponse> {
-    throw new NotImplementedError('commission.applyOrderDeduction');
+  /**
+   * COM-1 (AD-COM-1, AD-COM-2, AD-SYS-3), in the handler's `tx`: the trigger and the rate from the
+   * facts, the cheap duplicate check, then under a savepoint the atomic account update and the entry
+   * keyed by `orderId`. A concurrent delivery that won leaves this one a `duplicate`, and `tx` stays
+   * open so the delivery row still commits. A deduction is never refused (AD-19).
+   */
+  async applyOrderDeduction(tx: Tx, input: ApplyOrderDeductionRequest): Promise<ApplyOrderDeductionResponse> {
+    const { repo, clock, ids, outbox, audit } = this.deps;
+    const { orderId, businessId, totalCop } = input;
+    if (!Number.isSafeInteger(totalCop) || totalCop < 0) throw new UnexpectedError(`Unexpected: ${input.type} totalCop ${totalCop} is not an integer ≥ 0`);
+    const facts = commissionTrigger({
+      sellerReceivedConfirmedAt: instant(input.sellerReceivedConfirmedAt),
+      buyerItemReceivedConfirmedAt: instant(input.buyerItemReceivedConfirmedAt),
+    });
+    if (facts === null) throw new UnexpectedError(`Unexpected: ${input.type} for order ${orderId} carries neither fact (COM-1 P2)`);
+    const { trigger } = facts;
+    const commissionTriggeredAt = facts.commissionTriggeredAt.toISOString();
+    if (await repo.deductionExists(tx, orderId)) return { outcome: 'duplicate' };
+    const now = clock.now().toISOString();
+    const rateBps = await repo.rateAt(tx, commissionTriggeredAt);
+    const baseCop = BigInt(totalCop);
+    const amountCop = commissionOf(baseCop, BigInt(rateBps));
+    await repo.savepoint(tx, DEDUCTION_SAVEPOINT, 'set');
+    const changed = await repo.applyBalanceChange(tx, businessId, -amountCop, now);
+    if (changed === null) throw new UnexpectedError(`Unexpected: business ${businessId} has no commission account yet; the delivery stays replayable (COM-1 P3)`);
+    const entryId = ids.next();
+    const inserted = await repo.insertDeduction(tx, {
+      id: entryId, businessId, seq: changed.ledgerSeq, amountCop, orderId, rateBps, baseCop, trigger, commissionTriggeredAt, balanceAfter: changed.balanceAfter, now,
+    });
+    if (!inserted) {
+      await repo.savepoint(tx, DEDUCTION_SAVEPOINT, 'rollback');
+      return { outcome: 'duplicate' };
+    }
+    await repo.savepoint(tx, DEDUCTION_SAVEPOINT, 'release');
+    const ledgerSeq = cop(changed.ledgerSeq);
+    const balanceAfter = cop(changed.balanceAfter);
+    const crossed = crossing(changed.balanceAfter + amountCop, changed.balanceAfter) === 'exhausted' ? 'exhausted' : null;
+    if (crossed) await outbox.enqueue(tx, 'CommissionBalanceExhausted', businessId, { businessId, ledgerSeq, balanceAfter });
+    // Q4: the ledger line is the explanation; a buyerClosed trigger cites FR-COM-4's support link.
+    await audit.record(tx, {
+      actorId: null, actorKind: 'system', module: 'commission', action: 'commission.deduction.applied',
+      aggregateType: 'CommissionLedgerEntry', aggregateId: entryId, decisionCode: null,
+      data: { rule: trigger === 'buyerClosed' ? 'FR-COM-4' : 'FR-COM-5', orderId, baseCop: totalCop, rateBps, amountCop: cop(amountCop), trigger, commissionTriggeredAt, ledgerSeq, balanceAfter },
+      at: now,
+    });
+    return { outcome: 'charged', amountCop: cop(amountCop), balanceAfter, ledgerSeq, trigger, crossing: crossed };
   }
 
   async confirmTopUp(_input: ConfirmTopUpRequest): Promise<ConfirmTopUpResponse> {

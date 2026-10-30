@@ -30,7 +30,7 @@ const UNWIRED_HANDLERS: Omit<Record<SubscriberName, DeliveryHandler>, 'listings'
 };
 
 /**
- * The `commission` subscriber (Story 8.1): each delivery runs S-FR-COM-1 in the handler's transaction,
+ * The `commission` subscriber (Stories 8.1 and 8.2): each delivery runs S-FR-COM-1 or COM-1 in the handler's transaction,
  * from the envelope's payload only (AD-9).
  */
 function commissionHandler(com: ComServiceV2): DeliveryHandler {
@@ -39,6 +39,12 @@ function commissionHandler(com: ComServiceV2): DeliveryHandler {
       case 'BusinessApplicationApproved': {
         const { businessId, approvedAt } = envelope.payload as EventPayloads['BusinessApplicationApproved'];
         await com.openCommissionAccount(tx, { businessId, approvedAt });
+        return;
+      }
+      case 'OrderPaymentConfirmedByBusiness':
+      case 'OrderClosed': {
+        const { orderId, businessId, totalCop, sellerReceivedConfirmedAt, buyerItemReceivedConfirmedAt } = envelope.payload as EventPayloads['OrderClosed'];
+        await com.applyOrderDeduction(tx, { type: envelope.type, orderId, businessId, totalCop, sellerReceivedConfirmedAt, buyerItemReceivedConfirmedAt });
         return;
       }
       default:
