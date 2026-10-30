@@ -752,6 +752,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - P1 The caller is an admin. Violation: `AdminOnly` (HTTP 403, identity).
   - P2 The request exists. Violation: `TopUpNotFound` (HTTP 404, commission).
   - P3 `status = 'Pending'`. Violation: `TopUpNotPending` (HTTP 409, commission), citing `{ status, decidedBy, decidedAt }`.
+  - P3a The admin is not the request's business (separation of duties, decision log Impl-1 #33). Violation: `TopUpSelfDecision` (HTTP 409, commission), citing `{ topUpRequestId }`. The conditional update carries `AND "businessId" <> :adminId`, so the refusal writes nothing; `rejectTopUp` applies the same rule.
   - P4 The business's `"CommissionAccount"` exists. This is guaranteed, because `requestTopUp` refuses with `CommissionAccountNotOpen` before the account exists (refinement R-7 as amended, C-GAP-3). Violation: `'Unexpected'`, an invariant breach.
 - **Postcondition (Q):**
   - Q1 One transaction:
@@ -1378,6 +1379,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `TopUpNotFound` | 404 | commission | COM-2 P2 | "No encontramos esa recarga." | no |
 | `CommissionRateNotFutureDated` | 400 | commission | S-FR-COM-7 | "La tarifa debe empezar desde ahora o después ({effectiveFrom})." | no |
 | `CommissionAccountNotOpen` † | 409 | commission | S-FR-COM-2 (C-GAP-3) | "Tu cuenta de comisiones se está abriendo; intenta la recarga en unos minutos." | yes |
+| `TopUpSelfDecision` | 409 | commission | COM-2 P3a; COM-2.reject (decision log Impl-1 #33) | "No puedes decidir una recarga de tu propia tienda; pídele a otro administrador que la revise." | no |
 | `SelfTradeNotAllowed` | 409 | trading | S-FR-TRD-1 | "No puedes ofertar por tu propia publicación." | no |
 | `EmptyTradeOffer` | 400 | trading | TRD-2 P2; S-FR-TRD-1 | "Agrega una carta o un monto a tu oferta." | no |
 | `DuplicateOpenOffer` | 409 | trading | S-FR-TRD-1 | "Ya tienes una oferta abierta por esta publicación." | no |

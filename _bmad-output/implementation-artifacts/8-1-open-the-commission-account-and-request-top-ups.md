@@ -89,3 +89,17 @@ context:
 - The "stays unwired" HTTP case moves from `commission.createTopUpProofUpload` (now wired) to `trading.cancel`.
 - Over HTTP, an amount outside 20,000–10,000,000 is refused by the generated zod input as `RequestValidationFailed` before the service; `TopUpAmountInvalid` is the in-process callers' refusal, as the bound test calls it.
 - The production `ObjectStorage` and `MalwareScanner` are still `UNWIRED_STORAGE` and `UNWIRED_SCANNER` (Story 3.1's item), so the ticket, the request and the URL fail as NotImplemented (500) in production.
+
+### Review Findings
+
+Epic 8 close review (2026-10-30, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `9f6844d..5913c75` (code paths). Totals for the epic: 3 decisions, 7 patches, 3 deferrals, 12 dismissed. Martín resolved the decisions (one deferral, one new refusal, one architecture amendment) and approved every patch (decision log Impl-1 #33).
+
+- [x] [Review][Decision→Defer] One quarantined proof can back two top-up requests — two concurrent `requestTopUp` calls with one `uploadKey` both promote it (or a later one after a failed best-effort delete), and nothing makes the key or the proof unique — deferred: a single-use upload ticket closes it at the source (Epic 3's upload-ticket item); until then the admin sees both requests, with one reference, before crediting
+- [x] [Review][Decision→Patch] An admin who is also a business can confirm or reject their own top-up — no separation-of-duties rule exists in the contracts — new refusal `TopUpSelfDecision` (409, commission): COM-2 P3a in contracts.md, §13, `codes.ts` and `operations.json`; the conditional update carries `"businessId" <> :adminId`, so it writes nothing
+- [x] [Review][Patch] `requireBusinessAccount` always cites `FR-COM-9`, also on the S-FR-COM-2 paths [src/modules/identity/application/admin.ts] — take the caller's rule
+- [x] [Review][Patch] `submittedAt` is read before the proof scan, so a slow scan commits a row older than queue pages an admin has already walked [src/modules/commission/application/com.v2.ts:requestTopUp] — read the Clock once, after promotion
+- [x] [Review][Patch] The top-up amount reaches the repository as a JS `number`, not `bigint` (Always: money in BigInt) [src/modules/commission/infra/pg.ts:insertTopUp]
+- [x] [Review][Patch] `cop()` throws a plain `RangeError` instead of `UnexpectedError` [src/modules/commission/application/com.v2.ts:cop]
+- [x] [Review][Patch] The seller-lock test never releases its subscriber transaction when an assertion fails, which hangs the suite [src/modules/listings/application/inv.v2.test.ts]
+- [x] [Review][Defer] Whitespace-only or NUL-bearing `transferReference` and rejection reason pass the length check (NUL then fails as 500) — deferred, pre-existing: Epic 3's trim item, decided with the UI forms
+- [x] [Review][Defer] The proof is read whole before the 5 MiB check, and an ambiguous COMMIT deletes a proof a committed row may point to — deferred, pre-existing: Epic 3's upload-ticket and production-storage items

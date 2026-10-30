@@ -126,6 +126,7 @@ export const MESSAGES = {
   TopUpNotFound: 'No encontramos esa recarga.',
   CommissionRateNotFutureDated: 'La tarifa debe empezar desde ahora o después ({effectiveFrom}).',
   CommissionAccountNotOpen: 'Tu cuenta de comisiones se está abriendo; intenta la recarga en unos minutos.',
+  TopUpSelfDecision: 'No puedes decidir una recarga de tu propia tienda; pídele a otro administrador que la revise.',
   SelfTradeNotAllowed: 'No puedes ofertar por tu propia publicación.',
   EmptyTradeOffer: 'Agrega una carta o un monto a tu oferta.',
   DuplicateOpenOffer: 'Ya tienes una oferta abierta por esta publicación.',

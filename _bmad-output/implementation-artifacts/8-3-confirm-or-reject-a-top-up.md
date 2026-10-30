@@ -84,3 +84,10 @@ context:
 - The confirmation's admin check and the queue's run in COM's own transaction through identity's `requireAdmin` (AD-16, decision #32).
 - A src test races a confirmation against two deductions on one account 20 times: the seq stays `1..3` and the balance is the ledger's sum.
 - Measured: `[NFR-COM-3.topUp]` p95 3.1 ms (p50 2.0).
+
+### Review Findings
+
+Epic 8 close review (2026-10-30, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `9f6844d..5913c75` (code paths). Totals for the epic: 3 decisions, 7 patches, 3 deferrals, 12 dismissed. Martín resolved the decisions (one deferral, one new refusal, one architecture amendment) and approved every patch (decision log Impl-1 #33).
+
+- [x] [Review][Patch] `rejectTopUp` checks the reason, and `listTopUpQueue` decodes the cursor, before the admin check (COM-2 P1 first-fail, AD-16) [src/modules/commission/application/com.v2.ts]
+- [x] [Review][Decision→Patch] (from 8.1's findings) `TopUpSelfDecision` (409): an admin cannot confirm or reject a top-up of their own business (COM-2 P3a, decision log Impl-1 #33)

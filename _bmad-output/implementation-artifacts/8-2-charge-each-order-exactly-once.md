@@ -79,9 +79,16 @@ context:
 ## Implementation Notes
 
 - Code review is batched with the rest of Epic 8 at its close (decision #22).
-- The concurrent duplicate follows contracts.md §7 Q2: a `SAVEPOINT apply_deduction` around the account update and the insert, and `ROLLBACK TO SAVEPOINT` when the insert returns no row, so the handler's `tx` (and the delivery row) commits. ARCHITECTURE AD-COM-2 rule 3 describes the older sentinel-and-rollback form; the contract is the newer text.
+- The concurrent duplicate follows contracts.md §7 Q2: a `SAVEPOINT apply_deduction` around the account update and the insert, and `ROLLBACK TO SAVEPOINT` when the insert returns no row, so the handler's `tx` (and the delivery row) commits. The close review amended ARCHITECTURE AD-COM-2 rules 1 and 3 to that form (decision log Impl-1 #33).
 - The rate is read by `commissionTriggeredAt`, never by `now`, and only after the duplicate check, so a redelivery reads one row.
 - The handler routes both order events by the shared payload fields (AD-9); `OrderClosed`'s nullable business fact and `OrderPaymentConfirmedByBusiness`'s nullable item fact both reach `commissionTrigger` as given.
 - The audit row carries the Q4 explanation (`rule` is `FR-COM-4` for a `buyerClosed` trigger, else `FR-COM-5`) with the ledger seq and the balance after.
 - **TG-7 runtimes** (local Postgres 16, `fsync=off`): `[COM-1.MEC]` 100 repetitions in 4,148 ms; `[COM-1.MEC2]` 100 repetitions in 1,974 ms.
 - Measured: `[NFR-COM-3.deduction]` p95 3.3 ms (p50 1.9).
+
+### Review Findings
+
+Epic 8 close review (2026-10-30, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `9f6844d..5913c75` (code paths). Totals for the epic: 3 decisions, 7 patches, 3 deferrals, 12 dismissed. Martín resolved the decisions (one deferral, one new refusal, one architecture amendment) and approved every patch (decision log Impl-1 #33).
+
+- [x] [Review][Decision→Patch] ARCHITECTURE AD-COM-2 rules 1 and 3 still describe the rate read first and the `DuplicateDeductionSentinel` rollback; the code follows contracts.md §7 Q2 (duplicate check first, savepoint) — AD-COM-2 rules 1 and 3 and the trade-off amended to the contract's form; no code change
+- [x] [Review][Patch] The `OrderPaymentConfirmedByBusiness` route through the real commission handler is never run by a test (spec: "the handler routing of both events") [src/server/composition.test.ts]

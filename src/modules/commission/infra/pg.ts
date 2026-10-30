@@ -113,7 +113,7 @@ export class PgComRepository implements ComTablesRepository {
   async decideTopUp(tx: Tx, d: { id: CuidId; decision: 'Confirmed' | 'Rejected'; adminId: CuidId; reason: string | null; now: IsoInstant }): Promise<{ businessId: CuidId; amountCop: bigint } | null> {
     const { rows } = await tx.query<{ businessId: CuidId; amountCop: string }>(
       `UPDATE "TopUpRequest" SET status = $2, "rejectionReason" = $3, "decidedBy" = $4, "decidedAt" = $5, "updatedAt" = $5, version = version + 1
-       WHERE id = $1 AND status = 'Pending' RETURNING "businessId", "amountCop"::text AS "amountCop"`,
+       WHERE id = $1 AND status = 'Pending' AND "businessId" <> $4 RETURNING "businessId", "amountCop"::text AS "amountCop"`,
       [d.id, d.decision, d.reason, d.adminId, d.now],
     );
     return rows[0] ? { businessId: rows[0].businessId, amountCop: BigInt(rows[0].amountCop) } : null;
@@ -146,11 +146,11 @@ export class PgComRepository implements ComTablesRepository {
     return rows.map(topUp);
   }
 
-  async insertTopUp(tx: Tx, r: { id: CuidId; businessId: CuidId; amountCop: number; transferReference: string; proofObjectKey: string; now: IsoInstant }): Promise<void> {
+  async insertTopUp(tx: Tx, r: { id: CuidId; businessId: CuidId; amountCop: bigint; transferReference: string; proofObjectKey: string; now: IsoInstant }): Promise<void> {
     await tx.query(
       `INSERT INTO "TopUpRequest" (id, "businessId", "amountCop", "transferReference", "proofObjectKey", status, "submittedAt", "createdAt", "updatedAt")
        VALUES ($1, $2, $3, $4, $5, 'Pending', $6, $6, $6)`,
-      [r.id, r.businessId, r.amountCop, r.transferReference, r.proofObjectKey, r.now],
+      [r.id, r.businessId, r.amountCop.toString(), r.transferReference, r.proofObjectKey, r.now],
     );
   }
 

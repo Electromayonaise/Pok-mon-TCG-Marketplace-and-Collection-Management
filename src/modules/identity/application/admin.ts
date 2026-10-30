@@ -26,9 +26,9 @@ export async function isAdmin(repo: AdminFactsReader, tx: Tx, userId: CuidId): P
 
 /**
  * A neighbour's business-only operation (COM's top-ups and account, decision log Impl-1 #33): identity
- * raises its own `NotBusinessAccount` from the capabilities it served through P-IDN.capabilities, so
+ * raises its own `NotBusinessAccount`, under the caller's rule, from the capabilities it served through P-IDN.capabilities, so
  * the neighbour neither reads an identity table nor raises an identity code.
  */
-export function requireBusinessAccount(capabilities: Pick<GetCapabilitiesResponse, 'sellerKind'>): void {
-  if (capabilities.sellerKind !== 'business') raise('NotBusinessAccount', [{ rule: 'FR-COM-9', inputs: { status: capabilities.sellerKind } }]);
+export function requireBusinessAccount(capabilities: Pick<GetCapabilitiesResponse, 'sellerKind'>, rule: string): void {
+  if (capabilities.sellerKind !== 'business') raise('NotBusinessAccount', [{ rule, inputs: { status: capabilities.sellerKind } }]);
 }

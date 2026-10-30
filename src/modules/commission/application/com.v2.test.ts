@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { useTestDatabase } from '../../../../test-support/db.js';
 import { caught, citedInputs } from '../../../../test-support/errors.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
-import { admin, at, business, commissionAccount, DAY, HOUR, id, ins, rows, topUp, wiring } from '../../../../test-support/solu2/fixtures.js';
+import { admin, at, business, commissionAccount, DAY, HOUR, id, individualSeller, ins, rows, topUp, user, wiring } from '../../../../test-support/solu2/fixtures.js';
 import { IdnServiceV2, VerServiceV2 } from '../../identity/index.js';
 import type { RequestTopUpRequest } from '../dto/com.v2.dto.js';
 import { ComServiceV2 } from './com.v2.js';
@@ -166,6 +166,36 @@ describe('confirmTopUp, rejectTopUp and the queue (COM-2, AD-COM-3)', () => {
     expect(lost.map(codeOf)).toEqual(['TopUpNotPending']);
     expect(citedInputs(lost[0])).toMatchObject({ decidedBy: id('admin') });
     expect(await rows(db, 'TopUpDecisionLog')).toHaveLength(1);
+  });
+
+  it('an admin who is also the business can neither confirm nor reject its own top-up, and nothing is written (P3a, decision log Impl-1 #33)', async () => {
+    // An admin account that is also the business (the fixture writes identity's row, not commission).
+    await user(db, { id: id('andres'), isAdmin: true, sellerTrack: 'business' });
+    await commissionAccount(db, id('andres'), 0);
+    await topUp(db, { id: id('t1'), businessId: id('andres'), amountCop: 50_000 });
+    const { com } = commission();
+    const confirm = await caught(() => com.confirmTopUp({ topUpRequestId: id('t1'), adminId: id('andres') }));
+    const reject = await caught(() => com.rejectTopUp({ topUpRequestId: id('t1'), adminId: id('andres'), reason: 'No encontramos la transferencia.' }));
+    expect([codeOf(confirm), citedInputs(confirm), codeOf(reject)]).toEqual(['TopUpSelfDecision', { topUpRequestId: id('t1') }, 'TopUpSelfDecision']);
+    expect(await rows(db, 'TopUpRequest', `status = 'Pending'`)).toHaveLength(1);
+    expect(await rows(db, 'TopUpDecisionLog')).toHaveLength(0);
+  });
+
+  it('a non-admin is AdminOnly before the reason or the cursor is checked (AD-16 first-fail)', async () => {
+    await shop();
+    const { com } = commission();
+    expect(codeOf(await caught(() => com.rejectTopUp({ topUpRequestId: id('t1'), adminId: id('andres'), reason: 'corto' })))).toBe('AdminOnly');
+    expect(codeOf(await caught(() => com.listTopUpQueue({ adminId: id('andres'), cursor: 'bm9wZQ' })))).toBe('AdminOnly');
+  });
+
+  it('NotBusinessAccount cites the caller\'s rule: FR-COM-2 for a top-up, FR-COM-9 for the account', async () => {
+    await individualSeller(db, id('valentina'));
+    const { com } = commission();
+    const rules = await Promise.all([
+      caught(() => com.listMyTopUps({ businessId: id('valentina'), cursor: null })),
+      caught(() => com.getMyCommissionAccount({ businessId: id('valentina') })),
+    ]);
+    expect(rules.map((e) => (e as { citations: { rule: string }[] }).citations[0]!.rule)).toEqual(['FR-COM-2', 'FR-COM-9']);
   });
 
   it('a rejection reason outside 10–300 characters is refused before any write', async () => {

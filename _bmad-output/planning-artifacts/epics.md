@@ -972,7 +972,7 @@ Keep each business's prepaid commission balance exact. Each order is charged exa
 - **Gherkin:**
   - **Scenario (happy) — Given:** Andrés's account is funded, and a business confirmation for 45,000 arrives. **When:** the deduction applies. **Then:** 8 % = 3,600, with one ledger line carrying its pricing and an audit row; crossing to ≤ 0 publishes one Exhausted.
   - **Scenario (failure) — Given:** two orders owing 3,600 each, confirmed at one instant against 5,000, plus a duplicate; both order events for one order delivered concurrently; 100 repetitions each. **When:** commission applies them. **Then:** −2,200 with two lines and one Exhausted; one line and one decrement per order; 12,345 × 800 bps is exactly 988, and storage refuses any other amount.
-- **DoD:** the shared DoD, plus: the 8 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7); NFR-COM-3: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 8 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7).
 
 ### Story 8.3: Confirm or reject a top-up
 
@@ -988,7 +988,7 @@ Keep each business's prepaid commission balance exact. Each order is charged exa
 - **Gherkin:**
   - **Scenario (happy) — Given:** a 100,000 top-up for an Exhausted account at 0. **When:** an admin confirms it from the queue (Pending, oldest first). **Then:** the balance is 100,000, the listings resume, and one Replenished event is published; a rejected top-up records its reason and credits nothing.
   - **Scenario (failure) — Given:** 20,000 confirmed on −25,000, and two admins confirming one top-up at once. **When:** the confirmations run. **Then:** −5,000 naming 5,001 as needed to resume, with nothing published; one credit, one decision row and one `TopUpNotPending`.
-- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-COM-3: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 8.4: Refuse invalid top-ups and decided requests
 
@@ -1004,7 +1004,7 @@ Keep each business's prepaid commission balance exact. Each order is charged exa
 - **Gherkin:**
   - **Scenario (happy) — Given:** a Pending top-up of 50,000. **When:** an admin confirms it. **Then:** it is credited: the contrast case.
   - **Scenario (failure) — Given:** a 19,999 COP request; a request before the account opens; an unknown or already decided top-up; an individual seller reading a commission account; a deduction for a business with no account. **When:** the command runs. **Then:** `TopUpAmountInvalid` (400); `CommissionAccountNotOpen` (409), never `NotBusinessAccount`; `TopUpNotFound` or `TopUpNotPending` naming who decided; `NotBusinessAccount` propagated; `'Unexpected'`, leaving the delivery failed and replayable.
-- **DoD:** the shared DoD, plus: the 7 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-COM-3: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 7 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 8.5: Reconcile ledgers and report, never repair, discrepancies
 

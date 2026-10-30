@@ -321,10 +321,10 @@ Operations: `COM-2.queue`, `S-FR-COM-2.url`, `COM-2`, `COM-2.reject`
 | Selected | client | transport or interaction; no server DTO |
 | Deciding | client | transport or interaction; no server DTO |
 | Decided | data | `ListTopUpQueueResponse`, `GetTopUpProofUrlResponse`, `ConfirmTopUpResponse`, `RejectTopUpResponse` |
-| Lost race | refusal | `ErrorBody` (`NotAuthenticated`, `AdminOnly`, `RequestValidationFailed`, `TopUpNotVisibleToCaller`, `TopUpNotFound`, `TopUpNotPending`) |
-| Error — validation | refusal | `ErrorBody` (`NotAuthenticated`, `AdminOnly`, `RequestValidationFailed`, `TopUpNotVisibleToCaller`, `TopUpNotFound`, `TopUpNotPending`) |
+| Lost race | refusal | `ErrorBody` (`NotAuthenticated`, `AdminOnly`, `RequestValidationFailed`, `TopUpNotVisibleToCaller`, `TopUpNotFound`, `TopUpNotPending`, `TopUpSelfDecision`) |
+| Error — validation | refusal | `ErrorBody` (`NotAuthenticated`, `AdminOnly`, `RequestValidationFailed`, `TopUpNotVisibleToCaller`, `TopUpNotFound`, `TopUpNotPending`, `TopUpSelfDecision`) |
 | Error — transport | client | transport or interaction; no server DTO |
-| Not available | refusal | `ErrorBody` (`NotAuthenticated`, `AdminOnly`, `RequestValidationFailed`, `TopUpNotVisibleToCaller`, `TopUpNotFound`, `TopUpNotPending`) |
+| Not available | refusal | `ErrorBody` (`NotAuthenticated`, `AdminOnly`, `RequestValidationFailed`, `TopUpNotVisibleToCaller`, `TopUpNotFound`, `TopUpNotPending`, `TopUpSelfDecision`) |
 
 ## 7.4 Rate Settings & Reconciliation
 

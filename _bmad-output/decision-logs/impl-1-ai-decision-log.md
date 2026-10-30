@@ -628,3 +628,61 @@
 - **Environment note:** Docker did not run in this session either. The preinstalled `postgresql-16` cluster on port 55432 (`max_connections=200`, `fsync=off`, `full_page_writes=off`) ran `npm run test:ci` in about 2 minutes.
 - **Artifact changed:** `src/modules/orders/**`, `src/modules/identity/{application,index}` (`admin.ts`, the ambient payment instructions), `src/server/composition.ts` (+ test), `src/server/trpc/router.v2.ts`, `test-support/solu2/{fixtures,services}.ts`, `_bmad-output/planning-artifacts/detailed-design/contracts.md` (§13, 14 stored-only rows), `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts`, `_bmad-output/test-artifacts/nfr-evidence.md`, `deferred-work.md`, the five Epic 7 story files, and `sprint-status.yaml` (7.3 and 7.4 out of `impl2_scope`; `epic-7: done`).
 - **Decided by:** Martín.
+
+### 33. Epic 8 is built through 8.4, identity's guard raises NotBusinessAccount, the seller lock closes an Epic 5 deferral, its close review adds TopUpSelfDecision, and the epic is signed (Governance)
+
+- **Phase:** 3 (Epic 8 planning at `9f6844d`, then the close review over `9f6844d..5913c75`).
+- **Persona/Skill:** `bmad-quick-dev`, epic-batched (#22), then `bmad-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor).
+- **Prompt (summary):** Two rounds.
+  - **The specs.** Martín approved the four Epic 8 specs (8.1–8.4) together. With them came four choices:
+    - **Scope.** Story 8.4 is in `impl2_scope`, but its seven bound tests check clauses that 8.1–8.3 must build:
+      - `[S-FR-COM-2.f]` and `[S-FR-COM-2.f2]` are P3 and P2 of 8.1's `requestTopUp`;
+      - `[S-FR-COM-9.f]` is the business check of 8.1's account read;
+      - `[COM-2.P2]`, `[COM-2.P3]` and `[COM-2.reject.f]` are 8.3's 0-row re-read, which `[COM-2.I1]` also needs;
+      - `[COM-1.P3]` is 8.2's 0-row account update.
+
+      Stories 8.5 (reconcile) and 8.6 (rates, admin ledger) are operations of their own, so their 10 tests stay red for NotImplemented.
+    - **`NotBusinessAccount`.** S-FR-COM-2 and S-FR-COM-9 propagate identity's code, but the bound `IdentityForCom` fake offers only `getCapabilities` and `getBusinessName`, and `commission` may not raise an identity code (`tezg/error-owner`).
+    - **The Epic 5 seller-lock deferral**, left for Epic 8 to decide: a business with no `"SellerCommissionState"` row has nothing for `createListing` to lock.
+    - **Minor choices:** the NFR-COM-3 benchmark's binding, the account page's ledger length, an `isAdmin` read for the proof URL, eight stored-only §13 rows, and which procedures are wired.
+  - **The close review.** It left 3 decisions, 7 patches, 3 deferrals and 12 dismissed findings. The decisions:
+    - one quarantined proof can back two concurrent top-up requests;
+    - an admin who is also a business can decide their own top-up;
+    - ARCHITECTURE AD-COM-2 rules 1 and 3 describe the rate read first and a sentinel rollback, while the code follows contracts.md §7 Q2 (duplicate check first, savepoint).
+- **AI output (summary):** The agent recommended:
+  - **(recommended)** Build 8.4 with the epic as a proof-only story, committed right after 8.3 (#23), as 7.3 and 7.4 were (#32). It leaves `impl2_scope` and does not count toward the 43 Impl-1 stories. The 8.1–8.3 commits stay red locally on 8.4's tests until the 8.4 commit. The alternatives were a gate exception, or postponing the epic.
+  - **(recommended)** identity exports a pure `requireBusinessAccount(capabilities, rule)` that raises its own `NotBusinessAccount` when `sellerKind ≠ 'business'`; commission calls it with the result of `getCapabilities`. This is the pattern of `requireAdmin` (#32). The alternatives were a new port method (changes the bound fakes) or commission raising the code (breaks the lint rule).
+  - **(recommended)** Keep the seller-lock item deferred. The alternative was closing it now with a `listings:seller` advisory lock.
+  - **(recommended)** The minor choices: `[NFR-COM-3.deduction]` bound to 8.2 and `[NFR-COM-3.topUp]` to 8.3, in one new file; the 50 newest ledger lines; identity's `isAdmin` beside `requireAdmin`; the eight §13 rows; eight `commission.*` procedures and the subscriber wired, the five of 8.5 and 8.6 left unwired.
+  - **(recommended)** Defer the proof reuse: a single-use upload ticket closes it at the source, and an admin confirms each top-up against the bank. The alternatives were a per-business advisory lock, or a partial unique index on the transfer reference.
+  - **(recommended)** Defer the self-decision policy to the admin console story. The alternative was a new refusal now.
+  - **(recommended)** Amend AD-COM-2 to the contract's form. The alternative was a note only.
+  - Apply all 7 patches.
+- **Human decision:** ACCEPT every recommendation except two, and sign the Epic 8 gate (#5):
+  - **the seller lock is closed now** (the alternative), not deferred;
+  - **an admin may not decide their own top-up** (the alternative): a new refusal `TopUpSelfDecision` (409, commission).
+- **Reason:** `done` keeps meaning what the bound tests prove, and the gate needs no exception. Identity keeps raising its own code with no bound test or contract change. The seller lock and the self-decision rule close two real gaps in the money path while their owners' code is open.
+- **Also decided (the patches):**
+  - `requireBusinessAccount` cites the caller's rule: `FR-COM-2` for the top-up paths, `FR-COM-9` for the account.
+  - `requestTopUp` reads the Clock once, after the proof scan, so a slow scan cannot commit a row older than queue pages an admin has already read.
+  - The top-up amount reaches the repository as `bigint` (AD-SYS-7).
+  - `cop()` raises `UnexpectedError`, not a bare `RangeError`.
+  - The seller-lock test releases its subscriber transaction in `finally`.
+  - An HTTP case replays an `OrderPaymentConfirmedByBusiness` through the real commission handler.
+  - `rejectTopUp` and `listTopUpQueue` check the admin before the reason and the cursor (AD-16 first-fail).
+- **Also in this epic:**
+  - **The seller lock:** `pg_advisory_xact_lock(listings:seller:<businessId>)`, taken first by `createListing` and `createBundle` for a business and by `applyCommissionProjection`. AD-SYS-4 rule 4 gains the namespace, and rule 5's note says why it cannot deadlock. `applyApplicationDecision` does not take it (its sibling item stays deferred).
+  - **`TopUpSelfDecision`:** COM-2 P3a in contracts.md, a §13 row, `codes.ts` and `operations.json` (confirm and reject). The conditional update carries `"businessId" <> :adminId`, so the refusal writes nothing.
+  - AD-COM-2 rules 1 and 3 and the trade-off now describe the savepoint form of contracts.md §7 Q2.
+  - §13 gains eight stored-only rows with no placeholders: `TopUpRequested`, `TopUpConfirmed`, `TopUpConfirmedBelowZero`, `TopUpRejected`, `CommissionAccountShown`, `CommissionAccountNotYetOpen`, `CommissionBalanceLow` and `CommissionBalanceNeedsTopUp`.
+  - The `commission` subscriber is wired: `BusinessApplicationApproved` opens the account, and the two order events run COM-1. Eight `commission.*` procedures are wired.
+  - COM's identity port spans IDN (`getCapabilities`) and VER (`getBusinessName`), so `compose()` binds an object of both.
+  - The decision row's method is `insertTopUpDecisionLog`, because VER already offers `insertDecisionLog` on the one repository (R-14).
+  - The measured figures (local Postgres 16):
+    - `[NFR-COM-3.deduction]` p95 3.3 ms (p50 1.9);
+    - `[NFR-COM-3.topUp]` p95 3.1 ms (p50 2.0);
+    - `[COM-1.MEC]` 100 repetitions in 4,148 ms;
+    - `[COM-1.MEC2]` 100 repetitions in 1,974 ms.
+- **Environment note:** Docker did not run in this session either. A `postgresql-16` cluster on port 55432 (`max_connections=200`, `fsync=off`, `full_page_writes=off`) ran `npm run test:ci` in about 3 minutes, green.
+- **Artifact changed:** `src/modules/commission/**`, `src/modules/identity/{application/admin.ts,index.ts}`, `src/modules/listings/{ports,infra,application}/` (the seller lock + test), `src/server/composition.ts` (+ test), `src/shared-kernel/codes.ts`, `test-support/solu2/fixtures.ts`, `_bmad-output/planning-artifacts/ARCHITECTURE.md` (AD-SYS-4 rules 4–5, AD-COM-2), `_bmad-output/planning-artifacts/detailed-design/contracts.md` (COM-2 P3a, §13: nine rows), `schemas/operations.json`, `ui-states.md`, `_bmad-output/planning-artifacts/epics.source.mjs` and `epics.md`, `_bmad-output/test-artifacts/nfr/com3_latency.test.ts`, `_bmad-output/test-artifacts/nfr-evidence.md`, `deferred-work.md`, the four Epic 8 story files, and `sprint-status.yaml` (8.4 out of `impl2_scope`; `epic-8: done`).
+- **Decided by:** Martín.

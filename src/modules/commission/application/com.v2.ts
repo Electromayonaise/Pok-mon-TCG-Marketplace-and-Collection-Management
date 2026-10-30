@@ -88,7 +88,7 @@ function instant(value: IsoInstant | null): Date | null {
 /** A `bigint` amount that fits the DTO's `number` (AD-SYS-7: money is exact up to 2^53). */
 function cop(value: bigint): number {
   const n = Number(value);
-  if (!Number.isSafeInteger(n)) throw new RangeError(`COP ${value} exceeds the DTO's safe integer range`);
+  if (!Number.isSafeInteger(n)) throw new UnexpectedError(`Unexpected: COP ${value} exceeds the DTO's safe integer range`);
   return n;
 }
 
@@ -122,9 +122,9 @@ export class ComServiceV2 implements ComV2UseCases {
     return tx ? fn(tx) : this.deps.transactions.run(fn, { readOnly: true });
   }
 
-  /** The business check of S-FR-COM-2 and S-FR-COM-9: identity raises its own `NotBusinessAccount` (decision log Impl-1 #33). */
-  private async requireBusiness(businessId: CuidId): Promise<void> {
-    requireBusinessAccount(await this.deps.identity.getCapabilities({ userId: businessId }));
+  /** The business check of S-FR-COM-2 and S-FR-COM-9: identity raises its own `NotBusinessAccount`, citing the caller's rule (decision log Impl-1 #33). */
+  private async requireBusiness(businessId: CuidId, rule: 'FR-COM-2' | 'FR-COM-9'): Promise<void> {
+    requireBusinessAccount(await this.deps.identity.getCapabilities({ userId: businessId }), rule);
   }
 
   /** C-GAP-3: a business whose account is not open yet gets COM's own refusal, never identity's. */
@@ -192,11 +192,13 @@ export class ComServiceV2 implements ComV2UseCases {
 
   /**
    * COM-2 Q-fail (AD-COM-3 rule 2): the refusal of a 0-row decision, from the request as `tx` re-reads
-   * it. The loser writes nothing and cites the winner.
+   * it. The loser writes nothing and cites the winner; a Pending request of the admin's own business
+   * is P3a's `TopUpSelfDecision` (decision log Impl-1 #33).
    */
-  private async refuseDecision(tx: Tx, topUpRequestId: CuidId): Promise<never> {
+  private async refuseDecision(tx: Tx, topUpRequestId: CuidId, adminId: CuidId): Promise<never> {
     const row = await this.deps.repo.readTopUp(tx, topUpRequestId);
     if (row === null) return raise('TopUpNotFound', [{ rule: 'FR-COM-3', inputs: { topUpRequestId } }]);
+    if (row.status === 'Pending' && row.businessId === adminId) return raise('TopUpSelfDecision', [{ rule: 'AD-COM-3', inputs: { topUpRequestId } }]);
     if (row.status === 'Pending') throw new UnexpectedError(`Unexpected: top-up ${topUpRequestId} is still Pending after a 0-row decision`);
     return raise('TopUpNotPending', [{ rule: 'AD-COM-3', inputs: { status: row.status, decidedBy: row.decidedBy, decidedAt: row.decidedAt?.toISOString() ?? null } }]);
   }
@@ -213,7 +215,7 @@ export class ComServiceV2 implements ComV2UseCases {
       await requireAdmin(repo, tx, adminId);
       const now = clock.now().toISOString();
       const decided = await repo.decideTopUp(tx, { id: topUpRequestId, decision: 'Confirmed', adminId, reason: null, now });
-      if (decided === null) return this.refuseDecision(tx, topUpRequestId);
+      if (decided === null) return this.refuseDecision(tx, topUpRequestId, adminId);
       const { businessId, amountCop } = decided;
       const changed = await repo.applyBalanceChange(tx, businessId, amountCop, now);
       if (changed === null) throw new UnexpectedError(`Unexpected: top-up ${topUpRequestId} names business ${businessId}, which has no commission account (COM-2 P4)`);
@@ -240,14 +242,15 @@ export class ComServiceV2 implements ComV2UseCases {
   async rejectTopUp(input: RejectTopUpRequest): Promise<RejectTopUpResponse> {
     const { repo, transactions, clock, ids, audit } = this.deps;
     const { topUpRequestId, adminId, reason } = input;
-    const length = [...reason].length;
-    if (length < MIN_REJECTION_REASON || length > MAX_REJECTION_REASON) {
-      rejectRequest([{ field: 'reason', issue: `debe tener entre ${MIN_REJECTION_REASON} y ${MAX_REJECTION_REASON} caracteres` }]);
-    }
     return transactions.run(async (tx) => {
+      // P1 first (AD-16), then the reason's CHECK, repeated for in-process callers.
       await requireAdmin(repo, tx, adminId);
+      const length = [...reason].length;
+      if (length < MIN_REJECTION_REASON || length > MAX_REJECTION_REASON) {
+        rejectRequest([{ field: 'reason', issue: `debe tener entre ${MIN_REJECTION_REASON} y ${MAX_REJECTION_REASON} caracteres` }]);
+      }
       const now = clock.now().toISOString();
-      if ((await repo.decideTopUp(tx, { id: topUpRequestId, decision: 'Rejected', adminId, reason, now })) === null) return this.refuseDecision(tx, topUpRequestId);
+      if ((await repo.decideTopUp(tx, { id: topUpRequestId, decision: 'Rejected', adminId, reason, now })) === null) return this.refuseDecision(tx, topUpRequestId, adminId);
       await repo.insertTopUpDecisionLog(tx, { id: ids.next(), topUpRequestId, adminId, decision: 'Rejected', now });
       await audit.record(tx, {
         actorId: adminId, actorKind: 'admin', module: 'commission', action: 'commission.topUp.rejected',
@@ -281,7 +284,7 @@ export class ComServiceV2 implements ComV2UseCases {
   /** S-FR-COM-2.ticket (AD-SYS-8 rule 5.1): a direct-upload ticket under the business's own prefix. */
   async createTopUpProofUpload(input: CreateTopUpProofUploadRequest): Promise<CreateTopUpProofUploadResponse> {
     const { repo, ids, storage } = this.deps;
-    await this.requireBusiness(input.businessId);
+    await this.requireBusiness(input.businessId, 'FR-COM-2');
     if ((await this.reading((tx) => repo.readAccount(tx, input.businessId))) === null) this.notOpen();
     const uploadKey = `${topUpProofUploadPrefix(input.businessId)}${ids.next()}`;
     const { signedUrl, token } = await storage.createUploadTicket(uploadKey);
@@ -314,19 +317,20 @@ export class ComServiceV2 implements ComV2UseCases {
   async requestTopUp(input: RequestTopUpRequest): Promise<RequestTopUpResponse> {
     const { repo, transactions, clock, ids, audit, storage } = this.deps;
     const { businessId, amountCop, transferReference, uploadKey } = input;
-    await this.requireBusiness(businessId);
+    await this.requireBusiness(businessId, 'FR-COM-2');
     if ((await this.reading((tx) => repo.readAccount(tx, businessId))) === null) this.notOpen();
     if (!isValidTopUpAmount(amountCop)) raise('TopUpAmountInvalid', [{ rule: 'FR-COM-2', inputs: { amountCop } }]);
     const length = [...transferReference].length;
     if (length < MIN_REFERENCE || length > MAX_REFERENCE) {
       rejectRequest([{ field: 'transferReference', issue: `debe tener entre ${MIN_REFERENCE} y ${MAX_REFERENCE} caracteres` }]);
     }
-    const now = clock.now().toISOString();
     const key = await this.promoteProof(businessId, uploadKey);
+    // Clock, once, after the scan: a slow scan must not commit a row older than queue pages already read.
+    const now = clock.now().toISOString();
     const topUpRequestId = ids.next();
     try {
       await transactions.run(async (tx) => {
-        await repo.insertTopUp(tx, { id: topUpRequestId, businessId, amountCop, transferReference, proofObjectKey: key, now });
+        await repo.insertTopUp(tx, { id: topUpRequestId, businessId, amountCop: BigInt(amountCop), transferReference, proofObjectKey: key, now });
         await audit.record(tx, {
           actorId: businessId, actorKind: 'user', module: 'commission', action: 'commission.topUp.requested',
           aggregateType: 'TopUpRequest', aggregateId: topUpRequestId, decisionCode: 'TopUpRequested', data: { amountCop }, at: now,
@@ -353,7 +357,7 @@ export class ComServiceV2 implements ComV2UseCases {
   async getMyCommissionAccount(input: GetMyCommissionAccountRequest): Promise<GetMyCommissionAccountResponse> {
     const { repo, clock } = this.deps;
     const { businessId } = input;
-    await this.requireBusiness(businessId);
+    await this.requireBusiness(businessId, 'FR-COM-9');
     const now = clock.now().toISOString();
     const { account, lines } = await this.reading(async (tx) => {
       const row = await repo.readAccount(tx, businessId);
@@ -380,10 +384,9 @@ export class ComServiceV2 implements ComV2UseCases {
   /** COM-2.queue (AD-16): the admin's queue of Pending requests, oldest first. */
   async listTopUpQueue(input: ListTopUpQueueRequest): Promise<ListTopUpQueueResponse> {
     const { repo } = this.deps;
-    const after = this.decodeCursor(input.cursor);
     const rows = await this.reading(async (tx) => {
       await requireAdmin(repo, tx, input.adminId);
-      return repo.listPendingTopUps(tx, after, TOP_UPS_PAGE);
+      return repo.listPendingTopUps(tx, this.decodeCursor(input.cursor), TOP_UPS_PAGE);
     });
     const { nextCursor } = page(rows, TOP_UPS_PAGE);
     return { rows: rows.map(topUpDto), nextCursor };
@@ -392,7 +395,7 @@ export class ComServiceV2 implements ComV2UseCases {
   /** S-FR-COM-2.mine (AD-COM-3 rule 4): the business's own requests, newest first. */
   async listMyTopUps(input: ListMyTopUpsRequest): Promise<ListMyTopUpsResponse> {
     const { repo } = this.deps;
-    await this.requireBusiness(input.businessId);
+    await this.requireBusiness(input.businessId, 'FR-COM-2');
     const after = this.decodeCursor(input.cursor);
     const rows = await this.reading((tx) => repo.listTopUpsOf(tx, input.businessId, after, TOP_UPS_PAGE));
     const { nextCursor } = page(rows, TOP_UPS_PAGE);

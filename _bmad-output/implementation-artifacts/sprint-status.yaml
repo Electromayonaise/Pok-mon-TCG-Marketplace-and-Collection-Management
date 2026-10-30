@@ -103,7 +103,7 @@ development_status:
   7-4-refuse-out-of-role-repeated-and-expired-confirmations: done
   7-5-cancel-expire-read-and-support-orders: done
   epic-7-retrospective: optional
-  epic-8: in-progress
+  epic-8: done
   8-1-open-the-commission-account-and-request-top-ups: done
   8-2-charge-each-order-exactly-once: done
   8-3-confirm-or-reject-a-top-up: done

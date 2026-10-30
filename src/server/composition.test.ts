@@ -585,7 +585,7 @@ describe('the order reads, cancel, lookup and support contact over HTTP (S-FR-OR
 
 describe('the commission account and top-ups over HTTP (S-FR-COM-1, -2, -9, COM-1, COM-2; Stories 8.1–8.3)', () => {
   /** A failed commission delivery of `type`, replayed by an admin through an app that keeps the real commission handler (the shared app binds an inert one). */
-  async function replayToCommission(type: 'BusinessApplicationApproved' | 'OrderClosed', aggregateId: string, payload: object): Promise<string> {
+  async function replayToCommission(type: 'BusinessApplicationApproved' | 'OrderClosed' | 'OrderPaymentConfirmedByBusiness', aggregateId: string, payload: object): Promise<string> {
     await admin(db);
     const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000' });
     const real = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { collections: async () => undefined } });
@@ -612,6 +612,15 @@ describe('the commission account and top-ups over HTTP (S-FR-COM-1, -2, -9, COM-
     const payload = { orderId: id('o1'), buyerId: id('camila'), businessId: id('andres'), totalCop: 45_000, lines: [], sellerReceivedConfirmedAt: null, buyerItemReceivedConfirmedAt: at(-HOUR) };
     expect(await replayToCommission('OrderClosed', id('o1'), payload)).toBe('delivered');
     expect(await rows(db, 'CommissionLedgerEntry')).toMatchObject([{ kind: 'Deduction', orderId: id('o1'), amountCop: '3600', trigger: 'buyerClosed', balanceAfter: '46400' }]);
+  });
+
+  it('a replayed OrderPaymentConfirmedByBusiness charges the order once through the real commission handler (Story 8.2)', async () => {
+    await business(db, id('andres'), 'Approved');
+    await commissionAccount(db, id('andres'), 3_000);
+    const payload = { orderId: id('o1'), businessId: id('andres'), buyerId: id('camila'), totalCop: 45_000, lines: [], sellerReceivedConfirmedAt: at(-HOUR), buyerItemReceivedConfirmedAt: null };
+    expect(await replayToCommission('OrderPaymentConfirmedByBusiness', id('o1'), payload)).toBe('delivered');
+    expect(await rows(db, 'CommissionLedgerEntry')).toMatchObject([{ kind: 'Deduction', orderId: id('o1'), amountCop: '3600', trigger: 'businessConfirmed', balanceAfter: '-600' }]);
+    expect(await rows(db, 'OutboxEvent', `type = 'CommissionBalanceExhausted'`)).toMatchObject([{ payload: { businessId: id('andres'), ledgerSeq: 1, balanceAfter: -600 } }]);
   });
 
   it('a business requests a top-up with a proof and reads its account and its requests; the session names the business', async () => {

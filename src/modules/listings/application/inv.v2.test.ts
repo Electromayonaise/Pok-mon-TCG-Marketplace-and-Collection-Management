@@ -289,11 +289,15 @@ describe('Epic 8: the seller advisory lock (AD-SYS-4 rule 4, decision log Impl-1
     let created = false;
     const creation = inv.createListing({ itemRef: id('char'), condition: 'NM', priceCop: 45_000, quantity: 1, location: null, description: '', openToTrade: false, sellerId: id('andres') })
       .then((r) => { created = true; return r; });
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(created).toBe(false);
-    release();
-    await subscriber;
-    await creation;
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(created).toBe(false);
+    } finally {
+      // Released on a failed assertion too, so the subscriber's transaction never outlives the test.
+      release();
+      await subscriber;
+      await creation;
+    }
     expect(await rows(db, 'Listing', '"pausedAt" IS NULL')).toHaveLength(1);
   });
 });
