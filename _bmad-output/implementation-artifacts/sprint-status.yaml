@@ -119,8 +119,8 @@ development_status:
   9-5-refuse-hidden-or-business-listings-and-rate-limit-contact: done
   9-6-read-the-inbox-mark-threads-read-and-mute: backlog
   epic-9-retrospective: optional
-  epic-10: backlog
-  10-1-make-read-and-withdraw-a-trade-offer: backlog
+  epic-10: in-progress
+  10-1-make-read-and-withdraw-a-trade-offer: done
   10-2-counter-an-offer-turn-by-turn: backlog
   10-3-accept-the-last-unit-from-two-sessions: backlog
   10-4-refuse-stale-out-of-turn-and-duplicate-offer-actions: backlog

@@ -710,3 +710,26 @@ describe('inventory.contact over HTTP (MSG-2; Story 9.3)', () => {
     expect(JSON.stringify(await rows(db, 'ContactRequestLog'))).not.toContain('203.0.113.7');
   });
 });
+
+describe('trading over HTTP (S-FR-TRD-1, S-FR-TRD-2w, S-FR-TRD-3; Story 10.1)', () => {
+  it('a buyer offers on an individual listing open to trade, both parties read it, and he withdraws it; a self-offer is SelfTradeNotAllowed 409', async () => {
+    await individualSeller(db, id('valentina'));
+    await user(db, { id: id('julian') });
+    await catalogEntry(db, id('char'));
+    await unit(db, { id: id('uv'), sellerId: id('valentina'), catalogEntryId: id('char'), quantity: 1 });
+    await listing(db, { id: id('lv'), sellerId: id('valentina'), unitId: id('uv'), sellerKind: 'individual', openToTrade: true });
+    const julian = await signIn(id('julian'));
+    const offerTerms = { offeredItems: [{ itemRef: id('char'), condition: 'NM', qty: 1 }], cashCop: 20_000, requestedQty: 1 };
+    const made = await post('trading.offer', { listingId: id('lv'), terms: offerTerms }, julian);
+    expect([made.status, made.json.result?.data]).toEqual([200, expect.objectContaining({ status: 'Open', turn: 'seller', version: 0 })]);
+    const offerId = made.json.result!.data.offerId as string;
+    const seen = await get('trading.get', { offerId }, await signIn(id('valentina')));
+    expect(seen.json.result?.data).toMatchObject({ status: 'Open', rounds: [{ round: 1, action: 'offer' }] });
+    const mine = await get('trading.mine', { side: 'sent', cursor: null }, julian);
+    expect((mine.json.result?.data.offers as unknown[]).length).toBe(1);
+    const withdrawn = await post('trading.withdraw', { offerId, expectedVersion: 0 }, julian);
+    expect(withdrawn.json.result?.data).toMatchObject({ status: 'Withdrawn' });
+    const self = await post('trading.offer', { listingId: id('lv'), terms: offerTerms }, await signIn(id('valentina')));
+    expect([self.status, self.json.error?.code]).toEqual([409, 'SelfTradeNotAllowed']);
+  });
+});

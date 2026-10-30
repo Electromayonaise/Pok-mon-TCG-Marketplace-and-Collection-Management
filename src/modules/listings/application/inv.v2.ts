@@ -65,6 +65,19 @@ import type { ListingDetailRow, ReserveFacts } from '../ports/inv.v2.js';
 
 const raise = raiserFor('listings');
 
+/**
+ * TRD-2 P3 and S-FR-TRD-1 (OQ-6): every offered item resolved through P-INV.refs, with a condition that fits its kind,
+ * else listings' own `InvalidItemRef`. Exported so trading raises no listings code (the `requireBusinessAccount`
+ * pattern of decision log Impl-1 #33).
+ */
+export function requireTradeItems(items: readonly { itemRef: CuidId; condition: string }[], refs: ItemRefsResponse): void {
+  const kinds = new Map(refs.resolved.map((r) => [r.ref, r.kind]));
+  for (const { itemRef, condition } of items) {
+    const kind = kinds.get(itemRef) ?? null;
+    if (kind === null || !conditionFitsKind(condition, kind)) raise('InvalidItemRef', [{ rule: 'FR-TRD-1', inputs: { itemRef, kind, condition } }]);
+  }
+}
+
 /** AD-INV-3 rule 3: the projection row as a listing reads it; an absent row means paused. */
 const projectionOf = (row: { paused: boolean } | null): ProjectionState => (row === null ? 'absent' : row.paused ? 'paused' : 'funded');
 

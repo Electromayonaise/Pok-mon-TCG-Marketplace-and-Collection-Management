@@ -2,7 +2,7 @@
 title: 'Story 10.2: Counter an offer turn by turn'
 type: 'feature'
 created: '2026-10-30'
-status: 'draft'
+status: 'ready-for-dev'
 baseline_commit: '6b3cc16'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -24,7 +24,7 @@ context:
 
 **Always:**
 - First-fail: P1 visibility → P2 `checkTerms` (`EmptyTradeOffer`) → P3 `resolveItemRefs` (`InvalidItemRef`) → under `trd:seller`, read the offer row and map P4 status/expiry, **D4** version, turn, P7 `roundCount < 10` (`TradeRoundLimitReached`, citing `{ roundCount: 10 }`) → P8 canonical terms equal to the offer's current terms (= the latest proposal round's) → `TradeCounterUnchanged` citing `{ round: roundCount }`.
-- **D4 (needs approval):** the re-read maps a stale `version` to `TradeOfferNotOpen` (citing `{ latestRound }`) **before** the turn check. `[TRD-2.I3]` (two tabs, same version: the loser sees the flipped turn) requires it; `[TRD-1.P3]`/`[TRD-2.P5]` keep `NotYourTurn` with a current version. Amend contracts.md TRD-1 P3/P4, TRD-2 P5/P6 and AD-TRD-1 rule 2 to this order, and TRD-2's concurrency line ("a repeated identical counter after success" is `NotYourTurn` only with the refreshed version).
+- **D4 (approved):** the re-read maps a stale `version` to `TradeOfferNotOpen` (citing `{ latestRound }`) **before** the turn check. `[TRD-2.I3]` (two tabs, same version: the loser sees the flipped turn) requires it; `[TRD-1.P3]`/`[TRD-2.P5]` keep `NotYourTurn` with a current version. Amend contracts.md TRD-1 P3/P4, TRD-2 P5/P6 and AD-TRD-1 rule 2 to this order, and TRD-2's concurrency line ("a repeated identical counter after success" is `NotYourTurn` only with the refreshed version).
 - Q1/Q2: `UPDATE … SET terms, turn=<other>, "roundCount"+1, version+1 WHERE … status='Open' AND turn AND version AND "expiresAt" > now AND "roundCount" < 10 RETURNING`; round `counter` numbered by the new `roundCount`; audit `trading.offer.countered`; no event. 0 rows → the shared mapper, zero writes.
 - Q4: decision `TradeOfferCountered` (stored-only §13 row), `{ rule: 'FR-TRD-2', inputs: { offerId, round, turn } }`.
 - Wiring: `trading.counter`. **NFR-TRD-2:** `[NFR-TRD-2.counter]` in a new `_bmad-output/test-artifacts/nfr/trd2_latency.test.ts` (shared harness, real composition), p95 ≤ 500 ms, bound to 10.2 in `epics.source.mjs`/`epics.md`.

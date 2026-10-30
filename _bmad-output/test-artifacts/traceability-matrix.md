@@ -93,9 +93,9 @@
 | FR-COM-7 | Configure the commission rate (CAP-21) | S-FR-COM-7, S-FR-COM-7.list | AD-COM-2 | 3 — `S-FR-COM-7.f`, `S-FR-COM-7.h`, `S-FR-COM-7.list.h` | 8.6 (backlog) | red |
 | FR-COM-8 | Ledger views and reconciliation (CAP-21) | COM-3, S-FR-COM-8.ledger, COM-3.last | AD-SYS-4, AD-SYS-1, AD-COM-1, AD-19 | 7 — `COM-3.I1`, `COM-3.P2`, `COM-3.Q1` +4 | 8.5 (backlog), 8.6 (backlog) | red |
 | FR-COM-9 | Low-balance notice (CAP-21) | S-FR-COM-9 | AD-COM-3 | 2 — `S-FR-COM-9.f`, `S-FR-COM-9.h` | 8.1 (done), 8.4 (done) | red |
-| FR-TRD-1 | Make an offer on an open-to-trade listing (CAP-25) | TRD-2, S-FR-TRD-1 | AD-TRD-1, AD-SYS-5 | 9 — `TRD-2.I3`, `TRD-2.P2`, `TRD-2.P5` +6 | 10.1 (backlog), 10.2 (backlog), 10.4 (backlog) | red |
-| FR-TRD-2 | Turn-taking: reject, counter, withdraw (CAP-25) | TRD-2, S-FR-TRD-2w | AD-TRD-1, AD-SYS-5 | 9 — `TRD-2.I3`, `TRD-2.P2`, `TRD-2.P5` +6 | 10.1 (backlog), 10.2 (backlog), 10.4 (backlog) | red |
-| FR-TRD-3 | Visibility (CAP-25) | S-FR-TRD-3, S-FR-TRD-3.mine | AD-TRD-1 | 3 — `S-FR-TRD-3.f`, `S-FR-TRD-3.h`, `S-FR-TRD-3.mine.h` | 10.1 (backlog), 10.3 (backlog), 10.4 (backlog) | red |
+| FR-TRD-1 | Make an offer on an open-to-trade listing (CAP-25) | TRD-2, S-FR-TRD-1 | AD-TRD-1, AD-SYS-5 | 9 — `TRD-2.I3`, `TRD-2.P2`, `TRD-2.P5` +6 | 10.1 (done), 10.2 (backlog), 10.4 (backlog) | red |
+| FR-TRD-2 | Turn-taking: reject, counter, withdraw (CAP-25) | TRD-2, S-FR-TRD-2w | AD-TRD-1, AD-SYS-5 | 9 — `TRD-2.I3`, `TRD-2.P2`, `TRD-2.P5` +6 | 10.1 (done), 10.2 (backlog), 10.4 (backlog) | red |
+| FR-TRD-3 | Visibility (CAP-25) | S-FR-TRD-3, S-FR-TRD-3.mine | AD-TRD-1 | 3 — `S-FR-TRD-3.f`, `S-FR-TRD-3.h`, `S-FR-TRD-3.mine.h` | 10.1 (done), 10.3 (backlog), 10.4 (backlog) | red |
 | FR-TRD-4 | Accept and reserve (CAP-25) | TRD-1 | AD-TRD-2, AD-6, AD-TRD-3 | 9 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +6 | 10.3 (backlog), 10.4 (backlog) | red |
 | FR-TRD-5 | Competing offers become unfulfillable (CAP-25) | TRD-1 | AD-TRD-2, AD-6, AD-TRD-3 | 9 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +6 | 10.3 (backlog), 10.4 (backlog) | red |
 | FR-TRD-6 | Contact handoff reuses the listings service (CAP-25, CAP-6) | TRD-1, MSG-2 | AD-TRD-2, AD-6, AD-TRD-3, AD-MSG-1 | 16 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +13 | 9.3 (done), 9.5 (done), 10.3 (backlog), 10.4 (backlog) | red |

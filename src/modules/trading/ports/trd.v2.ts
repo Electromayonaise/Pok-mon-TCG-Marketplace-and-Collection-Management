@@ -32,9 +32,57 @@ export interface TrdV2Deps {
 }
 // </gen-solu2-api>
 
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import type { ReservationRefDTO } from '../../listings/index.js';
+import type { OfferRole, OfferStatus } from '../domain/trd.js';
+import type { TradeTermsDTO } from '../dto/trd.v2.dto.js';
+
+/** A `"TradeOffer"` row as TRD reads it; instants as `Date`. */
+export interface OfferRow {
+  id: CuidId;
+  listingId: CuidId;
+  sellerId: CuidId;
+  proposerId: CuidId;
+  status: OfferStatus;
+  turn: OfferRole;
+  terms: TradeTermsDTO;
+  roundCount: number;
+  version: number;
+  reservationRef: ReservationRefDTO | null;
+  proposerConfirmedAt: Date | null;
+  sellerConfirmedAt: Date | null;
+  cancelledBy: CuidId | null;
+  expiresAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface RoundRow { offerId: CuidId; round: number; actor: OfferRole; action: string; terms: TradeTermsDTO | null; createdAt: Date }
+
 /**
  * Repository port of TRD (review A-4): the only way its application service reads or writes
- * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * its own tables (AD-8). Every method takes the transaction it runs in; `infra/pg.ts` implements them.
  */
-export interface TrdRepository {}
+export interface TrdRepository {
+  /** AD-TRD-2 rule 1 (AD-SYS-4 rule 4): `pg_advisory_xact_lock(trd:seller:<sellerId>)`, taken first by every trade mutation. */
+  lockTradeSeller(tx: Tx, sellerId: CuidId): Promise<void>;
+  /** The offer row, or null for an unknown id. */
+  readOffer(tx: Tx, offerId: CuidId): Promise<OfferRow | null>;
+  /** The rounds of the given offers, by `(offerId, round)`. */
+  readRounds(tx: Tx, offerIds: CuidId[]): Promise<RoundRow[]>;
+  /** AD-TRD-1 rule 6: whether the proposer has a live (`Open`, unexpired) offer on the listing. */
+  hasLiveOffer(tx: Tx, listingId: CuidId, proposerId: CuidId, now: IsoInstant): Promise<boolean>;
+  /** AD-TRD-1 rule 5: conditional `Open → Expired` for `expiresAt ≤ now`, of one proposer's offers on a listing or of every due offer of a seller; returns the ids. */
+  expireDue(tx: Tx, scope: { listingId: CuidId; proposerId: CuidId } | { sellerId: CuidId }, now: IsoInstant): Promise<CuidId[]>;
+  /** S-FR-TRD-1 Q: the insert under a savepoint; `'duplicate'` when `trade_offer_one_open_per_proposer` refused it (23505). */
+  insertOffer(tx: Tx, o: { id: CuidId; listingId: CuidId; sellerId: CuidId; proposerId: CuidId; terms: TradeTermsDTO; expiresAt: IsoInstant; now: IsoInstant }): Promise<'inserted' | 'duplicate'>;
+  /**
+   * An immutable round (AD-TRD-1 rule 4). `round` is given for a proposal (the new `roundCount`); otherwise the next
+   * number after both the highest round and `roundCount`.
+   */
+  appendRound(tx: Tx, r: { offerId: CuidId; round?: number; actor: OfferRole; action: 'offer' | 'counter' | 'accept' | 'reject' | 'withdraw' | 'markedUnfulfillable' | 'cancel'; terms: TradeTermsDTO | null; now: IsoInstant }): Promise<void>;
+  /** S-FR-TRD-2w (AD-TRD-1 rule 1): the conditional `Open → Rejected | Withdrawn`; `turn` null omits the turn predicate. */
+  resolveOpenOffer(tx: Tx, c: { offerId: CuidId; expectedVersion: number; turn: OfferRole | null; to: 'Rejected' | 'Withdrawn'; now: IsoInstant }): Promise<boolean>;
+  /** S-FR-TRD-3.mine: the actor's offers on a side, optionally by derived status, newest change first. */
+  listOffers(tx: Tx, q: { actorId: CuidId; side: 'sent' | 'received' | 'any'; status: OfferStatus | null; after: { updatedAt: IsoInstant; id: CuidId } | null; limit: number; now: IsoInstant }): Promise<OfferRow[]>;
+}

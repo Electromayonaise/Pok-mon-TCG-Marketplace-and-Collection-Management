@@ -1395,6 +1395,10 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `TradeNotAccepted` | 409 | trading | S-FR-TRD-7 | "Esta oferta no está aceptada." | no |
 | `TradeAlreadyConfirmedByRole` | 409 | trading | S-FR-TRD-7 | "Ya confirmaste el intercambio el {confirmedAt}." | no |
 | `TradeNotCancellable` | 409 | trading | TRD-3 P2 | "Ya hay una confirmación de entrega; el intercambio no se puede cancelar." | no |
+| `TradeOfferMade` | — (stored only) | trading | S-FR-TRD-1 `allowed`: the offer is Open with the turn at the seller, citing `{ offerId, listingId, expiresAt }` (FR-TRD-1; decision log Impl-1 #35) | "Tu oferta quedó abierta hasta el {expiresAt}." | no |
+| `TradeOfferWithdrawn` | — (stored only) | trading | S-FR-TRD-2w `allowed`: the proposer withdrew the offer, citing `{ offerId, status }` (FR-TRD-2; decision log Impl-1 #35) | "Retiraste tu oferta." | no |
+| `TradeOfferRejected` | — (stored only) | trading | S-FR-TRD-2w `allowed`: the turn holder rejected the offer, citing `{ offerId, status }` (FR-TRD-2; decision log Impl-1 #35) | "Rechazaste la oferta." | no |
+| `TradeOfferShown` | — (stored only) | trading | S-FR-TRD-3 `allowed`: the offer as a party reads it, status derived, citing `{ status, turn, roundCount }` (FR-TRD-3; decision log Impl-1 #35) | "Oferta {status}, ronda {roundCount}; le toca a {turn}." | no |
 | `ConversationNotVisibleToCaller` | 403 | messaging | MSG-1 P3; S-FR-MSG-7 | "No encontramos esa conversación." | no |
 | `BusinessCannotInitiate` | 409 | messaging | MSG-1 P4 | "Las tiendas responden; no pueden iniciar conversaciones." | no |
 | `CollectionNotFound` | 404 | collections | COL-1 P3; COL-3 P3; VAL-1..3 P1 | "No encontramos esa colección." | no |
