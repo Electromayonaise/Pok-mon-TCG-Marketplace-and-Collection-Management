@@ -7942,6 +7942,26 @@ paths:
                               - "CollectionNotFound"
                           httpStatus:
                             const: 404
+        "409":
+          description: "Refusal: CollectionLimitReached."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "CollectionLimitReached"
+                          httpStatus:
+                            const: 409
         "500":
           "$ref": "#/components/responses/Unexpected"
       requestBody:

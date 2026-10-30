@@ -49,9 +49,9 @@ import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
-import { rejectRequest } from '../../../shared-kernel/request.js';
+import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import { COLLECTION_LIMIT } from '../domain/col.js';
+import { bogotaDate, COLLECTION_LIMIT, isAfterToday, isCalendarDate } from '../domain/col.js';
 
 const raise = raiserFor('collections');
 
@@ -71,7 +71,9 @@ function checkName(name: string): void {
   if (length < 1 || length > 60) rejectRequest([{ field: 'name', issue: 'debe tener entre 1 y 60 caracteres' }]);
 }
 
-/** COL's use cases (contracts.md §10, §15); the prompts and addEntry throw NotImplementedError until Story 11.2/11.3, the binder, external entries, moves and the wishlist until Story 11.5. */
+const isInteger = (v: unknown, min: number, max: number): boolean => Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max;
+
+/** COL's use cases (contracts.md §10, §15); the prompts throw NotImplementedError until Story 11.3, the binder, external entries, moves and the wishlist until Story 11.5. */
 export class ColServiceV2 implements ColV2UseCases {
   constructor(protected readonly deps: ColV2Deps) {}
 
@@ -100,8 +102,45 @@ export class ColServiceV2 implements ColV2UseCases {
     throw new NotImplementedError('collections.onOrderClosed');
   }
 
-  async addEntry(_input: AddEntryRequest): Promise<AddEntryResponse> {
-    throw new NotImplementedError('collections.addEntry');
+  /**
+   * COL-3 (AD-COL-1 rules 2–3): P1–P4 first-fail, then under `col:owner` the target (the owner's collection, or
+   * "General", created on first use) and one Manual entry at the end of the binder. A refusal writes nothing.
+   */
+  async addEntry(input: AddEntryRequest): Promise<AddEntryResponse> {
+    const { repo, transactions, clock, ids, catalog } = this.deps;
+    const { ownerId, collectionId, catalogEntryId, qty, acquiredAt, acquiredPriceCop } = input;
+    const issues: RequestIssue[] = [];
+    if (!isInteger(qty, 1, 999)) issues.push({ field: 'qty', issue: 'debe ser un entero entre 1 y 999' });
+    if (!isCalendarDate(acquiredAt)) issues.push({ field: 'acquiredAt', issue: 'debe ser una fecha AAAA-MM-DD' });
+    if (acquiredPriceCop !== null && !isInteger(acquiredPriceCop, 0, 100_000_000)) issues.push({ field: 'acquiredPriceCop', issue: 'debe ser un entero entre 0 y 100.000.000' });
+    if (issues.length > 0) return rejectRequest(issues as [RequestIssue, ...RequestIssue[]]);
+    const at = clock.now();
+    const now = at.toISOString();
+    if (isAfterToday(acquiredAt, at)) return raise('InvalidAcquiredDate', [{ rule: 'FR-COL-2', inputs: { acquiredAt, today: bogotaDate(at) } }]);
+    return transactions.run(async (tx) => {
+      await repo.lockCollectionOwner(tx, ownerId);
+      if (collectionId !== null && !await repo.ownsCollection(tx, collectionId, ownerId)) return collectionNotFound('COL-3 P3');
+      const { missing } = await catalog.getEntries({ catalogEntryIds: [catalogEntryId] });
+      if (missing.includes(catalogEntryId)) return raise('InvalidCatalogEntry', [{ rule: 'AD-COL-1 rule 3', inputs: { catalogEntryId } }]);
+      let target = collectionId;
+      let createdGeneral = false;
+      if (target === null) {
+        target = await repo.findGeneralCollection(tx, ownerId);
+        if (target === null) {
+          // D5 (decision log Impl-1 #36): "General" may not be the 51st collection (AD-COL-1 rule 1).
+          const count = await repo.countCollections(tx, ownerId);
+          if (count >= COLLECTION_LIMIT) return raise('CollectionLimitReached', [{ rule: 'AD-COL-1 rule 1', inputs: { limit: COLLECTION_LIMIT, count } }]);
+          ({ collectionId: target, created: createdGeneral } = await repo.ensureGeneralCollection(tx, { id: ids.next(), ownerId, now }));
+        }
+      }
+      const entryId = ids.next();
+      await repo.insertCollectionEntries(tx, target, [{ id: entryId, catalogEntryId, source: 'Manual', orderId: null, qty, acquiredAt, acquiredPriceCop }], now);
+      await this.audit(tx, ownerId, 'collections.entry.added', { type: 'CollectionEntry', id: entryId }, 'CollectionEntryAdded', { collectionId: target, catalogEntryId, createdGeneral }, now);
+      return {
+        entryId, collectionId: target, createdGeneral,
+        decision: explained('CollectionEntryAdded', [{ rule: 'FR-COL-2', inputs: { entryId, source: 'Manual', createdGeneral } }], now),
+      };
+    });
   }
 
   /** S-FR-COL-1.create (AD-COL-1 rule 1): under `col:owner`, the count, then the insert; `nameKey` refuses a taken name. */

@@ -754,7 +754,7 @@ describe('trading over HTTP (S-FR-TRD-1, S-FR-TRD-2w, S-FR-TRD-3; Story 10.1)', 
   });
 });
 
-describe('collections over HTTP (S-FR-COL-1; Story 11.1)', () => {
+describe('collections over HTTP (S-FR-COL-1, COL-3; Stories 11.1–11.2)', () => {
   it('an owner creates, lists, renames and deletes collections; a taken name is CollectionNameTaken 409 and a foreign id is CollectionNotFound 404 (Story 11.1)', async () => {
     await user(db, { id: id('valentina') });
     await user(db, { id: id('julian') });
@@ -774,5 +774,17 @@ describe('collections over HTTP (S-FR-COL-1; Story 11.1)', () => {
     const deleted = await post('collections.delete', { collectionId, confirm: true }, valentina);
     expect(deleted.json.result?.data).toMatchObject({ entriesRemoved: 0, platformPurchaseEntriesRemoved: 0 });
     expect(await rows(db, 'Collection', 'id = $1', [collectionId])).toHaveLength(0);
+  });
+
+  it('the first add of a catalog card creates "General" through the real catalog; an unknown card is InvalidCatalogEntry 400 (Story 11.2)', async () => {
+    await user(db, { id: id('valentina') });
+    await catalogEntry(db, id('char'));
+    const valentina = await signIn(id('valentina'));
+    const added = await post('collections.addEntry', { collectionId: null, catalogEntryId: id('char'), qty: 2, acquiredAt: '2026-09-15', acquiredPriceCop: 40_000 }, valentina);
+    expect(added.json.result?.data).toMatchObject({ createdGeneral: true });
+    expect(await rows(db, 'Collection')).toMatchObject([{ ownerId: id('valentina'), name: 'General' }]);
+    const unknown = await post('collections.addEntry', { collectionId: null, catalogEntryId: id('ghost'), qty: 1, acquiredAt: '2026-09-15', acquiredPriceCop: null }, valentina);
+    expect([unknown.status, unknown.json.error?.code]).toEqual([400, 'InvalidCatalogEntry']);
+    expect(await rows(db, 'CollectionEntry')).toMatchObject([{ source: 'Manual', qty: 2, manualPosition: 0 }]);
   });
 });

@@ -1066,7 +1066,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - P3 With a `collectionId`: the collection is owned by `ownerId`. Violation: `CollectionNotFound` (HTTP 404, collections), with an identical body for a foreign id.
   - P4 `catalog.getEntries([catalogEntryId])` reports it present. Violation: `InvalidCatalogEntry` (HTTP 400, collections), citing the id.
 - **Postcondition (Q):**
-  - Q1 Under `pg_advisory_xact_lock(col:owner:<ownerId>)`, with `collectionId = null` and an owner with 0 collections: `INSERT "Collection" (name 'General') ON CONFLICT ("ownerId", "nameKey") DO NOTHING`, then select it (`createdGeneral = true` on insert; AD-COL-1 rule 2). With `null` and ≥ 1 collection, it targets the owner's "General", creating it the same way if absent.
+  - Q1 Under `pg_advisory_xact_lock(col:owner:<ownerId>)`, with `collectionId = null` and an owner with 0 collections: `INSERT "Collection" (name 'General') ON CONFLICT ("ownerId", "nameKey") DO NOTHING`, then select it (`createdGeneral = true` on insert; AD-COL-1 rule 2). With `null` and ≥ 1 collection, it targets the owner's "General", creating it the same way if absent. An owner at 50 collections with no "General" is refused with `CollectionLimitReached` (HTTP 409, collections), citing `{ limit, count }`, so "General" is never the 51st (AD-COL-1 rule 1; decision log Impl-1 #36, D5).
   - Q2 `INSERT "CollectionEntry" { "cardKind": 'catalog', "catalogEntryId", source: 'Manual', "orderId": NULL, qty, "acquiredAt", "acquiredPriceCop", "manualPosition": max + 1, "createdAt", "updatedAt" }`.
   - Q3 Audit: `audit('collections.entry.added', CollectionEntry:id)`. No event, and no `"CatalogEntry"` write (NFR-COL-3).
   - Q4 The decision cites `{ rule: 'FR-COL-2', inputs: { entryId, source: 'Manual', createdGeneral } }`.
@@ -1409,7 +1409,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `BusinessCannotInitiate` | 409 | messaging | MSG-1 P4 | "Las tiendas responden; no pueden iniciar conversaciones." | no |
 | `CollectionNotFound` | 404 | collections | COL-1 P3; COL-3 P3; VAL-1..3 P1 | "No encontramos esa colección." | no |
 | `CollectionNameTaken` | 409 | collections | S-FR-COL-1 | "Ya tienes una colección con ese nombre." | no |
-| `CollectionLimitReached` | 409 | collections | S-FR-COL-1 | "Llegaste al máximo de 50 colecciones." | no |
+| `CollectionLimitReached` | 409 | collections | S-FR-COL-1; COL-3 Q1 (decision log Impl-1 #36) | "Llegaste al máximo de 50 colecciones." | no |
 | `CollectionEntryNotFound` | 404 | collections | S-FR-COL-4 | "No encontramos esa carta en tu colección." | no |
 | `InvalidExternalLink` | 400 | collections | S-FR-COL-3 | "Revisa el enlace: {field} no es válido." | no |
 | `InvalidCatalogEntry` | 400 | collections | COL-3 P4; S-FR-COL-6 | "La carta {catalogEntryId} no está en el catálogo." | no |

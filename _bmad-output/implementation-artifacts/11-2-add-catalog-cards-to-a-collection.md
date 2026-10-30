@@ -2,7 +2,7 @@
 title: 'Story 11.2: Add catalog cards to a collection'
 type: 'feature'
 created: '2026-10-30'
-status: 'draft'
+status: 'done'
 baseline_commit: 'cfba71b'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -53,7 +53,14 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] domain + service + wiring; `sprint-status.yaml` 11.2 `done`; `gen:trace:solu2`
+- [x] domain + service + wiring; `sprint-status.yaml` 11.2 `done`; `gen:trace:solu2`
 
 **Acceptance Criteria:**
 - Given 11.2 `done`, when `[COL-3.Q1]`, `[COL-3.Q2]`, `[COL-3.R1]`, `[COL-3.I2]` run, then they pass; 11.4's `[COL-3.P2]`–`[COL-3.P4]` are early greens restored by the 11.4 commit (D1, #23).
+
+## Implementation Notes
+
+- P2 is checked before the transaction (it needs only the `Clock`); P3 and P4 run under `col:owner`, so a refusal writes nothing and creates no "General".
+- With no target, the add looks the owner's "General" up (`nameKey`, so a "general" counts), and creates it only when absent: at 50 collections that is `CollectionLimitReached` (D5, declared on `collections.addEntry`; COL-3 Q1, AD-COL-1 rule 2 and §13 amended).
+- The first entry of an empty collection takes position 0 (`COALESCE(MAX, -1) + 1`).
+- Wired: `collections.addEntry` with the real catalog (P-CAT.entries).

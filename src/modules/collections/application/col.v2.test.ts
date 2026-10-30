@@ -14,6 +14,27 @@ function col() {
   const catalog = fake<CatalogForCol>('catalog', { getEntries: async ({ catalogEntryIds }) => ({ entries: [], missing: catalogEntryIds.filter((c) => c === id('ghost')) }) });
   return new ColServiceV2({ ...wiring(db), catalog, listings: fake<ListingsForCol>('listings', {}) });
 }
+const add = { ownerId: id('valentina'), collectionId: null, catalogEntryId: id('char'), qty: 1, acquiredAt: '2026-09-01', acquiredPriceCop: null };
+
+describe('addEntry with no target (COL-3 Q1, AD-COL-1 rules 1–2)', () => {
+  it('reuses an existing "General", and at 50 collections with none refuses with CollectionLimitReached and writes nothing (D5)', async () => {
+    await user(db, { id: id('valentina') });
+    for (let i = 0; i < 50; i++) await collection(db, { id: id(`c${i}`), ownerId: id('valentina'), name: `Col ${i}` });
+    const error = await caught(() => col().addEntry(add));
+    expect(codeOf(error)).toBe('CollectionLimitReached');
+    expect(await rows(db, 'CollectionEntry')).toHaveLength(0);
+    await db.query(`UPDATE "Collection" SET name = 'general' WHERE id = $1`, [id('c7')]);
+    const result = await col().addEntry(add);
+    expect(result).toMatchObject({ collectionId: id('c7'), createdGeneral: false });
+  });
+
+  it('refuses a non-integer qty and a date that is not a day as RequestValidationFailed, before any write', async () => {
+    await user(db, { id: id('valentina') });
+    expect(codeOf(await caught(() => col().addEntry({ ...add, qty: 1.5 })))).toBe('RequestValidationFailed');
+    expect(codeOf(await caught(() => col().addEntry({ ...add, acquiredAt: '2026-02-30' })))).toBe('RequestValidationFailed');
+    expect(await rows(db, 'Collection')).toHaveLength(0);
+  });
+});
 
 describe('rename and delete (S-FR-COL-1)', () => {
   it('a foreign id is CollectionNotFound and stays unchanged; a taken name on rename is CollectionNameTaken', async () => {
