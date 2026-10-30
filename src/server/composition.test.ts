@@ -2,7 +2,8 @@
 // the test database, the identity gate, and the resolvers of IDN-1.ingress, IDN-3, VER-1, VER-2, VER-3, the supporting
 // VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
 // (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2), the seller's inventory (S-FR-INV-2, -9, -10), the discovery reads (DSC-1, DSC-2),
-// the order, its comprobante, its three facts and its supporting reads (ORD-1 to ORD-4, S-FR-ORD-2, -6, -7, -10) and S-SYS.replay,
+// the order, its comprobante, its three facts and its supporting reads (ORD-1 to ORD-4, S-FR-ORD-2, -6, -7, -10), the business's
+// commission account, its deductions and its top-ups (S-FR-COM-1 and COM-1 through a replay, S-FR-COM-2, -9) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -13,7 +14,7 @@ import { VirtualClock } from '../../test-support/clock.js';
 import { useTestDatabase } from '../../test-support/db.js';
 import { PG } from '../../test-support/env.js';
 import { FixtureFeedSource, FixtureFxRateSource, InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
-import { admin, at, business, catalogEntry, DAY, feedRun, HOUR, id, individualSeller, ins, listing, observation, order, purchasableListing, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
+import { admin, at, business, catalogEntry, commissionAccount, DAY, feedRun, HOUR, id, individualSeller, ins, listing, observation, order, purchasableListing, rejectionReason, rows, T0, topUp, user } from '../../test-support/solu2/fixtures.js';
 import { createAuth } from './auth.js';
 import { compose } from './composition.js';
 import { betterAuthSessions } from './sessions.js';
@@ -582,10 +583,96 @@ describe('the order reads, cancel, lookup and support contact over HTTP (S-FR-OR
   });
 });
 
+describe('the commission account and top-ups over HTTP (S-FR-COM-1, -2, -9, COM-1, COM-2; Stories 8.1–8.3)', () => {
+  /** A failed commission delivery of `type`, replayed by an admin through an app that keeps the real commission handler (the shared app binds an inert one). */
+  async function replayToCommission(type: 'BusinessApplicationApproved' | 'OrderClosed' | 'OrderPaymentConfirmedByBusiness', aggregateId: string, payload: object): Promise<string> {
+    await admin(db);
+    const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000' });
+    const real = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { collections: async () => undefined } });
+    await ins(db, 'OutboxEvent', { id: id('ev1'), type, aggregateId, schemaVersion: 1, payload: JSON.stringify(payload) }, 'created');
+    await ins(db, 'EventDelivery', { eventId: id('ev1'), subscriber: 'commission', status: 'failed', attempts: 3, lastErrorCode: 'DeliveryAttemptsExhausted', firstFailedAt: at(-DAY), lastFailedAt: at(-DAY) });
+    const request = new Request('http://localhost/api/trpc/admin.events.replay', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: await signIn(id('admin')) }, body: JSON.stringify({ eventId: id('ev1'), subscriber: 'commission' }),
+    });
+    const res = await serveTrpc(request, real.router, clock, { identity: real.identity });
+    return ((await res.json()) as { result?: { data: { status: string } } }).result?.data.status ?? 'error';
+  }
+
+  it('a replayed approval opens the account through the real commission handler, once', async () => {
+    await business(db, id('andres'), 'Approved');
+    const payload = { applicationId: id('app1'), businessId: id('andres'), businessName: 'Cartas Andrés', approvedAt: at(-DAY), approvedBy: id('admin') };
+    expect(await replayToCommission('BusinessApplicationApproved', id('app1'), payload)).toBe('delivered');
+    expect(await rows(db, 'CommissionAccount')).toMatchObject([{ businessId: id('andres'), balanceCop: '0', state: 'Exhausted', ledgerSeq: '0' }]);
+    expect(await rows(db, 'OutboxEvent', `type = 'CommissionBalanceExhausted'`)).toMatchObject([{ payload: { businessId: id('andres'), ledgerSeq: 0, balanceAfter: 0 } }]);
+  });
+
+  it('a replayed OrderClosed charges the order once through the real commission handler (Story 8.2)', async () => {
+    await business(db, id('andres'), 'Approved');
+    await commissionAccount(db, id('andres'), 50_000);
+    const payload = { orderId: id('o1'), buyerId: id('camila'), businessId: id('andres'), totalCop: 45_000, lines: [], sellerReceivedConfirmedAt: null, buyerItemReceivedConfirmedAt: at(-HOUR) };
+    expect(await replayToCommission('OrderClosed', id('o1'), payload)).toBe('delivered');
+    expect(await rows(db, 'CommissionLedgerEntry')).toMatchObject([{ kind: 'Deduction', orderId: id('o1'), amountCop: '3600', trigger: 'buyerClosed', balanceAfter: '46400' }]);
+  });
+
+  it('a replayed OrderPaymentConfirmedByBusiness charges the order once through the real commission handler (Story 8.2)', async () => {
+    await business(db, id('andres'), 'Approved');
+    await commissionAccount(db, id('andres'), 3_000);
+    const payload = { orderId: id('o1'), businessId: id('andres'), buyerId: id('camila'), totalCop: 45_000, lines: [], sellerReceivedConfirmedAt: at(-HOUR), buyerItemReceivedConfirmedAt: null };
+    expect(await replayToCommission('OrderPaymentConfirmedByBusiness', id('o1'), payload)).toBe('delivered');
+    expect(await rows(db, 'CommissionLedgerEntry')).toMatchObject([{ kind: 'Deduction', orderId: id('o1'), amountCop: '3600', trigger: 'businessConfirmed', balanceAfter: '-600' }]);
+    expect(await rows(db, 'OutboxEvent', `type = 'CommissionBalanceExhausted'`)).toMatchObject([{ payload: { businessId: id('andres'), ledgerSeq: 1, balanceAfter: -600 } }]);
+  });
+
+  it('a business requests a top-up with a proof and reads its account and its requests; the session names the business', async () => {
+    await business(db, id('andres'), 'Approved');
+    await commissionAccount(db, id('andres'), 15_000);
+    const andres = await signIn(id('andres'));
+    const ticket = (await post('commission.createTopUpProofUpload', {}, andres)).json.result?.data as { uploadKey: string };
+    expect(ticket.uploadKey.startsWith(`topup-proof/${id('andres')}/`)).toBe(true);
+    storage.simulateDirectUpload(ticket.uploadKey, new Uint8Array([0xff, 0xd8, 0xff, 1, 0xff, 0xd9]), 'image/jpeg');
+    const requested = await post('commission.requestTopUp', { amountCop: 50_000, transferReference: 'REF-778899', uploadKey: ticket.uploadKey }, andres);
+    expect(requested.json.result?.data).toMatchObject({ status: 'Pending', decision: { reasonCode: 'TopUpRequested' } });
+    const topUpRequestId = (requested.json.result?.data as { topUpRequestId: string }).topUpRequestId;
+    const account = (await get('commission.myAccount', {}, andres)).json.result?.data;
+    expect(account).toMatchObject({ account: { balanceCop: 15_000, lowBalance: true, neededToResumeCop: null }, decision: { reasonCode: 'CommissionBalanceLow' } });
+    const mine = (await get('commission.myTopUps', { cursor: null }, andres)).json.result?.data as { rows: { topUpRequestId: string; status: string }[] };
+    expect(mine.rows).toMatchObject([{ topUpRequestId, status: 'Pending' }]);
+    const url = (await get('commission.topUpProofUrl', { topUpRequestId }, andres)).json.result?.data as { url: string };
+    expect(url.url).toMatch(/^sim:\/\/topup-proofs\//);
+  });
+
+  it('an admin reads the queue, confirms one top-up and rejects another; a non-admin is AdminOnly 403 (COM-2; Story 8.3)', async () => {
+    await admin(db);
+    await business(db, id('andres'), 'Approved');
+    await commissionAccount(db, id('andres'), 0);
+    await topUp(db, { id: id('t1'), businessId: id('andres'), amountCop: 100_000 });
+    await topUp(db, { id: id('t2'), businessId: id('andres'), amountCop: 20_000 });
+    const adminCookie = await signIn(id('admin'));
+    const refused = await post('commission.admin.confirmTopUp', { topUpRequestId: id('t1') }, await signIn(id('andres')));
+    expect([refused.status, refused.json.error?.code]).toEqual([403, 'AdminOnly']);
+    const queue = (await get('commission.admin.topUpQueue', { cursor: null }, adminCookie)).json.result?.data as { rows: { topUpRequestId: string }[] };
+    expect(queue.rows.map((r) => r.topUpRequestId).sort()).toEqual([id('t1'), id('t2')].sort());
+    expect((await post('commission.admin.confirmTopUp', { topUpRequestId: id('t1') }, adminCookie)).json.result?.data).toMatchObject({ status: 'Confirmed', balanceAfter: 100_000, resumed: true });
+    expect((await post('commission.admin.rejectTopUp', { topUpRequestId: id('t2'), reason: 'No encontramos la transferencia.' }, adminCookie)).json.result?.data).toMatchObject({ status: 'Rejected' });
+    const again = await post('commission.admin.confirmTopUp', { topUpRequestId: id('t1') }, adminCookie);
+    expect([again.status, again.json.error?.code]).toEqual([409, 'TopUpNotPending']);
+    expect(await rows(db, 'TopUpDecisionLog')).toHaveLength(2);
+  });
+
+  it('an individual account is NotBusinessAccount 409, and a foreign proof is the unknown-id body', async () => {
+    await individualSeller(db, id('valentina'));
+    const valentina = await signIn(id('valentina'));
+    const refused = await get('commission.myAccount', {}, valentina);
+    expect([refused.status, refused.json.error?.code]).toEqual([409, 'NotBusinessAccount']);
+    const foreign = await get('commission.topUpProofUrl', { topUpRequestId: id('ghost') }, valentina);
+    expect([foreign.status, foreign.json.error?.code]).toEqual([403, 'TopUpNotVisibleToCaller']);
+  });
+});
+
 describe('the rest of the registry stays unwired', () => {
   it('a procedure no done story implements is still Unexpected 500 behind a real session', async () => {
     await user(db, { id: id('camila') });
-    const { status, json } = await post('commission.createTopUpProofUpload', {}, await signIn(id('camila')));
+    const { status, json } = await post('trading.cancel', { offerId: id('ghost') }, await signIn(id('camila')));
     expect([status, json.error?.code]).toEqual([500, 'Unexpected']);
   });
 });

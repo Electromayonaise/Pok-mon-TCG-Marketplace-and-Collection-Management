@@ -378,14 +378,14 @@ export default {
         {
           title: 'Charge each order exactly once', kind: 'MEC',
           as: 'As the platform, I want each order charged exactly once at the rate in force, whichever confirmation arrives first, so that balances are exact (Annex A MEC, R-07).',
-          ops: ['COM-1'], tests: ['COM-1.Q1', 'COM-1.Q3', 'COM-1.I1', 'COM-1.I3', 'COM-1.I4', 'COM-1.MEC', 'COM-1.MEC2'], depends: ['8.1', '7.2'],
+          ops: ['COM-1'], tests: ['COM-1.Q1', 'COM-1.Q3', 'COM-1.I1', 'COM-1.I3', 'COM-1.I4', 'COM-1.MEC', 'COM-1.MEC2', 'NFR-COM-3.deduction'], depends: ['8.1', '7.2'],
           happy: ['Andrés\'s account is funded, and a business confirmation for 45,000 arrives.', 'the deduction applies.', '8 % = 3,600, with one ledger line carrying its pricing and an audit row; crossing to ≤ 0 publishes one Exhausted.'],
           failure: ['two orders owing 3,600 each, confirmed at one instant against 5,000, plus a duplicate; both order events for one order delivered concurrently; 100 repetitions each.', 'commission applies them.', '−2,200 with two lines and one Exhausted; one line and one decrement per order; 12,345 × 800 bps is exactly 988, and storage refuses any other amount.'],
         },
         {
           title: 'Confirm or reject a top-up', kind: 'Core',
           as: 'As an admin, I want to confirm or reject top-ups from a queue exactly once, so that a business resumes as soon as its balance is positive.',
-          ops: ['COM-2', 'COM-2.reject', 'COM-2.queue'], tests: ['COM-2.Q1', 'COM-2.Q2', 'COM-2.I1', 'COM-2.reject.h', 'COM-2.queue.h'], depends: ['8.1'],
+          ops: ['COM-2', 'COM-2.reject', 'COM-2.queue'], tests: ['COM-2.Q1', 'COM-2.Q2', 'COM-2.I1', 'COM-2.reject.h', 'COM-2.queue.h', 'NFR-COM-3.topUp'], depends: ['8.1'],
           happy: ['a 100,000 top-up for an Exhausted account at 0.', 'an admin confirms it from the queue (Pending, oldest first).', 'the balance is 100,000, the listings resume, and one Replenished event is published; a rejected top-up records its reason and credits nothing.'],
           failure: ['20,000 confirmed on −25,000, and two admins confirming one top-up at once.', 'the confirmations run.', '−5,000 naming 5,001 as needed to resume, with nothing published; one credit, one decision row and one `TopUpNotPending`.'],
         },

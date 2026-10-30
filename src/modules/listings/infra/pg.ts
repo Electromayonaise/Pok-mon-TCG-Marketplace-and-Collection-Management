@@ -82,6 +82,10 @@ export class PgInvRepository implements InvRepository {
     return { id: rows[0]!.id, quantity: rows[0]!.quantity, created: inserted.rowCount === 1 };
   }
 
+  async lockSellerProjection(tx: Tx, businessId: CuidId): Promise<void> {
+    await tx.query(`SELECT pg_advisory_xact_lock(hashtextextended('listings:seller:' || $1, 0))`, [businessId]);
+  }
+
   async readProjectionForShare(tx: Tx, businessId: CuidId): Promise<{ paused: boolean } | null> {
     const { rows } = await tx.query<{ paused: boolean }>(`SELECT paused FROM "SellerCommissionState" WHERE "businessId" = $1 FOR SHARE`, [businessId]);
     return rows[0] ?? null;

@@ -752,6 +752,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - P1 The caller is an admin. Violation: `AdminOnly` (HTTP 403, identity).
   - P2 The request exists. Violation: `TopUpNotFound` (HTTP 404, commission).
   - P3 `status = 'Pending'`. Violation: `TopUpNotPending` (HTTP 409, commission), citing `{ status, decidedBy, decidedAt }`.
+  - P3a The admin is not the request's business (separation of duties, decision log Impl-1 #33). Violation: `TopUpSelfDecision` (HTTP 409, commission), citing `{ topUpRequestId }`. The conditional update carries `AND "businessId" <> :adminId`, so the refusal writes nothing; `rejectTopUp` applies the same rule.
   - P4 The business's `"CommissionAccount"` exists. This is guaranteed, because `requestTopUp` refuses with `CommissionAccountNotOpen` before the account exists (refinement R-7 as amended, C-GAP-3). Violation: `'Unexpected'`, an invariant breach.
 - **Postcondition (Q):**
   - Q1 One transaction:
@@ -1363,6 +1364,14 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `OrderCompleted` | — (stored only) | orders | S-FR-ORD-6: the buyer received the item, so the order is closed (FR-ORD-5; the rule of decision log Impl-1 #16) | "El comprador confirmó que recibió el producto; el pedido está cerrado." | no |
 | `OrderCancelled` | — (stored only) | orders | S-FR-ORD-6 and S-FR-ORD-7: the buyer cancelled the order before paying (FR-ORD-7; the rule of decision log Impl-1 #16) | "El comprador canceló el pedido antes de pagarlo." | no |
 | `OrderExpired` | — (stored only) | orders | S-FR-ORD-6: the order expired with no payment, materialized or not (FR-ORD-8, AD-ORD-2 rule 8; the rule of decision log Impl-1 #16) | "El pedido venció sin que se confirmara el pago." | no |
+| `TopUpRequested` | — (stored only) | commission | S-FR-COM-2: the request is `Pending` and the balance is unchanged until an admin confirms it, citing `{ topUpRequestId, amountCop }` (FR-COM-2; the rule of decision log Impl-1 #16) | "Recibimos tu solicitud de recarga. Tu saldo cambia cuando la confirmemos." | no |
+| `TopUpConfirmed` | — (stored only) | commission | COM-2 Q4: the credit leaves the balance above 0, citing `{ topUpRequestId, amountCop, balanceAfter, resumed, neededToResumeCop }` (FR-COM-3; decision log Impl-1 #16) | "Confirmamos la recarga; tu saldo de comisión ya es positivo." | no |
+| `TopUpConfirmedBelowZero` | — (stored only) | commission | COM-2 Q4: the credit leaves the balance at or below 0, citing the same inputs with `neededToResumeCop` (FR-COM-3; decision log Impl-1 #16) | "Confirmamos la recarga, pero tu saldo sigue en cero o negativo; recarga más para reanudar tus publicaciones." | no |
+| `TopUpRejected` | — (stored only) | commission | COM-2.reject: the request is `Rejected` with its reason and nothing is credited, citing `{ topUpRequestId }` (FR-COM-3; decision log Impl-1 #16) | "La recarga fue rechazada; no se acreditó nada." | no |
+| `CommissionAccountShown` | — (stored only) | commission | S-FR-COM-9: the account is funded at or above the low-balance threshold, citing `{ balanceCop, state }` (FR-COM-9; decision log Impl-1 #16) | "Este es tu saldo de comisión." | no |
+| `CommissionAccountNotYetOpen` | — (stored only) | commission | S-FR-COM-9 `allowedWithNotice`: no account yet, citing `{ accountOpened: false }` (FR-COM-1; decision log Impl-1 #16) | "Tu cuenta de comisiones se abre cuando aprobemos tu tienda." | no |
+| `CommissionBalanceLow` | — (stored only) | commission | S-FR-COM-9 `allowedWithNotice`: `0 < balance < lowBalanceThresholdCop`, display only, citing `{ balanceCop, lowBalanceThresholdCop }` (FR-COM-9; decision log Impl-1 #16) | "Tu saldo de comisión está bajo; recarga pronto para que tus publicaciones sigan a la venta." | no |
+| `CommissionBalanceNeedsTopUp` | — (stored only) | commission | S-FR-COM-9 `allowedWithNotice`: a balance at or below 0, citing `{ balanceCop, neededToResumeCop }` (FR-COM-3, AD-COM-3 rule 3; decision log Impl-1 #16) | "Tus publicaciones están pausadas hasta que recargues tu saldo de comisión." | no |
 | `TopUpAmountInvalid` | 400 | commission | S-FR-COM-2 | "La recarga debe estar entre $20.000 y $10.000.000 COP." | no |
 | `TopUpNotPending` | 409 | commission | COM-2 P3 | "Esta recarga ya fue {status} por {decidedBy} el {decidedAt}." | no |
 | `TopUpNotVisibleToCaller` | 403 | commission | S-FR-COM-2 | "No encontramos esa recarga." | no |
@@ -1370,6 +1379,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `TopUpNotFound` | 404 | commission | COM-2 P2 | "No encontramos esa recarga." | no |
 | `CommissionRateNotFutureDated` | 400 | commission | S-FR-COM-7 | "La tarifa debe empezar desde ahora o después ({effectiveFrom})." | no |
 | `CommissionAccountNotOpen` † | 409 | commission | S-FR-COM-2 (C-GAP-3) | "Tu cuenta de comisiones se está abriendo; intenta la recarga en unos minutos." | yes |
+| `TopUpSelfDecision` | 409 | commission | COM-2 P3a; COM-2.reject (decision log Impl-1 #33) | "No puedes decidir una recarga de tu propia tienda; pídele a otro administrador que la revise." | no |
 | `SelfTradeNotAllowed` | 409 | trading | S-FR-TRD-1 | "No puedes ofertar por tu propia publicación." | no |
 | `EmptyTradeOffer` | 400 | trading | TRD-2 P2; S-FR-TRD-1 | "Agrega una carta o un monto a tu oferta." | no |
 | `DuplicateOpenOffer` | 409 | trading | S-FR-TRD-1 | "Ya tienes una oferta abierta por esta publicación." | no |

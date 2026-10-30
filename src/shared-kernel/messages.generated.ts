@@ -111,6 +111,14 @@ export const MESSAGES = {
   OrderCompleted: 'El comprador confirmó que recibió el producto; el pedido está cerrado.',
   OrderCancelled: 'El comprador canceló el pedido antes de pagarlo.',
   OrderExpired: 'El pedido venció sin que se confirmara el pago.',
+  TopUpRequested: 'Recibimos tu solicitud de recarga. Tu saldo cambia cuando la confirmemos.',
+  TopUpConfirmed: 'Confirmamos la recarga; tu saldo de comisión ya es positivo.',
+  TopUpConfirmedBelowZero: 'Confirmamos la recarga, pero tu saldo sigue en cero o negativo; recarga más para reanudar tus publicaciones.',
+  TopUpRejected: 'La recarga fue rechazada; no se acreditó nada.',
+  CommissionAccountShown: 'Este es tu saldo de comisión.',
+  CommissionAccountNotYetOpen: 'Tu cuenta de comisiones se abre cuando aprobemos tu tienda.',
+  CommissionBalanceLow: 'Tu saldo de comisión está bajo; recarga pronto para que tus publicaciones sigan a la venta.',
+  CommissionBalanceNeedsTopUp: 'Tus publicaciones están pausadas hasta que recargues tu saldo de comisión.',
   TopUpAmountInvalid: 'La recarga debe estar entre $20.000 y $10.000.000 COP.',
   TopUpNotPending: 'Esta recarga ya fue {status} por {decidedBy} el {decidedAt}.',
   TopUpNotVisibleToCaller: 'No encontramos esa recarga.',
@@ -118,6 +126,7 @@ export const MESSAGES = {
   TopUpNotFound: 'No encontramos esa recarga.',
   CommissionRateNotFutureDated: 'La tarifa debe empezar desde ahora o después ({effectiveFrom}).',
   CommissionAccountNotOpen: 'Tu cuenta de comisiones se está abriendo; intenta la recarga en unos minutos.',
+  TopUpSelfDecision: 'No puedes decidir una recarga de tu propia tienda; pídele a otro administrador que la revise.',
   SelfTradeNotAllowed: 'No puedes ofertar por tu propia publicación.',
   EmptyTradeOffer: 'Agrega una carta o un monto a tu oferta.',
   DuplicateOpenOffer: 'Ya tienes una oferta abierta por esta publicación.',
@@ -146,6 +155,6 @@ export const MESSAGES = {
   DuplicateReview: 'Ya reseñaste a este vendedor; puedes editar tu reseña.',
   ReviewNotFound: 'No encontramos esa reseña.',
   Unexpected: 'Algo falló de nuestro lado; no se aplicó ningún cambio.',
-} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected' | 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred' | 'FeedRunStarted' | 'ReferencePriceFresh' | 'ReferencePriceStale' | 'ReferencePriceMissing' | 'TrendComputed' | 'TrendNoBaseline' | 'FxRateCovered' | 'FxRateCarriedForward' | 'FxRateStored' | 'FxRateAlreadyCovered' | 'FxRateSourceUnavailable' | 'FxRateSourceMismatch' | 'ListingActive' | 'ListingPausedBalanceExhausted' | 'ListingHidden' | 'ListingWithdrawn' | 'ListingDeactivated' | 'ListingUpdated' | 'ListingRestocked' | 'ListingOpenToTrade' | 'ListingRanked' | 'SearchRanked' | 'ListingLocationUnusable' | 'OrderCreated' | 'ComprobanteAttached' | 'ComprobanteUrlIssued' | 'ComprobanteNotUploaded' | 'OrderPaidConfirmed' | 'OrderPaymentReceived' | 'OrderItemReceived' | 'OrderAwaitingPayment' | 'OrderPaid' | 'OrderAwaitingBusiness' | 'OrderPaymentConfirmed' | 'OrderCompleted' | 'OrderCancelled' | 'OrderExpired', string>;
+} as const satisfies Record<DomainErrorCode | 'Unexpected' | 'DeliveryAttemptsExhausted' | 'EventDeliveryReplayed' | 'EventDeliveryReplayInProgress' | 'TickOnSchedule' | 'TickSilent' | 'BuyerEligible' | 'CapabilitiesTraced' | 'IndividualSellerProfileCompleted' | 'ListingEligible' | 'ListingUnverified' | 'ApplicationSubmitted' | 'ApplicationApproved' | 'ApplicationRejected' | 'VerificationNone' | 'VerificationPending' | 'VerificationApproved' | 'VerificationRejected' | 'VerificationBarred' | 'FeedRunStarted' | 'ReferencePriceFresh' | 'ReferencePriceStale' | 'ReferencePriceMissing' | 'TrendComputed' | 'TrendNoBaseline' | 'FxRateCovered' | 'FxRateCarriedForward' | 'FxRateStored' | 'FxRateAlreadyCovered' | 'FxRateSourceUnavailable' | 'FxRateSourceMismatch' | 'ListingActive' | 'ListingPausedBalanceExhausted' | 'ListingHidden' | 'ListingWithdrawn' | 'ListingDeactivated' | 'ListingUpdated' | 'ListingRestocked' | 'ListingOpenToTrade' | 'ListingRanked' | 'SearchRanked' | 'ListingLocationUnusable' | 'OrderCreated' | 'ComprobanteAttached' | 'ComprobanteUrlIssued' | 'ComprobanteNotUploaded' | 'OrderPaidConfirmed' | 'OrderPaymentReceived' | 'OrderItemReceived' | 'OrderAwaitingPayment' | 'OrderPaid' | 'OrderAwaitingBusiness' | 'OrderPaymentConfirmed' | 'OrderCompleted' | 'OrderCancelled' | 'OrderExpired' | 'TopUpRequested' | 'TopUpConfirmed' | 'TopUpConfirmedBelowZero' | 'TopUpRejected' | 'CommissionAccountShown' | 'CommissionAccountNotYetOpen' | 'CommissionBalanceLow' | 'CommissionBalanceNeedsTopUp', string>;
 
 export type MessageCode = keyof typeof MESSAGES;

@@ -29,9 +29,93 @@ export interface ComV2Deps {
 }
 // </gen-solu2-api>
 
+import type { Tx } from '../../../shared-kernel/ports.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import type { AdminFactsReader } from '../../identity/index.js';
+import type { AccountState, CommissionTrigger } from '../domain/com.js';
+
+/** A commission account as COM reads it; money stays `bigint` until the DTO edge (AD-SYS-7). */
+export interface AccountRow {
+  businessId: CuidId;
+  balanceCop: bigint;
+  state: AccountState;
+  ledgerSeq: bigint;
+}
+
+/** One ledger line as the business's account page reads it (S-FR-COM-9). */
+export interface LedgerLineRow {
+  seq: bigint;
+  kind: 'TopUp' | 'Deduction';
+  amountCop: bigint;
+  balanceAfter: bigint;
+  orderId: CuidId | null;
+  trigger: CommissionTrigger | null;
+  createdAt: Date;
+}
+
+/** A top-up request as the lists and the decisions read it; the proof key never leaves the service (AD-17). */
+export interface TopUpRow {
+  id: CuidId;
+  businessId: CuidId;
+  amountCop: bigint;
+  transferReference: string;
+  status: 'Pending' | 'Confirmed' | 'Rejected';
+  rejectionReason: string | null;
+  decidedBy: CuidId | null;
+  decidedAt: Date | null;
+  submittedAt: Date;
+}
+
 /**
- * Repository port of COM (review A-4): the only way its application service reads or writes
- * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * The repository the COM service receives (R-14): its own tables, and identity's admin flag, which
+ * identity's own guards read in COM's transaction (AD-16; decision log Impl-1 #32, #33).
  */
-export interface ComRepository {}
+export type ComRepository = ComTablesRepository & AdminFactsReader;
+
+/**
+ * Repository port of COM's own tables (review A-4): the only way its application service reads or
+ * writes them (AD-8). Every method takes the transaction it runs in; `infra/pg.ts` implements them.
+ */
+export interface ComTablesRepository {
+  /** S-FR-COM-1 (AD-COM-1 rule 5): `INSERT … ON CONFLICT ("businessId") DO NOTHING`; true when it inserted. */
+  openAccount(tx: Tx, a: { businessId: CuidId; openedAt: IsoInstant; now: IsoInstant }): Promise<boolean>;
+  /** The account, or null before it is opened. */
+  readAccount(tx: Tx, businessId: CuidId): Promise<AccountRow | null>;
+  /** S-FR-COM-9: the newest ledger lines first, at most `limit`. */
+  newestLedgerLines(tx: Tx, businessId: CuidId, limit: number): Promise<LedgerLineRow[]>;
+  /** COM-1 Q1 (AD-COM-2 rule 6): the rate of the setting with the greatest `"effectiveFrom" <= at`; the seed row guarantees one. */
+  rateAt(tx: Tx, at: IsoInstant): Promise<number>;
+  /** COM-1 Q2 (AD-COM-2 rule 2): the non-locking check for the order's deduction. */
+  deductionExists(tx: Tx, orderId: CuidId): Promise<boolean>;
+  /** COM-1 Q2.1: `SAVEPOINT`, and its rollback or release, inside the handler's `tx`. */
+  savepoint(tx: Tx, name: string, action: 'set' | 'rollback' | 'release'): Promise<void>;
+  /**
+   * AD-COM-1 rule 1: the one atomic account update by `delta`; the balance after and the new
+   * `ledgerSeq`, or null when the account does not exist.
+   */
+  applyBalanceChange(tx: Tx, businessId: CuidId, delta: bigint, now: IsoInstant): Promise<{ balanceAfter: bigint; ledgerSeq: bigint } | null>;
+  /** AD-COM-1 rule 2, AD-COM-2 rule 3: the deduction entry `ON CONFLICT ("orderId") DO NOTHING`; false when a concurrent delivery won. */
+  insertDeduction(tx: Tx, e: {
+    id: CuidId; businessId: CuidId; seq: bigint; amountCop: bigint; orderId: CuidId; rateBps: number; baseCop: bigint;
+    trigger: CommissionTrigger; commissionTriggeredAt: IsoInstant; balanceAfter: bigint; now: IsoInstant;
+  }): Promise<boolean>;
+  /**
+   * COM-2 Q1.1 (AD-COM-3 rule 2): the conditional decision `WHERE status = 'Pending'` and not the
+   * admin's own business (P3a); the request's business and amount, or null when 0 rows changed.
+   */
+  decideTopUp(tx: Tx, d: { id: CuidId; decision: 'Confirmed' | 'Rejected'; adminId: CuidId; reason: string | null; now: IsoInstant }): Promise<{ businessId: CuidId; amountCop: bigint } | null>;
+  /** COM-2 Q-fail: the request as it now stands, for the loser's refusal. */
+  readTopUp(tx: Tx, id: CuidId): Promise<TopUpRow | null>;
+  /** COM-2 Q1.2 (AD-COM-1 rule 2): the credit entry; `UNIQUE ("topUpRequestId") WHERE kind='TopUp'` backs I1. */
+  insertTopUpEntry(tx: Tx, e: { id: CuidId; businessId: CuidId; seq: bigint; amountCop: bigint; topUpRequestId: CuidId; balanceAfter: bigint; now: IsoInstant }): Promise<void>;
+  /** COM-2 Q1.3: the append-only decision row. */
+  insertTopUpDecisionLog(tx: Tx, l: { id: CuidId; topUpRequestId: CuidId; adminId: CuidId; decision: 'Confirmed' | 'Rejected'; now: IsoInstant }): Promise<void>;
+  /** COM-2.queue: Pending requests oldest first by `("submittedAt", id)`, after the keyset when given (index `top_up_queue`). */
+  listPendingTopUps(tx: Tx, after: { at: IsoInstant; id: CuidId } | null, limit: number): Promise<TopUpRow[]>;
+  /** S-FR-COM-2.request: the Pending row; the balance is untouched. */
+  insertTopUp(tx: Tx, r: { id: CuidId; businessId: CuidId; amountCop: bigint; transferReference: string; proofObjectKey: string; now: IsoInstant }): Promise<void>;
+  /** S-FR-COM-2.mine: the business's own requests, newest first by `("submittedAt", id)`, after the keyset when given. */
+  listTopUpsOf(tx: Tx, businessId: CuidId, after: { at: IsoInstant; id: CuidId } | null, limit: number): Promise<TopUpRow[]>;
+  /** S-FR-COM-2.url: the request's owner and proof key, or null for an unknown id. */
+  topUpProofOf(tx: Tx, topUpRequestId: CuidId): Promise<{ businessId: CuidId; proofObjectKey: string } | null>;
+}

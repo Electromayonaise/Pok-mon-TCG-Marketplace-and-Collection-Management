@@ -270,3 +270,34 @@ describe('Epic 6: a null location defaults to the meeting point (decision log Im
     expect(Object.fromEntries(located.map((l) => [l.id, [l.lat, l.lng]]))).toEqual({ [mine.listingId]: [6.2442, -75.5812], [theirs.listingId]: [null, null] });
   });
 });
+
+describe('Epic 8: the seller advisory lock (AD-SYS-4 rule 4, decision log Impl-1 #33)', () => {
+  it('a first Replenished that has not committed yet holds back a business listing\'s creation, which then lists unpaused', async () => {
+    await business(db, id('andres'), 'Approved');
+    await catalogEntry(db, id('char'));
+    const inv = inventory();
+    let release!: () => void;
+    let applied!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const ready = new Promise<void>((resolve) => { applied = resolve; });
+    const subscriber = db.transactions.run(async (tx) => {
+      await inv.applyCommissionProjection(tx, { type: 'CommissionBalanceReplenished', businessId: id('andres'), ledgerSeq: 1, balanceAfter: 50_000 });
+      applied();
+      await gate;
+    });
+    await ready;
+    let created = false;
+    const creation = inv.createListing({ itemRef: id('char'), condition: 'NM', priceCop: 45_000, quantity: 1, location: null, description: '', openToTrade: false, sellerId: id('andres') })
+      .then((r) => { created = true; return r; });
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(created).toBe(false);
+    } finally {
+      // Released on a failed assertion too, so the subscriber's transaction never outlives the test.
+      release();
+      await subscriber;
+      await creation;
+    }
+    expect(await rows(db, 'Listing', '"pausedAt" IS NULL')).toHaveLength(1);
+  });
+});

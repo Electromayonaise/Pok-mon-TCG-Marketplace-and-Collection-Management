@@ -204,8 +204,9 @@ export class InvServiceV2 implements InvV2UseCases {
   }
 
   /**
-   * INV-3 (AD-INV-3 rule 4), in the handler's `tx`: the projection applies only a newer `ledgerSeq`,
-   * then pauses or resumes every listing of the business. Redelivered and older events are no-ops.
+   * INV-3 (AD-INV-3 rule 4), in the handler's `tx`: under the seller's advisory lock, the projection
+   * applies only a newer `ledgerSeq`, then pauses or resumes every listing of the business.
+   * Redelivered and older events are no-ops.
    */
   async applyCommissionProjection(tx: Tx, input: ApplyCommissionProjectionRequest): Promise<ApplyCommissionProjectionResponse> {
     const { repo, clock, audit } = this.deps;
@@ -213,6 +214,7 @@ export class InvServiceV2 implements InvV2UseCases {
     if (!Number.isSafeInteger(ledgerSeq) || ledgerSeq < 0) throw new UnexpectedError(`Unexpected: ${type} ledgerSeq ${ledgerSeq} is not an integer ≥ 0 (INV-3 P2)`);
     const now = clock.now().toISOString();
     const paused = type === 'CommissionBalanceExhausted';
+    await repo.lockSellerProjection(tx, businessId);
     if (!(await repo.upsertProjection(tx, { businessId, seq: ledgerSeq, paused, now }))) return { applied: false, listingsChanged: 0 };
     const listingsChanged = await repo.setPausedForSeller(tx, businessId, paused, now);
     await audit.record(tx, {
@@ -287,6 +289,7 @@ export class InvServiceV2 implements InvV2UseCases {
   /**
    * S-FR-INV-2: INV-2's eligibility and checks per component, then one transaction that resolves each
    * unit in `(itemRef, condition)` order, reads the projection `FOR SHARE`, and inserts the bundle.
+   * A business takes the seller's advisory lock first (decision log Impl-1 #33).
    */
   async createBundle(input: CreateBundleRequest): Promise<CreateBundleResponse> {
     const { repo, transactions, clock, ids, audit, identity, catalog } = this.deps;
@@ -315,6 +318,7 @@ export class InvServiceV2 implements InvV2UseCases {
     if ([...input.description].length > MAX_DESCRIPTION) rejectRequest([{ field: 'description', issue: `debe tener como máximo ${MAX_DESCRIPTION} caracteres` }]);
     const ordered = [...components].sort((a, b) => (a.itemRef === b.itemRef ? (a.condition < b.condition ? -1 : 1) : a.itemRef < b.itemRef ? -1 : 1));
     return transactions.run(async (tx) => {
+      if (listingKind === 'business') await repo.lockSellerProjection(tx, input.sellerId);
       const now = clock.now().toISOString();
       const units = [];
       for (const c of ordered) {
@@ -518,6 +522,7 @@ export class InvServiceV2 implements InvV2UseCases {
   /**
    * INV-2: eligibility and the input checks first, then one transaction that links or creates the
    * unit, reads the projection `FOR SHARE` for a business, and inserts the listing (fail-closed).
+   * A business takes the seller's advisory lock first (decision log Impl-1 #33).
    */
   async createListing(input: CreateListingRequest): Promise<CreateListingResponse> {
     const { repo, transactions, clock, ids, audit, identity } = this.deps;
@@ -526,6 +531,7 @@ export class InvServiceV2 implements InvV2UseCases {
     const location = locationOf(input.location, eligibility);
     await this.checkListingInput(input, listingKind, location);
     return transactions.run(async (tx) => {
+      if (listingKind === 'business') await repo.lockSellerProjection(tx, input.sellerId);
       const now = clock.now().toISOString();
       const unit = await repo.resolveUnit(tx, { id: ids.next(), sellerId: input.sellerId, catalogEntryId: input.itemRef, condition: input.condition, quantity: input.quantity, now });
       const projection = listingKind === 'business' ? projectionOf(await repo.readProjectionForShare(tx, input.sellerId)) : null;

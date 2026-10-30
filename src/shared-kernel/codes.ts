@@ -87,6 +87,7 @@ export const DOMAIN_ERRORS = {
   TopUpNotFound: { owner: 'commission', trpc: 'NOT_FOUND' },
   CommissionRateNotFutureDated: { owner: 'commission', trpc: 'BAD_REQUEST' },
   CommissionAccountNotOpen: { owner: 'commission', trpc: 'CONFLICT' }, // Solu-2 C-GAP-3
+  TopUpSelfDecision: { owner: 'commission', trpc: 'CONFLICT' }, // Impl-1 #33: no admin decides their own top-up
   // trading (TRD)
   NotYourTurn: { owner: 'trading', trpc: 'CONFLICT' },
   TradeOfferNotOpen: { owner: 'trading', trpc: 'CONFLICT' },

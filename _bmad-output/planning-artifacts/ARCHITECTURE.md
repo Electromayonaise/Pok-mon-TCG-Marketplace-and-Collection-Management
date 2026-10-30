@@ -383,6 +383,7 @@ The `*NotVisibleToCaller` codes map to `FORBIDDEN` even though AD-14/AD-15 hide 
      - `msg:contact:req`
      - `msg:contact:ip`
      - `col:owner`
+     - `listings:seller` (a business listing's creation and the commission projection subscriber; decision log Impl-1 #33)
      - `job:<name>`
   5. **Global lock order.** Every transaction acquires locks in this sequence and never goes backwards:
      0. the subscriber's own `EventDelivery` row (subscriber and replay transactions only, AD-SYS-2 rules 4 and 7);
@@ -391,7 +392,7 @@ The `*NotVisibleToCaller` codes map to `FORBIDDEN` even though AD-14/AD-15 hide 
      3. `InventoryUnit` rows, by ascending id;
      4. other rows of the calling module (sibling offers, by ascending id);
      5. projections (`SellerCommissionState`).
-     `Listing` rows count as position 4 for `listings`. The one exception is the commission projection subscriber (AD-INV-3 rule 4), which locks `SellerCommissionState` and then updates that business's `Listing` rows. It cannot deadlock, because no transaction waits for `SellerCommissionState` while holding a `Listing` row lock: listing creation takes the projection `FOR SHARE` before its insert, and edits, hides and reserves never lock the projection. A fixed-order pair of advisory locks that no other transaction takes together is also allowed (AD-MSG-1 rule 3). Position 0 cannot deadlock: publishers only insert `EventDelivery` rows, which no other transaction sees before commit, and the attempt step (AD-SYS-2 rule 4, step 1) touches that one row and nothing else, so no transaction that holds another lock waits for an `EventDelivery` row.
+     `Listing` rows count as position 4 for `listings`. The one exception is the commission projection subscriber (AD-INV-3 rule 4), which locks `SellerCommissionState` and then updates that business's `Listing` rows. It cannot deadlock, because no transaction waits for `SellerCommissionState` while holding a `Listing` row lock: listing creation takes the projection `FOR SHARE` before its insert, and edits, hides and reserves never lock the projection. Both also take the `listings:seller` advisory lock first (position 1), so a projection row that does not exist yet still serializes a business listing's creation against its first commission event (decision log Impl-1 #33). A fixed-order pair of advisory locks that no other transaction takes together is also allowed (AD-MSG-1 rule 3). Position 0 cannot deadlock: publishers only insert `EventDelivery` rows, which no other transaction sees before commit, and the attempt step (AD-SYS-2 rule 4, step 1) touches that one row and nothing else, so no transaction that holds another lock waits for an `EventDelivery` row.
   6. Postgres errors `40P01` (deadlock) and `40001` (serialization) are retried by the transaction helper at most 2 times with the same input, then surfaced as `'Unexpected'`. Any other error is never retried.
   7. A job holds `pg_try_advisory_xact_lock(job:<name>)` for each batch transaction. If the lock is not acquired, that batch run is a no-op. Long jobs spanning several transactions (feed ingestion) use a row lease instead (AD-CAT-1).
   8. The default isolation level is READ COMMITTED. Correctness comes from conditional updates (AD-SYS-5) and the lock order above, never from SERIALIZABLE.
@@ -1312,13 +1313,13 @@ flowchart LR
 - **Binds:** subscribers `onOrderPaymentConfirmedByBusiness`, `onOrderClosed`; the partial unique index on `CommissionLedgerEntry(orderId)`; `commissionOf`; `CommissionRateSetting`; FR-COM-4, FR-COM-5, FR-COM-7; NFR-COM-1, NFR-COM-3 (deduction handler), NFR-COM-4; AD-SYS-3.
 - **Prevents:** a second charge from a redelivery or from the other trigger; a rate chosen by processing time; a float in the commission path.
 - **Rule:**
-  1. The handler first computes `commissionTriggeredAt`, `trigger` and `rateBps` from the payload (AD-SYS-3 rule 2), then `c = commissionOf(totalCop, rateBps)` = `floor((totalCop × rateBps + 5000) / 10000)` in `BigInt`.
+  1. The handler first computes `commissionTriggeredAt` and `trigger` from the payload (AD-SYS-3 rule 2). After the duplicate check of rule 2 it reads `rateBps` for that instant, then `c = commissionOf(totalCop, rateBps)` = `floor((totalCop × rateBps + 5000) / 10000)` in `BigInt` (contracts.md §7 COM-1 Q1–Q2; decision log Impl-1 #33).
   2. A non-locking `SELECT 1 FROM "CommissionLedgerEntry" WHERE "orderId"=:o AND kind='Deduction'` returns success at once when the entry exists. This is the cheap path for a redelivery or for the second trigger.
-  3. Otherwise it calls `apply(tx, −c, entry)`, which updates the account row first and then inserts the entry with `ON CONFLICT (orderId) WHERE kind='Deduction' DO NOTHING RETURNING id` (AD-COM-1 rules 1 and 2). If no row is returned, a concurrent delivery won: `apply` throws `DuplicateDeductionSentinel`, the transaction rolls back (undoing the account update and its seq), and the handler returns success. The entry is written once and never updated, in the global lock order (account row, then ledger row).
+  3. Otherwise, under `SAVEPOINT apply_deduction`, it updates the account row first and then inserts the entry with `ON CONFLICT (orderId) WHERE kind='Deduction' DO NOTHING RETURNING id` (AD-COM-1 rules 1 and 2). If no row is returned, a concurrent delivery won: `ROLLBACK TO SAVEPOINT` undoes the account update and its seq, and the handler returns `duplicate` with the handler transaction still open, so the delivery row commits as `delivered` (contracts.md §7 COM-1 Q2, Solu-1 review F-03; decision log Impl-1 #33). The entry is written once and never updated, in the global lock order (account row, then ledger row).
   4. When `c = 0`, the entry is still written, with `amountCop = 0` exempt from the `> 0` check by `CHECK (kind='Deduction' OR amountCop > 0)`. The balance is unchanged and no crossing can occur.
   5. A deduction is never refused, and the balance may go negative (AD-19).
   6. `setRate` refuses an `effectiveFrom` earlier than `now − 60 s` with `CommissionRateNotFutureDated` (FR-COM-7) and stores `max(effectiveFrom, now)`, so a new rate never applies to an order already triggered. A migration seeds `CommissionRateSetting{rateBps: 800, effectiveFrom: 1970-01-01T00:00Z, setBy: null}` (A-24), so the lookup of AD-SYS-3 rule 2 always finds a row.
-- **Trade-off:** a concurrent duplicate takes the account row lock and then rolls back. That wastes one update, only when the two triggers race.
+- **Trade-off:** a concurrent duplicate takes the account row lock and then rolls back to the savepoint. That wastes one update, only when the two triggers race.
 
 #### AD-COM-3 — Top-ups have one domain path behind `TopUpConfirmationPort`
 

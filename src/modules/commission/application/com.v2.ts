@@ -39,58 +39,379 @@ export interface ComV2UseCases {
 }
 // </gen-solu2-api>
 
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import type { Citation, Decision } from '../../../shared-kernel/decision.js';
+import { ambientTx } from '../../../shared-kernel/db.js';
+import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest } from '../../../shared-kernel/request.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import { isAdmin, requireAdmin, requireBusinessAccount } from '../../identity/index.js';
+import {
+  commissionOf, commissionTrigger, crossing, decodeKeyset, encodeKeyset, isLowBalance, isTopUpProofUploadKey, isValidTopUpAmount, LOW_BALANCE_THRESHOLD_COP, MAX_PROOF_BYTES, neededToResume,
+  sniffProofType, topUpProofUploadPrefix,
+} from '../domain/com.js';
+import type { LedgerLineDTO, TopUpRowDTO } from '../dto/com.v2.dto.js';
+import type { LedgerLineRow, TopUpRow } from '../ports/com.v2.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('commission');
+
+/** AD-14: a signed proof URL lives exactly 600 s. */
+const SIGNED_URL_TTL = 600;
+/** S-FR-COM-2.mine and COM-2.queue: the page size. */
+const TOP_UPS_PAGE = 25;
+/** S-FR-COM-9: the newest ledger lines the account page shows (decision log Impl-1 #33). */
+const ACCOUNT_LEDGER_LINES = 50;
+/** COM-1 Q2.1: the savepoint a lost race rolls back to. */
+const DEDUCTION_SAVEPOINT = 'apply_deduction';
+/** The `"TopUpRequest"` CHECK on `transferReference`, repeated for in-process callers. */
+const MIN_REFERENCE = 4;
+const MAX_REFERENCE = 40;
+/** The `"TopUpRequest"` CHECK on `rejectionReason`, repeated for in-process callers. */
+const MIN_REJECTION_REASON = 10;
+const MAX_REJECTION_REASON = 300;
+
+/** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
+function explained(code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant, outcome: Decision['outcome'] = 'allowed'): Decision {
+  return { outcome, reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
+}
+
+/** A payload instant, or null; an unparseable one is a programming error. */
+function instant(value: IsoInstant | null): Date | null {
+  if (value === null) return null;
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) throw new UnexpectedError(`Unexpected: ${value} is not an instant`);
+  return at;
+}
+
+/** A `bigint` amount that fits the DTO's `number` (AD-SYS-7: money is exact up to 2^53). */
+function cop(value: bigint): number {
+  const n = Number(value);
+  if (!Number.isSafeInteger(n)) throw new UnexpectedError(`Unexpected: COP ${value} exceeds the DTO's safe integer range`);
+  return n;
+}
+
+function topUpDto(r: TopUpRow): TopUpRowDTO {
+  return {
+    topUpRequestId: r.id, businessId: r.businessId, amountCop: cop(r.amountCop), transferReference: r.transferReference, status: r.status,
+    rejectionReason: r.rejectionReason, submittedAt: r.submittedAt.toISOString(), decidedAt: r.decidedAt?.toISOString() ?? null,
+  };
+}
+
+function lineDto(l: LedgerLineRow): LedgerLineDTO {
+  return { seq: cop(l.seq), kind: l.kind, amountCop: cop(l.amountCop), balanceAfter: cop(l.balanceAfter), orderId: l.orderId, trigger: l.trigger, at: l.createdAt.toISOString() };
+}
+
+/** A page of rows plus the keyset cursor of its last row, when the page is full. */
+function page<T extends { id: CuidId; submittedAt: Date }>(rows: T[], limit: number): { rows: T[]; nextCursor: string | null } {
+  const last = rows.length === limit ? rows[rows.length - 1] : undefined;
+  return { rows, nextCursor: last ? encodeKeyset(last.submittedAt.toISOString(), last.id) : null };
+}
+
+/** COM's Solu-2 use cases (contracts.md §7, §15, §15.12). */
 export class ComServiceV2 implements ComV2UseCases {
   constructor(protected readonly deps: ComV2Deps) {}
 
-  async applyOrderDeduction(_tx: Tx, _input: ApplyOrderDeductionRequest): Promise<ApplyOrderDeductionResponse> {
-    throw new NotImplementedError('commission.applyOrderDeduction');
+  /**
+   * AD-SYS-4 rule 9: reads on the caller's open transaction when there is one, otherwise in one
+   * read-only transaction of its own.
+   */
+  private async reading<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+    const tx = ambientTx();
+    return tx ? fn(tx) : this.deps.transactions.run(fn, { readOnly: true });
   }
 
-  async confirmTopUp(_input: ConfirmTopUpRequest): Promise<ConfirmTopUpResponse> {
-    throw new NotImplementedError('commission.confirmTopUp');
+  /** The business check of S-FR-COM-2 and S-FR-COM-9: identity raises its own `NotBusinessAccount`, citing the caller's rule (decision log Impl-1 #33). */
+  private async requireBusiness(businessId: CuidId, rule: 'FR-COM-2' | 'FR-COM-9'): Promise<void> {
+    requireBusinessAccount(await this.deps.identity.getCapabilities({ userId: businessId }), rule);
   }
 
-  async rejectTopUp(_input: RejectTopUpRequest): Promise<RejectTopUpResponse> {
-    throw new NotImplementedError('commission.rejectTopUp');
+  /** C-GAP-3: a business whose account is not open yet gets COM's own refusal, never identity's. */
+  private notOpen(): never {
+    return raise('CommissionAccountNotOpen', [{ rule: 'FR-COM-2', inputs: { accountOpened: false } }]);
+  }
+
+  /** AD-COM-3 rule 4: a miss cites nothing about the request, so a foreign id and an unknown id give one body (S-2). */
+  private notVisible(): never {
+    return raise('TopUpNotVisibleToCaller', [{ rule: 'AD-COM-3', inputs: { visible: false } }]);
+  }
+
+  private decodeCursor(cursor: string | null): { at: IsoInstant; id: CuidId } | null {
+    if (cursor === null) return null;
+    return decodeKeyset(cursor) ?? rejectRequest([{ field: 'cursor', issue: 'no es un cursor de esta lista' }]);
+  }
+
+  /**
+   * COM-1 (AD-COM-1, AD-COM-2, AD-SYS-3), in the handler's `tx`: the trigger and the rate from the
+   * facts, the cheap duplicate check, then under a savepoint the atomic account update and the entry
+   * keyed by `orderId`. A concurrent delivery that won leaves this one a `duplicate`, and `tx` stays
+   * open so the delivery row still commits. A deduction is never refused (AD-19).
+   */
+  async applyOrderDeduction(tx: Tx, input: ApplyOrderDeductionRequest): Promise<ApplyOrderDeductionResponse> {
+    const { repo, clock, ids, outbox, audit } = this.deps;
+    const { orderId, businessId, totalCop } = input;
+    if (!Number.isSafeInteger(totalCop) || totalCop < 0) throw new UnexpectedError(`Unexpected: ${input.type} totalCop ${totalCop} is not an integer ≥ 0`);
+    const facts = commissionTrigger({
+      sellerReceivedConfirmedAt: instant(input.sellerReceivedConfirmedAt),
+      buyerItemReceivedConfirmedAt: instant(input.buyerItemReceivedConfirmedAt),
+    });
+    if (facts === null) throw new UnexpectedError(`Unexpected: ${input.type} for order ${orderId} carries neither fact (COM-1 P2)`);
+    const { trigger } = facts;
+    const commissionTriggeredAt = facts.commissionTriggeredAt.toISOString();
+    if (await repo.deductionExists(tx, orderId)) return { outcome: 'duplicate' };
+    const now = clock.now().toISOString();
+    const rateBps = await repo.rateAt(tx, commissionTriggeredAt);
+    const baseCop = BigInt(totalCop);
+    const amountCop = commissionOf(baseCop, BigInt(rateBps));
+    await repo.savepoint(tx, DEDUCTION_SAVEPOINT, 'set');
+    const changed = await repo.applyBalanceChange(tx, businessId, -amountCop, now);
+    if (changed === null) throw new UnexpectedError(`Unexpected: business ${businessId} has no commission account yet; the delivery stays replayable (COM-1 P3)`);
+    const entryId = ids.next();
+    const inserted = await repo.insertDeduction(tx, {
+      id: entryId, businessId, seq: changed.ledgerSeq, amountCop, orderId, rateBps, baseCop, trigger, commissionTriggeredAt, balanceAfter: changed.balanceAfter, now,
+    });
+    if (!inserted) {
+      await repo.savepoint(tx, DEDUCTION_SAVEPOINT, 'rollback');
+      return { outcome: 'duplicate' };
+    }
+    await repo.savepoint(tx, DEDUCTION_SAVEPOINT, 'release');
+    const ledgerSeq = cop(changed.ledgerSeq);
+    const balanceAfter = cop(changed.balanceAfter);
+    const crossed = crossing(changed.balanceAfter + amountCop, changed.balanceAfter) === 'exhausted' ? 'exhausted' : null;
+    if (crossed) await outbox.enqueue(tx, 'CommissionBalanceExhausted', businessId, { businessId, ledgerSeq, balanceAfter });
+    // Q4: the ledger line is the explanation; a buyerClosed trigger cites FR-COM-4's support link.
+    await audit.record(tx, {
+      actorId: null, actorKind: 'system', module: 'commission', action: 'commission.deduction.applied',
+      aggregateType: 'CommissionLedgerEntry', aggregateId: entryId, decisionCode: null,
+      data: { rule: trigger === 'buyerClosed' ? 'FR-COM-4' : 'FR-COM-5', orderId, baseCop: totalCop, rateBps, amountCop: cop(amountCop), trigger, commissionTriggeredAt, ledgerSeq, balanceAfter },
+      at: now,
+    });
+    return { outcome: 'charged', amountCop: cop(amountCop), balanceAfter, ledgerSeq, trigger, crossing: crossed };
+  }
+
+  /**
+   * COM-2 Q-fail (AD-COM-3 rule 2): the refusal of a 0-row decision, from the request as `tx` re-reads
+   * it. The loser writes nothing and cites the winner; a Pending request of the admin's own business
+   * is P3a's `TopUpSelfDecision` (decision log Impl-1 #33).
+   */
+  private async refuseDecision(tx: Tx, topUpRequestId: CuidId, adminId: CuidId): Promise<never> {
+    const row = await this.deps.repo.readTopUp(tx, topUpRequestId);
+    if (row === null) return raise('TopUpNotFound', [{ rule: 'FR-COM-3', inputs: { topUpRequestId } }]);
+    if (row.status === 'Pending' && row.businessId === adminId) return raise('TopUpSelfDecision', [{ rule: 'AD-COM-3', inputs: { topUpRequestId } }]);
+    if (row.status === 'Pending') throw new UnexpectedError(`Unexpected: top-up ${topUpRequestId} is still Pending after a 0-row decision`);
+    return raise('TopUpNotPending', [{ rule: 'AD-COM-3', inputs: { status: row.status, decidedBy: row.decidedBy, decidedAt: row.decidedAt?.toISOString() ?? null } }]);
+  }
+
+  /**
+   * COM-2 (AD-COM-1, AD-COM-3): in one transaction, the admin check (AD-16), the conditional
+   * confirmation, the atomic credit and its `TopUp` entry, the decision row, and on a crossing from
+   * ≤ 0 to > 0 one `CommissionBalanceReplenished`.
+   */
+  async confirmTopUp(input: ConfirmTopUpRequest): Promise<ConfirmTopUpResponse> {
+    const { repo, transactions, clock, ids, outbox, audit } = this.deps;
+    const { topUpRequestId, adminId } = input;
+    return transactions.run(async (tx) => {
+      await requireAdmin(repo, tx, adminId);
+      const now = clock.now().toISOString();
+      const decided = await repo.decideTopUp(tx, { id: topUpRequestId, decision: 'Confirmed', adminId, reason: null, now });
+      if (decided === null) return this.refuseDecision(tx, topUpRequestId, adminId);
+      const { businessId, amountCop } = decided;
+      const changed = await repo.applyBalanceChange(tx, businessId, amountCop, now);
+      if (changed === null) throw new UnexpectedError(`Unexpected: top-up ${topUpRequestId} names business ${businessId}, which has no commission account (COM-2 P4)`);
+      await repo.insertTopUpEntry(tx, { id: ids.next(), businessId, seq: changed.ledgerSeq, amountCop, topUpRequestId, balanceAfter: changed.balanceAfter, now });
+      await repo.insertTopUpDecisionLog(tx, { id: ids.next(), topUpRequestId, adminId, decision: 'Confirmed', now });
+      const ledgerSeq = cop(changed.ledgerSeq);
+      const balanceAfter = cop(changed.balanceAfter);
+      const resumed = crossing(changed.balanceAfter - amountCop, changed.balanceAfter) === 'replenished';
+      if (resumed) await outbox.enqueue(tx, 'CommissionBalanceReplenished', businessId, { businessId, ledgerSeq, balanceAfter });
+      const needed = neededToResume(changed.balanceAfter);
+      const neededToResumeCop = needed === null ? null : cop(needed);
+      const code = needed === null ? 'TopUpConfirmed' : 'TopUpConfirmedBelowZero';
+      const inputs = { topUpRequestId, amountCop: cop(amountCop), balanceAfter, resumed, neededToResumeCop };
+      await audit.record(tx, {
+        actorId: adminId, actorKind: 'admin', module: 'commission', action: 'commission.topUp.confirmed',
+        aggregateType: 'TopUpRequest', aggregateId: topUpRequestId, decisionCode: code, data: { ...inputs, ledgerSeq }, at: now,
+      });
+      const decision = explained(code, [{ rule: 'FR-COM-3', inputs }], now);
+      return { topUpRequestId, status: 'Confirmed' as const, balanceAfter, ledgerSeq, resumed, neededToResumeCop, decision };
+    });
+  }
+
+  /** COM-2.reject: the same conditional decision to `Rejected` with its reason; nothing is credited and nothing is published. */
+  async rejectTopUp(input: RejectTopUpRequest): Promise<RejectTopUpResponse> {
+    const { repo, transactions, clock, ids, audit } = this.deps;
+    const { topUpRequestId, adminId, reason } = input;
+    return transactions.run(async (tx) => {
+      // P1 first (AD-16), then the reason's CHECK, repeated for in-process callers.
+      await requireAdmin(repo, tx, adminId);
+      const length = [...reason].length;
+      if (length < MIN_REJECTION_REASON || length > MAX_REJECTION_REASON) {
+        rejectRequest([{ field: 'reason', issue: `debe tener entre ${MIN_REJECTION_REASON} y ${MAX_REJECTION_REASON} caracteres` }]);
+      }
+      const now = clock.now().toISOString();
+      if ((await repo.decideTopUp(tx, { id: topUpRequestId, decision: 'Rejected', adminId, reason, now })) === null) return this.refuseDecision(tx, topUpRequestId, adminId);
+      await repo.insertTopUpDecisionLog(tx, { id: ids.next(), topUpRequestId, adminId, decision: 'Rejected', now });
+      await audit.record(tx, {
+        actorId: adminId, actorKind: 'admin', module: 'commission', action: 'commission.topUp.rejected',
+        aggregateType: 'TopUpRequest', aggregateId: topUpRequestId, decisionCode: 'TopUpRejected', data: { topUpRequestId }, at: now,
+      });
+      return { topUpRequestId, status: 'Rejected' as const, decision: explained('TopUpRejected', [{ rule: 'FR-COM-3', inputs: { topUpRequestId } }], now) };
+    });
   }
 
   async reconcile(_input: ReconcileRequest): Promise<ReconcileResponse> {
     throw new NotImplementedError('commission.reconcile');
   }
 
-  async openCommissionAccount(_tx: Tx, _input: OpenCommissionAccountRequest): Promise<OpenCommissionAccountResponse> {
-    throw new NotImplementedError('commission.openCommissionAccount');
+  /**
+   * S-FR-COM-1 (AD-COM-1 rule 5), in the handler's `tx`: the account opens once, Exhausted at 0, and
+   * only the insert publishes the seq-0 `CommissionBalanceExhausted` and writes an audit row.
+   */
+  async openCommissionAccount(tx: Tx, input: OpenCommissionAccountRequest): Promise<OpenCommissionAccountResponse> {
+    const { repo, clock, outbox, audit } = this.deps;
+    const { businessId, approvedAt } = input;
+    const now = clock.now().toISOString();
+    if (!(await repo.openAccount(tx, { businessId, openedAt: approvedAt, now }))) return { opened: false };
+    await outbox.enqueue(tx, 'CommissionBalanceExhausted', businessId, { businessId, ledgerSeq: 0, balanceAfter: 0 });
+    await audit.record(tx, {
+      actorId: null, actorKind: 'system', module: 'commission', action: 'commission.account.opened',
+      aggregateType: 'CommissionAccount', aggregateId: businessId, decisionCode: null, data: { approvedAt }, at: now,
+    });
+    return { opened: true };
   }
 
-  async createTopUpProofUpload(_input: CreateTopUpProofUploadRequest): Promise<CreateTopUpProofUploadResponse> {
-    throw new NotImplementedError('commission.createTopUpProofUpload');
+  /** S-FR-COM-2.ticket (AD-SYS-8 rule 5.1): a direct-upload ticket under the business's own prefix. */
+  async createTopUpProofUpload(input: CreateTopUpProofUploadRequest): Promise<CreateTopUpProofUploadResponse> {
+    const { repo, ids, storage } = this.deps;
+    await this.requireBusiness(input.businessId, 'FR-COM-2');
+    if ((await this.reading((tx) => repo.readAccount(tx, input.businessId))) === null) this.notOpen();
+    const uploadKey = `${topUpProofUploadPrefix(input.businessId)}${ids.next()}`;
+    const { signedUrl, token } = await storage.createUploadTicket(uploadKey);
+    return { uploadKey, signedUrl, token };
   }
 
-  async requestTopUp(_input: RequestTopUpRequest): Promise<RequestTopUpResponse> {
-    throw new NotImplementedError('commission.requestTopUp');
+  /**
+   * AD-SYS-8 rules 5.3 and 6: the business's quarantine object, checked for size, magic bytes and a
+   * clean scan, copied to `topup-proofs` under a new key. Returns the new key.
+   */
+  private async promoteProof(businessId: CuidId, uploadKey: string): Promise<string> {
+    const { storage, scanner, ids } = this.deps;
+    const refuse = (cause: 'missing' | 'size' | 'magic' | 'scanner'): never => raise('TopUpProofInvalidFile', [{ rule: 'AD-SYS-8', inputs: { cause } }]);
+    const bytes = isTopUpProofUploadKey(uploadKey, businessId) ? await storage.get('upload-quarantine', uploadKey) : null;
+    if (bytes === null) return refuse('missing');
+    if (bytes.length > MAX_PROOF_BYTES) return refuse('size');
+    const declared = sniffProofType(bytes);
+    if (declared === null) return refuse('magic');
+    const scan = await scanner.scan(bytes, declared);
+    if (scan.verdict !== 'clean') return refuse('scanner');
+    const key = `topup-proofs/${ids.next()}`;
+    await storage.put('topup-proofs', key, scan.sanitized ?? bytes, declared);
+    return key;
+  }
+
+  /**
+   * S-FR-COM-2.request (AD-COM-3 rule 1), first-fail: a business, an open account, the amount, the
+   * reference, the proof; then the Pending row and its audit row. The balance is unchanged until COM-2.
+   */
+  async requestTopUp(input: RequestTopUpRequest): Promise<RequestTopUpResponse> {
+    const { repo, transactions, clock, ids, audit, storage } = this.deps;
+    const { businessId, amountCop, transferReference, uploadKey } = input;
+    await this.requireBusiness(businessId, 'FR-COM-2');
+    if ((await this.reading((tx) => repo.readAccount(tx, businessId))) === null) this.notOpen();
+    if (!isValidTopUpAmount(amountCop)) raise('TopUpAmountInvalid', [{ rule: 'FR-COM-2', inputs: { amountCop } }]);
+    const length = [...transferReference].length;
+    if (length < MIN_REFERENCE || length > MAX_REFERENCE) {
+      rejectRequest([{ field: 'transferReference', issue: `debe tener entre ${MIN_REFERENCE} y ${MAX_REFERENCE} caracteres` }]);
+    }
+    const key = await this.promoteProof(businessId, uploadKey);
+    // Clock, once, after the scan: a slow scan must not commit a row older than queue pages already read.
+    const now = clock.now().toISOString();
+    const topUpRequestId = ids.next();
+    try {
+      await transactions.run(async (tx) => {
+        await repo.insertTopUp(tx, { id: topUpRequestId, businessId, amountCop: BigInt(amountCop), transferReference, proofObjectKey: key, now });
+        await audit.record(tx, {
+          actorId: businessId, actorKind: 'user', module: 'commission', action: 'commission.topUp.requested',
+          aggregateType: 'TopUpRequest', aggregateId: topUpRequestId, decisionCode: 'TopUpRequested', data: { amountCop }, at: now,
+        });
+      });
+    } catch (error) {
+      await Promise.allSettled([storage.delete('topup-proofs', key)]);
+      throw error;
+    }
+    // Best effort: the request has committed, so a failed delete must not fail it.
+    await Promise.allSettled([storage.delete('upload-quarantine', uploadKey)]);
+    const decision = explained('TopUpRequested', [{ rule: 'FR-COM-2', inputs: { topUpRequestId, amountCop } }], now);
+    return { topUpRequestId, status: 'Pending', submittedAt: now, decision };
   }
 
   async setCommissionRate(_input: SetCommissionRateRequest): Promise<SetCommissionRateResponse> {
     throw new NotImplementedError('commission.setCommissionRate');
   }
 
-  async getMyCommissionAccount(_input: GetMyCommissionAccountRequest): Promise<GetMyCommissionAccountResponse> {
-    throw new NotImplementedError('commission.getMyCommissionAccount');
+  /**
+   * S-FR-COM-9 (AD-COM-3 rule 3): the balance, the state, the display-only notices and the newest
+   * ledger lines; `account: null` before the account opens. Zero writes.
+   */
+  async getMyCommissionAccount(input: GetMyCommissionAccountRequest): Promise<GetMyCommissionAccountResponse> {
+    const { repo, clock } = this.deps;
+    const { businessId } = input;
+    await this.requireBusiness(businessId, 'FR-COM-9');
+    const now = clock.now().toISOString();
+    const { account, lines } = await this.reading(async (tx) => {
+      const row = await repo.readAccount(tx, businessId);
+      return { account: row, lines: row === null ? [] : await repo.newestLedgerLines(tx, businessId, ACCOUNT_LEDGER_LINES) };
+    });
+    if (account === null) {
+      return { account: null, ledger: [], decision: explained('CommissionAccountNotYetOpen', [{ rule: 'FR-COM-1', inputs: { accountOpened: false } }], now, 'allowedWithNotice') };
+    }
+    const balanceCop = cop(account.balanceCop);
+    const needed = neededToResume(account.balanceCop);
+    const lowBalance = isLowBalance(account.balanceCop);
+    const decision = needed !== null
+      ? explained('CommissionBalanceNeedsTopUp', [{ rule: 'FR-COM-3', inputs: { balanceCop, neededToResumeCop: cop(needed) } }], now, 'allowedWithNotice')
+      : lowBalance
+        ? explained('CommissionBalanceLow', [{ rule: 'FR-COM-9', inputs: { balanceCop, lowBalanceThresholdCop: cop(LOW_BALANCE_THRESHOLD_COP) } }], now, 'allowedWithNotice')
+        : explained('CommissionAccountShown', [{ rule: 'FR-COM-9', inputs: { balanceCop, state: account.state } }], now);
+    return {
+      account: { balanceCop, state: account.state, ledgerSeq: cop(account.ledgerSeq), lowBalance, neededToResumeCop: needed === null ? null : cop(needed) },
+      ledger: lines.map(lineDto),
+      decision,
+    };
   }
 
-  async listTopUpQueue(_input: ListTopUpQueueRequest): Promise<ListTopUpQueueResponse> {
-    throw new NotImplementedError('commission.listTopUpQueue');
+  /** COM-2.queue (AD-16): the admin's queue of Pending requests, oldest first. */
+  async listTopUpQueue(input: ListTopUpQueueRequest): Promise<ListTopUpQueueResponse> {
+    const { repo } = this.deps;
+    const rows = await this.reading(async (tx) => {
+      await requireAdmin(repo, tx, input.adminId);
+      return repo.listPendingTopUps(tx, this.decodeCursor(input.cursor), TOP_UPS_PAGE);
+    });
+    const { nextCursor } = page(rows, TOP_UPS_PAGE);
+    return { rows: rows.map(topUpDto), nextCursor };
   }
 
-  async listMyTopUps(_input: ListMyTopUpsRequest): Promise<ListMyTopUpsResponse> {
-    throw new NotImplementedError('commission.listMyTopUps');
+  /** S-FR-COM-2.mine (AD-COM-3 rule 4): the business's own requests, newest first. */
+  async listMyTopUps(input: ListMyTopUpsRequest): Promise<ListMyTopUpsResponse> {
+    const { repo } = this.deps;
+    await this.requireBusiness(input.businessId, 'FR-COM-2');
+    const after = this.decodeCursor(input.cursor);
+    const rows = await this.reading((tx) => repo.listTopUpsOf(tx, input.businessId, after, TOP_UPS_PAGE));
+    const { nextCursor } = page(rows, TOP_UPS_PAGE);
+    return { rows: rows.map(topUpDto), nextCursor };
   }
 
-  async getTopUpProofUrl(_input: GetTopUpProofUrlRequest): Promise<GetTopUpProofUrlResponse> {
-    throw new NotImplementedError('commission.getTopUpProofUrl');
+  /** S-FR-COM-2.url (AD-14, AD-COM-3 rule 4): a 600 s signed URL for the owner or an admin. */
+  async getTopUpProofUrl(input: GetTopUpProofUrlRequest): Promise<GetTopUpProofUrlResponse> {
+    const { repo, storage } = this.deps;
+    const key = await this.reading(async (tx) => {
+      const proof = await repo.topUpProofOf(tx, input.topUpRequestId);
+      if (proof === null) return this.notVisible();
+      if (proof.businessId !== input.actorId && !(await isAdmin(repo, tx, input.actorId))) return this.notVisible();
+      return proof.proofObjectKey;
+    });
+    return storage.sign('topup-proofs', key, SIGNED_URL_TTL);
   }
 
   async getAccountLedger(_input: GetAccountLedgerRequest): Promise<GetAccountLedgerResponse> {
