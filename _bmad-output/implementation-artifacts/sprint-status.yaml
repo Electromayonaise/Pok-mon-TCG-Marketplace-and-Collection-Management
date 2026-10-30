@@ -113,7 +113,7 @@ development_status:
   epic-8-retrospective: optional
   epic-9: in-progress
   9-1-answer-messaging-eligibility-from-current-verification: done
-  9-2-send-messages-while-verification-changes: backlog
+  9-2-send-messages-while-verification-changes: done
   9-3-generate-the-contact-handoff-for-every-product-name: backlog
   9-4-refuse-outsiders-and-businesses-that-initiate: backlog
   9-5-refuse-hidden-or-business-listings-and-rate-limit-contact: backlog

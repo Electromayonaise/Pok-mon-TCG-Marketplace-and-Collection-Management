@@ -28,9 +28,42 @@ export interface MsgV2Deps {
 }
 // </gen-solu2-api>
 
+import type { Tx } from '../../../shared-kernel/ports.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import type { AdminFactsReader } from '../../identity/index.js';
+
+/** One `"Conversation"` row as MSG-1 P3 reads it. */
+export interface ConversationRow { id: CuidId; buyerId: CuidId; businessId: CuidId }
+
 /**
- * Repository port of MSG (review A-4): the only way its application service reads or writes
- * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * Repository port of MSG's own tables (review A-4): the only way its application service reads or
+ * writes them (AD-8). Every method takes the transaction it runs in; `infra/pg.ts` implements them.
  */
-export interface MsgRepository {}
+export interface MsgTablesRepository {
+  /** MSG-1 P3: the conversation if `userId` is one of its participants, else null (an unknown id too). */
+  readConversationFor(tx: Tx, conversationId: CuidId, userId: CuidId): Promise<ConversationRow | null>;
+  /**
+   * MSG-1 Q1 (AD-MSG-2 rule 1): `INSERT … ON CONFLICT ("buyerId","businessId") DO NOTHING`, then select it;
+   * the two participant rows `ON CONFLICT DO NOTHING`. Returns the pair's conversation id.
+   */
+  startOrGetConversation(tx: Tx, c: { id: CuidId; buyerId: CuidId; businessId: CuidId; now: IsoInstant }): Promise<CuidId>;
+  /** MSG-1 Q2 (AD-MSG-2 rule 3): `"lastSeq" + 1`, `"lastMessageAt"`, `"updatedAt"`, returning the new seq. */
+  allocateSeq(tx: Tx, conversationId: CuidId, now: IsoInstant): Promise<number>;
+  /**
+   * MSG-1 Q2 / Q-fail: the insert under `SAVEPOINT send_insert`; `'duplicate'` after `ROLLBACK TO SAVEPOINT` when
+   * `message_idempotent_send` refused it (23505), so `tx` stays usable (Solu-1 review F-16).
+   */
+  insertMessage(tx: Tx, m: {
+    id: CuidId; conversationId: CuidId; seq: number; senderId: CuidId; body: string; clientMessageId: string;
+    recipientVerificationAtSend: 'Approved' | 'Pending'; now: IsoInstant;
+  }): Promise<'inserted' | 'duplicate'>;
+  /** MSG-1 I3: the message a sender already sent under `clientMessageId` in the pair's conversation, or null. */
+  findSentMessage(tx: Tx, k: { conversationId: CuidId } | { buyerId: CuidId; businessId: CuidId }, senderId: CuidId, clientMessageId: string):
+    Promise<{ conversationId: CuidId; messageId: CuidId; seq: number; recipientVerificationAtSend: 'Approved' | 'Pending' } | null>;
+}
+
+/**
+ * The repository the MSG service receives (R-14): its own tables, and identity's facts, which identity's
+ * own `sellerKindOf` reads in MSG's transaction (MSG-1 P4; decision log Impl-1 #34).
+ */
+export type MsgRepository = MsgTablesRepository & AdminFactsReader;

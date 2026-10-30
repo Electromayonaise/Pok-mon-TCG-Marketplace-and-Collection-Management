@@ -427,7 +427,7 @@ export default {
         {
           title: 'Send messages while verification changes', kind: 'MEC',
           as: 'As Camila, I want my first message to open one conversation with gapless order, and to fail cleanly if the business is rejected while I type (Annex A MEC, R-09).',
-          ops: ['MSG-1'], tests: ['MSG-1.Q1', 'MSG-1.Q2', 'MSG-1.I3', 'MSG-1.R1', 'MSG-3.MEC'], depends: ['9.1', '2.5', '3.5'],
+          ops: ['MSG-1'], tests: ['MSG-1.Q1', 'MSG-1.Q2', 'MSG-1.I3', 'MSG-1.R1', 'MSG-3.MEC', 'NFR-MSG-2.send'], depends: ['9.1', '2.5', '3.5'],
           happy: ['Camila writes to Approved Andrés for the first time.', 'she sends.', 'one conversation, two participants and message seq 1; a retry with the same `clientMessageId` returns the original and writes nothing.'],
           failure: ['Andrés is rejected between compose and send, 100 times; two first messages and 20 concurrent sends.', 'the sends run.', 'either the message was sent before the rejection, or `NotBusinessAccount` with zero writes; one conversation with seqs 1..20 and no gap.'],
         },

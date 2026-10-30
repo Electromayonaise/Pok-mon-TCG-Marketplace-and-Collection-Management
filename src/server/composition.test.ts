@@ -3,7 +3,7 @@
 // VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
 // (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2), the seller's inventory (S-FR-INV-2, -9, -10), the discovery reads (DSC-1, DSC-2),
 // the order, its comprobante, its three facts and its supporting reads (ORD-1 to ORD-4, S-FR-ORD-2, -6, -7, -10), the business's
-// commission account, its deductions and its top-ups (S-FR-COM-1 and COM-1 through a replay, S-FR-COM-2, -9) and S-SYS.replay,
+// commission account, its deductions and its top-ups (S-FR-COM-1 and COM-1 through a replay, S-FR-COM-2, -9), the in-app send (MSG-1) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -674,5 +674,22 @@ describe('the rest of the registry stays unwired', () => {
     await user(db, { id: id('camila') });
     const { status, json } = await post('trading.cancel', { offerId: id('ghost') }, await signIn(id('camila')));
     expect([status, json.error?.code]).toEqual([500, 'Unexpected']);
+  });
+});
+
+describe('messaging.send over HTTP (MSG-1; Story 9.2)', () => {
+  it('a buyer writes to an Approved business through the real identity; the business replies; a business starting is BusinessCannotInitiate 409', async () => {
+    await user(db, { id: id('camila') });
+    await business(db, id('andres'), 'Approved');
+    const buyer = await signIn(id('camila'));
+    const sent = await post('messaging.send', { target: { recipientId: id('andres') }, body: 'Hola, ¿tienes el Charizard?', clientMessageId: 'cm-1' }, buyer);
+    expect(sent.status).toBe(200);
+    expect(sent.json.result?.data).toMatchObject({ seq: 1, decision: { outcome: 'allowed', reasonCode: 'MessageSent' } });
+    const shop = await signIn(id('andres'));
+    const reply = await post('messaging.send', { target: { conversationId: sent.json.result!.data.conversationId }, body: 'Sí, lo tengo.', clientMessageId: 'cm-1' }, shop);
+    expect(reply.json.result?.data).toMatchObject({ seq: 2 });
+    const start = await post('messaging.send', { target: { recipientId: id('camila') }, body: 'Promo', clientMessageId: 'cm-2' }, shop);
+    expect([start.status, start.json.error?.code]).toEqual([409, 'BusinessCannotInitiate']);
+    expect(await rows(db, 'Message')).toHaveLength(2);
   });
 });

@@ -18,16 +18,85 @@ export interface MsgV2UseCases {
 }
 // </gen-solu2-api>
 
+import type { Citation, Decision } from '../../../shared-kernel/decision.js';
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import { sellerKindOf } from '../../identity/index.js';
+import { CLIENT_MESSAGE_ID, normalizeBody } from '../domain/msg.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('messaging');
+
+/** MSG-1 Q-fail: a concurrent retry won the idempotency key; the whole send rolls back (undoing the seq increment). */
+class DuplicateSend extends Error {}
+
+/** MSG-1 Q4: `allowed`, or `allowedWithNotice` with `RecipientNotYetVerified` for a `Pending` business. */
+function sendDecision(recipientStatus: 'Approved' | 'Pending', now: IsoInstant): Decision {
+  const citations: [Citation] = [{ rule: 'FR-MSG-4', inputs: { recipientStatus } }];
+  const code = recipientStatus === 'Approved' ? 'MessageSent' : 'RecipientNotYetVerified';
+  return { outcome: recipientStatus === 'Approved' ? 'allowed' : 'allowedWithNotice', reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
+}
+
+/** MSG's use cases (contracts.md §9, §15); the supporting ones throw NotImplementedError until Story 9.6. */
 export class MsgServiceV2 implements MsgV2UseCases {
   constructor(protected readonly deps: MsgV2Deps) {}
 
-  async sendMessage(_input: SendMessageRequest): Promise<SendMessageResponse> {
-    throw new NotImplementedError('messaging.sendMessage');
-  }
+  /**
+   * MSG-1 (AD-MSG-2): P2–P5 first-fail, then the conversation, the seq and the savepointed insert in one transaction.
+   * P1 `canBuy` is the procedure builder's. Eligibility is read in this transaction (identity takes the latest
+   * application `FOR SHARE`, decision log Impl-1 #34), so a rejection either waits for this commit or is seen here.
+   * A retry with the same `clientMessageId` returns the original message and writes nothing (EC-14).
+   */
+  async sendMessage(input: SendMessageRequest): Promise<SendMessageResponse> {
+    const { repo, transactions, clock, ids, audit, identity } = this.deps;
+    const body = normalizeBody(input.body);
+    const issues: RequestIssue[] = [];
+    if (body === null) issues.push({ field: 'body', issue: 'debe tener entre 1 y 2.000 caracteres' });
+    if (!CLIENT_MESSAGE_ID.test(input.clientMessageId)) issues.push({ field: 'clientMessageId', issue: 'debe tener entre 1 y 64 letras, dígitos, guiones o guiones bajos' });
+    const target = input.target as Partial<{ recipientId: CuidId; conversationId: CuidId }>;
+    if ((target.recipientId === undefined) === (target.conversationId === undefined)) issues.push({ field: 'target', issue: 'indica exactamente un destinatario o una conversación' });
+    if (issues.length > 0) return rejectRequest(issues as [RequestIssue, ...RequestIssue[]]);
+    const { senderId, clientMessageId } = input;
+    const now = clock.now().toISOString();
 
+    const send = () => transactions.run(async (tx) => {
+      let pair: { buyerId: CuidId; businessId: CuidId; conversationId: CuidId | null };
+      if (target.conversationId !== undefined) {
+        const conversation = await repo.readConversationFor(tx, target.conversationId, senderId);
+        if (conversation === null) return raise('ConversationNotVisibleToCaller', [{ rule: 'FR-MSG-7', inputs: { participant: false } }]);
+        pair = { buyerId: conversation.buyerId, businessId: conversation.businessId, conversationId: conversation.id };
+      } else {
+        if (await sellerKindOf(repo, tx, senderId) === 'business') return raise('BusinessCannotInitiate', [{ rule: 'FR-MSG-4', inputs: { sellerKind: 'business' } }]);
+        pair = { buyerId: senderId, businessId: target.recipientId!, conversationId: null };
+      }
+      // P5: buyer sending → the recipient business; business replying → its own status. Both are the pair's business.
+      const { status } = await identity.requireMessagingEligibility({ businessId: pair.businessId });
+      const sent = await repo.findSentMessage(tx, pair.conversationId ? { conversationId: pair.conversationId } : { buyerId: pair.buyerId, businessId: pair.businessId }, senderId, clientMessageId);
+      if (sent !== null) return { conversationId: sent.conversationId, messageId: sent.messageId, seq: sent.seq, decision: sendDecision(sent.recipientVerificationAtSend, now) };
+      const conversationId = pair.conversationId ?? await repo.startOrGetConversation(tx, { id: ids.next(), buyerId: pair.buyerId, businessId: pair.businessId, now });
+      const seq = await repo.allocateSeq(tx, conversationId, now);
+      const messageId = ids.next();
+      const inserted = await repo.insertMessage(tx, { id: messageId, conversationId, seq, senderId, body: body!, clientMessageId, recipientVerificationAtSend: status, now });
+      if (inserted === 'duplicate') throw new DuplicateSend();
+      // AD-SYS-8 rule 3: ids and the seq only, never the body. No event.
+      await audit.record(tx, {
+        actorId: senderId, actorKind: 'user', module: 'messaging', action: 'messaging.message.sent',
+        aggregateType: 'Message', aggregateId: messageId, decisionCode: status === 'Approved' ? 'MessageSent' : 'RecipientNotYetVerified',
+        data: { conversationId, seq, recipientStatus: status }, at: now,
+      });
+      return { conversationId, messageId, seq, decision: sendDecision(status, now) };
+    });
+
+    try {
+      return await send();
+    } catch (error) {
+      if (!(error instanceof DuplicateSend)) throw error;
+      // The winner committed first; a new transaction finds it before allocating anything.
+      return send();
+    }
+  }
   async listInbox(_input: ListInboxRequest): Promise<ListInboxResponse> {
     throw new NotImplementedError('messaging.listInbox');
   }

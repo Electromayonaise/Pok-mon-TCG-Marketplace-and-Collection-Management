@@ -9,7 +9,7 @@ import { VerServiceV2 } from '../../../src/modules/identity/index.js';
 import { useTestDatabase } from '../../../test-support/db.js';
 import { caught, citedInputs, httpOf } from '../../../test-support/errors.js';
 import { codeOf, race } from '../../../test-support/concurrency.js';
-import { at, business, catalogEntry, conversation, explainAssert, fake, HOUR, id, ins, listing, rows, T0, unit, user, wiring } from '../../../test-support/solu2/fixtures.js';
+import { at, business, catalogEntry, conversation, explainAssert, fake, HOUR, id, ins, listing, rejectionReason, rows, T0, unit, user, wiring } from '../../../test-support/solu2/fixtures.js';
 
 const db = useTestDatabase();
 /** A sendMessage request: camila's first 'Hola' to the business andres, unless the test says otherwise. */
@@ -197,6 +197,7 @@ describe('MSG-3 — requireMessagingEligibility (contracts.md §9)', () => {
 
   it('[MSG-3.MEC] the business is rejected between compose and send, 100 repetitions: either the message is sent before, or NotBusinessAccount with zero writes (NFR-MSG-4, FR-MSG-6)', async () => {
     await user(db, { id: id('camila') });
+    await rejectionReason(db, { code: 'DataMismatch' }); // the rejection's FK target (decision log Impl-1 #34)
     for (let rep = 0; rep < 100; rep++) {
       const biz = id(`biz${rep}`);
       await business(db, biz, 'Approved');

@@ -1374,6 +1374,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `CommissionBalanceNeedsTopUp` | — (stored only) | commission | S-FR-COM-9 `allowedWithNotice`: a balance at or below 0, citing `{ balanceCop, neededToResumeCop }` (FR-COM-3, AD-COM-3 rule 3; decision log Impl-1 #16) | "Tus publicaciones están pausadas hasta que recargues tu saldo de comisión." | no |
 | `MessagingEligible` | — (stored only) | identity | MSG-3 Q1 `allowed`: the business is `Approved`, citing `{ businessId, status }` (FR-IDN-6; decision log Impl-1 #34) | "Esta tienda está verificada; puedes escribirle." | no |
 | `RecipientNotYetVerified` | — (stored only) | messaging | MSG-3 Q1 and MSG-1 Q4 `allowedWithNotice`: a `Pending` business. A DecisionCode (list below) that had no template (FR-MSG-4; decision log Impl-1 #34) | "Esta tienda aún no ha sido verificada por TEZG." | no |
+| `MessageSent` | — (stored only) | messaging | MSG-1 Q4 `allowed`: the message is stored for an `Approved` business, citing `{ recipientStatus }` (FR-MSG-4; decision log Impl-1 #34) | "Mensaje enviado." | no |
 | `TopUpAmountInvalid` | 400 | commission | S-FR-COM-2 | "La recarga debe estar entre $20.000 y $10.000.000 COP." | no |
 | `TopUpNotPending` | 409 | commission | COM-2 P3 | "Esta recarga ya fue {status} por {decidedBy} el {decidedAt}." | no |
 | `TopUpNotVisibleToCaller` | 403 | commission | S-FR-COM-2 | "No encontramos esa recarga." | no |

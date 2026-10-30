@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 382 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 383 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -1068,11 +1068,11 @@ Let buyers contact individual sellers through a generated WhatsApp handoff, and 
 - **Binding invariants:** AD-MSG-2 — One conversation per pair; idempotent send (Unique keys; `lastSeq` allocation); also cited by its clauses: AD-MSG-3, AD-SYS-8
 - **Files:** `src/modules/messaging/application/msg.v2.ts` (`MsgServiceV2.sendMessage`), `src/modules/messaging/ports/msg.v2.ts` (`MsgRepository`), `src/modules/messaging/domain/msg.ts`, `src/modules/messaging/infra/pg.ts`
 - **Schema/DTO:** tables `"Conversation"`, `"Message"`; DTOs `SendMessageRequest` → `SendMessageResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/msg_contracts.test.ts` › `[MSG-1.Q1]`, `[MSG-1.Q2]`, `[MSG-1.I3]`, `[MSG-1.R1]`, `[MSG-3.MEC]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/msg_contracts.test.ts` › `[MSG-1.Q1]`, `[MSG-1.Q2]`, `[MSG-1.I3]`, `[MSG-1.R1]`, `[MSG-3.MEC]`; `_bmad-output/test-artifacts/nfr/msg_latency.test.ts` › `[NFR-MSG-2.send]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Camila writes to Approved Andrés for the first time. **When:** she sends. **Then:** one conversation, two participants and message seq 1; a retry with the same `clientMessageId` returns the original and writes nothing.
   - **Scenario (failure) — Given:** Andrés is rejected between compose and send, 100 times; two first messages and 20 concurrent sends. **When:** the sends run. **Then:** either the message was sent before the rejection, or `NotBusinessAccount` with zero writes; one conversation with seqs 1..20 and no gap.
-- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7); NFR-MSG-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7).
 
 ### Story 9.3: Generate the contact handoff for every product name
 
@@ -1104,7 +1104,7 @@ Let buyers contact individual sellers through a generated WhatsApp handoff, and 
 - **Gherkin:**
   - **Scenario (happy) — Given:** Camila participates in a conversation. **When:** she writes to it. **Then:** the message is sent: the contrast case.
   - **Scenario (failure) — Given:** a business opens a conversation; a non-participant writes; the recipient business is Rejected. **When:** the send runs. **Then:** `BusinessCannotInitiate` (409); `ConversationNotVisibleToCaller` (403); `NotBusinessAccount` propagated from identity, with nothing written.
-- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-MSG-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 9.5: Refuse hidden or business listings and rate-limit contact
 
