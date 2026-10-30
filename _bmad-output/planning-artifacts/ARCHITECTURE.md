@@ -1597,7 +1597,7 @@ flowchart LR
 | Procedure | Builder | Codes |
 | --- | --- | --- |
 | `collections.create`, `rename`, `delete` | `authedProcedure` | `CollectionNameTaken`, `CollectionLimitReached` (G-2), `CollectionNotFound` |
-| `collections.addEntry`, `addExternal`, `updateEntry`, `removeEntry`, `moveEntry`, `copyEntry` | `authedProcedure` | `CollectionNotFound`, `CollectionEntryNotFound`, `InvalidExternalLink`, `InvalidCatalogEntry`, `RequestValidationFailed` |
+| `collections.addEntry`, `addExternal`, `updateEntry`, `removeEntry`, `moveEntry`, `copyEntry` | `authedProcedure` | `CollectionNotFound`, `CollectionEntryNotFound`, `InvalidExternalLink`, `InvalidCatalogEntry`, `InvalidAcquiredDate`, `RequestValidationFailed`; `addEntry` also `CollectionLimitReached` (decision log Impl-1 #36, D5) |
 | `collections.binder({collectionId, sort[], setId?})`, `setLayout`, `reorder` | `authedProcedure` | `CollectionNotFound` |
 | `collections.wishlist.*` | `authedProcedure` | `RequestValidationFailed` |
 | `collections.prompts.list`, `accept({promptId, collectionId})`, `dismiss` | `authedProcedure` | `PromptAlreadyResolved`, `CollectionNotFound` |
@@ -1637,7 +1637,7 @@ flowchart LR
 - **Prevents:** an external entry masquerading as catalog-backed; a 51st collection from two concurrent creates; two "General" collections; a server fetch of a user URL.
 - **Rule:**
   1. Create takes `pg_advisory_xact_lock(col:owner:<ownerId>)`, counts collections, and raises `CollectionLimitReached` at 50 [G-2; the PRD's generic refusal becomes a registry code]. It then inserts, and a unique violation on `nameKey` raises `CollectionNameTaken`.
-  2. "First use" means an add by an owner who has no collection at all. That add creates "General" under the same lock with `ON CONFLICT (ownerId, nameKey) DO NOTHING`. The count is 0 on that path, so the limit cannot be reached there. An add with no target by an owner who has collections but no "General" creates it the same way, and at 50 collections raises `CollectionLimitReached` instead (decision log Impl-1 #36, D5).
+  2. "First use" means an add by an owner who has no collection at all. That add creates "General" under the same lock with `ON CONFLICT (ownerId, nameKey) DO NOTHING`; its count is 0, so the limit cannot be reached on first use. An add with no target by an owner who has collections but no "General" creates it the same way, and at 50 collections raises `CollectionLimitReached` instead (decision log Impl-1 #36, D5).
   3. Catalog entries are validated through one batched `catalog.getEntries`. A missing id raises `InvalidCatalogEntry` (§8), citing the id.
   4. External entries are validated by the pure `validateExternal` (https, lengths). A failure raises `InvalidExternalLink`. `collections` has no HTTP client (lint `tezg/no-direct-io`), and the image renders client-side with `referrerpolicy="no-referrer"`.
   5. Binder order is up to 3 sort keys, with `entryId` as the final tie-break. Completion is distinct owned `kind=card` catalog entries in the set, divided by the set's `kind=card` entry count from `catalog.getSetSummaries`, rounded down to a whole percentage. When that count is 0, completion is null.

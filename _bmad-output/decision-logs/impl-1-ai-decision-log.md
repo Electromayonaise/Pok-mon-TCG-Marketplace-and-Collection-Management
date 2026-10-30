@@ -824,3 +824,60 @@
   - The five Epic 10 story files.
   - `sprint-status.yaml` (10.4 and 10.5 out of `impl2_scope`; `epic-10: done`).
 - **Decided by:** Martín.
+
+### 36. Epic 11 is built through 11.4, "General" is never the 51st collection, its close review splits lines over 999 copies, and the epic is signed (Governance)
+
+- **Phase:** 3 (Epic 11 planning at `cfba71b`, then the close review over `cfba71b..1de5bf8`).
+- **Persona/Skill:** `bmad-quick-dev`, epic-batched (#22), then `bmad-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor).
+- **Prompt (summary):** Two rounds.
+  - **The specs.** Martín approved the four Epic 11 specs (11.1–11.4) together. With them came four choices:
+    - **D1, scope of 11.4.** Story 11.4 is in `impl2_scope`, but all 7 of its bound tests check clauses that 11.2 and 11.3 must build:
+      - `[COL-3.P2]`–`[COL-3.P4]` are addEntry's own first-fail chain;
+      - `[COL-1.P1]`–`[COL-1.P3]` and `[COL-1.dismiss.f]` are COL-1's re-read, Q-fail and rollback, and `[COL-1.MEC]` already expects `PromptAlreadyResolved`.
+      Stories 11.5 and 11.6 stay red for NotImplemented: their methods are their own.
+    - **D2, §13 codes.** Five COL responses carry a `decision` with no §13 code.
+    - **D3, the subscriber.** The `collections` subscriber of `OrderClosed` was in `UNWIRED_HANDLERS`.
+    - **D4, minor choices:** the list orders, no page on `collections.prompts.list` (its DTO has no cursor), `col:owner` on rename and delete, and no lock on dismiss.
+    - **D5, "General" at the limit.** COL-3 Q1 creates "General" for an owner who has collections but none named "General", so at 50 collections it would be the 51st (AD-COL-1 rule 1).
+  - **The close review.** It left 3 decisions, 7 patches, 2 deferrals and 9 dismissed findings. The decisions:
+    - **R1:** `orders.create` has no qty cap and a bundle line is `perBundleQty × qty`, so an `OrderClosed` line can exceed 999 copies. COL-2 P2 then fails the delivery, and an accept would break the `"CollectionEntry".qty` CHECK.
+    - **R2:** COL-2 Q4's rendering decision has no field in `PromptRowDTO`.
+    - **R3:** the approved copy put a count inside a plural ("Agregamos 1 cartas"), and `entryCount` counts entries, not copies.
+- **AI output (summary):** The agent recommended:
+  - **(recommended)** D1: build 11.4 as a proof-only story committed right after 11.3 (#23), as 7.3, 7.4, 8.4, 9.4, 9.5 and 10.4 were (#32–#35). It leaves `impl2_scope` and does not count toward the 43. The alternatives were a gate exception, or postponing the epic.
+  - **(recommended)** D2: five stored-only rows, `CollectionCreated`, `CollectionDeleted`, `CollectionEntryAdded`, `PromptAccepted` and `PromptDismissed`. The alternative was reusing a generic code.
+  - **(recommended)** D3: `collectionsHandler(col)` runs COL-2 for `OrderClosed`, and any other type is `Unexpected`. `UNWIRED_HANDLERS` is removed.
+  - **(recommended)** D4 as listed.
+  - **(recommended)** D5: `CollectionLimitReached`, declared on `collections.addEntry`. The alternative was allowing a 51st collection.
+  - **(recommended)** R1: a line becomes entries of at most 999 copies each, in order, with the same `orderId`, price and date. COL-2 P2 accepts any positive integer qty. The alternatives were failing the delivery, or clamping to 999.
+  - **(recommended)** R2: defer to the prompt page story (UI 6.2, 9.4). The alternative was a DTO change with a `PromptShown` row.
+  - **(recommended)** R3: count-neutral copy ("Entradas nuevas: {entryCount}.", "Entradas quitadas: …; de compras: …"). The alternative was keeping the approved copy.
+  - Apply all 7 patches.
+- **Human decision:** ACCEPT every recommendation, and sign the Epic 11 gate (#5).
+- **Reason:** `done` keeps meaning what the bound tests prove, and the gate needs no exception. No bound test changes. `collections` never reads `orders` tables (AD-8, AD-9), and the 50-collection cap now holds on every path that creates a collection.
+- **Also decided (the patches):**
+  - `isCalendarDate` refuses year 0000, which Postgres cannot store, so the date is `RequestValidationFailed` instead of 500.
+  - COL-2 P2 requires an ISO 8601 UTC close fact and treats a null `unitPriceCop` as absent.
+  - `insertPrompt` raises `Unexpected` when the conflicting row is missing.
+  - `CollectionNameTaken` cites `{ name }`, as the frozen 11.1 spec says.
+  - ARCHITECTURE: AD-COL-1 rule 2 is no longer self-contradictory, and the §6.10 router table lists `InvalidAcquiredDate` and `CollectionLimitReached`.
+  - The src tests cover a bundle line with no price and 2,000 copies, and they assert zero entries on refusal.
+- **Also in this epic:**
+  - Eight `collections.*` procedures are wired (`create`, `rename`, `delete`, `list`, `addEntry`, `prompts.accept`, `.dismiss`, `.list`), and so is the `collections` subscriber. The other nine stay unwired until Story 11.5.
+  - `PgColRepository` joins the one repository (R-14).
+  - The message-catalog test allows three new number placeholders: `entriesRemoved`, `platformPurchaseEntriesRemoved` and `entryCount`.
+  - `[COL-1.MEC]` runs its 100 repetitions in 1,191–1,310 ms (local Postgres 16).
+  - Epic 5's two `getAvailabilitySummary` deferrals stay open, now owned by Story 11.5 (its only consumer).
+- **Environment note:** Docker did not run in this session. A `postgresql-16` cluster on port 55432 (`max_connections=200`, `fsync=off`, `full_page_writes=off`) ran `npm run test:ci` before the push. The agent read the script's own exit code (`TESTCI_EXIT`) before pushing. The worker restarted once mid-review and the cluster was started again.
+- **Artifact changed:**
+  - `src/modules/collections/**`.
+  - `src/server/composition.ts` (+ test).
+  - `src/shared-kernel/messages.generated.ts` and `messages.test.ts`.
+  - `test-support/solu2/fixtures.ts`.
+  - `_bmad-output/planning-artifacts/detailed-design/contracts.md`: COL-1 Q2, COL-2 P2, COL-3 Q1, and §13 (five rows and one trigger).
+  - `schemas/operations.json` and `openapi.yaml` (`collections.addEntry`), and `ui-states.md`.
+  - `_bmad-output/planning-artifacts/ARCHITECTURE.md` (AD-COL-1 rule 2, the §6.10 router table).
+  - `deferred-work.md`.
+  - The four Epic 11 story files.
+  - `sprint-status.yaml` (11.4 out of `impl2_scope`; `epic-11: done`).
+- **Decided by:** Martín.

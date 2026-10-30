@@ -52,7 +52,7 @@ import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import { bogotaDate, COLLECTION_LIMIT, isAfterToday, isCalendarDate } from '../domain/col.js';
+import { bogotaDate, COLLECTION_LIMIT, entryQuantities, isAfterToday, isCalendarDate, isIsoInstant } from '../domain/col.js';
 import type { PromptRow } from '../ports/col.v2.js';
 
 const raise = raiserFor('collections');
@@ -78,9 +78,9 @@ const isInteger = (v: unknown, min: number, max: number): boolean => Number.isSa
 /** COL-2 P2: the payload the prompt is built from; a broken one fails the delivery (AD-SYS-2 rule 4). */
 function checkClosedPayload(input: OnOrderClosedRequest): void {
   const linesOk = Array.isArray(input.lines) && input.lines.length >= 1 && input.lines.every((l: OrderClosedLineV1) =>
-    typeof l.itemRef === 'string' && l.itemRef.length > 0 && isInteger(l.qty, 1, 999) && (l.unitPriceCop === undefined || isInteger(l.unitPriceCop, 0, 100_000_000)));
-  const closedAt = typeof input.buyerItemReceivedConfirmedAt === 'string' ? Date.parse(input.buyerItemReceivedConfirmedAt) : Number.NaN;
-  if (!input.orderId || !input.buyerId || !linesOk || Number.isNaN(closedAt)) {
+    typeof l.itemRef === 'string' && l.itemRef.length > 0 && Number.isSafeInteger(l.qty) && l.qty >= 1 && (l.unitPriceCop == null || isInteger(l.unitPriceCop, 0, 100_000_000)));
+  const closedAt = input.buyerItemReceivedConfirmedAt;
+  if (!input.orderId || !input.buyerId || !linesOk || typeof closedAt !== 'string' || !isIsoInstant(closedAt)) {
     throw new UnexpectedError(`collections.onOrderClosed: incomplete OrderClosed payload for order ${String(input.orderId)}`);
   }
 }
@@ -127,10 +127,11 @@ export class ColServiceV2 implements ColV2UseCases {
       if (prompt === null) return this.refusePrompt(tx, promptId, actorId);
       if (!await repo.ownsCollection(tx, collectionId, actorId)) return collectionNotFound('COL-1 P3');
       const acquiredAt = bogotaDate(prompt.buyerItemReceivedConfirmedAt);
-      const entries = prompt.lines.map((line) => ({
+      // R1 (decision log Impl-1 #36): a line over 999 copies (a bundle component) becomes entries of at most 999 each.
+      const entries = prompt.lines.flatMap((line) => entryQuantities(line.qty).map((qty) => ({
         id: ids.next(), catalogEntryId: line.itemRef, source: 'PlatformPurchase' as const, orderId: prompt.orderId,
-        qty: line.qty, acquiredAt, acquiredPriceCop: line.unitPriceCop ?? null,
-      }));
+        qty, acquiredAt, acquiredPriceCop: line.unitPriceCop ?? null,
+      })));
       await repo.insertCollectionEntries(tx, collectionId, entries, now);
       await this.audit(tx, actorId, 'collections.prompt.accepted', { type: 'PostPurchasePrompt', id: promptId }, 'PromptAccepted', { orderId: prompt.orderId, collectionId, entryCount: entries.length }, now);
       return {
@@ -224,7 +225,7 @@ export class ColServiceV2 implements ColV2UseCases {
       if (count >= COLLECTION_LIMIT) return raise('CollectionLimitReached', [{ rule: 'AD-COL-1 rule 1', inputs: { limit: COLLECTION_LIMIT, count } }]);
       const collectionId = ids.next();
       if (await repo.insertCollection(tx, { id: collectionId, ownerId, name, now }) === 'taken') {
-        return raise('CollectionNameTaken', [{ rule: 'AD-COL-1 rule 1', inputs: { field: 'name' } }]);
+        return raise('CollectionNameTaken', [{ rule: 'AD-COL-1 rule 1', inputs: { name } }]);
       }
       await this.audit(tx, ownerId, 'collections.collection.created', { type: 'Collection', id: collectionId }, 'CollectionCreated', { count: count + 1 }, now);
       return { collectionId, name, decision: explained('CollectionCreated', [{ rule: 'FR-COL-1', inputs: { collectionId, count: count + 1 } }], now) };
@@ -241,7 +242,7 @@ export class ColServiceV2 implements ColV2UseCases {
       await repo.lockCollectionOwner(tx, ownerId);
       const outcome = await repo.renameCollection(tx, { collectionId, ownerId, name, now });
       if (outcome === 'missing') return collectionNotFound('FR-COL-1');
-      if (outcome === 'taken') return raise('CollectionNameTaken', [{ rule: 'AD-COL-1 rule 1', inputs: { field: 'name' } }]);
+      if (outcome === 'taken') return raise('CollectionNameTaken', [{ rule: 'AD-COL-1 rule 1', inputs: { name } }]);
       await this.audit(tx, ownerId, 'collections.collection.renamed', { type: 'Collection', id: collectionId }, null, {}, now);
       return { collectionId, updatedAt: now };
     });

@@ -131,3 +131,15 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 - `trading.handoff` regenerates the text from the listing as it is now: once the listing is hidden, withdrawn or deactivated after the accept it is `ListingNotFound` (declared on the procedure, decision log Impl-1 #35, R2), a price or title edit changes the text, and a catalog entry that stops resolving is `Unexpected`. A snapshot of the handoff at accept needs a column or a contract change. Owner: the trade page story (UI 8.2), or TRD's Impl-2 follow-up.
 - The accept swallows a handoff failure as `handoff: null` with no log, so a systematically broken handoff goes unnoticed. Needs a logger port; decide it with the Epic 7 item that isolates a failing expiry (the jobs route).
 - `expireDueOffers` stops at the first seller whose transaction fails and has no single-flight. Same owner as the jobs-route item above.
+
+## Deferred from: spec of Epic 11 (11.1–11.4) (2026-10-30)
+
+- Stories 11.5 (binder, external entries, move/copy, wishlist: `S-FR-COL-3`, `-4`, `-5.binder`, `-5.layout`, `-5.reorder`, `-6.add`, `-6.remove`, `-6.list`) and 11.6 (their refusals) stay in `impl2_scope`; their nine procedures stay unwired and their 8 tests red for NotImplemented. `completionPercent` (AD-COL-1 rule 5) is still a NotImplemented stub. Owner: Epic 11's Impl-2 completion.
+- Epic 5's two `getAvailabilitySummary` items above (the area filter, and the batch `getSellerKinds` port with AD-INV-3 rule 2's parity test) stay open: their only consumer is the wishlist list of Story 11.5. Owner: Story 11.5.
+- COL needs no jobs route: prompts never expire (A-43), so nothing joins the jobs-route item of Stories 4.1, 4.4, 7.5 and 10.5.
+
+## Deferred from: code review of Epic 11 (11.1–11.4) (2026-10-30)
+
+- COL-2 Q4 says a prompt's rendering cites `{ rule: 'FR-COL-7', inputs: { orderId, lineCount } }`, but `PromptRowDTO` has no decision field, so `collections.prompts.list` returns none. Martín deferred the DTO change (decision log Impl-1 #36, R2); each row already carries `orderId` and `lineCount`. Owner: the prompt page story (UI 6.2, 9.4).
+- Collection names are not trimmed: a whitespace-only name passes, and "Keep " and "Keep" get different `nameKey`s. Same as Epic 3's, 8's and 9's trim items; decide it with the collection forms (UI 9.1, 9.4).
+- `PromptAlreadyResolved` renders the raw status token (`Accepted`, `Dismissed`) and an ISO instant inside Spanish text, the repo-wide convention noted in Epic 7. The prompt pages' copy (UI 6.2, 9.4) should map it.

@@ -1018,6 +1018,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
     - `"acquiredAt"` = the Bogotá date of `"buyerItemReceivedConfirmedAt"`;
     - `"acquiredPriceCop" = line.unitPriceCop ?? NULL`;
     - `"manualPosition"` = max + 1, + 2, …
+    - a line over 999 copies becomes entries of at most 999 each, in order, so the `qty` CHECK holds (decision log Impl-1 #36, R1).
 
     Returns the entry ids.
   - Q3 Audit: `audit('collections.prompt.accepted', PostPurchasePrompt:id)`. No event. `orders` tables are never read.
@@ -1039,7 +1040,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Layer:** Inbound Port (subscriber).
 - **Precondition (P):**
   - P1 `tx` holds this subscriber's `"EventDelivery"` row. Violation: `'Unexpected'`.
-  - P2 The payload has `orderId`, `buyerId`, `lines` (≥ 1) and a non-null `buyerItemReceivedConfirmedAt`. Violation: `'Unexpected'`, and the delivery becomes `failed`.
+  - P2 The payload has `orderId`, `buyerId`, `lines` (≥ 1) and a non-null `buyerItemReceivedConfirmedAt`. Violation: `'Unexpected'`, and the delivery becomes `failed`. Each line has an `itemRef` and a positive integer `qty`, with no upper bound (a bundle component is `perBundleQty × qty`); `unitPriceCop` is absent, null or 0–100,000,000; the close fact is an ISO 8601 UTC instant (decision log Impl-1 #36).
 - **Postcondition (Q):**
   - Q1 `INSERT "PostPurchasePrompt" (id, "orderId", "buyerId", lines, "buyerItemReceivedConfirmedAt", status 'Pending', "createdAt", "updatedAt") ON CONFLICT ("orderId") DO NOTHING RETURNING id`. It returns `{ created: true, promptId }` on insert, and otherwise selects the existing id and returns `{ created: false, promptId }`.
   - Q2 The prompt keeps the payload's lines and close fact. It never reads `"Order"` (AD-9).
@@ -1417,9 +1418,9 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `PromptAlreadyResolved` | 409 | collections | COL-1 P2 | "Esta sugerencia ya fue {status} el {resolvedAt}." | no |
 | `PromptNotFound` | 404 | collections | COL-1 P1 | "No encontramos esa sugerencia." | no |
 | `CollectionCreated` | — (stored only) | collections | S-FR-COL-1.create `allowed`: the collection is created, citing `{ collectionId, count }` (FR-COL-1; decision log Impl-1 #36) | "Creaste la colección." | no |
-| `CollectionDeleted` | — (stored only) | collections | S-FR-COL-1.delete `allowed`: the collection and its entries are removed, citing `{ entriesRemoved, platformPurchaseEntriesRemoved }` (FR-COL-1, review G-15; decision log Impl-1 #36) | "Borraste la colección con {entriesRemoved} cartas, {platformPurchaseEntriesRemoved} de compras." | no |
+| `CollectionDeleted` | — (stored only) | collections | S-FR-COL-1.delete `allowed`: the collection and its entries are removed, citing `{ entriesRemoved, platformPurchaseEntriesRemoved }` (FR-COL-1, review G-15; decision log Impl-1 #36) | "Borraste la colección. Entradas quitadas: {entriesRemoved}; de compras: {platformPurchaseEntriesRemoved}." | no |
 | `CollectionEntryAdded` | — (stored only) | collections | COL-3 Q4 `allowed`: one Manual entry is added, citing `{ entryId, source, createdGeneral }` (FR-COL-2; decision log Impl-1 #36) | "Agregaste la carta a tu colección." | no |
-| `PromptAccepted` | — (stored only) | collections | COL-1 Q4 `allowed`: the prompt is Accepted and one entry per line is added, citing `{ promptId, orderId, entryCount }` (FR-COL-7; decision log Impl-1 #36) | "Agregamos {entryCount} cartas de tu compra a la colección." | no |
+| `PromptAccepted` | — (stored only) | collections | COL-1 Q4 `allowed`: the prompt is Accepted and one entry per line (split at 999 copies) is added, citing `{ promptId, orderId, entryCount }` (FR-COL-7; decision log Impl-1 #36) | "Agregamos tu compra a la colección. Entradas nuevas: {entryCount}." | no |
 | `PromptDismissed` | — (stored only) | collections | COL-1.dismiss `allowed`: the prompt is Dismissed with no entry, citing `{ promptId, orderId }` (FR-COL-7; decision log Impl-1 #36) | "Descartaste la sugerencia." | no |
 | `InvalidValuationPeriod` | 400 | collections | VAL-2 P2 | "El periodo debe ser 7, 30, 90 o 365 días." | no |
 | `TargetNotFound` | 404 | reviews | REP-1 P2, P3; S-FR-REP-7 | "No encontramos ese vendedor." | no |

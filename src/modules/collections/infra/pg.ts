@@ -1,7 +1,7 @@
 // Driven adapters (persistence) — collections. The Solu-1 stubs below are bound to the retired migration 009_create_collections.sql
 // (git 853449c:docs/solu-1/planning/schemas/); the Solu-2 PgColRepository at the end is bound to
 // _bmad-output/planning-artifacts/detailed-design/schemas.
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
 import type { OrderClosedLineV1 } from '../../../shared-kernel/events.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
@@ -152,7 +152,8 @@ export class PgColRepository implements ColRepository {
     if (inserted.rows[0]) return { created: true, promptId: inserted.rows[0].id };
     // The conflicting row is committed or held by a transaction that has just committed: ON CONFLICT waited for it.
     const { rows } = await tx.query<{ id: CuidId }>(`SELECT id FROM "PostPurchasePrompt" WHERE "orderId" = $1`, [p.orderId]);
-    return { created: false, promptId: rows[0]!.id };
+    if (!rows[0]) throw new UnexpectedError(`collections.insertPrompt: no prompt for order ${p.orderId} after its conflict`);
+    return { created: false, promptId: rows[0].id };
   }
 
   async resolvePrompt(tx: Tx, c: { promptId: CuidId; buyerId: CuidId; to: 'Accepted' | 'Dismissed'; collectionId: CuidId | null; now: IsoInstant }): Promise<PromptRow | null> {

@@ -33,7 +33,9 @@ describe('addEntry with no target (COL-3 Q1, AD-COL-1 rules 1–2)', () => {
     await user(db, { id: id('valentina') });
     expect(codeOf(await caught(() => col().addEntry({ ...add, qty: 1.5 })))).toBe('RequestValidationFailed');
     expect(codeOf(await caught(() => col().addEntry({ ...add, acquiredAt: '2026-02-30' })))).toBe('RequestValidationFailed');
+    expect(codeOf(await caught(() => col().addEntry({ ...add, acquiredAt: '0000-01-01' })))).toBe('RequestValidationFailed');
     expect(await rows(db, 'Collection')).toHaveLength(0);
+    expect(await rows(db, 'CollectionEntry')).toHaveLength(0);
   });
 });
 
@@ -64,11 +66,30 @@ describe('prompts (COL-1.dismiss, COL-1.list, COL-2 P2)', () => {
     expect((await col().listPrompts({ buyerId: id('camila') })).prompts.map((p) => p.promptId)).toEqual([id('p2'), id('p1')]);
   });
 
+  it('a bundle line with no (or a null) price and 2,000 copies becomes entries of 999, 999 and 2 with a null price (R1)', async () => {
+    await user(db, { id: id('camila') });
+    await collection(db, { id: id('coll1'), ownerId: id('camila') });
+    const payload = {
+      orderId: id('o1'), buyerId: id('camila'), businessId: id('andres'), totalCop: 90_000, sellerReceivedConfirmedAt: null, buyerItemReceivedConfirmedAt: '2026-10-01T03:30:00.000Z',
+      lines: [{ itemRef: id('e1'), title: 'Caja', qty: 2_000 }, { itemRef: id('e2'), title: 'Caja', qty: 1, unitPriceCop: null }],
+    } as unknown as OrderClosedV1;
+    const { promptId } = await db.transactions.run((tx) => col().onOrderClosed(tx, payload));
+    const result = await col().acceptPrompt({ promptId, collectionId: id('coll1'), actorId: id('camila') });
+    expect(result.entryIds).toHaveLength(4);
+    expect(await rows(db, 'CollectionEntry', 'TRUE ORDER BY "manualPosition"')).toMatchObject([
+      { catalogEntryId: id('e1'), qty: 999, acquiredPriceCop: null, manualPosition: 0 }, { catalogEntryId: id('e1'), qty: 999, manualPosition: 1 },
+      { catalogEntryId: id('e1'), qty: 2, manualPosition: 2 }, { catalogEntryId: id('e2'), qty: 1, acquiredPriceCop: null, manualPosition: 3 },
+    ]);
+    expect(result.decision.humanMessage).toBe('Agregamos tu compra a la colección. Entradas nuevas: 4.');
+  });
+
   it('an OrderClosed with no lines or no close fact is Unexpected, and no prompt is written', async () => {
     const payload: OrderClosedV1 = { orderId: id('o1'), buyerId: id('camila'), businessId: id('andres'), totalCop: 0, lines: [], sellerReceivedConfirmedAt: null, buyerItemReceivedConfirmedAt: '2026-10-01T03:30:00.000Z' };
     expect(codeOf(await caught(() => db.transactions.run((tx) => col().onOrderClosed(tx, payload))))).toBe('Unexpected');
     const noClose = { ...payload, lines: [{ itemRef: id('e1'), title: 'Charizard ex', qty: 1 }], buyerItemReceivedConfirmedAt: null } as unknown as OrderClosedV1;
     expect(codeOf(await caught(() => db.transactions.run((tx) => col().onOrderClosed(tx, noClose))))).toBe('Unexpected');
+    const looseDate = { ...payload, lines: [{ itemRef: id('e1'), title: 'Charizard ex', qty: 1 }], buyerItemReceivedConfirmedAt: '10/01/2026' };
+    expect(codeOf(await caught(() => db.transactions.run((tx) => col().onOrderClosed(tx, looseDate))))).toBe('Unexpected');
     expect(await rows(db, 'PostPurchasePrompt')).toHaveLength(0);
   });
 });

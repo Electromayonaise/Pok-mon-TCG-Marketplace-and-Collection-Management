@@ -126,7 +126,7 @@ development_status:
   10-4-refuse-stale-out-of-turn-and-duplicate-offer-actions: done
   10-5-cancel-complete-and-expire-trades-exactly-once: done
   epic-10-retrospective: optional
-  epic-11: in-progress
+  epic-11: done
   11-1-organize-my-collections: done
   11-2-add-catalog-cards-to-a-collection: done
   11-3-turn-a-closed-order-into-one-prompt-and-one-entry-set: done
