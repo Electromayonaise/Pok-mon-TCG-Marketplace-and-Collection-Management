@@ -383,6 +383,7 @@ The `*NotVisibleToCaller` codes map to `FORBIDDEN` even though AD-14/AD-15 hide 
      - `msg:contact:req`
      - `msg:contact:ip`
      - `col:owner`
+     - `listings:seller` (a business listing's creation and the commission projection subscriber; decision log Impl-1 #33)
      - `job:<name>`
   5. **Global lock order.** Every transaction acquires locks in this sequence and never goes backwards:
      0. the subscriber's own `EventDelivery` row (subscriber and replay transactions only, AD-SYS-2 rules 4 and 7);
@@ -391,7 +392,7 @@ The `*NotVisibleToCaller` codes map to `FORBIDDEN` even though AD-14/AD-15 hide 
      3. `InventoryUnit` rows, by ascending id;
      4. other rows of the calling module (sibling offers, by ascending id);
      5. projections (`SellerCommissionState`).
-     `Listing` rows count as position 4 for `listings`. The one exception is the commission projection subscriber (AD-INV-3 rule 4), which locks `SellerCommissionState` and then updates that business's `Listing` rows. It cannot deadlock, because no transaction waits for `SellerCommissionState` while holding a `Listing` row lock: listing creation takes the projection `FOR SHARE` before its insert, and edits, hides and reserves never lock the projection. A fixed-order pair of advisory locks that no other transaction takes together is also allowed (AD-MSG-1 rule 3). Position 0 cannot deadlock: publishers only insert `EventDelivery` rows, which no other transaction sees before commit, and the attempt step (AD-SYS-2 rule 4, step 1) touches that one row and nothing else, so no transaction that holds another lock waits for an `EventDelivery` row.
+     `Listing` rows count as position 4 for `listings`. The one exception is the commission projection subscriber (AD-INV-3 rule 4), which locks `SellerCommissionState` and then updates that business's `Listing` rows. It cannot deadlock, because no transaction waits for `SellerCommissionState` while holding a `Listing` row lock: listing creation takes the projection `FOR SHARE` before its insert, and edits, hides and reserves never lock the projection. Both also take the `listings:seller` advisory lock first (position 1), so a projection row that does not exist yet still serializes a business listing's creation against its first commission event (decision log Impl-1 #33). A fixed-order pair of advisory locks that no other transaction takes together is also allowed (AD-MSG-1 rule 3). Position 0 cannot deadlock: publishers only insert `EventDelivery` rows, which no other transaction sees before commit, and the attempt step (AD-SYS-2 rule 4, step 1) touches that one row and nothing else, so no transaction that holds another lock waits for an `EventDelivery` row.
   6. Postgres errors `40P01` (deadlock) and `40001` (serialization) are retried by the transaction helper at most 2 times with the same input, then surfaced as `'Unexpected'`. Any other error is never retried.
   7. A job holds `pg_try_advisory_xact_lock(job:<name>)` for each batch transaction. If the lock is not acquired, that batch run is a no-op. Long jobs spanning several transactions (feed ingestion) use a row lease instead (AD-CAT-1).
   8. The default isolation level is READ COMMITTED. Correctness comes from conditional updates (AD-SYS-5) and the lock order above, never from SERIALIZABLE.

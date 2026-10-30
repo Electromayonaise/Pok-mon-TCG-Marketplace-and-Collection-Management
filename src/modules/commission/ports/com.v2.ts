@@ -29,9 +29,64 @@ export interface ComV2Deps {
 }
 // </gen-solu2-api>
 
+import type { Tx } from '../../../shared-kernel/ports.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import type { AdminFactsReader } from '../../identity/index.js';
+import type { AccountState, CommissionTrigger } from '../domain/com.js';
+
+/** A commission account as COM reads it; money stays `bigint` until the DTO edge (AD-SYS-7). */
+export interface AccountRow {
+  businessId: CuidId;
+  balanceCop: bigint;
+  state: AccountState;
+  ledgerSeq: bigint;
+}
+
+/** One ledger line as the business's account page reads it (S-FR-COM-9). */
+export interface LedgerLineRow {
+  seq: bigint;
+  kind: 'TopUp' | 'Deduction';
+  amountCop: bigint;
+  balanceAfter: bigint;
+  orderId: CuidId | null;
+  trigger: CommissionTrigger | null;
+  createdAt: Date;
+}
+
+/** A top-up request as the lists and the decisions read it; the proof key never leaves the service (AD-17). */
+export interface TopUpRow {
+  id: CuidId;
+  businessId: CuidId;
+  amountCop: bigint;
+  transferReference: string;
+  status: 'Pending' | 'Confirmed' | 'Rejected';
+  rejectionReason: string | null;
+  decidedBy: CuidId | null;
+  decidedAt: Date | null;
+  submittedAt: Date;
+}
+
 /**
- * Repository port of COM (review A-4): the only way its application service reads or writes
- * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * The repository the COM service receives (R-14): its own tables, and identity's admin flag, which
+ * identity's own guards read in COM's transaction (AD-16; decision log Impl-1 #32, #33).
  */
-export interface ComRepository {}
+export type ComRepository = ComTablesRepository & AdminFactsReader;
+
+/**
+ * Repository port of COM's own tables (review A-4): the only way its application service reads or
+ * writes them (AD-8). Every method takes the transaction it runs in; `infra/pg.ts` implements them.
+ */
+export interface ComTablesRepository {
+  /** S-FR-COM-1 (AD-COM-1 rule 5): `INSERT … ON CONFLICT ("businessId") DO NOTHING`; true when it inserted. */
+  openAccount(tx: Tx, a: { businessId: CuidId; openedAt: IsoInstant; now: IsoInstant }): Promise<boolean>;
+  /** The account, or null before it is opened. */
+  readAccount(tx: Tx, businessId: CuidId): Promise<AccountRow | null>;
+  /** S-FR-COM-9: the newest ledger lines first, at most `limit`. */
+  newestLedgerLines(tx: Tx, businessId: CuidId, limit: number): Promise<LedgerLineRow[]>;
+  /** S-FR-COM-2.request: the Pending row; the balance is untouched. */
+  insertTopUp(tx: Tx, r: { id: CuidId; businessId: CuidId; amountCop: number; transferReference: string; proofObjectKey: string; now: IsoInstant }): Promise<void>;
+  /** S-FR-COM-2.mine: the business's own requests, newest first by `("submittedAt", id)`, after the keyset when given. */
+  listTopUpsOf(tx: Tx, businessId: CuidId, after: { at: IsoInstant; id: CuidId } | null, limit: number): Promise<TopUpRow[]>;
+  /** S-FR-COM-2.url: the request's owner and proof key, or null for an unknown id. */
+  topUpProofOf(tx: Tx, topUpRequestId: CuidId): Promise<{ businessId: CuidId; proofObjectKey: string } | null>;
+}

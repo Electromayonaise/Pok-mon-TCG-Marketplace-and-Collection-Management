@@ -1,5 +1,5 @@
 # generated: 2026-10-24
-# last_updated: 2026-10-27
+# last_updated: 2026-10-30
 # project: Pok-mon-TCG-Marketplace-and-Collection-Management
 # project_key: NOKEY
 # tracking_system: file-system
@@ -47,7 +47,7 @@
 # - An epic is 'done' when its Impl-1 stories are done and Martín signed its gate; its impl2_scope stories stay backlog
 
 generated: 2026-10-24
-last_updated: 2026-10-27
+last_updated: 2026-10-30
 project: Pok-mon-TCG-Marketplace-and-Collection-Management
 project_key: NOKEY
 tracking_system: file-system
@@ -103,11 +103,11 @@ development_status:
   7-4-refuse-out-of-role-repeated-and-expired-confirmations: done
   7-5-cancel-expire-read-and-support-orders: done
   epic-7-retrospective: optional
-  epic-8: backlog
-  8-1-open-the-commission-account-and-request-top-ups: backlog
-  8-2-charge-each-order-exactly-once: backlog
-  8-3-confirm-or-reject-a-top-up: backlog
-  8-4-refuse-invalid-top-ups-and-decided-requests: backlog
+  epic-8: in-progress
+  8-1-open-the-commission-account-and-request-top-ups: done
+  8-2-charge-each-order-exactly-once: ready-for-dev
+  8-3-confirm-or-reject-a-top-up: ready-for-dev
+  8-4-refuse-invalid-top-ups-and-decided-requests: ready-for-dev
   8-5-reconcile-ledgers-and-report-never-repair-discrepancies: backlog
   8-6-set-commission-rates-and-read-the-ledger: backlog
   epic-8-retrospective: optional

@@ -128,6 +128,12 @@ export interface AvailabilityCandidate {
 export interface InvRepository {
   /** INV-2 Q1.1, AD-INV-1 rule 1: `INSERT … ON CONFLICT DO NOTHING`, then the unit as it now stands. */
   resolveUnit(tx: Tx, unit: { id: CuidId; sellerId: CuidId; catalogEntryId: CuidId; condition: Condition; quantity: number; now: IsoInstant }): Promise<ResolvedUnit>;
+  /**
+   * AD-SYS-4 rule 4 (decision log Impl-1 #33): `pg_advisory_xact_lock(listings:seller:<businessId>)`,
+   * taken first by a business listing's creation and by the commission projection subscriber, so a
+   * projection that does not exist yet still serializes them.
+   */
+  lockSellerProjection(tx: Tx, businessId: CuidId): Promise<void>;
   /** INV-2 Q1.2, AD-INV-3 rule 3: the projection row read `FOR SHARE`, or null when absent. */
   readProjectionForShare(tx: Tx, businessId: CuidId): Promise<{ paused: boolean } | null>;
   /** INV-2 Q1.3. */

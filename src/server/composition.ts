@@ -3,6 +3,7 @@
 // from app/ (AD-SYS-6) and the session reader from Better Auth, so a test binds both.
 import type pg from 'pg';
 import { CatServiceV2, PgCatRepository } from '../modules/catalog/index.js';
+import { ComServiceV2, PgComRepository } from '../modules/commission/index.js';
 import { DscServiceV2, InvServiceV2, PgDscRepository, PgInvRepository } from '../modules/listings/index.js';
 import { OrdServiceV2, PgOrdRepository } from '../modules/orders/index.js';
 import { IdentityGateV2, IdnServiceV2, PgIdnRepository, PgLegalIdentityRepository, PgVerRepository, VerServiceV2, type SessionReader } from '../modules/identity/index.js';
@@ -21,13 +22,30 @@ import { oneRepository } from '../shared-kernel/repositories.js';
 import { buildAppRouter, type Resolvers } from './trpc/router.v2.js';
 
 /**
- * The subscribers' handlers belong to their stories (commission, collections); until then a replay records
- * `failed`. `listings` is wired by `compose()` (Story 5.5).
+ * The subscribers' handlers belong to their stories (collections); until then a replay records
+ * `failed`. `listings` (Story 5.5) and `commission` (Story 8.1) are wired by `compose()`.
  */
-const UNWIRED_HANDLERS: Omit<Record<SubscriberName, DeliveryHandler>, 'listings'> = {
-  commission: async () => { throw new NotImplementedError('commission.handleEvent'); },
+const UNWIRED_HANDLERS: Omit<Record<SubscriberName, DeliveryHandler>, 'listings' | 'commission'> = {
   collections: async () => { throw new NotImplementedError('collections.handleEvent'); },
 };
+
+/**
+ * The `commission` subscriber (Story 8.1): each delivery runs S-FR-COM-1 in the handler's transaction,
+ * from the envelope's payload only (AD-9).
+ */
+function commissionHandler(com: ComServiceV2): DeliveryHandler {
+  return async (tx, envelope) => {
+    switch (envelope.type) {
+      case 'BusinessApplicationApproved': {
+        const { businessId, approvedAt } = envelope.payload as EventPayloads['BusinessApplicationApproved'];
+        await com.openCommissionAccount(tx, { businessId, approvedAt });
+        return;
+      }
+      default:
+        throw new UnexpectedError(`commission has no subscriber for ${envelope.type}`);
+    }
+  };
+}
 
 /**
  * The `listings` subscriber (Story 5.5): each delivery runs INV-3 or S-FR-INV-8 in the handler's
@@ -94,7 +112,7 @@ export interface AppDeps {
   pool: pg.Pool;
   clock: Clock;
   sessions: SessionReader;
-  /** Overrides per subscriber; `listings` defaults to its real handler, the others to UNWIRED_HANDLERS. */
+  /** Overrides per subscriber; `listings` and `commission` default to their real handlers, the others to UNWIRED_HANDLERS. */
   handlers?: Partial<Record<SubscriberName, DeliveryHandler>>;
   storage?: ObjectStorage;
   scanner?: MalwareScanner;
@@ -106,9 +124,9 @@ export interface AppDeps {
  * The procedures whose contracts the done stories implement: IDN-1.ingress (Story 2.1),
  * IDN-3 (Story 2.5), S-SYS.replay (Story 1.3), S-SYS.tick, .deliveries, .health
  * (Story 1.5), VER-2 (Story 3.1), VER-1 (Story 3.2), VER-3 and S-FR-VER-5.audit (Story 3.4) and
- * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), CAT-3 and S-FR-CAT-8.fetch (Story 4.4), S-FR-CAT-1 (Story 4.5), INV-2 (Story 5.1), S-FR-INV-2, -9 and -10 (Story 5.6), DSC-1 (Story 6.2), DSC-2 (Story 6.3), ORD-1 and S-FR-ORD-2 (Story 7.1), ORD-2, -3 and -4 (Story 7.2), and S-FR-ORD-6, -7, -9 and -10 (Story 7.5; S-FR-ORD-8 has no jobs route yet). Every other procedure stays NotImplemented until its story wires it.
+ * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), CAT-3 and S-FR-CAT-8.fetch (Story 4.4), S-FR-CAT-1 (Story 4.5), INV-2 (Story 5.1), S-FR-INV-2, -9 and -10 (Story 5.6), DSC-1 (Story 6.2), DSC-2 (Story 6.3), ORD-1 and S-FR-ORD-2 (Story 7.1), ORD-2, -3 and -4 (Story 7.2), S-FR-ORD-6, -7, -9 and -10 (Story 7.5; S-FR-ORD-8 has no jobs route yet), and S-FR-COM-2 and -9 (Story 8.1). Every other procedure stays NotImplemented until its story wires it.
  */
-function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2; inv: InvServiceV2; dsc: DscServiceV2; ord: OrdServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
+function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2; inv: InvServiceV2; dsc: DscServiceV2; ord: OrdServiceV2; com: ComServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
   return {
     'access.completeIndividualProfile': (input, userId) => s.idn.completeIndividualProfile({ ...input, userId }),
     'access.traceCapabilities': (input, adminId) => s.idn.traceCapabilities({ ...input, adminId }),
@@ -158,6 +176,11 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
     'orders.adminLookup': ({ query }, adminId) => s.ord.adminLookupOrders({ adminId, query: defined(query) }),
     'orders.supportContact.get': () => s.ord.getSupportContact(),
     'orders.supportContact.set': ({ contact }, adminId) => s.ord.setSupportContact({ adminId, contact }),
+    'commission.createTopUpProofUpload': (_input, businessId) => s.com.createTopUpProofUpload({ businessId }),
+    'commission.requestTopUp': (input, businessId) => s.com.requestTopUp({ ...input, businessId }),
+    'commission.myAccount': (_input, businessId) => s.com.getMyCommissionAccount({ businessId }),
+    'commission.myTopUps': ({ cursor }, businessId) => s.com.listMyTopUps({ businessId, cursor }),
+    'commission.topUpProofUrl': ({ topUpRequestId }, actorId) => s.com.getTopUpProofUrl({ topUpRequestId, actorId }),
     'admin.events.replay': (input, adminId) => s.adminEvents.replayEventDelivery({ ...input, adminId }),
     'admin.jobs.tickHealth': (_input, adminId) => s.adminEvents.getTickHealth({ adminId }),
     'admin.events.deliveries': (input, adminId) => s.adminEvents.listDeliveries({ ...input, adminId }),
@@ -173,17 +196,22 @@ export function compose({
   const outbox = new PgOutboxV2(ids, clock);
   const audit = new PgAuditLog(ids, clock);
   // The one repository object every service receives (R-14).
-  const repo = oneRepository(new PgAdminEventsRepository(), new PgIdnRepository(), new PgVerRepository(), new PgLegalIdentityRepository(), new PgCatRepository(), new PgInvRepository(), new PgDscRepository(), new PgOrdRepository());
+  const repo = oneRepository(new PgAdminEventsRepository(), new PgIdnRepository(), new PgVerRepository(), new PgLegalIdentityRepository(), new PgCatRepository(), new PgInvRepository(), new PgDscRepository(), new PgOrdRepository(), new PgComRepository());
   const idn = new IdnServiceV2({ repo, transactions, clock, ids, outbox, audit });
   const ver = new VerServiceV2({ repo, transactions, clock, ids, outbox, audit, storage, scanner });
   const cat = new CatServiceV2({ repo, transactions, clock, ids, outbox, audit, feed, fx });
   const inv = new InvServiceV2({ repo, transactions, clock, ids, outbox, audit, catalog: cat, identity: idn });
   const dsc = new DscServiceV2({ repo, transactions, clock, ids, outbox, audit, catalog: cat, identity: idn });
   const ord = new OrdServiceV2({ repo, transactions, clock, ids, outbox, audit, storage, scanner, listings: inv, identity: ver });
-  const dispatcher = new OutboxDispatcherV2({ transactions, clock }, { ...UNWIRED_HANDLERS, listings: listingsHandler(inv), ...handlers });
+  // COM's identity port spans IDN (P-IDN.capabilities) and VER (P-VER.name).
+  const com = new ComServiceV2({
+    repo, transactions, clock, ids, outbox, audit, storage, scanner,
+    identity: { getCapabilities: (input) => idn.getCapabilities(input), getBusinessName: (input) => ver.getBusinessName(input) },
+  });
+  const dispatcher = new OutboxDispatcherV2({ transactions, clock }, { ...UNWIRED_HANDLERS, listings: listingsHandler(inv), commission: commissionHandler(com), ...handlers });
   const adminEvents = new AdminEventsServiceV2({ repo, transactions, clock, ids, outbox, audit, dispatcher });
   return {
     identity: new IdentityGateV2({ sessions, repo, transactions, idn }),
-    router: buildAppRouter(resolvers({ idn, ver, cat, inv, dsc, ord, adminEvents })),
+    router: buildAppRouter(resolvers({ idn, ver, cat, inv, dsc, ord, com, adminEvents })),
   };
 }
