@@ -138,7 +138,7 @@ development_status:
   12-1-value-a-collection-exactly: done
   12-2-show-the-valuation-trend-and-daily-history: done
   12-3-value-500-mixed-entries-with-zero-drift-and-a-zero-baseline: done
-  12-4-refuse-foreign-collections-and-invalid-periods: backlog
+  12-4-refuse-foreign-collections-and-invalid-periods: done
   12-5-explain-empty-series-and-rounding-edges: backlog
   epic-12-retrospective: optional
   epic-13: backlog
@@ -185,7 +185,9 @@ impl1_delivery:
 # cancel to release its unit; it is done and has left this list (decision log Impl-1 #35). 11-4 is built with the whole of
 # Epic 11, because Stories 11.2 and 11.3 turn its tests green (COL-3 P2–P4 are addEntry's own first-fail chain, and COL-1's
 # re-read, Q-fail and rollback are acceptPrompt's and dismissPrompt's, which [COL-1.MEC] needs); it is done and has left
-# this list (decision log Impl-1 #36).
+# this list (decision log Impl-1 #36). 12-4 is built with the whole of Epic 12, because Stories 12.1 and 12.2 turn its
+# tests green ([VAL-1.P1] and [VAL-3.P1] are VAL-1's and VAL-3's own ownership precondition, and [VAL-2.P2] is VAL-2's own
+# period check); it is done and has left this list (decision log Impl-1 #37).
 impl2_scope:
   - 2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins
   - 8-5-reconcile-ledgers-and-report-never-repair-discrepancies
@@ -193,7 +195,6 @@ impl2_scope:
   - 9-6-read-the-inbox-mark-threads-read-and-mute
   - 11-5-use-the-binder-add-external-cards-move-entries-and-wishlist-cards
   - 11-6-refuse-unsafe-links-foreign-entries-and-unknown-wishlist-cards
-  - 12-4-refuse-foreign-collections-and-invalid-periods
   - 12-5-explain-empty-series-and-rounding-edges
   - 13-4-refuse-self-unknown-and-duplicate-reviews
   - 13-5-read-profiles-search-moderation-logs-and-hide-listings

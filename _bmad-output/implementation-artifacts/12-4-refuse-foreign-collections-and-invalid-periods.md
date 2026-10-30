@@ -2,7 +2,7 @@
 title: 'Story 12.4: Refuse foreign collections and invalid periods'
 type: 'feature'
 created: '2026-10-30'
-status: 'draft'
+status: 'done'
 baseline_commit: '49b09cc'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -33,7 +33,13 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] run the 3 tests on the 12.3 tree; fix any gap; `sprint-status.yaml` 12.4 `done`, out of `impl2_scope`
+- [x] run the 3 tests on the 12.3 tree; fix any gap; `sprint-status.yaml` 12.4 `done`, out of `impl2_scope`
 
 **Acceptance Criteria:**
 - Given 12.4 `done`, when its 3 tests run, then they pass and `gate:atdd-red:impl1` is green.
+
+## Implementation Notes
+
+- D1 approved (decision log Impl-1 #37). Code review is batched with the rest of Epic 12 at its close (decision #22).
+- The 3 tests passed on the 12.3 tree with no fix: `[VAL-1.P1]` and `[VAL-3.P1]` through `ownsCollectionForRead` (a foreign id is `CollectionNotFound` citing `{ owned: false }`, with nothing else read), and `[VAL-2.P2]` through `isValuationPeriod` after P1 (`InvalidValuationPeriod` citing `{ period }`).
+- The story leaves `impl2_scope` with a note in `sprint-status.yaml` and does not count toward the 43.
