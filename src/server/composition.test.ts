@@ -873,3 +873,20 @@ describe('reputation over HTTP (REP-1, REP-1.edit, REP-1.check; Story 13.1)', ()
     expect([self.status, self.json.error?.code]).toEqual([404, 'TargetNotFound']);
   });
 });
+
+describe('review moderation over HTTP (REP-2, REP-2.unhide; Story 13.2)', () => {
+  it('an admin hides and unhides a review; a non-admin is AdminOnly 403 and a short Other note is RequestValidationFailed 400', async () => {
+    await user(db, { id: id('camila') });
+    await user(db, { id: id('julian'), sellerTrack: 'individual' });
+    await admin(db);
+    await ins(db, 'Review', { id: id('r1'), reviewerId: id('camila'), targetUserId: id('julian'), targetKind: 'individual', purchaseVerified: false, rating: 1, text: 'Insulto.' });
+    const adminCookie = await signIn(id('admin'));
+    const denied = await post('reputation.admin.hide', { reviewId: id('r1'), reasonCode: 'Harassment', note: null }, await signIn(id('camila')));
+    expect([denied.status, denied.json.error?.code]).toEqual([403, 'AdminOnly']);
+    const short = await post('reputation.admin.hide', { reviewId: id('r1'), reasonCode: 'Other', note: 'corto' }, adminCookie);
+    expect([short.status, short.json.error?.code]).toEqual([400, 'RequestValidationFailed']);
+    expect((await post('reputation.admin.hide', { reviewId: id('r1'), reasonCode: 'Harassment', note: null }, adminCookie)).json.result?.data).toMatchObject({ decision: { outcome: 'hidden', reasonCode: 'ReviewHidden' } });
+    expect((await post('reputation.admin.unhide', { reviewId: id('r1'), reasonCode: 'Other', note: 'Revisado: no infringe.' }, adminCookie)).json.result?.data).toMatchObject({ decision: { reasonCode: 'ReviewUnhidden' } });
+    expect(await rows(db, 'ReviewModerationLog')).toHaveLength(2);
+  });
+});

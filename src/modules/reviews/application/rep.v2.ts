@@ -40,6 +40,8 @@ const raise = raiserFor('reviews');
 
 /** The schema's `text` CHECK (REP-1 input: 0–1000). */
 const MAX_TEXT = 1000;
+/** The moderation log's `note` CHECK. */
+const MAX_NOTE = 500;
 
 /** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
 function explained(outcome: DecisionOutcome, code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
@@ -58,6 +60,14 @@ function targetNotFound(): never {
 function checkText(text: string): void {
   const why = textIssue(text, 0, MAX_TEXT);
   if (why !== null) rejectRequest([{ field: 'text', issue: why === 'nul' ? NUL_ISSUE : 'debe tener como máximo 1.000 caracteres' }]);
+}
+
+/** REP-2 P2 (ADD-§9.2, `review_log_other_has_note`): Other needs a 10–500 character note, any other reason a null or 0–500 one (#38). */
+function checkNote(reasonCode: string, note: string | null): void {
+  const min = reasonCode === 'Other' ? 10 : 0;
+  if (note === null && min === 0) return;
+  const why = note === null ? 'length' : textIssue(note, min, MAX_NOTE);
+  if (why !== null) rejectRequest([{ field: 'note', issue: why === 'nul' ? NUL_ISSUE : min > 0 ? 'con el motivo Otro, escribe entre 10 y 500 caracteres' : 'debe tener como máximo 500 caracteres' }]);
 }
 
 /** REP's use cases (contracts.md §12, §15.12). No REP command publishes an event (REP-1 Q3, REP-2 Q3). */
@@ -130,12 +140,47 @@ export class RepServiceV2 implements RepV2UseCases {
     return { eligible: decision.outcome === 'allowed', existingReview, decision };
   }
 
-  async hideReview(_input: HideReviewRequest): Promise<HideReviewResponse> {
-    throw new NotImplementedError('reviews.hideReview');
+  /** REP-2 (AD-REP-3 rule 1): the conditional hide, its snapshot log row and the admin audit row, in one transaction. */
+  async hideReview(input: HideReviewRequest): Promise<HideReviewResponse> {
+    return this.moderate(input, 'hide');
   }
 
-  async unhideReview(_input: UnhideReviewRequest): Promise<UnhideReviewResponse> {
-    throw new NotImplementedError('reviews.unhideReview');
+  /** REP-2.unhide (AD-REP-3 rule 2): the mirror image, from hidden to visible. */
+  async unhideReview(input: UnhideReviewRequest): Promise<UnhideReviewResponse> {
+    return this.moderate(input, 'unhide');
+  }
+
+  /**
+   * REP-2 P2–P3 and Q1–Q4 for both directions. On 0 rows the review is re-read: an unknown id is `ReviewNotFound`, and
+   * a review already in the target state is an explained no-op with zero writes (I2). Two racing admins: the loser's
+   * update waits on the winner's row lock, then matches 0 rows.
+   */
+  private async moderate(input: HideReviewRequest, action: 'hide' | 'unhide'): Promise<HideReviewResponse> {
+    const { reviewId, reasonCode, note, adminId } = input;
+    checkNote(reasonCode, note);
+    const { repo, transactions, clock, ids, audit } = this.deps;
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      const snapshot = action === 'hide'
+        ? await repo.hideVisibleReview(tx, { reviewId, reasonCode, adminId, now })
+        : await repo.unhideHiddenReview(tx, { reviewId, now });
+      if (snapshot === null) {
+        const state = await repo.readReviewHide(tx, reviewId);
+        if (state === null) return raise('ReviewNotFound', [{ rule: 'FR-REP-4', inputs: { reviewId } }]);
+        return action === 'hide'
+          ? { decision: explained('allowedWithNotice', 'ReviewAlreadyHidden', [{ rule: 'FR-REP-4', inputs: { hiddenAt: state.hiddenAt, hiddenBy: state.hiddenBy } }], now) }
+          : { decision: explained('allowedWithNotice', 'ReviewNotHidden', [{ rule: 'FR-REP-4', inputs: { reviewId } }], now) };
+      }
+      const logId = ids.next();
+      await repo.insertReviewModerationLog(tx, { id: logId, reviewId, action, reasonCode, note, adminId, snapshot, now });
+      await audit.record(tx, {
+        actorId: adminId, actorKind: 'admin', module: 'reviews', action: action === 'hide' ? 'reviews.review.hidden' : 'reviews.review.unhidden',
+        aggregateType: 'Review', aggregateId: reviewId, decisionCode: null, data: { reasonCode, logId }, at: now,
+      });
+      return action === 'hide'
+        ? { decision: explained('hidden', 'ReviewHidden', [{ rule: 'FR-REP-4', inputs: { reviewId, reasonCode } }], now) }
+        : { decision: explained('allowed', 'ReviewUnhidden', [{ rule: 'FR-REP-4', inputs: { reviewId, reasonCode } }], now) };
+    });
   }
 
   async getAggregates(_input: GetAggregatesRequest): Promise<GetAggregatesResponse> {

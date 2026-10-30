@@ -327,7 +327,7 @@ All 56 NFRs. Each has a metric, an artifact and a status in `_bmad-output/test-a
 | FR-REP-1 | 13.1, 13.4 |
 | FR-REP-2 | 13.1, 13.4 |
 | FR-REP-3 | 13.3, 13.6 |
-| FR-REP-4 | 13.2, 13.6 |
+| FR-REP-4 | 13.2 |
 | FR-REP-5 | 13.5, 13.6 |
 | FR-REP-6 | 13.5, 13.6 |
 | FR-REP-7 | 13.5, 13.6 |
@@ -1436,11 +1436,11 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Binding invariants:** AD-12 — Hide, never delete (`DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate); AD-REP-3 — Hide and unhide conditional and logged (`WHERE hiddenAt IS NULL`; log with snapshots); also cited by its clauses: AD-REP-1, AD-REP-2
 - **Files:** `src/modules/reviews/application/rep.v2.ts` (`RepServiceV2.hideReview`, `RepServiceV2.unhideReview`), `src/modules/reviews/ports/rep.v2.ts` (`RepRepository`), `src/modules/reviews/domain/rep.ts`, `src/modules/reviews/infra/pg.ts`
 - **Schema/DTO:** tables `"Review"`, `"ReviewModerationLog"`; DTOs `HideReviewRequest` → `HideReviewResponse`, `UnhideReviewRequest` → `UnhideReviewResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[REP-2.Q1]`, `[REP-2.I1]`, `[REP-2.I2]`, `[REP-2.unhide.h]`, `[REP-2.unhide.f]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[REP-2.Q1]`, `[REP-2.I1]`, `[REP-2.I2]`, `[REP-2.unhide.h]`, `[REP-2.unhide.f]`, `[REP-2.P2]`, `[REP-2.P3]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a 1-star review containing personal data. **When:** an admin hides it for Harassment. **Then:** `hiddenAt`, reason and admin are set, one log row snapshots the rating and text, and an admin audit row is written; the row is never deleted, and unhiding clears the columns with an `unhide` log row.
-  - **Scenario (failure) — Given:** two admins hide the same review at once, and an admin unhides a visible review. **When:** the commands run. **Then:** one hide, one log row and one explained no-op citing `hiddenAt` and `hiddenBy`; the unhide is an explained no-op with zero log rows.
-- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+  - **Scenario (failure) — Given:** two admins hide the same review at once; an admin unhides a visible review; reason Other with a 5-character note; an unknown review. **When:** the commands run. **Then:** one hide, one log row and one explained no-op citing `hiddenAt` and `hiddenBy`; the unhide is an explained no-op with zero log rows; `RequestValidationFailed` (400) with zero writes; `ReviewNotFound` (404).
+- **DoD:** the shared DoD, plus: the 7 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
 
 ### Story 13.3: Keep reputation honest: paid is not enough, and a racing hide never skews the aggregate
 
@@ -1494,15 +1494,15 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 
 - **Kind:** Failure-state
 - **Description:** As an admin, I want invalid moderation actions and malformed reads refused with the reason, so that the moderation log stays exact.
-- **Contracts:** — (no registry operation of its own) · **Also proves:** `REP-2` (operation owned by Story 13.2), `REP-3` (operation owned by Story 13.3), `S-FR-REP-5` (operation owned by Story 13.5), `S-FR-REP-6` (§15 clause), `S-FR-REP-7` (operation owned by Story 13.5)
+- **Contracts:** — (no registry operation of its own) · **Also proves:** `REP-3` (operation owned by Story 13.3), `S-FR-REP-5` (operation owned by Story 13.5), `S-FR-REP-6` (§15 clause), `S-FR-REP-7` (operation owned by Story 13.5)
 - **Depends on:** Story 13.5
-- **Traceability:** FR-REP-3, FR-REP-4, FR-REP-5, FR-REP-6, FR-REP-7 · NFR-REP-1, NFR-REP-2
-- **Binding invariants:** also cited by its clauses: AD-12, AD-REP-1, AD-REP-2, AD-REP-3
+- **Traceability:** FR-REP-3, FR-REP-5, FR-REP-6, FR-REP-7 · NFR-REP-1, NFR-REP-2
+- **Binding invariants:** also cited by its clauses: AD-12, AD-REP-2, AD-REP-3
 - **Files:** —
-- **Schema/DTO:** tables `"ListingModerationLog"`, `"Review"`, `"ReviewModerationLog"`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[REP-2.P2]`, `[REP-2.P3]`, `[REP-3.P1]`, `[S-FR-REP-6.f]`, `[S-FR-REP-7.f]`; `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.f]`
+- **Schema/DTO:** tables `"ListingModerationLog"`, `"Review"`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[REP-3.P1]`, `[S-FR-REP-6.f]`, `[S-FR-REP-7.f]`; `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.f]`
 - **Gherkin:**
-  - **Scenario (happy) — Given:** a hide with reason Other and a 30-character note. **When:** an admin hides the review. **Then:** it is hidden: the contrast case.
-  - **Scenario (failure) — Given:** reason Other with a 5-character note; an unknown review; duplicate seller ids; a listing hidden twice; a search for "100%"; a profile for an unknown user. **When:** the command or read runs. **Then:** `RequestValidationFailed` (400) with zero writes; `ReviewNotFound` (404); `RequestValidationFailed`; one log row and an explained no-op; only the literal "100%" text matches; `TargetNotFound` (404).
-- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+  - **Scenario (happy) — Given:** a listing hidden once, and a known seller's profile. **When:** an admin hides the listing, and a buyer opens the profile. **Then:** one hide with one log row, and the profile: the contrast cases.
+  - **Scenario (failure) — Given:** duplicate seller ids; a listing hidden twice; a search for "100%"; a profile for an unknown user. **When:** the command or read runs. **Then:** `RequestValidationFailed`; one log row and an explained no-op; only the literal "100%" text matches; `TargetNotFound` (404).
+- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
 

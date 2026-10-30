@@ -5,7 +5,8 @@ import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { IReviewRepository } from '../ports/rep.js';
-import type { NewReview, PairReview, RepRepository } from '../ports/rep.v2.js';
+import type { ReviewHideReason } from '../domain/rep.js';
+import type { NewReview, NewReviewModerationLog, PairReview, RepRepository, ReviewSnapshot } from '../ports/rep.v2.js';
 
 export class PgReviewRepository implements IReviewRepository {
   constructor(protected readonly sql: Sql) {}
@@ -58,5 +59,37 @@ export class PgRepRepository implements RepRepository {
       [reviewerId, targetUserId],
     );
     return rows[0] ?? null;
+  }
+
+  async hideVisibleReview(tx: Tx, h: { reviewId: CuidId; reasonCode: ReviewHideReason; adminId: CuidId; now: IsoInstant }): Promise<ReviewSnapshot | null> {
+    const { rows } = await tx.query<ReviewSnapshot>(
+      `UPDATE "Review" SET "hiddenAt" = $2, "hiddenReason" = $3, "hiddenBy" = $4, "updatedAt" = $2, version = version + 1
+       WHERE id = $1 AND "hiddenAt" IS NULL RETURNING rating, text`,
+      [h.reviewId, h.now, h.reasonCode, h.adminId],
+    );
+    return rows[0] ?? null;
+  }
+
+  async unhideHiddenReview(tx: Tx, u: { reviewId: CuidId; now: IsoInstant }): Promise<ReviewSnapshot | null> {
+    const { rows } = await tx.query<ReviewSnapshot>(
+      `UPDATE "Review" SET "hiddenAt" = NULL, "hiddenReason" = NULL, "hiddenBy" = NULL, "updatedAt" = $2, version = version + 1
+       WHERE id = $1 AND "hiddenAt" IS NOT NULL RETURNING rating, text`,
+      [u.reviewId, u.now],
+    );
+    return rows[0] ?? null;
+  }
+
+  async readReviewHide(tx: Tx, reviewId: CuidId): Promise<{ hiddenAt: IsoInstant | null; hiddenBy: CuidId | null } | null> {
+    const { rows } = await tx.query<{ hiddenAt: Date | null; hiddenBy: CuidId | null }>(`SELECT "hiddenAt", "hiddenBy" FROM "Review" WHERE id = $1`, [reviewId]);
+    const row = rows[0];
+    return row === undefined ? null : { hiddenAt: row.hiddenAt?.toISOString() ?? null, hiddenBy: row.hiddenBy };
+  }
+
+  async insertReviewModerationLog(tx: Tx, l: NewReviewModerationLog): Promise<void> {
+    await tx.query(
+      `INSERT INTO "ReviewModerationLog" (id, "reviewId", action, "reasonCode", note, "adminId", "ratingSnapshot", "textSnapshot", "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [l.id, l.reviewId, l.action, l.reasonCode, l.note, l.adminId, l.snapshot.rating, l.snapshot.text, l.now],
+    );
   }
 }

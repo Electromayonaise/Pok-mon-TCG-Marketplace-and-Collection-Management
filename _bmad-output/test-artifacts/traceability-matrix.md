@@ -125,7 +125,7 @@
 | FR-REP-1 | Gated review of a business (CAP-7) | REP-1, REP-1.edit, REP-1.check | AD-REP-1, AD-2 | 11 — `REP-1.I1`, `REP-1.I2`, `REP-1.MEC` +8 | 13.1 (done), 13.4 (done) | red |
 | FR-REP-2 | Ungated review of an individual seller (CAP-7) | REP-1, REP-1.edit, REP-1.check | AD-REP-1, AD-2 | 11 — `REP-1.I1`, `REP-1.I2`, `REP-1.MEC` +8 | 13.1 (done), 13.4 (done) | red |
 | FR-REP-3 | Aggregate reputation with a stated rounding rule (CAP-7) | REP-3 | AD-12, AD-REP-2 | 4 — `REP-3.I1`, `REP-3.MEC`, `REP-3.P1` +1 | 13.3 (backlog), 13.6 (backlog) | red |
-| FR-REP-4 | Hide and unhide a review (CAP-28) | REP-2 | AD-12, AD-REP-2, AD-REP-3, AD-REP-1 | 7 — `REP-2.I1`, `REP-2.I2`, `REP-2.P2` +4 | 13.2 (backlog), 13.6 (backlog) | red |
+| FR-REP-4 | Hide and unhide a review (CAP-28) | REP-2 | AD-12, AD-REP-2, AD-REP-3, AD-REP-1 | 7 — `REP-2.I1`, `REP-2.I2`, `REP-2.P2` +4 | 13.2 (done) | red |
 | FR-REP-5 | Hide and unhide a listing (listings host) (CAP-28) | S-FR-REP-5 | AD-REP-3, AD-12 | 2 — `S-FR-REP-5.f`, `S-FR-REP-5.h` | 13.5 (backlog), 13.6 (backlog) | red |
 | FR-REP-6 | Moderation queue and audit view (CAP-28) | S-FR-REP-6 | AD-REP-3 | 2 — `S-FR-REP-6.f`, `S-FR-REP-6.h` | 13.5 (backlog), 13.6 (backlog) | red |
 | FR-REP-7 | Profile page with reviews (CAP-7) | S-FR-REP-7 | AD-REP-2 | 2 — `S-FR-REP-7.f`, `S-FR-REP-7.h` | 13.5 (backlog), 13.6 (backlog) | red |
@@ -208,7 +208,7 @@
 | AD-9 | Snapshot payloads | Payload = ADD-§5 exactly; subscribers read only the payload | `SYS-AD9`, `COL-2.I2` | 1.3 (done), 11.3 (done) | green + red |
 | AD-10 | Post-commit, in-process dispatch with an outbox | `outbox.enqueue(tx)` + sweeper | `SYS-2.R6` | 1.3 (done) | red |
 | AD-11 | One owner per error code | Registry `owner`; `raise` checks the caller module | `SYS-1.R2` | 1.1 (done) | red |
-| AD-12 | Hide, never delete | `DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate | `REP-2.I1`, `DSC-1.I2` | 6.2 (done), 13.2 (backlog) | red |
+| AD-12 | Hide, never delete | `DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate | `REP-2.I1`, `DSC-1.I2` | 6.2 (done), 13.2 (done) | red |
 | AD-13 | `legalIdentity` under Ley 1581 | Split table; one repository reader | `VER-3.I2`, `IDN-3.I1` | 2.5 (done), 3.4 (done) | red |
 | AD-14 | Signed URLs, 10-minute TTL | `ObjectStorage.sign(key, 600)` | `VER-3.I3` | 3.4 (done) | red |
 | AD-15 | Business sees an order from `buyerPaidConfirmedAt` | One visibility predicate | `ORD-3.I3`, `ORD-3.MEC` | 7.2 (done) | red |
@@ -256,7 +256,7 @@
 | AD-VAL-2 | Trend and history recomputed, no zero division | `roundHalfAwayFromZero`; null baseline | `VAL-2.I1` | 12.3 (done) | red |
 | AD-REP-1 | Business reviews purchase-verified; one per pair | `review_business_iff_verified`; unique pair | `REP-1.I1` | 13.1 (done) | red |
 | AD-REP-2 | Aggregates from the same snapshot as the list | One statement; `REPEATABLE READ` profile read | `REP-3.MEC` | 13.3 (backlog) | red |
-| AD-REP-3 | Hide and unhide conditional and logged | `WHERE hiddenAt IS NULL`; log with snapshots | `REP-2.I2` | 13.2 (backlog) | red |
+| AD-REP-3 | Hide and unhide conditional and logged | `WHERE hiddenAt IS NULL`; log with snapshots | `REP-2.I2` | 13.2 (done) | red |
 | AD-SYS-2 rule 10 as refined by R-2 | `audit_events` is append-only and written in the writer's transaction | Grants (`UPDATE`/`DELETE` revoked); `AuditLog.record(tx)` | `SYS-R2` | 1.2 (done) | red |
 
 ## 5. Risks (test-design.md §2)

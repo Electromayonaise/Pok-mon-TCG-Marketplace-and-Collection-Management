@@ -100,3 +100,55 @@ describe('editReview and getReviewEligibility (REP-1.edit, REP-1.check)', () => 
     expect(codeOf(await caught(() => r.getReviewEligibility({ reviewerId: id('camila'), targetUserId: id('camila') })))).toBe('TargetNotFound');
   });
 });
+
+describe('hideReview and unhideReview (REP-2, AD-REP-3)', () => {
+  const hide = (o: Partial<{ reasonCode: 'Spam' | 'Other' | 'PersonalData'; note: string | null; reviewId: string }> = {}) =>
+    ({ reviewId: o.reviewId ?? id('r1'), reasonCode: o.reasonCode ?? 'Spam', note: o.note === undefined ? null : o.note, adminId: id('admin') });
+
+  async function aReview(): Promise<void> {
+    await user(db, { id: id('camila') });
+    await user(db, { id: id('julian'), sellerTrack: 'individual' });
+    await user(db, { id: id('admin'), isAdmin: true });
+    await review(db, { id: id('r1'), reviewerId: id('camila'), targetUserId: id('julian'), targetKind: 'individual', rating: 2, text: 'Texto original.' });
+  }
+
+  it('P2: Other with a null note or a note of spaces, a 501-character note and a NUL note are RequestValidationFailed, with zero writes', async () => {
+    await aReview();
+    const { rep: r } = rep();
+    for (const o of [{ reasonCode: 'Other' as const, note: null }, { reasonCode: 'Other' as const, note: ' '.repeat(12) }, { note: 'x'.repeat(501) }, { reasonCode: 'PersonalData' as const, note: 'dato\u0000' }]) {
+      expect(codeOf(await caught(() => r.hideReview(hide(o))))).toBe('RequestValidationFailed');
+      expect(codeOf(await caught(() => r.unhideReview(hide(o))))).toBe('RequestValidationFailed');
+    }
+    expect(await rows(db, 'Review')).toMatchObject([{ hiddenAt: null, version: 0 }]);
+    expect(await rows(db, 'ReviewModerationLog')).toEqual([]);
+  });
+
+  it('hide, then an edit is refused, then unhide restores the identical text; two log rows and two admin audit rows (S-14, EC-35)', async () => {
+    await aReview();
+    const { w, rep: r } = rep();
+    await r.hideReview(hide({ reasonCode: 'Other', note: 'Contiene un teléfono.' }));
+    expect(codeOf(await caught(() => r.editReview({ reviewerId: id('camila'), reviewId: id('r1'), rating: 5, text: 'Otra cosa.' })))).toBe('ReviewNotFound');
+    w.clock.advance(HOUR);
+    const unhid = await r.unhideReview(hide({ reasonCode: 'Spam' }));
+    explainAssert(unhid.decision, { outcome: 'allowed', rule: 'FR-REP-4', inputs: { reviewId: id('r1'), reasonCode: 'Spam' } });
+    expect(await rows(db, 'Review')).toMatchObject([{ text: 'Texto original.', rating: 2, hiddenAt: null, version: 2 }]);
+    const log = await rows(db, 'ReviewModerationLog', 'TRUE ORDER BY "createdAt"');
+    expect(log).toMatchObject([
+      { action: 'hide', reasonCode: 'Other', note: 'Contiene un teléfono.', ratingSnapshot: 2, textSnapshot: 'Texto original.' },
+      { action: 'unhide', reasonCode: 'Spam', note: null, ratingSnapshot: 2, textSnapshot: 'Texto original.' },
+    ]);
+    expect((await rows<{ action: string; actorKind: string }>(db, 'audit_events', `module = 'reviews' ORDER BY "createdAt"`)).map((a) => [a.action, a.actorKind]))
+      .toEqual([['reviews.review.hidden', 'admin'], ['reviews.review.unhidden', 'admin']]);
+  });
+
+  it('an already-hidden review cites its hide, and unhiding an unknown id is ReviewNotFound', async () => {
+    await aReview();
+    const { w, rep: r } = rep();
+    await r.hideReview(hide());
+    const first = w.clock.iso();
+    w.clock.advance(HOUR);
+    explainAssert((await r.hideReview(hide({ reasonCode: 'PersonalData' }))).decision, { code: 'ReviewAlreadyHidden', outcome: 'allowedWithNotice', inputs: { hiddenAt: first, hiddenBy: id('admin') } });
+    expect(await rows(db, 'Review')).toMatchObject([{ hiddenReason: 'Spam', version: 1 }]);
+    expect(codeOf(await caught(() => r.unhideReview(hide({ reviewId: id('ghost') }))))).toBe('ReviewNotFound');
+  });
+});

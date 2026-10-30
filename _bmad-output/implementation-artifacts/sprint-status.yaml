@@ -143,7 +143,7 @@ development_status:
   epic-12-retrospective: optional
   epic-13: in-progress
   13-1-write-edit-and-check-eligibility-for-a-review: done
-  13-2-hide-and-unhide-reviews-with-logged-snapshots: backlog
+  13-2-hide-and-unhide-reviews-with-logged-snapshots: done
   13-3-keep-reputation-honest-paid-is-not-enough-and-a-racing-hide-never-skews-the-aggregate: backlog
   13-4-refuse-self-unknown-and-duplicate-reviews: done
   13-5-read-profiles-search-moderation-logs-and-hide-listings: backlog

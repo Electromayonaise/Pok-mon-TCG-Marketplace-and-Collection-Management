@@ -37,6 +37,7 @@ export interface RepV2Deps {
 
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import type { ReviewHideReason } from '../domain/rep.js';
 
 /** A review row as REP-1 Q1 inserts it. */
 export interface NewReview {
@@ -47,6 +48,21 @@ export interface NewReview {
   purchaseVerified: boolean;
   rating: number;
   text: string;
+  now: IsoInstant;
+}
+
+/** The content a hide or unhide snapshots into the moderation log (AD-REP-3 rule 1). */
+export interface ReviewSnapshot { rating: number; text: string }
+
+/** One `"ReviewModerationLog"` row (REP-2 Q2; append-only). */
+export interface NewReviewModerationLog {
+  id: CuidId;
+  reviewId: CuidId;
+  action: 'hide' | 'unhide';
+  reasonCode: ReviewHideReason;
+  note: string | null;
+  adminId: CuidId;
+  snapshot: ReviewSnapshot;
   now: IsoInstant;
 }
 
@@ -65,4 +81,12 @@ export interface RepRepository {
   editVisibleReview(tx: Tx, edit: { reviewId: CuidId; reviewerId: CuidId; rating: number; text: string; now: IsoInstant }): Promise<boolean>;
   /** REP-1.check: the review of `(reviewerId, targetUserId)`, or null. */
   readReviewOfPair(tx: Tx, reviewerId: CuidId, targetUserId: CuidId): Promise<PairReview | null>;
+  /** REP-2 Q1 (AD-REP-3 rule 1): `NULL → hidden` only from visible; the snapshot, or null on 0 rows. */
+  hideVisibleReview(tx: Tx, hide: { reviewId: CuidId; reasonCode: ReviewHideReason; adminId: CuidId; now: IsoInstant }): Promise<ReviewSnapshot | null>;
+  /** REP-2.unhide (AD-REP-3 rule 2): the mirror, only from hidden; the snapshot, or null on 0 rows. */
+  unhideHiddenReview(tx: Tx, unhide: { reviewId: CuidId; now: IsoInstant }): Promise<ReviewSnapshot | null>;
+  /** REP-2 Q-fail: the current hide of a review, or null when the id is unknown. */
+  readReviewHide(tx: Tx, reviewId: CuidId): Promise<{ hiddenAt: IsoInstant | null; hiddenBy: CuidId | null } | null>;
+  /** REP-2 Q2: one append-only log row with the snapshots. */
+  insertReviewModerationLog(tx: Tx, row: NewReviewModerationLog): Promise<void>;
 }
