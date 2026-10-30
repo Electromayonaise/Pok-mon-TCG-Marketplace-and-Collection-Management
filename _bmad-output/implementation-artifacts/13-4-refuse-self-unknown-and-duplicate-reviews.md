@@ -2,7 +2,7 @@
 title: 'Story 13.4: Refuse self, unknown and duplicate reviews'
 type: 'feature'
 created: '2026-10-30'
-status: 'draft'
+status: 'done'
 baseline_commit: '98b47ad'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -33,7 +33,13 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] run the 5 tests on the 13.1 tree; fix any gap; `sprint-status.yaml` 13.4 `done`, out of `impl2_scope`
+- [x] run the 5 tests on the 13.1 tree; fix any gap; `sprint-status.yaml` 13.4 `done`, out of `impl2_scope`
 
 **Acceptance Criteria:**
 - Given 13.4 `done`, when its 5 tests run, then they pass and `gate:atdd-red:impl1` is green.
+
+## Implementation Notes
+
+- D1 approved (decision log Impl-1 #38). Code review is batched with the rest of Epic 13 at its close (decision #22).
+- The 5 tests passed on the 13.1 tree with no fix: `[REP-1.P2]` through the self check before any neighbour read, `[REP-1.P3]` and `[REP-1.check.f]` through `reviewableKind` (one `TargetNotFound` body), `[REP-1.I2]` through `insertReview`'s savepoint on `review_one_per_pair` (one row, one `DuplicateReview` 409), and `[REP-1.edit.f]` through `editVisibleReview`'s `"hiddenAt" IS NULL` (EC-32).
+- The story leaves `impl2_scope` with a note in `sprint-status.yaml` and does not count toward the 43.
