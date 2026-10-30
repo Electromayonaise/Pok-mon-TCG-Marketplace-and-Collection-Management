@@ -67,12 +67,14 @@ export class ContactServiceV2 implements ContactV2UseCases {
         }
         await repo.insertContactLog(tx, { id: ids.next(), requesterId, listingId, sellerId: listing.sellerId, ipHmac: ip, counted: !windows.repeat, now });
       }
+      // The trade summary is checked before the phone is read, so a broken caller reads no phone (D6).
+      const trade = kind === 'trade' ? await this.tradeTerms(tradeSummary) : null;
       const productName = listing.unit === null ? listing.title ?? '' : await this.entryName(listing.unit.catalogEntryId);
       const card = await this.contactCard(listing.sellerId);
       const { names } = await identity.getDisplayNames({ userIds: [requesterId] });
       const message = composeContactMessage({
         kind, sellerName: card.displayName, phoneE164: card.contactPhoneE164, productName, condition: listing.unit?.condition ?? null, priceCop: listing.priceCop,
-        trade: kind === 'trade' && tradeSummary !== null ? await this.tradeTerms(tradeSummary) : null,
+        trade,
       });
       return {
         text: message.text, externalUrl: message.externalUrl, copyText: message.copyText,
@@ -86,7 +88,8 @@ export class ContactServiceV2 implements ContactV2UseCases {
    * name. TRD-1 validated the terms before storing them, so an empty summary, a cash outside 0–100,000,000 or an
    * unknown item is a broken caller.
    */
-  private async tradeTerms(summary: TradeSummaryDTO): Promise<{ offeredItems: { name: string; condition: string; qty: number }[]; cashCop: bigint }> {
+  private async tradeTerms(summary: TradeSummaryDTO | null): Promise<{ offeredItems: { name: string; condition: string; qty: number }[]; cashCop: bigint }> {
+    if (summary === null) throw new UnexpectedError('Unexpected: a trade handoff with no trade summary');
     const { offeredItems, cashCop } = summary;
     if (!Number.isSafeInteger(cashCop) || cashCop < 0 || cashCop > MAX_TRADE_CASH_COP) throw new UnexpectedError(`Unexpected: trade cash ${String(cashCop)} is outside 0–100,000,000`);
     if (offeredItems.length === 0 && cashCop === 0) throw new UnexpectedError('Unexpected: an empty trade summary');

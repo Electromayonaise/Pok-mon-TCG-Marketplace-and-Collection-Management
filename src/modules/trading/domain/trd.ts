@@ -1,5 +1,7 @@
 // Core domain — TRD. Pure (AD-SYS-6).
-import type { RequestIssue } from '../../../shared-kernel/request.js';
+
+/** One field-level issue, the shape of shared-kernel's `RequestIssue` (a domain file imports no request helper). */
+export interface TermsIssue { field: string; issue: string }
 
 export type OfferRole = 'proposer' | 'seller';
 export type OfferStatus = 'Open' | 'Accepted' | 'Rejected' | 'Withdrawn' | 'Expired' | 'Unfulfillable' | 'Cancelled';
@@ -78,12 +80,14 @@ export interface TradeTerms {
  * FR-TRD-1 term validation (decision log Impl-1 #35, D6): the shape issues the parser also checks, repeated for
  * in-process callers, so terms reach the store and the contact handoff only when valid.
  */
-export function termsIssues(terms: TradeTerms): RequestIssue[] {
-  const issues: RequestIssue[] = [];
+export function termsIssues(terms: TradeTerms): TermsIssue[] {
+  const issues: TermsIssue[] = [];
   if (!Number.isSafeInteger(terms.cashCop) || terms.cashCop < 0 || terms.cashCop > MAX_CASH_COP) issues.push({ field: 'terms.cashCop', issue: 'debe ser un entero entre 0 y 100.000.000' });
   if (!Array.isArray(terms.offeredItems) || terms.offeredItems.length > MAX_ITEMS) issues.push({ field: 'terms.offeredItems', issue: 'puede tener como máximo 10 cartas' });
   else if (terms.offeredItems.some((i) => !Number.isInteger(i.qty) || i.qty < 1 || i.qty > MAX_ITEM_QTY)) issues.push({ field: 'terms.offeredItems', issue: 'cada carta va de 1 a 4 copias' });
   else if (terms.offeredItems.some((i) => !CONDITIONS.has(i.condition))) issues.push({ field: 'terms.offeredItems', issue: 'cada carta necesita una condición válida' });
+  // One row per card and condition, so the 4-copy bound and the unchanged-counter check (G-1) see every copy.
+  else if (new Set(terms.offeredItems.map((i) => `${i.itemRef}|${i.condition}`)).size !== terms.offeredItems.length) issues.push({ field: 'terms.offeredItems', issue: 'agrupa las copias de una misma carta y condición en una sola fila' });
   if (terms.requestedQty !== 1) issues.push({ field: 'terms.requestedQty', issue: 'debe ser 1' });
   return issues;
 }
@@ -97,15 +101,15 @@ export function canonicalTerms(terms: TradeTerms): string {
   return JSON.stringify({ items, cashCop: terms.cashCop });
 }
 
-/** S-FR-TRD-3.mine: the keyset `("updatedAt" DESC, id DESC)` as an opaque cursor. */
-export function encodeOfferCursor(updatedAt: string, id: string): string {
-  return Buffer.from(`${updatedAt}|${id}`, 'utf8').toString('base64url');
+/** S-FR-TRD-3.mine: the immutable keyset `("createdAt" DESC, id DESC)` as an opaque cursor (decision log Impl-1 #35, R3). */
+export function encodeOfferCursor(createdAt: string, id: string): string {
+  return Buffer.from(`${createdAt}|${id}`, 'utf8').toString('base64url');
 }
 
 /** The cursor's keyset, or null when it is not one this service issued. */
-export function decodeOfferCursor(cursor: string): { updatedAt: string; id: string } | null {
-  const [updatedAt, id, ...rest] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
-  if (rest.length > 0 || !updatedAt || !id || !/^[a-z][0-9a-z]{23}$/.test(id)) return null;
-  const at = Date.parse(updatedAt);
-  return Number.isNaN(at) || new Date(at).toISOString() !== updatedAt ? null : { updatedAt, id };
+export function decodeOfferCursor(cursor: string): { createdAt: string; id: string } | null {
+  const [createdAt, id, ...rest] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
+  if (rest.length > 0 || !createdAt || !id || !/^[a-z][0-9a-z]{23}$/.test(id)) return null;
+  const at = Date.parse(createdAt);
+  return Number.isNaN(at) || new Date(at).toISOString() !== createdAt ? null : { createdAt, id };
 }

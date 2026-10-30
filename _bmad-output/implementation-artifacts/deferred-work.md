@@ -118,6 +118,16 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 
 - A message body that is whitespace only passes `normalizeBody`, and one with a NUL passes it and then fails in Postgres (22021) as 500. Same as Epic 3's and Epic 8's trim items; decide it with the composer (UI 12.2, 12.3).
 - `messaging.send`'s zod input bounds `body` at 2,000 UTF-16 units before NFC, while MSG-1 P2, `normalizeBody` and the `char_length` CHECK count 2,000 code points after NFC, so a body of 1,001 or more astral characters is refused at the router. The bound comes from `operations.json` (`maxLength`); fix it there with a contract change. Owner: the next contract revision.
-- The trade path of `generateContactMessage` accepts an empty offer (no items and no cash renders "Ofrezco .") and calls `BigInt` on `tradeSummary.cashCop` unchecked. Only `kind='purchase'` is wired; TRD-1 is the trade caller. Owner: Epic 10 (Story 10.1's TRD-1 validates the terms before it calls the handoff).
+- ~~The trade path of `generateContactMessage` accepts an empty offer (no items and no cash renders "Ofrezco .") and calls `BigInt` on `tradeSummary.cashCop` unchecked. Only `kind='purchase'` is wired; TRD-1 is the trade caller. Owner: Epic 10 (Story 10.1's TRD-1 validates the terms before it calls the handoff).~~ Resolved by Epic 10 (decision log Impl-1 #35, D6): trading checks the terms before it stores them, and the contact service raises `Unexpected` for a null or empty summary, a cash outside 0–100,000,000 or an unknown item, before it reads the phone.
 - `NotBusinessAccount` on the messaging path renders the raw `{status}` token (`none`, `Rejected`) inside Spanish text, the repo-wide convention noted in Epic 7. The composer's copy (UI 12.3) should map it.
 
+
+## Deferred from: spec of Epic 10 (10.1–10.5) (2026-10-30)
+
+- No jobs route exists, so `expireDueOffers` (S-FR-TRD-9) has no tick or cron caller (`daily-morning`, the hourly tick, `JOBS_SECRET`, single-flight). It belongs with the jobs route, together with `trm-fetch` (Story 4.4), the catalog's `daily-night` (Story 4.1) and `expireDueOrders` (Story 7.5). Until then expiry is correct at every read and command (AD-TRD-1 rule 5), and an offer's own expired predecessor is materialized when the proposer offers again.
+
+## Deferred from: code review of Epic 10 (10.1–10.5) (2026-10-30)
+
+- `trading.handoff` regenerates the text from the listing as it is now: once the listing is hidden, withdrawn or deactivated after the accept it is `ListingNotFound` (declared on the procedure, decision log Impl-1 #35, R2), a price or title edit changes the text, and a catalog entry that stops resolving is `Unexpected`. A snapshot of the handoff at accept needs a column or a contract change. Owner: the trade page story (UI 8.2), or TRD's Impl-2 follow-up.
+- The accept swallows a handoff failure as `handoff: null` with no log, so a systematically broken handoff goes unnoticed. Needs a logger port; decide it with the Epic 7 item that isolates a failing expiry (the jobs route).
+- `expireDueOffers` stops at the first seller whose transaction fails and has no single-flight. Same owner as the jobs-route item above.

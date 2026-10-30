@@ -36,6 +36,8 @@ describe('term checks (FR-TRD-1, D6)', () => {
     expect(termsIssues({ offeredItems: [{ ...item, qty: 5 }], cashCop: 1.5, requestedQty: 2 }).map((i) => i.field)).toEqual(['terms.cashCop', 'terms.offeredItems', 'terms.requestedQty']);
     expect(termsIssues({ offeredItems: Array(11).fill(item), cashCop: 100_000_001, requestedQty: 1 }).map((i) => i.field)).toEqual(['terms.cashCop', 'terms.offeredItems']);
     expect(termsIssues({ offeredItems: [{ ...item, condition: 'Mint' }], cashCop: 0, requestedQty: 1 }).map((i) => i.field)).toEqual(['terms.offeredItems']);
+    expect(termsIssues({ offeredItems: [item, item], cashCop: 0, requestedQty: 1 }).map((i) => i.field)).toEqual(['terms.offeredItems']);
+    expect(termsIssues({ offeredItems: [item, { ...item, condition: 'LP' }], cashCop: 0, requestedQty: 1 })).toEqual([]);
     expect(isEmptyTerms({ offeredItems: [], cashCop: 0, requestedQty: 1 })).toBe(true);
     expect(isEmptyTerms({ offeredItems: [], cashCop: 1, requestedQty: 1 })).toBe(false);
   });
@@ -51,7 +53,7 @@ describe('term checks (FR-TRD-1, D6)', () => {
 describe('the offers cursor', () => {
   it('round-trips, and refuses one this service never issued', () => {
     const id = 'a'.repeat(24);
-    expect(decodeOfferCursor(encodeOfferCursor('2026-10-30T12:00:00.000Z', id))).toEqual({ updatedAt: '2026-10-30T12:00:00.000Z', id });
+    expect(decodeOfferCursor(encodeOfferCursor('2026-10-30T12:00:00.000Z', id))).toEqual({ createdAt: '2026-10-30T12:00:00.000Z', id });
     expect(decodeOfferCursor('bm9wZQ')).toBeNull();
   });
 });

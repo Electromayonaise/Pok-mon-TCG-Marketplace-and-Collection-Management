@@ -77,3 +77,25 @@ context:
 - `trading.accept` and `trading.handoff` are wired. §13 gains `TradeOfferAccepted`.
 - **TG-7 runtime** (local Postgres 16, `fsync=off`): `[TRD-1.MEC]` 100 repetitions in 5,954 ms.
 - Measured: `[NFR-TRD-2.accept]` p95 14.3 ms (p50 9.3), with the post-commit handoff.
+
+### Review Findings
+
+Epic 10 close review (2026-10-30, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `6b3cc16..0b562b6` (code, contracts and the NFR file), recorded here for the whole epic. Totals: 4 decisions, 11 patches, 2 deferrals, 13 dismissed. Martín resolved the decisions with every recommendation and approved every patch (decision log Impl-1 #35).
+
+- [x] [Review][Decision→Patch] R1 Unfulfillable marks on expired offers — both marks now require `"expiresAt" > now`, so an expired offer keeps reading Expired; TRD-1 Q1 step 6 and Q-fail, AD-TRD-2 rules 2–3 amended
+- [x] [Review][Decision→Defer] R2 The handoff reads the listing live — `ListingNotFound` and `NotIndividualSellerListing` are now declared on `trading.handoff` (operations.json, §15); a snapshot of the handoff is deferred (deferred-work.md)
+- [x] [Review][Decision→Patch] R3 `trading.mine` pages on the immutable `(createdAt DESC, id)`, as `orders.mine` does; §15.12 amended
+- [x] [Review][Decision→Patch] R4 A seller's withdraw is refused first with `NotYourTurn` citing `{ turn: 'proposer' }`, declared on `trading.withdraw` and in §13/§15
+- [x] [Review][Patch] The accept's Q-fail wraps every error, so a deadlock or a lost connection ends the offer for good; wrap only listings' refusals [src/modules/trading/application/trd.v2.ts]
+- [x] [Review][Patch] A failing follow-up transaction replaces the original refusal [src/modules/trading/application/trd.v2.ts]
+- [x] [Review][Patch] `storeReservation` ignores a 0-row update, which would leave the placeholder reservation [src/modules/trading/infra/pg.ts]
+- [x] [Review][Patch] Duplicate `(itemRef, condition)` items pass `termsIssues`, bypassing the 4-copy bound and `TradeCounterUnchanged` [src/modules/trading/domain/trd.ts]
+- [x] [Review][Patch] The trade path of `generateContactMessage` accepts `tradeSummary: null`, and checks the summary after reading the phone [src/modules/listings/application/contact.v2.ts]
+- [x] [Review][Patch] `requireTradeItems` always cites FR-TRD-1, also for a counter [src/modules/listings/application/inv.v2.ts]
+- [x] [Review][Patch] The Q-fail audit row cites `acceptedOfferId` for an accept that never happened [src/modules/trading/application/trd.v2.ts]
+- [x] [Review][Patch] contracts.md: TRD-1 Q1 step 2 does not mention the placeholder reservation; §13 sources omit the new raisers (`InvalidItemRef`, `NotYourTurn`, `TradeOfferNotOpen`, `TradeOfferNotVisibleToCaller`) [contracts.md]
+- [x] [Review][Patch] The `resolvers()` doc comment does not list the trading wiring [src/server/composition.ts]
+- [x] [Review][Patch] No pool-of-1 proof for `makeOffer` and `counterOffer`, whose item check calls listings inside the transaction [src/modules/trading/application/trd.v2.test.ts]
+- [x] [Review][Patch] The round limit 10 is a literal in the counter SQL beside `MAX_ROUNDS` [src/modules/trading/infra/pg.ts]
+- [x] [Review][Defer] The accept swallows a handoff failure with no log (needs a logger port, Epic 7's item) — deferred
+- [x] [Review][Defer] `expireDueOffers` stops at the first failing seller and has no single-flight (the jobs route) — deferred

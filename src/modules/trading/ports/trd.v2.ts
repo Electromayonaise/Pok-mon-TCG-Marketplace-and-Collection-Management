@@ -96,8 +96,9 @@ export interface TrdRepository {
   /** TRD-1 Q1 step 5: the reservation the accept took. */
   storeReservation(tx: Tx, offerId: CuidId, reservationRef: ReservationRefDTO): Promise<void>;
   /**
-   * TRD-1 Q1 step 6 and Q-fail (AD-TRD-2 rules 2–3): `Open → Unfulfillable` (`ListingNoLongerAvailable`) of the Open
-   * offers on the given listings, or of one offer; `roundCount` unchanged. Returns the ids marked, sorted.
+   * TRD-1 Q1 step 6 and Q-fail (AD-TRD-2 rules 2–3): `Open → Unfulfillable` (`ListingNoLongerAvailable`) of the live
+   * (unexpired) Open offers on the given listings, or of one offer; an expired one keeps reading Expired (decision log
+   * Impl-1 #35, R1). `roundCount` unchanged. Returns the ids marked, sorted.
    */
   markUnfulfillable(tx: Tx, scope: { listingIds: CuidId[]; exceptOfferId: CuidId } | { offerId: CuidId }, now: IsoInstant): Promise<CuidId[]>;
   /**
@@ -109,6 +110,6 @@ export interface TrdRepository {
   confirmCompletion(tx: Tx, c: { offerId: CuidId; role: OfferRole; now: IsoInstant }): Promise<{ proposerConfirmedAt: Date | null; sellerConfirmedAt: Date | null } | null>;
   /** S-FR-TRD-9: the sellers with an Open offer past `expiresAt`. */
   sellersWithDueOffers(tx: Tx, now: IsoInstant): Promise<CuidId[]>;
-  /** S-FR-TRD-3.mine: the actor's offers on a side, optionally by derived status, newest change first. */
-  listOffers(tx: Tx, q: { actorId: CuidId; side: 'sent' | 'received' | 'any'; status: OfferStatus | null; after: { updatedAt: IsoInstant; id: CuidId } | null; limit: number; now: IsoInstant }): Promise<OfferRow[]>;
+  /** S-FR-TRD-3.mine: the actor's offers on a side, optionally by derived status, newest first by the immutable `createdAt` (decision log Impl-1 #35, R3). */
+  listOffers(tx: Tx, q: { actorId: CuidId; side: 'sent' | 'received' | 'any'; status: OfferStatus | null; after: { createdAt: IsoInstant; id: CuidId } | null; limit: number; now: IsoInstant }): Promise<OfferRow[]>;
 }

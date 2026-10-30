@@ -70,6 +70,7 @@ describe('ContactServiceV2.generateContactMessage (MSG-2)', () => {
       contactService().generateContactMessage({ kind: 'trade', listingId: lid(), requesterId: id('camila'), tradeSummary, ipHmac: null });
     expect((await trade({ offeredItems: [{ itemRef: id('pika'), condition: 'NM', qty: 2 }], cashCop: 20_000 })).text).toContain('2× Pikachu ex (NM)');
     expect(codeOf(await caught(() => trade({ offeredItems: [], cashCop: 0 })))).toBe('Unexpected');
+    expect(codeOf(await caught(() => trade(null)))).toBe('Unexpected');
     expect(codeOf(await caught(() => trade({ offeredItems: [], cashCop: 100_000_001 })))).toBe('Unexpected');
     expect(codeOf(await caught(() => trade({ offeredItems: [{ itemRef: id('ghost'), condition: 'NM', qty: 1 }], cashCop: 0 })))).toBe('Unexpected');
   });

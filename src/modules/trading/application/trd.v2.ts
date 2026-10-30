@@ -30,7 +30,7 @@ export interface TrdV2UseCases {
 
 import type { Citation, Decision } from '../../../shared-kernel/decision.js';
 import { ambientTx } from '../../../shared-kernel/db.js';
-import { UnexpectedError } from '../../../shared-kernel/errors.js';
+import { DomainError, UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import type { Tx } from '../../../shared-kernel/ports.js';
@@ -67,6 +67,12 @@ function checkTerms(terms: TradeTermsDTO, rule: 'FR-TRD-1' | 'FR-TRD-2'): void {
   if (isEmptyTerms(terms)) raise('EmptyTradeOffer', [{ rule, inputs: { offeredItems: 0, cashCop: 0 } }]);
 }
 
+/**
+ * TRD-1 P5–P6: the listings refusals that end an accept attempt and mark the own offer Unfulfillable (AD-TRD-2 rule 3).
+ * Any other error (a deadlock, a lost connection, a broken invariant) rolls back and leaves the offer Open for a retry.
+ */
+const LISTINGS_REFUSALS = new Set(['ListingNotOpenToTrade', 'ListingNotFound', 'NotIndividualSellerListing', 'InsufficientQuantity']);
+
 /** TRD-1 Q-fail: a listings refusal (P5, P6) inside the accept transaction, carried out so it rolls back first. */
 class ListingsRefusal extends Error {
   constructor(override readonly cause: unknown) {
@@ -79,10 +85,10 @@ export class TrdServiceV2 implements TrdV2UseCases {
   constructor(protected readonly deps: TrdV2Deps) {}
 
   /** P-INV.refs then listings' own `InvalidItemRef` (TRD-2 P3, S-FR-TRD-1). */
-  private async checkItems(terms: TradeTermsDTO): Promise<void> {
+  private async checkItems(terms: TradeTermsDTO, rule: 'FR-TRD-1' | 'FR-TRD-2'): Promise<void> {
     if (terms.offeredItems.length === 0) return;
     const refs = await this.deps.listings.resolveItemRefs({ refs: [...new Set(terms.offeredItems.map((i) => i.itemRef))] });
-    requireTradeItems(terms.offeredItems, refs);
+    requireTradeItems(terms.offeredItems, refs, rule);
   }
 
   /** A read on the ambient transaction, or a read-only one of its own (AD-SYS-4 rule 9). */
@@ -138,7 +144,7 @@ export class TrdServiceV2 implements TrdV2UseCases {
       const { sellerId } = await listings.getTradeability(tx, { listingId });
       if (sellerId === proposerId) raise('SelfTradeNotAllowed', [{ rule: 'FR-TRD-1', inputs: { listingId } }]);
       checkTerms(terms, 'FR-TRD-1');
-      await this.checkItems(terms);
+      await this.checkItems(terms, 'FR-TRD-1');
       await repo.lockTradeSeller(tx, sellerId);
       for (const expired of await repo.expireDue(tx, { listingId, proposerId }, now)) await this.audit(tx, null, 'trading.offer.expired', expired, null, { listingId }, now);
       const duplicate = (): never => raise('DuplicateOpenOffer', [{ rule: 'FR-TRD-1', inputs: { listingId } }]);
@@ -164,9 +170,10 @@ export class TrdServiceV2 implements TrdV2UseCases {
     const to = action === 'withdraw' ? 'Withdrawn' as const : 'Rejected' as const;
     return transactions.run(async (tx) => {
       const { offer, role } = await this.visibleOffer(tx, offerId, actorId, true);
-      // Withdraw is the proposer's at any turn; the seller's way out is reject on their turn.
+      // Withdraw is the proposer's at any turn, refused first to anyone else (decision log Impl-1 #35, R4); the seller's
+      // way out is reject on her turn.
+      if (action === 'withdraw' && role !== 'proposer') raise('NotYourTurn', [{ rule: 'FR-TRD-2', inputs: { offerId, turn: 'proposer' } }]);
       this.refuseAction(offer, expectedVersion, action === 'withdraw' ? null : role, at, 'FR-TRD-2');
-      if (action === 'withdraw' && role !== 'proposer') raise('NotYourTurn', [{ rule: 'FR-TRD-2', inputs: { offerId, turn: offer.turn, withdraw: 'proposer' } }]);
       if (!(await repo.resolveOpenOffer(tx, { offerId, expectedVersion, turn: action === 'reject' ? role : null, to, now }))) {
         throw new UnexpectedError(`Unexpected: offer ${offerId} changed under the trd:seller lock`);
       }
@@ -186,7 +193,7 @@ export class TrdServiceV2 implements TrdV2UseCases {
     });
   }
 
-  /** S-FR-TRD-3.mine: the actor's offers by side and derived status, 20 per page, newest change first; zero writes. */
+  /** S-FR-TRD-3.mine: the actor's offers by side and derived status, 20 per page, newest first; zero writes. */
   async listMyOffers(input: ListMyOffersRequest): Promise<ListMyOffersResponse> {
     const after = input.cursor === null ? null : decodeOfferCursor(input.cursor);
     if (input.cursor !== null && after === null) rejectRequest([{ field: 'cursor', issue: 'no es un cursor de esta lista' }]);
@@ -198,7 +205,7 @@ export class TrdServiceV2 implements TrdV2UseCases {
       const last = page.at(-1);
       return {
         offers: page.map((o) => this.view(o, rounds.filter((r) => r.offerId === o.id), at)),
-        nextCursor: rows.length > OFFERS_PAGE && last ? encodeOfferCursor(last.updatedAt.toISOString(), last.id) : null,
+        nextCursor: rows.length > OFFERS_PAGE && last ? encodeOfferCursor(last.createdAt.toISOString(), last.id) : null,
       };
     });
   }
@@ -226,7 +233,7 @@ export class TrdServiceV2 implements TrdV2UseCases {
           await listings.getTradeability(tx, { listingId: offer.listingId });
           reserved = await listings.reserveForTrade(tx, { listingId: offer.listingId, qty: 1 });
         } catch (error) {
-          throw new ListingsRefusal(error);
+          throw error instanceof DomainError && LISTINGS_REFUSALS.has(error.code) ? new ListingsRefusal(error) : error;
         }
         await repo.storeReservation(tx, offerId, reserved.reservationRef);
         await repo.appendRound(tx, { offerId, actor: 'seller', action: 'accept', terms: null, now });
@@ -243,17 +250,19 @@ export class TrdServiceV2 implements TrdV2UseCases {
       });
     } catch (error) {
       if (!(error instanceof ListingsRefusal)) throw error;
-      // AD-TRD-2 rule 3: the own offer is Unfulfillable (a no-op when already marked); the refusal propagates.
+      // AD-TRD-2 rule 3: the own offer is Unfulfillable (a no-op when no longer live); the refusal propagates even if
+      // this follow-up fails, since the offer then stays Open and the next accept meets the same refusal.
+      const refusal = error.cause as DomainError;
       await transactions.run(async (tx) => {
         const offer = await repo.readOffer(tx, offerId);
         if (offer === null) return;
         await repo.lockTradeSeller(tx, offer.sellerId);
         for (const own of await repo.markUnfulfillable(tx, { offerId }, now)) {
           await repo.appendRound(tx, { offerId: own, actor: 'seller', action: 'markedUnfulfillable', terms: null, now });
-          await this.audit(tx, sellerId, 'trading.offer.unfulfillable', own, 'ListingNoLongerAvailable', { acceptedOfferId: offerId }, now);
+          await this.audit(tx, sellerId, 'trading.offer.unfulfillable', own, 'ListingNoLongerAvailable', { refusedBy: refusal.code }, now);
         }
-      });
-      throw error.cause;
+      }).catch(() => undefined);
+      throw refusal;
     }
     const { offer, unfulfillableOfferIds, reservationRef } = accepted;
     return {
@@ -283,7 +292,7 @@ export class TrdServiceV2 implements TrdV2UseCases {
     return transactions.run(async (tx) => {
       await this.visibleOffer(tx, offerId, actorId, false);
       checkTerms(terms, 'FR-TRD-2');
-      await this.checkItems(terms);
+      await this.checkItems(terms, 'FR-TRD-2');
       const { offer, role } = await this.visibleOffer(tx, offerId, actorId, true);
       this.refuseAction(offer, expectedVersion, role, at, 'FR-TRD-2');
       if (offer.roundCount >= MAX_ROUNDS) raise('TradeRoundLimitReached', [{ rule: 'FR-TRD-2', inputs: { offerId, roundCount: offer.roundCount } }]);

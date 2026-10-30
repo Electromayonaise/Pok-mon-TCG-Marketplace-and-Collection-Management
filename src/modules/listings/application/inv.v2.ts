@@ -67,14 +67,14 @@ const raise = raiserFor('listings');
 
 /**
  * TRD-2 P3 and S-FR-TRD-1 (OQ-6): every offered item resolved through P-INV.refs, with a condition that fits its kind,
- * else listings' own `InvalidItemRef`. Exported so trading raises no listings code (the `requireBusinessAccount`
+ * else listings' own `InvalidItemRef` under the caller's rule. Exported so trading raises no listings code (the `requireBusinessAccount`
  * pattern of decision log Impl-1 #33).
  */
-export function requireTradeItems(items: readonly { itemRef: CuidId; condition: string }[], refs: ItemRefsResponse): void {
+export function requireTradeItems(items: readonly { itemRef: CuidId; condition: string }[], refs: ItemRefsResponse, rule: string): void {
   const kinds = new Map(refs.resolved.map((r) => [r.ref, r.kind]));
   for (const { itemRef, condition } of items) {
     const kind = kinds.get(itemRef) ?? null;
-    if (kind === null || !conditionFitsKind(condition, kind)) raise('InvalidItemRef', [{ rule: 'FR-TRD-1', inputs: { itemRef, kind, condition } }]);
+    if (kind === null || !conditionFitsKind(condition, kind)) raise('InvalidItemRef', [{ rule, inputs: { itemRef, kind, condition } }]);
   }
 }
 

@@ -8,7 +8,7 @@ import { PG } from '../../../../test-support/env.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
 import { caught, citedInputs } from '../../../../test-support/errors.js';
 import { at, catalogEntry, HOUR, id, individualSeller, listing, rows, tradeOffer, unit, user, wiring } from '../../../../test-support/solu2/fixtures.js';
-import { realTradeListings } from '../../../../test-support/solu2/services.js';
+import { realInventory, realTradeListings } from '../../../../test-support/solu2/services.js';
 import type { TransactionRunner } from '../../../shared-kernel/ports.js';
 import type { TradeTermsDTO } from '../dto/trd.v2.dto.js';
 import { TrdServiceV2 } from './trd.v2.js';
@@ -40,8 +40,8 @@ describe('TrdServiceV2.makeOffer (S-FR-TRD-1) with the real listings', () => {
     expect(codeOf(await caught(() => make({ terms: terms({ offeredItems: [{ itemRef: id('ghost'), condition: 'NM', qty: 1 }] }) })))).toBe('InvalidItemRef');
     const sealed = await caught(() => make({ terms: terms({ offeredItems: [{ itemRef: id('etb'), condition: 'NM', qty: 1 }] }) }));
     expect([codeOf(sealed), citedInputs(sealed)]).toEqual(['InvalidItemRef', { itemRef: id('etb'), kind: 'sealedProduct', condition: 'NM' }]);
-    await db.query(`UPDATE "Listing" SET "openToTrade" = false`);
-    expect(codeOf(await caught(() => make()))).toBe('ListingNotOpenToTrade');
+    await listing(db, { id: id('closed'), sellerId: id('valentina'), unitId: id('uv'), sellerKind: 'individual', openToTrade: false });
+    expect(codeOf(await caught(() => trading().makeOffer({ listingId: id('closed'), terms: terms(), proposerId: id('julian') })))).toBe('ListingNotOpenToTrade');
     expect(await rows(db, 'TradeOffer')).toHaveLength(0);
     expect(await rows(db, 'audit_events', `module = 'trading'`)).toHaveLength(0);
   });
@@ -126,11 +126,11 @@ describe('TrdServiceV2.acceptOffer and getHandoff (TRD-1, S-FR-TRD-3.handoff) wi
     expect((await rows<{ quantity: number }>(db, 'InventoryUnit'))[0]?.quantity).toBe(0);
   });
 
-  it('a listing closed to trade after the offer leaves the offer Unfulfillable, with no reservation, event or accept round (AD-TRD-2 rule 3)', async () => {
+  it('a listing deactivated after the offer leaves the offer Unfulfillable, with no reservation, event or accept round (AD-TRD-2 rule 3)', async () => {
     await scene();
     const { offerId } = await make();
-    await db.query(`UPDATE "Listing" SET "openToTrade" = false`);
-    expect(codeOf(await caught(() => trading().acceptOffer({ offerId, expectedVersion: 0, sellerId: id('valentina') })))).toBe('ListingNotOpenToTrade');
+    await realInventory(wiring(db)).setListingActive({ actorId: id('valentina'), listingId: id('lv'), active: false });
+    expect(codeOf(await caught(() => trading().acceptOffer({ offerId, expectedVersion: 0, sellerId: id('valentina') })))).toBe('ListingNotFound');
     expect((await rows(db, 'TradeOffer'))[0]).toMatchObject({ status: 'Unfulfillable', reservationRef: null });
     expect((await rows(db, 'TradeOfferRound', `"offerId" = $1`, [offerId])).map((r) => r.action)).toEqual(['offer', 'markedUnfulfillable']);
     expect(await rows(db, 'OutboxEvent')).toHaveLength(0);
@@ -164,5 +164,47 @@ describe('TrdServiceV2.cancelTrade, confirmCompletion and expireDueOffers (TRD-3
     expect(await trading().expireDueOffers({ trigger: 'daily-morning' })).toEqual({ expired: 2 });
     expect((await rows(db, 'TradeOffer')).map((o) => [o.id, o.status]).sort()).toEqual([[id('due1'), 'Expired'], [id('due2'), 'Expired'], [id('live'), 'Open']].sort());
     expect((await rows(db, 'audit_events', `action = 'trading.offer.expired'`)).map((r) => r.actorKind)).toEqual(['system', 'system']);
+  });
+});
+
+describe('Epic 10 close review (decision log Impl-1 #35)', () => {
+  it('offer and counter run on a pool of 1: the item check and the tradeability read join the command\'s connection', async () => {
+    await scene();
+    const pool = new pg.Pool({ ...PG, database: (db.pool.options as { database: string }).database, max: 1 });
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const deadlock = new Promise<never>((_, reject) => { watchdog = setTimeout(() => reject(new Error('deadlock: a second connection was requested')), 3_000); });
+      const trd = trading(new PgTransactionRunner(pool));
+      const { offerId } = await Promise.race([trd.makeOffer({ listingId: id('lv'), terms: terms(), proposerId: id('julian') }), deadlock]);
+      expect(await Promise.race([trd.counterOffer({ offerId, terms: terms({ cashCop: 5_000 }), expectedVersion: 0, actorId: id('valentina') }), deadlock])).toMatchObject({ roundCount: 2 });
+    } finally {
+      clearTimeout(watchdog);
+      await pool.end();
+    }
+  });
+
+  it('R1: an expired sibling on the exhausted listing keeps reading Expired; it is not marked Unfulfillable', async () => {
+    await scene();
+    const { offerId } = await make();
+    await tradeOffer(db, { id: id('stale'), listingId: id('lv'), sellerId: id('valentina'), proposerId: id('camila'), expiresAt: at(-HOUR) });
+    expect((await trading().acceptOffer({ offerId, expectedVersion: 0, sellerId: id('valentina') })).unfulfillableOfferIds).toEqual([]);
+    expect((await rows(db, 'TradeOffer', 'id = $1', [id('stale')]))[0]).toMatchObject({ status: 'Open' });
+  });
+
+  it('only listings\' refusals end the offer: any other error during the reserve rolls back and leaves it Open', async () => {
+    await scene();
+    const { offerId } = await make();
+    const w = wiring(db);
+    const real = realTradeListings(w);
+    const broken = new TrdServiceV2({ ...w, listings: { ...real, reserveForTrade: async () => { throw new Error('connection lost'); } } });
+    await expect(broken.acceptOffer({ offerId, expectedVersion: 0, sellerId: id('valentina') })).rejects.toThrow('connection lost');
+    expect((await rows(db, 'TradeOffer'))[0]).toMatchObject({ status: 'Open', version: 0, reservationRef: null });
+  });
+
+  it('R4: a seller\'s withdraw is NotYourTurn citing the proposer, even with a stale version', async () => {
+    await scene();
+    const { offerId } = await make();
+    const refused = await caught(() => trading().resolveOffer({ offerId, expectedVersion: 7, actorId: id('valentina'), action: 'withdraw' }));
+    expect([codeOf(refused), citedInputs(refused)]).toEqual(['NotYourTurn', { offerId, turn: 'proposer' }]);
   });
 });

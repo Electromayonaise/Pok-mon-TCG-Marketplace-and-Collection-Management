@@ -1,10 +1,10 @@
 // Driven adapters (persistence) — trading. The Solu-1 stub below is bound to the retired migration 007_create_trading.sql
 // (git 853449c:docs/solu-1/planning/schemas/); the Solu-2 PgTrdRepository at the end is bound to
 // _bmad-output/planning-artifacts/detailed-design/schemas.
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import type { OfferRole, OfferStatus } from '../domain/trd.js';
+import { MAX_ROUNDS, type OfferRole, type OfferStatus } from '../domain/trd.js';
 import type { ReservationRefDTO } from '../../listings/index.js';
 import type { TradeTermsDTO } from '../dto/trd.v2.dto.js';
 import type { ITradeOfferRepository } from '../ports/trd.js';
@@ -121,9 +121,9 @@ export class PgTrdRepository implements TrdRepository {
     const { rows } = await tx.query<{ version: number; turn: OfferRole; roundCount: number }>(
       `UPDATE "TradeOffer" SET terms = $5, turn = CASE WHEN $2 = 'seller' THEN 'proposer' ELSE 'seller' END, "roundCount" = "roundCount" + 1,
               "updatedAt" = $4, version = version + 1
-        WHERE id = $1 AND status = 'Open' AND turn = $2 AND version = $3 AND "expiresAt" > $4 AND "roundCount" < 10
+        WHERE id = $1 AND status = 'Open' AND turn = $2 AND version = $3 AND "expiresAt" > $4 AND "roundCount" < $6
         RETURNING version, turn, "roundCount"`,
-      [c.offerId, c.role, c.expectedVersion, c.now, JSON.stringify(c.terms)],
+      [c.offerId, c.role, c.expectedVersion, c.now, JSON.stringify(c.terms), MAX_ROUNDS],
     );
     return rows[0] ?? null;
   }
@@ -139,7 +139,8 @@ export class PgTrdRepository implements TrdRepository {
   }
 
   async storeReservation(tx: Tx, offerId: CuidId, reservationRef: ReservationRefDTO): Promise<void> {
-    await tx.query(`UPDATE "TradeOffer" SET "reservationRef" = $2 WHERE id = $1 AND status = 'Accepted'`, [offerId, JSON.stringify(reservationRef)]);
+    const { rowCount } = await tx.query(`UPDATE "TradeOffer" SET "reservationRef" = $2 WHERE id = $1 AND status = 'Accepted'`, [offerId, JSON.stringify(reservationRef)]);
+    if (rowCount !== 1) throw new UnexpectedError(`Unexpected: accepted offer ${offerId} was not there to hold its reservation`);
   }
 
   async markUnfulfillable(tx: Tx, scope: { listingIds: CuidId[]; exceptOfferId: CuidId } | { offerId: CuidId }, now: IsoInstant): Promise<CuidId[]> {
@@ -148,7 +149,7 @@ export class PgTrdRepository implements TrdRepository {
       : [`"listingId" = ANY($2::text[]) AND id <> $3`, [scope.listingIds, scope.exceptOfferId]];
     const { rows } = await tx.query<{ id: CuidId }>(
       `UPDATE "TradeOffer" SET status = 'Unfulfillable', "unfulfillableReason" = 'ListingNoLongerAvailable', "updatedAt" = $1, version = version + 1
-        WHERE ${where} AND status = 'Open' RETURNING id`,
+        WHERE ${where} AND status = 'Open' AND "expiresAt" > $1 RETURNING id`,
       [now, ...params],
     );
     return rows.map((r) => r.id).sort();
@@ -182,14 +183,14 @@ export class PgTrdRepository implements TrdRepository {
     return rows.map((r) => r.sellerId);
   }
 
-  async listOffers(tx: Tx, q: { actorId: CuidId; side: 'sent' | 'received' | 'any'; status: OfferStatus | null; after: { updatedAt: IsoInstant; id: CuidId } | null; limit: number; now: IsoInstant }): Promise<OfferRow[]> {
+  async listOffers(tx: Tx, q: { actorId: CuidId; side: 'sent' | 'received' | 'any'; status: OfferStatus | null; after: { createdAt: IsoInstant; id: CuidId } | null; limit: number; now: IsoInstant }): Promise<OfferRow[]> {
     const mine = q.side === 'sent' ? `"proposerId" = $1` : q.side === 'received' ? `"sellerId" = $1` : `("proposerId" = $1 OR "sellerId" = $1)`;
-    const keyset = q.after ? `AND ("updatedAt" < $5 OR ("updatedAt" = $5 AND id COLLATE "C" < $6))` : '';
+    const keyset = q.after ? `AND ("createdAt" < $5 OR ("createdAt" = $5 AND id COLLATE "C" < $6))` : '';
     const { rows } = await tx.query<OfferRow>(
       `SELECT ${OFFER_COLUMNS} FROM "TradeOffer"
         WHERE ${mine} AND ($4::text IS NULL OR ${derivedStatus('$3')} = $4) ${keyset}
-        ORDER BY "updatedAt" DESC, id COLLATE "C" DESC LIMIT $2`,
-      q.after ? [q.actorId, q.limit, q.now, q.status, q.after.updatedAt, q.after.id] : [q.actorId, q.limit, q.now, q.status],
+        ORDER BY "createdAt" DESC, id COLLATE "C" DESC LIMIT $2`,
+      q.after ? [q.actorId, q.limit, q.now, q.status, q.after.createdAt, q.after.id] : [q.actorId, q.limit, q.now, q.status],
     );
     return rows;
   }
