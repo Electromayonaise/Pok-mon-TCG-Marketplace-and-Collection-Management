@@ -35,9 +35,34 @@ export interface RepV2Deps {
 }
 // </gen-solu2-api>
 
+import type { Tx } from '../../../shared-kernel/ports.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+
+/** A review row as REP-1 Q1 inserts it. */
+export interface NewReview {
+  id: CuidId;
+  reviewerId: CuidId;
+  targetUserId: CuidId;
+  targetKind: 'business' | 'individual';
+  purchaseVerified: boolean;
+  rating: number;
+  text: string;
+  now: IsoInstant;
+}
+
+/** The reviewer's review of a target, hidden or not (REP-1.check). */
+export interface PairReview { reviewId: CuidId; rating: number; text: string; hidden: boolean }
+
 /**
  * Repository port of REP (review A-4): the only way its application service reads or writes
  * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them.
  */
-export interface RepRepository {}
+export interface RepRepository {
+  /** REP-1 Q1 under a savepoint; `'duplicate'` when `review_one_per_pair` refused it (P5, 23505), so `tx` stays usable. */
+  insertReview(tx: Tx, review: NewReview): Promise<'inserted' | 'duplicate'>;
+  /** REP-1.edit (AD-REP-1 rule 4): the conditional update of the reviewer's own visible review; false on 0 rows. */
+  editVisibleReview(tx: Tx, edit: { reviewId: CuidId; reviewerId: CuidId; rating: number; text: string; now: IsoInstant }): Promise<boolean>;
+  /** REP-1.check: the review of `(reviewerId, targetUserId)`, or null. */
+  readReviewOfPair(tx: Tx, reviewerId: CuidId, targetUserId: CuidId): Promise<PairReview | null>;
+}

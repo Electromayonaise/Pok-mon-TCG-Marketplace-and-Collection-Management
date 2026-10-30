@@ -141,8 +141,8 @@ development_status:
   12-4-refuse-foreign-collections-and-invalid-periods: done
   12-5-explain-empty-series-and-rounding-edges: done
   epic-12-retrospective: optional
-  epic-13: backlog
-  13-1-write-edit-and-check-eligibility-for-a-review: backlog
+  epic-13: in-progress
+  13-1-write-edit-and-check-eligibility-for-a-review: done
   13-2-hide-and-unhide-reviews-with-logged-snapshots: backlog
   13-3-keep-reputation-honest-paid-is-not-enough-and-a-racing-hide-never-skews-the-aggregate: backlog
   13-4-refuse-self-unknown-and-duplicate-reviews: backlog

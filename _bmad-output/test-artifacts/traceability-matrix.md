@@ -122,8 +122,8 @@
 | FR-VAL-3 | Unpriced and stale items (CAP-9, CAP-12) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (done), 12.4 (done) | red |
 | FR-VAL-4 | Value history series (CAP-9) | VAL-3 | AD-VAL-2, AD-CAT-2 | 4 — `VAL-3.I2`, `VAL-3.P1`, `VAL-3.Q1` +1 | 12.2 (done), 12.4 (done), 12.5 (done) | red |
 | FR-VAL-5 | Money-shape separation (CAP-3, CAP-9) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (done), 12.4 (done) | red |
-| FR-REP-1 | Gated review of a business (CAP-7) | REP-1, REP-1.edit, REP-1.check | AD-REP-1, AD-2 | 11 — `REP-1.I1`, `REP-1.I2`, `REP-1.MEC` +8 | 13.1 (backlog), 13.4 (backlog) | red |
-| FR-REP-2 | Ungated review of an individual seller (CAP-7) | REP-1, REP-1.edit, REP-1.check | AD-REP-1, AD-2 | 11 — `REP-1.I1`, `REP-1.I2`, `REP-1.MEC` +8 | 13.1 (backlog), 13.4 (backlog) | red |
+| FR-REP-1 | Gated review of a business (CAP-7) | REP-1, REP-1.edit, REP-1.check | AD-REP-1, AD-2 | 11 — `REP-1.I1`, `REP-1.I2`, `REP-1.MEC` +8 | 13.1 (done), 13.4 (backlog) | red |
+| FR-REP-2 | Ungated review of an individual seller (CAP-7) | REP-1, REP-1.edit, REP-1.check | AD-REP-1, AD-2 | 11 — `REP-1.I1`, `REP-1.I2`, `REP-1.MEC` +8 | 13.1 (done), 13.4 (backlog) | red |
 | FR-REP-3 | Aggregate reputation with a stated rounding rule (CAP-7) | REP-3 | AD-12, AD-REP-2 | 4 — `REP-3.I1`, `REP-3.MEC`, `REP-3.P1` +1 | 13.3 (backlog), 13.6 (backlog) | red |
 | FR-REP-4 | Hide and unhide a review (CAP-28) | REP-2 | AD-12, AD-REP-2, AD-REP-3, AD-REP-1 | 7 — `REP-2.I1`, `REP-2.I2`, `REP-2.P2` +4 | 13.2 (backlog), 13.6 (backlog) | red |
 | FR-REP-5 | Hide and unhide a listing (listings host) (CAP-28) | S-FR-REP-5 | AD-REP-3, AD-12 | 2 — `S-FR-REP-5.f`, `S-FR-REP-5.h` | 13.5 (backlog), 13.6 (backlog) | red |
@@ -254,7 +254,7 @@
 | AD-COL-2 | One prompt per closed order; entries once | `UNIQUE orderId`; `WHERE status='Pending'` | `COL-1.MEC` | 11.3 (done) | red |
 | AD-VAL-1 | Valuation is a pure BigInt function | Pure function; brand types | `VAL-1.I1`, `VAL-1.MEC` | 12.1 (done), 12.3 (done) | red |
 | AD-VAL-2 | Trend and history recomputed, no zero division | `roundHalfAwayFromZero`; null baseline | `VAL-2.I1` | 12.3 (done) | red |
-| AD-REP-1 | Business reviews purchase-verified; one per pair | `review_business_iff_verified`; unique pair | `REP-1.I1` | 13.1 (backlog) | red |
+| AD-REP-1 | Business reviews purchase-verified; one per pair | `review_business_iff_verified`; unique pair | `REP-1.I1` | 13.1 (done) | red |
 | AD-REP-2 | Aggregates from the same snapshot as the list | One statement; `REPEATABLE READ` profile read | `REP-3.MEC` | 13.3 (backlog) | red |
 | AD-REP-3 | Hide and unhide conditional and logged | `WHERE hiddenAt IS NULL`; log with snapshots | `REP-2.I2` | 13.2 (backlog) | red |
 | AD-SYS-2 rule 10 as refined by R-2 | `audit_events` is append-only and written in the writer's transaction | Grants (`UPDATE`/`DELETE` revoked); `AuditLog.record(tx)` | `SYS-R2` | 1.2 (done) | red |

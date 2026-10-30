@@ -852,3 +852,24 @@ describe('valuation over HTTP (VAL-1, VAL-2, VAL-3; Stories 12.1, 12.2)', () => 
     expect((await get('valuation.history', { collectionId: id('coll1'), days: 366 }, valentina)).json.error?.code).toBe('RequestValidationFailed');
   });
 });
+
+describe('reputation over HTTP (REP-1, REP-1.edit, REP-1.check; Story 13.1)', () => {
+  it('a buyer whose order closed reads eligible, reviews the business through the real identity and orders, then edits; a second write is DuplicateReview 409', async () => {
+    await purchasableListing(db, { businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar'), entryId: id('char'), quantity: 2 });
+    await user(db, { id: id('camila') });
+    await order(db, { id: id('o1'), buyerId: id('camila'), businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar'), paidAt: at(-3 * HOUR), sellerAt: at(-2 * HOUR), itemAt: at(-HOUR) });
+    const camila = await signIn(id('camila'));
+    const eligible = await get('reputation.eligibility', { targetUserId: id('andres') }, camila);
+    expect(eligible.json.result?.data).toMatchObject({ eligible: true, existingReview: null, decision: { reasonCode: 'ReviewEligible' } });
+    const written = await post('reputation.write', { targetUserId: id('andres'), rating: 5, text: 'Todo llegó bien.' }, camila);
+    expect(written.json.result?.data).toMatchObject({ targetKind: 'business', purchaseVerified: true, decision: { reasonCode: 'ReviewWritten' } });
+    const reviewId = written.json.result?.data.reviewId as string;
+    const again = await post('reputation.write', { targetUserId: id('andres'), rating: 1, text: '' }, camila);
+    expect([again.status, again.json.error?.code]).toEqual([409, 'DuplicateReview']);
+    expect((await post('reputation.edit', { reviewId, rating: 4, text: 'Bien, algo lento.' }, camila)).json.result?.data).toMatchObject({ reviewId, decision: { reasonCode: 'ReviewEdited' } });
+    const after = await get('reputation.eligibility', { targetUserId: id('andres') }, camila);
+    expect(after.json.result?.data).toMatchObject({ eligible: false, existingReview: { reviewId, rating: 4, hidden: false }, decision: { reasonCode: 'DuplicateReview' } });
+    const self = await post('reputation.write', { targetUserId: id('camila'), rating: 5, text: '' }, camila);
+    expect([self.status, self.json.error?.code]).toEqual([404, 'TargetNotFound']);
+  });
+});

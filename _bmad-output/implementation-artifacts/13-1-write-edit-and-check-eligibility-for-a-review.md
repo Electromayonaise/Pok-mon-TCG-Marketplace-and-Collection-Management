@@ -2,7 +2,7 @@
 title: 'Story 13.1: Write, edit and check eligibility for a review'
 type: 'feature'
 created: '2026-10-30'
-status: 'draft'
+status: 'done'
 baseline_commit: '98b47ad'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -28,7 +28,7 @@ context:
 - The neighbour reads run before the write transaction (order facts are write-once, AD-REP-1 trade-off); Q1 + Q3 (`reviews.review.written`, `actorKind: 'user'`) in one transaction; no event. `purchaseVerified = (targetKind = 'business')`.
 - Edit: `UPDATE … SET rating, text, "editedAt" = :now, "updatedAt" = :now, version = version + 1 WHERE id AND "reviewerId" = :actor AND "hiddenAt" IS NULL`; 0 rows → `ReviewNotFound` (EC-32); one audit row `reviews.review.edited`.
 - Eligibility (zero writes): P2, P3 throw as in REP-1; then the first-fail verdict P4 → `eligible = false` with decision `NotVerifiedPurchaser` citing `{ latestState }`, P5 → `eligible = false` with decision `DuplicateReview`; else `ReviewEligible`. `existingReview` is filled whenever the pair has a review (hidden ones included, `hidden: true`).
-- **D4 (trim):** per the approved option.
+- **D4 (trim):** the cross-cutting close (decision log Impl-1 #38): `text` goes through the kernel's `textIssue` (0–1000, no NUL; a text of spaces is stored as written, since the minimum is 0).
 - **D5 decisions:** stored-only §13 rows `ReviewWritten` (Q4: `{ rule: 'FR-REP-1' | 'FR-REP-2', inputs: { targetKind, purchaseVerified } }`), `ReviewEdited`, `ReviewEligible`.
 - `RepRepository` gets the methods its SQL needs, implemented by a new `PgRepRepository` in `infra/pg.ts`, joined to the one repository (R-14) in `compose()` and the test `wiring`. Wiring: `reputation.write`, `reputation.edit`, `reputation.eligibility`.
 
@@ -57,8 +57,8 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] domain (`reviewVerdict`) + repository + service + src tests; §13 rows; wiring
-- [ ] `sprint-status.yaml` -- 13.1 `done`
+- [x] domain (`reviewableKind`, `purchaseVerifiedFor`) + repository + service + src tests; §13 rows; wiring
+- [x] `sprint-status.yaml` -- 13.1 `done`
 
 **Acceptance Criteria:**
 - Given 13.1 `done`, when `[REP-1.Q1]`, `[REP-1.Q1i]`, `[REP-1.I1]`, `[REP-1.edit.h]`, `[REP-1.check.h]` run, then they pass; 13.4's five tests and 13.3's `[REP-1.MEC]` are early greens (D1).
@@ -66,3 +66,12 @@ context:
 ## Verification
 
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/rep_contracts.test.ts -t "REP-1"`
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 13 at its close (decision #22). The specs were approved together with D1–D6 (decision log Impl-1 #38); the cross-cutting text check landed in its own commit before this story.
+- The pure `reviewVerdict` stub became `reviewableKind` (P3) and `purchaseVerifiedFor` (I1): the v2 port answers `{ kind, verified }`, not the Solu-1 shape.
+- P2 and P3 raise one body, `TargetNotFound` citing `{ reviewable: false }`. The neighbours are read before the write transaction. P5 is `PgRepRepository.insertReview`'s savepoint on `review_one_per_pair`.
+- **Template change (Martín, during implementation, decision log Impl-1 #38):** `NotVerifiedPurchaser`'s §13 template interpolated `{latestState}`, so the eligibility decision's text carried `PaymentConfirmed`, which AD-SYS-1 rule 6 forbids (`[REP-1.check.h]`'s `explainAssert`). The template no longer interpolates it; `latestState` stays cited.
+- §13 gains `ReviewWritten`, `ReviewEdited` and `ReviewEligible` (D5). `reputation.write`, `.edit` and `.eligibility` are wired, with an HTTP test through the real identity and orders.
+- The 5 tests of Story 13.4 and 13.3's `[REP-1.MEC]` pass on this tree, as D1 expected.

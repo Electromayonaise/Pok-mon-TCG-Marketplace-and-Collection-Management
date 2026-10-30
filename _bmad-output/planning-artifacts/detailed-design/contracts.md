@@ -1430,9 +1430,12 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `ValuationHistoryEmpty` | — (stored only) | collections | VAL-3 Q4: no entry has a reference price, so the series is empty, citing `{ pricedEntries: 0 }` (FR-VAL-4; decision log Impl-1 #37) | "Ninguna carta de esta colección tiene precio de referencia todavía, así que no hay historial." | no |
 | `InvalidValuationPeriod` | 400 | collections | VAL-2 P2 | "El periodo debe ser 7, 30, 90 o 365 días." | no |
 | `TargetNotFound` | 404 | reviews | REP-1 P2, P3; S-FR-REP-7 | "No encontramos ese vendedor." | no |
-| `NotVerifiedPurchaser` | 409 | reviews | REP-1 P4 | "Podrás reseñar esta tienda cuando confirmes que recibiste tu pedido; pagar no es suficiente ({latestState})." | no |
+| `NotVerifiedPurchaser` | 409 | reviews | REP-1 P4; REP-1.check (the `eligible = false` decision). `latestState` stays cited, not interpolated, so the text never shows a status token (AD-SYS-1 rule 6; decision log Impl-1 #38) | "Podrás reseñar esta tienda cuando confirmes que recibiste tu pedido; pagar no es suficiente." | no |
 | `DuplicateReview` | 409 | reviews | REP-1 P5 | "Ya reseñaste a este vendedor; puedes editar tu reseña." | no |
 | `ReviewNotFound` | 404 | reviews | REP-2 P3; S-FR-REP-6 | "No encontramos esa reseña." | no |
+| `ReviewWritten` | — (stored only) | reviews | REP-1 Q4 `allowed`: the review is stored, citing `{ targetKind, purchaseVerified }` (FR-REP-1, FR-REP-2; decision log Impl-1 #38) | "Publicamos tu reseña; cuenta en la calificación desde ya." | no |
+| `ReviewEdited` | — (stored only) | reviews | REP-1.edit `allowed`: the reviewer's visible review is changed, citing `{ reviewId }` (FR-REP-1; decision log Impl-1 #38) | "Actualizamos tu reseña." | no |
+| `ReviewEligible` | — (stored only) | reviews | REP-1.check `allowed`: the target can be reviewed, citing `{ targetKind, purchaseVerified }` (FR-REP-1, FR-REP-2; decision log Impl-1 #38) | "Puedes reseñar a este vendedor." | no |
 | `'Unexpected'` | 500 | — | An invariant breach or an internal caller bypassing the parser | "Algo falló de nuestro lado; no se aplicó ningún cambio." | yes |
 
 **DecisionCodes** (non-error outcomes, ADD-§3.2) used by these contracts:
