@@ -42,13 +42,13 @@ describe('writeReview with the real neighbours (REP-1 P3–P4, AD-REP-1)', () =>
     expect(await rows(db, 'Review')).toEqual([]);
   });
 
-  it('a paid and confirmed order is NotVerifiedPurchaser citing PaymentConfirmed; once the buyer closes it the review is verified', async () => {
+  it('a paid and confirmed order is NotVerifiedPurchaser citing PaymentConfirmed; with a closed order the review is verified', async () => {
     await purchasableListing(db, { businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar'), entryId: id('char'), quantity: 2 });
     await user(db, { id: id('camila') });
     await orderOf({ paidAt: at(-2 * HOUR), sellerAt: at(-HOUR) });
     const refused = await caught(() => rep().rep.writeReview(write()));
     expect([codeOf(refused), citedInputs(refused)]).toEqual(['NotVerifiedPurchaser', { latestState: 'PaymentConfirmed' }]);
-    await db.query(`UPDATE "Order" SET "buyerItemReceivedConfirmedAt" = $2 WHERE id = $1`, [id('o1'), at(-HOUR / 2)]);
+    await order(db, { id: id('o2'), buyerId: id('camila'), businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar'), paidAt: at(-3 * HOUR), sellerAt: at(-2 * HOUR), itemAt: at(-HOUR / 2), createdAt: at(-4 * HOUR) });
     expect(await rep().rep.writeReview(write())).toMatchObject({ targetKind: 'business', purchaseVerified: true });
   });
 
@@ -86,7 +86,7 @@ describe('editReview and getReviewEligibility (REP-1.edit, REP-1.check)', () => 
     expect(await rows(db, 'audit_events')).toEqual([]);
   });
 
-  it('an individual seller is eligible under FR-REP-2; a pair whose review is hidden reports it, with DuplicateReview', async () => {
+  it('an individual seller is eligible under FR-REP-2; a pair whose review is hidden reports it, with ReviewHiddenByModeration (close review R2)', async () => {
     await user(db, { id: id('camila') });
     await user(db, { id: id('julian'), sellerTrack: 'individual' });
     const { w, rep: r } = rep();
@@ -96,7 +96,7 @@ describe('editReview and getReviewEligibility (REP-1.edit, REP-1.check)', () => 
     await review(db, { id: id('r1'), reviewerId: id('camila'), targetUserId: id('julian'), targetKind: 'individual', text: 'Oculta.', hiddenAt: at(-HOUR) });
     const hidden = await r.getReviewEligibility({ reviewerId: id('camila'), targetUserId: id('julian') });
     expect(hidden).toMatchObject({ eligible: false, existingReview: { reviewId: id('r1'), text: 'Oculta.', hidden: true } });
-    explainAssert(hidden.decision, { code: 'DuplicateReview', outcome: 'rejected', inputs: { reviewId: id('r1') } });
+    explainAssert(hidden.decision, { code: 'ReviewHiddenByModeration', outcome: 'rejected', rule: 'AD-REP-1 rule 4', inputs: { reviewId: id('r1') } });
     expect(codeOf(await caught(() => r.getReviewEligibility({ reviewerId: id('camila'), targetUserId: id('camila') })))).toBe('TargetNotFound');
   });
 });
@@ -167,5 +167,40 @@ describe('getAggregates (REP-3 P1, Q2, Q4)', () => {
     explainAssert(aggregates[0]!.decision, { code: 'SellerNotYetReviewed', inputs: { count: 0 } });
     expect(codeOf(await caught(() => r.getAggregates({ sellerIds: [] })))).toBe('RequestValidationFailed');
     expect(codeOf(await caught(() => r.getAggregates({ sellerIds: [...ids, id('otro')] })))).toBe('RequestValidationFailed');
+  });
+});
+
+describe('close review of Epic 13 (decision log Impl-1 #38)', () => {
+  it('R1: a hide by a user who is not an admin is AdminOnly inside the service, with zero writes (AD-16)', async () => {
+    await user(db, { id: id('camila') });
+    await user(db, { id: id('julian'), sellerTrack: 'individual' });
+    await review(db, { id: id('r1'), reviewerId: id('camila'), targetUserId: id('julian'), targetKind: 'individual' });
+    const error = await caught(() => rep().rep.hideReview({ reviewId: id('r1'), reasonCode: 'Spam', note: null, adminId: id('camila') }));
+    expect(codeOf(error)).toBe('AdminOnly');
+    expect(await rows(db, 'Review')).toMatchObject([{ hiddenAt: null }]);
+    expect(await rows(db, 'ReviewModerationLog')).toEqual([]);
+  });
+
+  it('a hide whose update met a review an unhide had just made visible again applies under the row lock, once', async () => {
+    await user(db, { id: id('camila') });
+    await user(db, { id: id('julian'), sellerTrack: 'individual' });
+    await user(db, { id: id('admin'), isAdmin: true });
+    await review(db, { id: id('r1'), reviewerId: id('camila'), targetUserId: id('julian'), targetKind: 'individual' });
+    const { w } = rep();
+    // The first update reads the review as already hidden (the state before a racing unhide committed).
+    let first = true;
+    const repo = { ...w.repo, hideVisibleReview: async (...a: Parameters<typeof w.repo.hideVisibleReview>) => { if (first) { first = false; return null; } return w.repo.hideVisibleReview(...a); } } as typeof w.repo;
+    const r = new RepServiceV2({ ...w, repo, identity: fake('identity', {}), orders: fake('orders', {}) });
+    const result = await r.hideReview({ reviewId: id('r1'), reasonCode: 'Spam', note: null, adminId: id('admin') });
+    explainAssert(result.decision, { outcome: 'hidden', code: 'ReviewHidden' });
+    expect(await rows(db, 'ReviewModerationLog')).toHaveLength(1);
+  });
+
+  it('a duplicate write cites the existing review id, as the eligibility read does', async () => {
+    await user(db, { id: id('camila') });
+    await user(db, { id: id('julian'), sellerTrack: 'individual' });
+    await review(db, { id: id('r1'), reviewerId: id('camila'), targetUserId: id('julian'), targetKind: 'individual' });
+    const error = await caught(() => rep().rep.writeReview(write({ targetUserId: id('julian') })));
+    expect([codeOf(error), citedInputs(error)]).toEqual(['DuplicateReview', { reviewId: id('r1') }]);
   });
 });

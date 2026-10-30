@@ -63,6 +63,18 @@ context:
 **Acceptance Criteria:**
 - Given 13.1 `done`, when `[REP-1.Q1]`, `[REP-1.Q1i]`, `[REP-1.I1]`, `[REP-1.edit.h]`, `[REP-1.check.h]` run, then they pass; 13.4's five tests and 13.3's `[REP-1.MEC]` are early greens (D1).
 
+### Review Findings
+
+Epic 13 close review (decision log Impl-1 #38): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `98b47ad..7cce159`.
+
+- [x] [Review][Decision] R2: the eligibility of a pair whose review is hidden said "puedes editar tu reseña" (`DuplicateReview`), while the edit is refused (EC-32). Martín chose a new stored-only code, `ReviewHiddenByModeration` (`AD-REP-1 rule 4`, citing `{ reviewId }`).
+- [x] [Review][Decision] R3: §0.3's free-text rule also binds INV (bundle `title`, `description`) and IDN (`displayName`, meeting `city`). Martín chose to extend the check to both.
+- [x] [Review][Patch] A duplicate write cites the existing `reviewId`, as REP-1.check does [src/modules/reviews/application/rep.v2.ts]
+- [x] [Review][Patch] VER's `bankName` and `externalPresenceUrl` refuse a NUL (#38) [src/modules/identity/application/ver.v2.ts]
+- [x] [Review][Patch] `PgRepRepository` is exported after the imports [src/modules/reviews/index.ts]
+- [x] [Review][Defer] The verdict's neighbours are read before the write transaction, so a business that loses `Approved` in that window still gets its review — deferred, the AD-REP-1 trade-off
+- [x] [Review][Defer] A text of only invisible characters (U+200B, U+3164) passes the after-trim minimum, and a lone surrogate is not refused [src/shared-kernel/text.ts] — deferred, #38 chose `trim()` semantics
+
 ## Verification
 
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/rep_contracts.test.ts -t "REP-1"`

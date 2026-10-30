@@ -59,6 +59,13 @@ context:
 **Acceptance Criteria:**
 - Given 13.3 `done`, when `[REP-1.MEC]`, `[REP-3.Q1]`, `[REP-3.I1]`, `[REP-3.MEC]` (and, per D2, `[REP-3.P1]`) run, then they pass.
 
+### Review Findings
+
+Epic 13 close review (decision log Impl-1 #38).
+
+- [x] [Review][Patch] `SellerRated` read "de 1 reseñas visibles"; the template is now "Calificación promedio; reseñas visibles: {count}." [contracts.md §13]
+- [x] [Review][Patch] The profile benchmark (NFR-REP-2, PRD metric) had no story DoD after D2; Story 13.5 now also proves REP-3, so its Traceability names NFR-REP-2 and its DoD carries the benchmark [epics.source.mjs]
+
 ## Verification
 
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/rep_contracts.test.ts -t "REP-3|REP-1.MEC"`

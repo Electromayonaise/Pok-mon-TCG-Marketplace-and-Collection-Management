@@ -37,6 +37,7 @@ export interface RepV2Deps {
 
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import type { AdminFactsReader } from '../../identity/index.js';
 import type { ReviewHideReason } from '../domain/rep.js';
 
 /** A review row as REP-1 Q1 inserts it. */
@@ -74,7 +75,10 @@ export interface PairReview { reviewId: CuidId; rating: number; text: string; hi
  * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
  * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them.
  */
-export interface RepRepository {
+export type RepRepository = RepTablesRepository & AdminFactsReader;
+
+/** REP's own tables; the admin facts come from identity's reader (AD-16, as COM's port does). */
+export interface RepTablesRepository {
   /** REP-1 Q1 under a savepoint; `'duplicate'` when `review_one_per_pair` refused it (P5, 23505), so `tx` stays usable. */
   insertReview(tx: Tx, review: NewReview): Promise<'inserted' | 'duplicate'>;
   /** REP-1.edit (AD-REP-1 rule 4): the conditional update of the reviewer's own visible review; false on 0 rows. */
@@ -85,7 +89,7 @@ export interface RepRepository {
   hideVisibleReview(tx: Tx, hide: { reviewId: CuidId; reasonCode: ReviewHideReason; adminId: CuidId; now: IsoInstant }): Promise<ReviewSnapshot | null>;
   /** REP-2.unhide (AD-REP-3 rule 2): the mirror, only from hidden; the snapshot, or null on 0 rows. */
   unhideHiddenReview(tx: Tx, unhide: { reviewId: CuidId; now: IsoInstant }): Promise<ReviewSnapshot | null>;
-  /** REP-2 Q-fail: the current hide of a review, or null when the id is unknown. */
+  /** REP-2 Q-fail: the current hide of a review, read `FOR UPDATE`, or null when the id is unknown. */
   readReviewHide(tx: Tx, reviewId: CuidId): Promise<{ hiddenAt: IsoInstant | null; hiddenBy: CuidId | null } | null>;
   /** REP-2 Q2: one append-only log row with the snapshots. */
   insertReviewModerationLog(tx: Tx, row: NewReviewModerationLog): Promise<void>;

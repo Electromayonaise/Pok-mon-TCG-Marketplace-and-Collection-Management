@@ -154,3 +154,15 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 - VAL's history judges a point stale with its own 36 h constant (`FRESHNESS_MS` in `domain/val.ts`), while VAL-1 takes the catalog's `stale` flag from `getReferencePricesAsOf`. The two agree today (36 h, strictly older), but a change to the catalog's threshold would make the current value and the history disagree. VAL may not import the catalog's domain (AD-1); a fix needs the catalog to expose its threshold through a port or on `getPriceHistory`. Owner: the next catalog contract revision.
 - The trend's start is `now − period × 86,400 s` (VAL-2 Q1) while the history's first day starts at 05:00 UTC (VAL-3 Q2), so "30 days" covers slightly different windows on the two pages. Both follow their contracts; align them with the valuation pages' copy (UI 10.1, 10.2).
 
+## Deferred from: spec of Epic 13 (13.1–13.4) (2026-10-30)
+
+- Stories 13.5 (listing hide and its log, review search and log, the profile: `S-FR-REP-5`, `S-FR-REP-6.listing`, `.search`, `.log`, `S-FR-REP-7`) and 13.6 (their three refusals, `[S-FR-REP-5.f]`, `[S-FR-REP-6.f]`, `[S-FR-REP-7.f]`) stay in `impl2_scope`; their five procedures stay unwired and their 7 tests red for NotImplemented. 13.6's `[REP-2.P2]`, `[REP-2.P3]` and `[REP-3.P1]` moved to Stories 13.2 and 13.3 (decision log Impl-1 #38, D2). Owner: Epic 13's Impl-2 completion.
+- NFR-REP-2's profile read (the aggregate plus the first page of 20 in one `REPEATABLE READ` transaction, p95 ≤ 300 ms) has no benchmark yet: Story 13.5's DoD carries it. Epic 13 measured the next read after a hide and the aggregates read (decision log Impl-1 #38, D3). Owner: Story 13.5.
+- REP needs no jobs route: nothing in REP expires or is scheduled, so nothing joins the jobs-route item of Stories 4.1, 4.4, 7.5 and 10.5.
+
+## Deferred from: code review of Epic 13 (13.1–13.4) (2026-10-30)
+
+- REP-1 reads the target and the closed-purchase fact before its write transaction (AD-REP-1 trade-off), so a business that loses `Approved` between that read and the insert still gets the review, verified. Order facts are write-once; a business decision in that window is rare. Owner: Epic 13's Impl-2 completion, if a decision path ever needs it.
+- The kernel's `textIssue` counts the minimum after `String.prototype.trim()`, so a text of only invisible characters (U+200B, U+3164, U+2800) passes it, and a lone surrogate is not refused (the driver replaces it with U+FFFD). Owner: the next contract revision of §0.3, with the forms.
+- `ReviewAlreadyHidden` renders a raw ISO instant inside Spanish text, the repo-wide convention noted in Epic 7. The moderation page's copy (UI 11.3) should format it.
+

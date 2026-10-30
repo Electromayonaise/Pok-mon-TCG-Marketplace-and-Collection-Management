@@ -61,6 +61,16 @@ context:
 **Acceptance Criteria:**
 - Given 13.2 `done`, when `[REP-2.Q1]`, `[REP-2.I1]`, `[REP-2.I2]`, `[REP-2.unhide.h]`, `[REP-2.unhide.f]` (and, per D2, `[REP-2.P2]`, `[REP-2.P3]`) run, then they pass.
 
+### Review Findings
+
+Epic 13 close review (decision log Impl-1 #38).
+
+- [x] [Review][Decision] R1: hide and unhide did not repeat P1 in the service, so an in-process caller with a non-admin id wrote `hiddenBy` and an `actorKind: 'admin'` audit row. Martín chose `requireAdmin` first inside the transaction (AD-16), as VER and COM do.
+- [x] [Review][Patch] A hide that meets 0 rows re-reads the row `FOR UPDATE`; when a racing unhide (or hide) changed the state back, the action applies under the lock, so the no-op never cites a null `hiddenAt` [src/modules/reviews/application/rep.v2.ts]
+- [x] [Review][Patch] `[NFR-REP-2.nextRead]` measures 500 reads after a hide (each undone unmeasured), as D3 says, not hides and unhides [_bmad-output/test-artifacts/nfr/rep2_latency.test.ts]
+- [x] [Review][Patch] The catalog test allows the new placeholders `hiddenAt` (an instant) and `count` (a number) [src/shared-kernel/messages.test.ts]
+- [x] [Review][Defer] `ReviewAlreadyHidden` shows a raw ISO instant in es-CO text [contracts.md §13] — deferred, the repo-wide convention (UI 11.3)
+
 ## Verification
 
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/rep_contracts.test.ts -t "REP-2"`

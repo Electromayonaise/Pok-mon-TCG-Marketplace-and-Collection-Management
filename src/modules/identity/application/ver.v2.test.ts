@@ -180,7 +180,7 @@ describe('VerServiceV2 — free text (decision log Impl-1 #38)', () => {
     await rejectionReason(db, { code: 'Fraud', barred: true });
     const applicationId = await business(db, id('andres'), 'Pending');
     const { ver } = setup();
-    for (const o of [{ businessName: ' a ' }, { city: 'Medell\u0000ín' }]) {
+    for (const o of [{ businessName: ' a ' }, { city: 'Medell\u0000ín' }, { externalPresenceUrl: 'https://instagram.com/x\u0000y' }, { paymentInstructions: { bankName: 'Banco\u0000', accountType: 'savings' as const, accountNumber: '12345678901', holderName: 'Andrés', qrUploadKey: null } }]) {
       expect(codeOf(await caught(() => ver.submitApplication(application(id('nuevo'), o))))).toBe('RequestValidationFailed');
     }
     const note = await caught(() => ver.decideApplication({ applicationId, decision: { kind: 'reject', reasonCode: 'Fraud', note: 'Doc\u0000' }, adminId: id('admin') }));

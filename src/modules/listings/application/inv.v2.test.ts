@@ -301,3 +301,18 @@ describe('Epic 8: the seller advisory lock (AD-SYS-4 rule 4, decision log Impl-1
     expect(await rows(db, 'Listing', '"pausedAt" IS NULL')).toHaveLength(1);
   });
 });
+
+describe('free text (contracts.md §0.3, decision log Impl-1 #38)', () => {
+  it('a description with a NUL, on create and update, and a bundle title of spaces are RequestValidationFailed, with nothing written', async () => {
+    await individualSeller(db, id('valentina'), { lat: 6.2442, lng: -75.5812, city: 'Medellín' });
+    await catalogEntry(db, id('char'));
+    const inv = inventory();
+    const input = { itemRef: id('char'), condition: 'NM' as const, priceCop: 45_000, quantity: 1, location: null, openToTrade: false, sellerId: id('valentina') };
+    expect(codeOf(await caught(() => inv.createListing({ ...input, description: 'Casi\u0000nueva' })))).toBe('RequestValidationFailed');
+    const created = await inv.createListing({ ...input, description: '' });
+    expect(codeOf(await caught(() => inv.updateListing({ actorId: id('valentina'), listingId: created.listingId, expectedVersion: 0, changes: { description: 'x\u0000' } })))).toBe('RequestValidationFailed');
+    expect(codeOf(await caught(() => inv.createBundle({ sellerId: id('valentina'), title: '   ', priceCop: 60_000, location: null, description: '',
+      components: [{ itemRef: id('char'), condition: 'NM', perBundleQty: 1, quantity: 1 }] })))).toBe('RequestValidationFailed');
+    expect(await rows(db, 'Listing')).toHaveLength(1);
+  });
+});

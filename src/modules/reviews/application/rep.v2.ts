@@ -33,8 +33,11 @@ import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest } from '../../../shared-kernel/request.js';
 import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
+import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import { requireAdmin } from '../../identity/index.js';
 import { averageTenths, purchaseVerifiedFor, reviewableKind } from '../domain/rep.js';
+import type { ReviewSnapshot } from '../ports/rep.v2.js';
 
 const raise = raiserFor('reviews');
 
@@ -107,7 +110,9 @@ export class RepServiceV2 implements RepV2UseCases {
     return transactions.run(async (tx) => {
       const reviewId = ids.next();
       if (await repo.insertReview(tx, { id: reviewId, reviewerId, targetUserId, targetKind, purchaseVerified, rating, text, now }) === 'duplicate') {
-        raise('DuplicateReview', [{ rule: 'AD-REP-1 rule 3', inputs: { targetUserId } }]);
+        // The existing review's id, as REP-1.check cites it, so the client can open the edit (close review).
+        const existing = await repo.readReviewOfPair(tx, reviewerId, targetUserId);
+        raise('DuplicateReview', [{ rule: 'AD-REP-1 rule 3', inputs: { reviewId: existing?.reviewId ?? null } }]);
       }
       await audit.record(tx, {
         actorId: reviewerId, actorKind: 'user', module: 'reviews', action: 'reviews.review.written',
@@ -143,6 +148,7 @@ export class RepServiceV2 implements RepV2UseCases {
     const purchaseVerified = purchaseVerifiedFor(targetKind);
     let decision: Decision;
     if (!closed) decision = explained('rejected', 'NotVerifiedPurchaser', [{ rule: 'FR-REP-1', inputs: { latestState } }], now);
+    else if (existingReview?.hidden) decision = explained('rejected', 'ReviewHiddenByModeration', [{ rule: 'AD-REP-1 rule 4', inputs: { reviewId: existingReview.reviewId } }], now);
     else if (existingReview !== null) decision = explained('rejected', 'DuplicateReview', [{ rule: 'AD-REP-1 rule 3', inputs: { reviewId: existingReview.reviewId } }], now);
     else decision = explained('allowed', 'ReviewEligible', [{ rule: targetKind === 'business' ? 'FR-REP-1' : 'FR-REP-2', inputs: { targetKind, purchaseVerified } }], now);
     return { eligible: decision.outcome === 'allowed', existingReview, decision };
@@ -166,29 +172,51 @@ export class RepServiceV2 implements RepV2UseCases {
   private async moderate(input: HideReviewRequest, action: 'hide' | 'unhide'): Promise<HideReviewResponse> {
     const { reviewId, reasonCode, note, adminId } = input;
     checkNote(reasonCode, note);
-    const { repo, transactions, clock, ids, audit } = this.deps;
+    const { repo, transactions, clock } = this.deps;
     const now = clock.now().toISOString();
     return transactions.run(async (tx) => {
+      // P1 is the admin builder's; repeated first for in-process callers (AD-16), as VER and COM do.
+      await requireAdmin(repo, tx, adminId);
       const snapshot = action === 'hide'
         ? await repo.hideVisibleReview(tx, { reviewId, reasonCode, adminId, now })
         : await repo.unhideHiddenReview(tx, { reviewId, now });
       if (snapshot === null) {
+        // The re-read locks the row, so a moderation that committed between the update and this read is seen, and
+        // one that changed the state back makes this action apply after all (decision log Impl-1 #38, close review).
         const state = await repo.readReviewHide(tx, reviewId);
         if (state === null) return raise('ReviewNotFound', [{ rule: 'FR-REP-4', inputs: { reviewId } }]);
+        if ((state.hiddenAt === null) === (action === 'hide')) return this.moderateLocked(tx, input, action, now);
         return action === 'hide'
           ? { decision: explained('allowedWithNotice', 'ReviewAlreadyHidden', [{ rule: 'FR-REP-4', inputs: { hiddenAt: state.hiddenAt, hiddenBy: state.hiddenBy } }], now) }
           : { decision: explained('allowedWithNotice', 'ReviewNotHidden', [{ rule: 'FR-REP-4', inputs: { reviewId } }], now) };
       }
-      const logId = ids.next();
-      await repo.insertReviewModerationLog(tx, { id: logId, reviewId, action, reasonCode, note, adminId, snapshot, now });
-      await audit.record(tx, {
-        actorId: adminId, actorKind: 'admin', module: 'reviews', action: action === 'hide' ? 'reviews.review.hidden' : 'reviews.review.unhidden',
-        aggregateType: 'Review', aggregateId: reviewId, decisionCode: null, data: { reasonCode, logId }, at: now,
-      });
-      return action === 'hide'
-        ? { decision: explained('hidden', 'ReviewHidden', [{ rule: 'FR-REP-4', inputs: { reviewId, reasonCode } }], now) }
-        : { decision: explained('allowed', 'ReviewUnhidden', [{ rule: 'FR-REP-4', inputs: { reviewId, reasonCode } }], now) };
+      return this.applied(tx, input, action, snapshot, now);
     });
+  }
+
+  /** The state the locked re-read found lets the action apply: run the conditional update again, under the row lock. */
+  private async moderateLocked(tx: Tx, input: HideReviewRequest, action: 'hide' | 'unhide', now: IsoInstant): Promise<HideReviewResponse> {
+    const { reviewId, reasonCode, adminId } = input;
+    const snapshot = action === 'hide'
+      ? await this.deps.repo.hideVisibleReview(tx, { reviewId, reasonCode, adminId, now })
+      : await this.deps.repo.unhideHiddenReview(tx, { reviewId, now });
+    if (snapshot === null) throw new UnexpectedError('reviews.moderate: the locked review changed state');
+    return this.applied(tx, input, action, snapshot, now);
+  }
+
+  /** REP-2 Q2–Q4: the log row with its snapshots, the admin audit row and the decision (I2: one per real change). */
+  private async applied(tx: Tx, input: HideReviewRequest, action: 'hide' | 'unhide', snapshot: ReviewSnapshot, now: IsoInstant): Promise<HideReviewResponse> {
+    const { reviewId, reasonCode, note, adminId } = input;
+    const { repo, ids, audit } = this.deps;
+    const logId = ids.next();
+    await repo.insertReviewModerationLog(tx, { id: logId, reviewId, action, reasonCode, note, adminId, snapshot, now });
+    await audit.record(tx, {
+      actorId: adminId, actorKind: 'admin', module: 'reviews', action: action === 'hide' ? 'reviews.review.hidden' : 'reviews.review.unhidden',
+      aggregateType: 'Review', aggregateId: reviewId, decisionCode: null, data: { reasonCode, logId }, at: now,
+    });
+    return action === 'hide'
+      ? { decision: explained('hidden', 'ReviewHidden', [{ rule: 'FR-REP-4', inputs: { reviewId, reasonCode } }], now) }
+      : { decision: explained('allowed', 'ReviewUnhidden', [{ rule: 'FR-REP-4', inputs: { reviewId, reasonCode } }], now) };
   }
 
   /**

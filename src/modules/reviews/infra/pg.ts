@@ -6,7 +6,7 @@ import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { IReviewRepository } from '../ports/rep.js';
 import type { ReviewHideReason } from '../domain/rep.js';
-import type { NewReview, NewReviewModerationLog, PairReview, RepRepository, ReviewSnapshot } from '../ports/rep.v2.js';
+import type { NewReview, NewReviewModerationLog, PairReview, RepTablesRepository, ReviewSnapshot } from '../ports/rep.v2.js';
 
 export class PgReviewRepository implements IReviewRepository {
   constructor(protected readonly sql: Sql) {}
@@ -25,7 +25,7 @@ export class PgReviewRepository implements IReviewRepository {
 }
 
 /** REP's own tables (AD-8): `"Review"` and `"ReviewModerationLog"`. `DELETE` is revoked on `"Review"` (AD-12). */
-export class PgRepRepository implements RepRepository {
+export class PgRepRepository implements RepTablesRepository {
   async insertReview(tx: Tx, r: NewReview): Promise<'inserted' | 'duplicate'> {
     await tx.query('SAVEPOINT review_insert');
     try {
@@ -80,7 +80,7 @@ export class PgRepRepository implements RepRepository {
   }
 
   async readReviewHide(tx: Tx, reviewId: CuidId): Promise<{ hiddenAt: IsoInstant | null; hiddenBy: CuidId | null } | null> {
-    const { rows } = await tx.query<{ hiddenAt: Date | null; hiddenBy: CuidId | null }>(`SELECT "hiddenAt", "hiddenBy" FROM "Review" WHERE id = $1`, [reviewId]);
+    const { rows } = await tx.query<{ hiddenAt: Date | null; hiddenBy: CuidId | null }>(`SELECT "hiddenAt", "hiddenBy" FROM "Review" WHERE id = $1 FOR UPDATE`, [reviewId]);
     const row = rows[0];
     return row === undefined ? null : { hiddenAt: row.hiddenAt?.toISOString() ?? null, hiddenBy: row.hiddenBy };
   }

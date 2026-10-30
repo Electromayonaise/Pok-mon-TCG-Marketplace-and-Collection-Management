@@ -326,7 +326,7 @@ All 56 NFRs. Each has a metric, an artifact and a status in `_bmad-output/test-a
 | FR-VAL-5 | 12.1, 12.3, 12.4 |
 | FR-REP-1 | 13.1, 13.4 |
 | FR-REP-2 | 13.1, 13.4 |
-| FR-REP-3 | 13.3 |
+| FR-REP-3 | 13.3, 13.5 |
 | FR-REP-4 | 13.2 |
 | FR-REP-5 | 13.5, 13.6 |
 | FR-REP-6 | 13.5, 13.6 |
@@ -1433,7 +1433,7 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Contracts:** `REP-2` hideReview, `REP-2.unhide` unhideReview
 - **Depends on:** Story 13.1
 - **Traceability:** FR-REP-4 · NFR-REP-1, NFR-REP-2 · UI 11.3
-- **Binding invariants:** AD-12 — Hide, never delete (`DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate); AD-REP-3 — Hide and unhide conditional and logged (`WHERE hiddenAt IS NULL`; log with snapshots); also cited by its clauses: AD-REP-1, AD-REP-2
+- **Binding invariants:** AD-12 — Hide, never delete (`DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate); AD-REP-3 — Hide and unhide conditional and logged (`WHERE hiddenAt IS NULL`; log with snapshots); also cited by its clauses: AD-16, AD-REP-1, AD-REP-2
 - **Files:** `src/modules/reviews/application/rep.v2.ts` (`RepServiceV2.hideReview`, `RepServiceV2.unhideReview`), `src/modules/reviews/ports/rep.v2.ts` (`RepRepository`), `src/modules/reviews/domain/rep.ts`, `src/modules/reviews/infra/pg.ts`
 - **Schema/DTO:** tables `"Review"`, `"ReviewModerationLog"`; DTOs `HideReviewRequest` → `HideReviewResponse`, `UnhideReviewRequest` → `UnhideReviewResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[REP-2.Q1]`, `[REP-2.I1]`, `[REP-2.I2]`, `[REP-2.unhide.h]`, `[REP-2.unhide.f]`, `[REP-2.P2]`, `[REP-2.P3]`; `_bmad-output/test-artifacts/nfr/rep2_latency.test.ts` › `[NFR-REP-2.nextRead]`
@@ -1478,17 +1478,17 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 
 - **Kind:** Supporting
 - **Description:** As a buyer and as an admin, I want seller profiles with consistent aggregates, a searchable moderation log, and listing hides that leave discovery at once, so that reputation and moderation stay visible and auditable.
-- **Contracts:** `S-FR-REP-5` setListingHidden, `S-FR-REP-6.listing` listListingModerationLog, `S-FR-REP-6.search` searchReviews, `S-FR-REP-6.log` listReviewModerationLog, `S-FR-REP-7` getProfile
+- **Contracts:** `S-FR-REP-5` setListingHidden, `S-FR-REP-6.listing` listListingModerationLog, `S-FR-REP-6.search` searchReviews, `S-FR-REP-6.log` listReviewModerationLog, `S-FR-REP-7` getProfile · **Also proves:** `REP-3` (operation owned by Story 13.3)
 - **Depends on:** Story 13.2, Story 5.1
-- **Traceability:** FR-REP-5, FR-REP-6, FR-REP-7 · UI 11.2, 11.3, 11.4
+- **Traceability:** FR-REP-3, FR-REP-5, FR-REP-6, FR-REP-7 · NFR-REP-1, NFR-REP-2 · UI 11.2, 11.3, 11.4
 - **Binding invariants:** also cited by its clauses: AD-12, AD-REP-2, AD-REP-3
 - **Files:** `src/modules/listings/application/inv.v2.ts` (`InvServiceV2.setListingHidden`, `InvServiceV2.listListingModerationLog`), `src/modules/listings/ports/inv.v2.ts` (`InvRepository`), `src/modules/listings/domain/inv.ts`, `src/modules/listings/infra/pg.ts`, `src/modules/reviews/application/rep.v2.ts` (`RepServiceV2.searchReviews`, `RepServiceV2.listReviewModerationLog`, `RepServiceV2.getProfile`), `src/modules/reviews/ports/rep.v2.ts` (`RepRepository`), `src/modules/reviews/domain/rep.ts`, `src/modules/reviews/infra/pg.ts`
-- **Schema/DTO:** tables `"ListingModerationLog"`; DTOs `SetListingHiddenRequest` → `SetListingHiddenResponse`, `ListListingModerationLogRequest` → `ListListingModerationLogResponse`, `SearchReviewsRequest` → `SearchReviewsResponse`, `ListReviewModerationLogRequest` → `ListReviewModerationLogResponse`, `GetProfileRequest` → `GetProfileResponse`
+- **Schema/DTO:** tables `"ListingModerationLog"`, `"Review"`; DTOs `SetListingHiddenRequest` → `SetListingHiddenResponse`, `ListListingModerationLogRequest` → `ListListingModerationLogResponse`, `SearchReviewsRequest` → `SearchReviewsResponse`, `ListReviewModerationLogRequest` → `ListReviewModerationLogResponse`, `GetProfileRequest` → `GetProfileResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.h]`; `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[S-FR-REP-6.h]`, `[S-FR-REP-7.h]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a seller with a visible and a hidden review, and a listing to moderate. **When:** a buyer opens the profile, and an admin hides the listing and reads the log. **Then:** the profile lists and counts only the visible review; the listing leaves discovery with a title snapshot logged; the log reads newest first by `(at desc, id)`.
   - **Scenario (failure) — Given:** the profile read and a hide happen around the same instant. **When:** the profile is read. **Then:** the aggregate and the first page come from one snapshot, so they never disagree.
-- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
 
 ### Story 13.6: Refuse invalid moderation and bad aggregate requests
 

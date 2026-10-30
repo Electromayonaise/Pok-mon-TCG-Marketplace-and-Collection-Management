@@ -1207,7 +1207,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 - **Layer:** Inbound Port.
 - **Precondition (P):**
-  - P1 The caller is an admin. Violation: `AdminOnly` (HTTP 403, identity).
+  - P1 The caller is an admin. Violation: `AdminOnly` (HTTP 403, identity). The procedure builder checks it, and the service repeats it first inside its transaction for in-process callers (AD-16; decision log Impl-1 #38, R1).
   - P2 `note` has 10–500 characters when `reasonCode = 'Other'`; otherwise it is null or 0–500. Violation: `RequestValidationFailed` (HTTP 400, owner shared-kernel).
   - P3 The review exists. Violation: `ReviewNotFound` (HTTP 404, reviews).
 - **Postcondition (Q):**
@@ -1215,7 +1215,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - Q2 On 1 row: one `"ReviewModerationLog" { reviewId, action: 'hide', reasonCode, note, adminId, ratingSnapshot, textSnapshot, createdAt: now }`. Returns `HideReviewResponse = { decision: { outcome: 'hidden', … } }`.
   - Q3 Audit: `audit('reviews.review.hidden', Review:id)`, `actorKind='admin'`. No event.
   - Q4 The decision cites `{ rule: 'FR-REP-4', inputs: { reviewId, reasonCode } }`.
-  - Q-fail On 0 rows, already hidden → an explained no-op: `Decision { outcome: 'allowedWithNotice', citations: [{ rule: 'FR-REP-4', inputs: { hiddenAt, hiddenBy } }] }`, with zero writes. An unknown id → `ReviewNotFound`.
+  - Q-fail On 0 rows the row is re-read `FOR UPDATE`; when a racing moderation made the review visible again, Q1 runs again under the lock (decision log Impl-1 #38). Already hidden → an explained no-op: `Decision { outcome: 'allowedWithNotice', citations: [{ rule: 'FR-REP-4', inputs: { hiddenAt, hiddenBy } }] }`, with zero writes. An unknown id → `ReviewNotFound`.
 - **Invariant (I):**
   - I1 A `"Review"` is never deleted: `DELETE` is revoked from the application role. Bound to: AD-12, AD-REP-2 rule 3.
   - I2 Each `NULL → non-null` change of `"hiddenAt"` writes exactly one log row with snapshots, and a no-op writes none. Bound to: AD-REP-3 rule 1.
@@ -1440,7 +1440,8 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `ReviewAlreadyHidden` | — (stored only) | reviews | REP-2 Q-fail `allowedWithNotice`: the review was already hidden, citing `{ hiddenAt, hiddenBy }`, with zero writes (FR-REP-4, AD-REP-3 rule 1; decision log Impl-1 #38) | "Esta reseña ya estaba oculta desde el {hiddenAt}; no se registró otra acción." | no |
 | `ReviewUnhidden` | — (stored only) | reviews | REP-2.unhide `allowed`: the review is visible again and the unhide is logged, citing `{ reviewId, reasonCode }` (FR-REP-4; decision log Impl-1 #38) | "Volviste a mostrar la reseña; la acción quedó en el registro de moderación." | no |
 | `ReviewNotHidden` | — (stored only) | reviews | REP-2.unhide `allowedWithNotice`: the review was visible, citing `{ reviewId }`, with zero writes (FR-REP-4, AD-REP-3 rule 2; decision log Impl-1 #38) | "Esta reseña no estaba oculta; no se registró ninguna acción." | no |
-| `SellerRated` | — (stored only) | reviews | REP-3 Q4 `allowed`: the seller has visible reviews, citing `{ count, averageTenths }` (FR-REP-3; decision log Impl-1 #38) | "Calificación promedio de {count} reseñas visibles." | no |
+| `ReviewHiddenByModeration` | — (stored only) | reviews | REP-1.check `rejected`: the reviewer's review of this target is hidden, so it can be neither edited (EC-32) nor written again (P5), citing `{ reviewId }` (AD-REP-1 rule 4; decision log Impl-1 #38, close review) | "Un administrador ocultó tu reseña de este vendedor; no puedes editarla ni publicar otra." | no |
+| `SellerRated` | — (stored only) | reviews | REP-3 Q4 `allowed`: the seller has visible reviews, citing `{ count, averageTenths }` (FR-REP-3; decision log Impl-1 #38) | "Calificación promedio; reseñas visibles: {count}." | no |
 | `SellerNotYetReviewed` | — (stored only) | reviews | REP-3 Q4: no visible review, so `averageTenths` is null, citing `{ count: 0 }` (FR-REP-3; decision log Impl-1 #38). The UI renders "Aún sin reseñas", never 0.0 | "Aún sin reseñas." | no |
 | `'Unexpected'` | 500 | — | An invariant breach or an internal caller bypassing the parser | "Algo falló de nuestro lado; no se aplicó ningún cambio." | yes |
 

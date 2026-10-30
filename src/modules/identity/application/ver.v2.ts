@@ -516,6 +516,8 @@ function checkSubmissionShape(input: SubmitApplicationRequest): void {
 function paymentIssues(pay: Partial<PaymentInstructionsInput>, prefix: string): RequestIssue[] {
   const issues: RequestIssue[] = [];
   const check = (ok: boolean, field: string, issue: string) => { if (!ok) issues.push({ field: `${prefix}.${field}`, issue }); };
+  // `bankName` has no length bound yet (Epic 3 item); its NUL is still refused (decision log Impl-1 #38, close review).
+  if (typeof pay.bankName === 'string' && textIssue(pay.bankName, 0, Infinity) === 'nul') issues.push({ field: `${prefix}.bankName`, issue: NUL_ISSUE });
   check(pay.accountType === 'savings' || pay.accountType === 'checking', 'accountType', 'debe ser ahorros o corriente');
   check(typeof pay.accountNumber === 'string' && /^[0-9]{6,20}$/.test(pay.accountNumber), 'accountNumber', 'debe tener entre 6 y 20 dígitos');
   issues.push(...textIssues(pay.holderName, 2, 80, `${prefix}.holderName`, 'debe tener entre 2 y 80 caracteres'));
@@ -541,7 +543,8 @@ function checkReasonShape(input: UpsertRejectionReasonRequest): void {
 }
 
 function isHttpsUrl(value: string): boolean {
-  if (value.length > 2048 || !value.startsWith('https://')) return false;
+  // `new URL` accepts a NUL in the path, and Postgres TEXT cannot store one (#38).
+  if (value.length > 2048 || !value.startsWith('https://') || textIssue(value, 0, Infinity) === 'nul') return false;
   try {
     new URL(value);
     return true;

@@ -630,7 +630,7 @@ export default {
         {
           title: 'Read profiles, search moderation logs and hide listings', kind: 'Supporting',
           as: 'As a buyer and as an admin, I want seller profiles with consistent aggregates, a searchable moderation log, and listing hides that leave discovery at once, so that reputation and moderation stay visible and auditable.',
-          ops: ['S-FR-REP-5', 'S-FR-REP-6.listing', 'S-FR-REP-6.search', 'S-FR-REP-6.log', 'S-FR-REP-7'], tests: ['S-FR-REP-5.h', 'S-FR-REP-6.h', 'S-FR-REP-7.h'], depends: ['13.2', '5.1'],
+          ops: ['S-FR-REP-5', 'S-FR-REP-6.listing', 'S-FR-REP-6.search', 'S-FR-REP-6.log', 'S-FR-REP-7'], contracts: ['REP-3'], tests: ['S-FR-REP-5.h', 'S-FR-REP-6.h', 'S-FR-REP-7.h'], depends: ['13.2', '5.1'],
           happy: ['a seller with a visible and a hidden review, and a listing to moderate.', 'a buyer opens the profile, and an admin hides the listing and reads the log.', 'the profile lists and counts only the visible review; the listing leaves discovery with a title snapshot logged; the log reads newest first by `(at desc, id)`.'],
           failure: ['the profile read and a hide happen around the same instant.', 'the profile is read.', 'the aggregate and the first page come from one snapshot, so they never disagree.'],
         },

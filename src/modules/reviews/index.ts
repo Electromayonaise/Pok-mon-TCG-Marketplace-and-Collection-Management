@@ -2,10 +2,9 @@
 import type { Clock, IdGenerator, Sql, TransactionRunner } from '../../shared-kernel/ports.js';
 import { RepService, type RepUseCases } from './application/rep.js';
 import { PgReviewRepository } from './infra/pg.js';
-
-export { PgRepRepository } from './infra/pg.js';
 import type { IdentityForReviews, OrdersForReviews } from './ports/rep.js';
 
+export { PgRepRepository } from './infra/pg.js';
 export type * from './dto/rep.dto.js';
 export type * from './dto/rep.v2.dto.js';
 export type { RepUseCases } from './application/rep.js';
