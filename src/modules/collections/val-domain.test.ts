@@ -53,6 +53,10 @@ describe('chunks (AD-VAL-1 rule 1)', () => {
     expect(chunks(Array.from({ length: 1_001 }, (_, i) => i)).map((c) => c.length)).toEqual([500, 500, 1]);
     expect(chunks([])).toEqual([]);
   });
+
+  it('refuses a size below 1 instead of looping (close review)', () => {
+    expect(() => chunks([1], 0)).toThrow(/positive integer size/);
+  });
 });
 
 describe('isValuationPeriod (FR-VAL-2, AD-VAL-2 rule 1)', () => {
@@ -107,6 +111,18 @@ describe('series (AD-VAL-2 rule 5, VAL-3 Q1–Q2)', () => {
     // 37 h before now is stale now; 35 h before now is not, though both are over 36 h old at today's end.
     expect(series([{ qty: 1n, acquiredAt: '2026-09-01', observations: [{ observedAt: '2026-09-30T02:00:00.000Z', cop: 1 }] }], 1, now)[0]!.stale).toBe(true);
     expect(series([{ qty: 1n, acquiredAt: '2026-09-01', observations: [{ observedAt: '2026-09-30T04:00:00.000Z', cop: 1 }] }], 1, now)[0]!.stale).toBe(false);
+  });
+
+  it('puts an observation at exactly 05:00 UTC on the Bogotá day it starts, not the one before (close review)', () => {
+    const points = series([{ qty: 1n, acquiredAt: '2026-09-01', observations: [
+      { observedAt: '2026-09-28T15:00:00.000Z', cop: 10 }, { observedAt: '2026-09-30T05:00:00.000Z', cop: 20 },
+    ] }], 3, now);
+    expect(points.map((p) => p.valueCop)).toEqual([10n, 20n, 20n]);
+  });
+
+  it('of two observations at one instant counts the first by (source, id), as VAL-1 does (close review)', () => {
+    const tie = [{ observedAt: '2026-09-30T15:00:00.000Z', cop: 111 }, { observedAt: '2026-09-30T15:00:00.000Z', cop: 999 }];
+    expect(series([{ qty: 1n, acquiredAt: '2026-09-01', observations: tie }], 1, now)).toEqual([{ date: '2026-10-01', valueCop: 111n, stale: false }]);
   });
 
   it('adds days across a month and a year end', () => {

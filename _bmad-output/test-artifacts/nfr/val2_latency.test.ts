@@ -67,8 +67,9 @@ describe('NFR-VAL-2 — valuation latency (PRD §7)', () => {
   it('[NFR-VAL-2.history] 500 measured 365-day histories of the 500-entry collection: p95 ≤ 2,500 ms', async () => {
     await seedMarketplace(db);
     const val = valuation();
-    // Given: the entries were acquired on 2026-08-01, so the series runs from that day to today.
-    expect((await val.valuationHistory({ ...big, days: 365 })).points.length).toBeGreaterThan(60);
+    // Given: the collection dated a year back, so the series has the full 365 points (the worst case of the threshold).
+    await db.query(`UPDATE "CollectionEntry" SET "acquiredAt" = '2025-01-01' WHERE "collectionId" = $1`, [big.collectionId]);
+    expect((await val.valuationHistory({ ...big, days: 365 })).points).toHaveLength(365);
     const result = await measure('nfr-val-2-history', () => val.valuationHistory({ ...big, days: 365 }));
     expect(result.p95).toBeLessThanOrEqual(2_500);
   }, 600_000);

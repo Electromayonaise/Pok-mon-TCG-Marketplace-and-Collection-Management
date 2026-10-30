@@ -1122,10 +1122,10 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Layer:** Inbound Port.
 - **Precondition (P):**
   - P1 Owned collection. Violation: `CollectionNotFound` (HTTP 404, collections).
-  - P2 `period ∈ {7, 30, 90, 365}`. Violation: `InvalidValuationPeriod` (HTTP 400, collections), citing `{ period }`.
+  - P2 `period ∈ {7, 30, 90, 365}`. Violation: `InvalidValuationPeriod` (HTTP 400, collections), citing `{ period }`. Over HTTP the procedure's parser types `period` as that enum, so a request is refused there as `RequestValidationFailed` before P1 (§0.3); `InvalidValuationPeriod` answers an internal caller (decision log Impl-1 #37, R2).
 - **Postcondition (Q):**
   - Q1 `start = now − period × 86,400 s`. `V(t)` values the **current** entries with `acquiredAt ≤ Bogotá date of t`, priced by `getReferencePricesAsOf(ids, t)`. Both `V(start)` and `V(now)` are read in one `REPEATABLE READ READ ONLY` transaction.
-  - Q2 `changeCop = V(now) − V(start)`. When `V(start) > 0`: `changePercentHundredths = roundHalfAwayFromZero((V(now) − V(start)) × 10000, V(start))` in BigInt (AD-VAL-2 rule 3). `marketChangePercentHundredths` is the same formula over the entries with `acquiredAt ≤ start` (A-46).
+  - Q2 `changeCop = V(now) − V(start)`. When `V(start) > 0`: `changePercentHundredths = roundHalfAwayFromZero((V(now) − V(start)) × 10000, V(start))` in BigInt (AD-VAL-2 rule 3). `marketChangePercentHundredths` is the same formula over the entries with `acquiredAt ≤ start` that had a price at `start`, like for like: a card first priced after `start` is not market movement (A-46; decision log Impl-1 #37, R1).
   - Q3 Zero writes. No audit.
   - Q4 Explanation:
     - `V(start) = 0` → `changePercentHundredths = null` with `ValuationNoBaseline`, citing `{ rule: 'FR-VAL-2', inputs: { valueAtStartCop: 0, changeCop } }`; the UI shows `changeCop` and "Nuevo en este periodo";

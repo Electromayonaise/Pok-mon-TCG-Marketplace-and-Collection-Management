@@ -96,7 +96,8 @@ export class ValServiceV2 implements ValV2UseCases {
 
   /**
    * VAL-2 (AD-VAL-2 rules 1–4): P1, then P2; `V(start)` and `V(now)` in one snapshot over the current entries acquired by
-   * each instant's Bogotá date, and the percentages in BigInt, null on a zero baseline (never NaN or Infinity).
+   * each instant's Bogotá date, and the percentages in BigInt, null on a zero baseline (never NaN or Infinity). Over HTTP the
+   * parser refuses a bad period first (§0.3); P2 answers an internal caller (decision log Impl-1 #37, R2).
    */
   async valuationTrend(input: ValuationTrendRequest): Promise<ValuationTrendResponse> {
     const { collectionId, period, actorId } = input;
@@ -111,11 +112,14 @@ export class ValServiceV2 implements ValV2UseCases {
       const today = bogotaDate(now);
       const atStart = entries.filter((e) => e.acquiredAt <= startDate);
       const pricesNow = await this.pricesAsOf(entries, asOf);
-      const valueAtStart = ValServiceV2.value(atStart, await this.pricesAsOf(atStart, start));
+      const pricesAtStart = await this.pricesAsOf(atStart, start);
+      const valueAtStart = ValServiceV2.value(atStart, pricesAtStart);
       const valueNow = ValServiceV2.value(entries.filter((e) => e.acquiredAt <= today), pricesNow);
       const change = valueNow - valueAtStart;
       const percent = changePercentHundredths(valueAtStart, valueNow);
-      const market = changePercentHundredths(valueAtStart, ValServiceV2.value(atStart, pricesNow));
+      // R1 (decision log Impl-1 #37): like for like, so a card first priced after the start is not market movement.
+      const pricedAtStart = atStart.filter((e) => e.catalogEntryId !== null && pricesAtStart.has(e.catalogEntryId));
+      const market = changePercentHundredths(valueAtStart, ValServiceV2.value(pricedAtStart, pricesNow));
       const valueAtStartCop = assertSafeInteger(valueAtStart, 'valueAtStartCop');
       const valueNowCop = assertSafeInteger(valueNow, 'valueNowCop');
       const changeCop = assertSafeInteger(change, 'changeCop');
@@ -124,8 +128,8 @@ export class ValServiceV2 implements ValV2UseCases {
         : explained('ValuationTrendComputed', [{ rule: 'FR-VAL-2', inputs: { period, valueAtStartCop, valueNowCop } }], asOf);
       return {
         period, start, asOf, valueAtStartCop, valueNowCop, changeCop,
-        changePercentHundredths: percent === null ? null : Number(percent),
-        marketChangePercentHundredths: market === null ? null : Number(market),
+        changePercentHundredths: percent === null ? null : assertSafeInteger(percent, 'changePercentHundredths'),
+        marketChangePercentHundredths: market === null ? null : assertSafeInteger(market, 'marketChangePercentHundredths'),
         label: LABEL, decision,
       };
     });

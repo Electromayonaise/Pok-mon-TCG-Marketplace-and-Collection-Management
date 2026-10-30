@@ -143,3 +143,14 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 - COL-2 Q4 says a prompt's rendering cites `{ rule: 'FR-COL-7', inputs: { orderId, lineCount } }`, but `PromptRowDTO` has no decision field, so `collections.prompts.list` returns none. Martín deferred the DTO change (decision log Impl-1 #36, R2); each row already carries `orderId` and `lineCount`. Owner: the prompt page story (UI 6.2, 9.4).
 - Collection names are not trimmed: a whitespace-only name passes, and "Keep " and "Keep" get different `nameKey`s. Same as Epic 3's, 8's and 9's trim items; decide it with the collection forms (UI 9.1, 9.4).
 - `PromptAlreadyResolved` renders the raw status token (`Accepted`, `Dismissed`) and an ISO instant inside Spanish text, the repo-wide convention noted in Epic 7. The prompt pages' copy (UI 6.2, 9.4) should map it.
+
+## Deferred from: spec of Epic 12 (12.1–12.5) (2026-10-30)
+
+- VAL needs no jobs route: valuations are recomputed on every request and never stored (AD-VAL-2), so nothing joins the jobs-route item of Stories 4.1, 4.4, 7.5 and 10.5.
+- `completionPercent` (AD-COL-1 rule 5) and the rest of Stories 11.5–11.6 stay in `impl2_scope`; VAL reads only the entries COL stores today. Owner: Epic 11's Impl-2 completion.
+
+## Deferred from: code review of Epic 12 (12.1–12.5) (2026-10-30)
+
+- VAL's history judges a point stale with its own 36 h constant (`FRESHNESS_MS` in `domain/val.ts`), while VAL-1 takes the catalog's `stale` flag from `getReferencePricesAsOf`. The two agree today (36 h, strictly older), but a change to the catalog's threshold would make the current value and the history disagree. VAL may not import the catalog's domain (AD-1); a fix needs the catalog to expose its threshold through a port or on `getPriceHistory`. Owner: the next catalog contract revision.
+- The trend's start is `now − period × 86,400 s` (VAL-2 Q1) while the history's first day starts at 05:00 UTC (VAL-3 Q2), so "30 days" covers slightly different windows on the two pages. Both follow their contracts; align them with the valuation pages' copy (UI 10.1, 10.2).
+

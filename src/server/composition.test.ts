@@ -845,6 +845,8 @@ describe('valuation over HTTP (VAL-1, VAL-2, VAL-3; Stories 12.1, 12.2)', () => 
     const history = await get('valuation.history', { collectionId: id('coll1'), days: 7 }, valentina);
     const points = history.json.result?.data.points as { date: string; valueCop: number; stale: boolean }[];
     expect(points).toHaveLength(7);
+    // The −40-day price carries forward, stale, until the −1-day observation (never interpolated).
+    expect(points.slice(0, 5).every((p) => p.valueCop === 40_000 && p.stale)).toBe(true);
     expect(points.at(-1)).toEqual({ date: '2026-10-01', valueCop: 45_000, stale: false });
     expect((await get('valuation.trend', { collectionId: id('coll1'), period: 14 }, valentina)).status).toBe(400);
     expect((await get('valuation.history', { collectionId: id('coll1'), days: 366 }, valentina)).json.error?.code).toBe('RequestValidationFailed');

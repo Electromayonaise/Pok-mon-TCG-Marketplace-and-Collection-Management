@@ -25,7 +25,7 @@
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
-| NFR evidence status | Green — ATDD: 31; Green — benchmark: 13; Green — gate: 8; Red — ATDD: 9; Deferred — launch: 3; Planned — story DoD: 3; the page copy belongs to UI 6.2: 1; the 35 s visibility is the client's 30 s polling: 1 |
+| NFR evidence status | Green — ATDD: 31; Green — benchmark: 12; Green — gate: 8; Red — ATDD: 9; Deferred — launch: 3; Planned — story DoD: 3; the page copy belongs to UI 6.2: 1; the 35 s visibility is the client's 30 s polling: 1; Green — benchmark (p95: current 74 ms, current + 30-day trend 281 ms, 365-point history 262 ms: 1; local Postgres 16): 1 |
 | Contract clauses / test ids | 112 / 389 (377 red, 12 green) |
 | Gate problems | 0 |
 
@@ -188,7 +188,7 @@
 | NFR-MSG-3 | 0 outbound calls to external messaging services (NFR-SYS-3 guard). | MSG-2 | `SYS-6.R4` | 8 | Green — gate |
 | NFR-COL-2 | a binder page render (sorted | — | — | 0 | Planned — story DoD |
 | NFR-COL-3 | there are 0 CatalogEntry writes from collections | — | `SYS-AD8`, `S-FR-COL-3.h` | 2 | Green — gate |
-| NFR-VAL-2 | current value plus the 30-day trend for 500 entries takes p95 ≤ 1,500 ms | VAL-1, VAL-3 | `NFR-VAL-2.current`, `NFR-VAL-2.trend`, `NFR-VAL-2.history` | 12 | Green — benchmark |
+| NFR-VAL-2 | current value plus the 30-day trend for 500 entries takes p95 ≤ 1,500 ms | VAL-1, VAL-3 | `NFR-VAL-2.current`, `NFR-VAL-2.trend`, `NFR-VAL-2.history` | 12 | Green — benchmark (p95: current 74 ms, current + 30-day trend 281 ms, 365-point history 262 ms; local Postgres 16) |
 | NFR-VAL-3 | 0 floating-point operations on COP in valuation code | VAL-1, VAL-2 | `VAL-1.I1`, `VAL-2.I3` | 9 | Green — ATDD (`[VAL-1.I1]` with Story 12.1, `[VAL-2.I3]` with Story 12.5) |
 | NFR-REP-2 | a profile read (aggregate plus the first page) takes p95 ≤ 300 ms | REP-2, REP-3 | `S-FR-REP-7.h` | 12 | Red — ATDD (next read); Planned — story DoD (latency) |
 | NFR-REP-3 | 0 hard deletes of Review or Listing rows | — | `REP-2.I1`, `SYS-R2.grants` | 2 | Green — gate (grant); Red — ATDD (behaviour) |

@@ -189,7 +189,7 @@ export class PgValRepository implements ValRepository {
 
   async readValuationEntries(tx: Tx, collectionId: CuidId): Promise<ValuationEntryRow[]> {
     const { rows } = await tx.query<ValuationEntryRow>(
-      `SELECT id AS "entryId", "cardKind", "catalogEntryId", qty, "acquiredAt"::text AS "acquiredAt"
+      `SELECT id AS "entryId", "cardKind", "catalogEntryId", qty, to_char("acquiredAt", 'YYYY-MM-DD') AS "acquiredAt"
        FROM "CollectionEntry" WHERE "collectionId" = $1 ORDER BY "manualPosition", id`,
       [collectionId],
     );

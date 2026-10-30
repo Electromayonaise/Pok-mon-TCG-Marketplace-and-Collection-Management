@@ -45,6 +45,7 @@ export function assertSafeInteger(value: bigint, what: string): number {
 
 /** `items` in consecutive slices of at most `size`. */
 export function chunks<T>(items: readonly T[], size: number = PRICE_CHUNK): T[][] {
+  if (!Number.isSafeInteger(size) || size < 1) throw new UnexpectedError(`collections: chunks needs a positive integer size, got ${size}`);
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
   return out;
@@ -118,8 +119,9 @@ export interface HistoryPoint { date: string; valueCop: bigint; stale: boolean }
 /**
  * AD-VAL-2 rule 5, VAL-3 Q1–Q2: one point per Bogotá day from `max(earliest acquiredAt of a priced entry,
  * today − days + 1)` to today. A day's value sums `cop × qty` over the entries acquired on or before it whose card has
- * an observation at or before the day's end (`now` for today): the last price carried forward, never interpolated.
- * A point is stale when a price it sums is older than 36 h at that instant. No priced entry → no point.
+ * an observation before the next day starts (at or before `now` for today): the last price carried forward, never
+ * interpolated. Of two observations at one instant, the first by `(source, id)` counts, as in VAL-1's as-of read. A point is
+ * stale when a price it sums is older than 36 h at the day's end (`now` for today). No priced entry → no point.
  */
 export function series(entries: readonly HistoryEntry[], days: number, now: Date): HistoryPoint[] {
   const priced = entries.filter((e) => e.observations.length > 0).map((e) => ({ ...e, times: e.observations.map((o) => Date.parse(o.observedAt)), next: 0 }));
@@ -129,15 +131,21 @@ export function series(entries: readonly HistoryEntry[], days: number, now: Date
   const windowStart = addDays(today, -(days - 1));
   const points: HistoryPoint[] = [];
   for (let date = earliest > windowStart ? earliest : windowStart; date <= today; date = addDays(date, 1)) {
-    const end = Math.min(bogotaDayStart(addDays(date, 1)), now.getTime());
+    // A past day holds the observations before the next day starts; today holds those at or before now.
+    const nextDay = bogotaDayStart(addDays(date, 1));
+    const end = Math.min(nextDay, now.getTime());
+    const inDay = (t: number) => (nextDay <= now.getTime() ? t < nextDay : t <= end);
     let valueCop = 0n;
     let stale = false;
     for (const e of priced) {
-      // Days only move forward, so each entry's pointer only advances past observations at or before the day's end.
-      while (e.next < e.times.length && e.times[e.next]! <= end) e.next++;
+      // Days only move forward, so each entry's pointer only advances past observations inside the day.
+      while (e.next < e.times.length && inDay(e.times[e.next]!)) e.next++;
       if (e.acquiredAt > date || e.next === 0) continue;
-      valueCop += BigInt(e.observations[e.next - 1]!.cop) * e.qty;
-      if (end - e.times[e.next - 1]! > FRESHNESS_MS) stale = true;
+      // The observations come oldest first by (observedAt, source, id): step back to the first of a same-instant tie.
+      let i = e.next - 1;
+      while (i > 0 && e.times[i - 1] === e.times[i]) i--;
+      valueCop += BigInt(e.observations[i]!.cop) * e.qty;
+      if (end - e.times[i]! > FRESHNESS_MS) stale = true;
     }
     points.push({ date, valueCop, stale });
   }

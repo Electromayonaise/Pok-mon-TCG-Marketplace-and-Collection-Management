@@ -73,4 +73,19 @@ context:
 - VAL-3 drops external entries before the history read, asks `getPriceHistory` from the Bogotá start of `today − days + 1` to `now` (D3; contracts.md VAL-3 Q2 says so now) and builds the points with the pure `series`, which walks each entry's observations with a forward-only pointer. Today's staleness is judged at `now` (D4).
 - §13 gains `ValuationNoBaseline` (its template, the rule of decision log Impl-1 #16), `ValuationTrendComputed`, `ValuationHistoryShown` and `ValuationHistoryEmpty` (D2). `valuation.trend` and `valuation.history` are wired, with an HTTP test.
 - Epic 4's `getPriceHistory` window deferral is closed; its `getFxRate` deferral stays open, now owned by the jobs route (D3).
-- Measured on the seed's 500-entry collection, local Postgres 16: `[NFR-VAL-2.trend]` (current value plus the 30-day trend) p95 281.2 ms (p50 221.8, max 320.6); `[NFR-VAL-2.history]` (365 days) p95 201.3 ms (p50 164.1, max 249.8). Their timeouts are 600 s, since each run is 550 calls of 200–300 ms.
+- Measured on the seed's 500-entry collection, local Postgres 16: `[NFR-VAL-2.trend]` (current value plus the 30-day trend) p95 281.2 ms (p50 221.8, max 320.6); `[NFR-VAL-2.history]` (365 days) p95 201.3 ms (p50 164.1, max 249.8) on about 62 points; after the close review dated the collection a year back, 365 points, p95 262.4 ms (p50 216.8, max 378.0). Their timeouts are 600 s, since each run is 550 calls of 200–300 ms.
+
+### Review Findings
+
+Epic 12 close review (Blind Hunter, Edge Case Hunter, Acceptance Auditor) over `49b09cc..a539a53`; the findings cover Stories 12.1–12.5.
+
+- [x] [Review][Decision] R1 (resolved: like for like; VAL-2 Q2 and AD-VAL-2 rule 4 amended): the market change counts cards unpriced at the period start — `marketChangePercentHundredths` divides by `V(start)` over the entries acquired by the start, but its current side also values entries of that set that had no price at the start, so a newly priced card reads as market movement (A-46).
+- [x] [Review][Decision] R2 (resolved: follow §0.3; VAL-2 P2 and the §6.11 router table amended, no operations.json change): `InvalidValuationPeriod` is unreachable over HTTP — the generated parser types `period` as 7 | 30 | 90 | 365, so `valuation.trend` with 14 is `RequestValidationFailed` before P1 (§0.3), while VAL-2 P2 and the §6.11 router table name `InvalidValuationPeriod`.
+- [x] [Review][Patch] Read `acquiredAt` with `to_char(…, 'YYYY-MM-DD')`, not `::text`, so the string comparisons never depend on DateStyle [src/modules/collections/infra/pg.ts]
+- [x] [Review][Patch] Two observations at one instant: `series` carries the last source forward, while VAL-1's `latestObservations` takes the first (`source, id`); pick the first of the tie [src/modules/collections/domain/val.ts]
+- [x] [Review][Patch] An observation at exactly the next Bogotá day's 05:00Z is counted on the previous day; a past day ends before the next day's start [src/modules/collections/domain/val.ts]
+- [x] [Review][Patch] `changePercentHundredths` and `marketChangePercentHundredths` leave without `assertSafeInteger` (a 1-COP baseline against 1e12 loses precision) [src/modules/collections/application/val.v2.ts]
+- [x] [Review][Patch] `chunks` loops forever with a size below 1 [src/modules/collections/domain/val.ts]
+- [x] [Review][Patch] `[NFR-VAL-2.history]` measures about 62 points (entries acquired 2026-08-01); date the big collection a year back so the series has 365 points [_bmad-output/test-artifacts/nfr/val2_latency.test.ts]
+- [x] [Review][Patch] The HTTP history test checks only the length and the last point; assert the carried-forward 40,000 [src/server/composition.test.ts]
+- [x] [Review][Defer] VAL's history judges staleness with its own 36 h constant, while VAL-1 takes the catalog's flag; the two agree today, but VAL may not import the catalog's threshold [src/modules/collections/domain/val.ts] — deferred: needs the catalog to expose its freshness threshold through a port
