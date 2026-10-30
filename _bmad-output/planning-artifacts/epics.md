@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 389 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 391 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -326,7 +326,7 @@ All 56 NFRs. Each has a metric, an artifact and a status in `_bmad-output/test-a
 | FR-VAL-5 | 12.1, 12.3, 12.4 |
 | FR-REP-1 | 13.1, 13.4 |
 | FR-REP-2 | 13.1, 13.4 |
-| FR-REP-3 | 13.3, 13.6 |
+| FR-REP-3 | 13.3 |
 | FR-REP-4 | 13.2 |
 | FR-REP-5 | 13.5, 13.6 |
 | FR-REP-6 | 13.5, 13.6 |
@@ -1436,11 +1436,11 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Binding invariants:** AD-12 — Hide, never delete (`DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate); AD-REP-3 — Hide and unhide conditional and logged (`WHERE hiddenAt IS NULL`; log with snapshots); also cited by its clauses: AD-REP-1, AD-REP-2
 - **Files:** `src/modules/reviews/application/rep.v2.ts` (`RepServiceV2.hideReview`, `RepServiceV2.unhideReview`), `src/modules/reviews/ports/rep.v2.ts` (`RepRepository`), `src/modules/reviews/domain/rep.ts`, `src/modules/reviews/infra/pg.ts`
 - **Schema/DTO:** tables `"Review"`, `"ReviewModerationLog"`; DTOs `HideReviewRequest` → `HideReviewResponse`, `UnhideReviewRequest` → `UnhideReviewResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[REP-2.Q1]`, `[REP-2.I1]`, `[REP-2.I2]`, `[REP-2.unhide.h]`, `[REP-2.unhide.f]`, `[REP-2.P2]`, `[REP-2.P3]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[REP-2.Q1]`, `[REP-2.I1]`, `[REP-2.I2]`, `[REP-2.unhide.h]`, `[REP-2.unhide.f]`, `[REP-2.P2]`, `[REP-2.P3]`; `_bmad-output/test-artifacts/nfr/rep2_latency.test.ts` › `[NFR-REP-2.nextRead]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a 1-star review containing personal data. **When:** an admin hides it for Harassment. **Then:** `hiddenAt`, reason and admin are set, one log row snapshots the rating and text, and an admin audit row is written; the row is never deleted, and unhiding clears the columns with an `unhide` log row.
   - **Scenario (failure) — Given:** two admins hide the same review at once; an admin unhides a visible review; reason Other with a 5-character note; an unknown review. **When:** the commands run. **Then:** one hide, one log row and one explained no-op citing `hiddenAt` and `hiddenBy`; the unhide is an explained no-op with zero log rows; `RequestValidationFailed` (400) with zero writes; `ReviewNotFound` (404).
-- **DoD:** the shared DoD, plus: the 7 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 8 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
 
 ### Story 13.3: Keep reputation honest: paid is not enough, and a racing hide never skews the aggregate
 
@@ -1452,11 +1452,11 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Binding invariants:** AD-REP-2 — Aggregates from the same snapshot as the list (One statement; `REPEATABLE READ` profile read); also cited by its clauses: AD-12
 - **Files:** `src/modules/reviews/application/rep.v2.ts` (`RepServiceV2.getAggregates`), `src/modules/reviews/ports/rep.v2.ts` (`RepRepository`), `src/modules/reviews/domain/rep.ts`, `src/modules/reviews/infra/pg.ts`
 - **Schema/DTO:** tables `"Review"`; DTOs `GetAggregatesRequest` → `GetAggregatesResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[REP-1.MEC]`, `[REP-3.Q1]`, `[REP-3.I1]`, `[REP-3.MEC]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[REP-1.MEC]`, `[REP-3.Q1]`, `[REP-3.I1]`, `[REP-3.MEC]`, `[REP-3.P1]`; `_bmad-output/test-artifacts/nfr/rep2_latency.test.ts` › `[NFR-REP-2.aggregates]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** ratings 5, 4 and 4 for one seller, and one hidden 1-star. **When:** aggregates are read. **Then:** 4.3 (43 tenths, BigInt half-up), in input order, with the hidden review neither counted nor summed; a seller with no review reads `null`, never 0.0.
-  - **Scenario (failure) — Given:** an order Paid but not closed, 100 review attempts; a hide racing a new post on one seller, 100 times. **When:** the reviews and the race run. **Then:** `NotVerifiedPurchaser` citing `latestState: 'Paid'` every time, with zero rows; after each race the aggregate counts exactly the visible committed set.
-- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7); NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+  - **Scenario (failure) — Given:** an order Paid but not closed, 100 review attempts; a hide racing a new post on one seller, 100 times; duplicate seller ids. **When:** the reviews, the race and the read run. **Then:** `NotVerifiedPurchaser` citing `latestState: 'Paid'` every time, with zero rows; after each race the aggregate counts exactly the visible committed set; `RequestValidationFailed`.
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7); NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
 
 ### Story 13.4: Refuse self, unknown and duplicate reviews
 
@@ -1494,15 +1494,15 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 
 - **Kind:** Failure-state
 - **Description:** As an admin, I want invalid moderation actions and malformed reads refused with the reason, so that the moderation log stays exact.
-- **Contracts:** — (no registry operation of its own) · **Also proves:** `REP-3` (operation owned by Story 13.3), `S-FR-REP-5` (operation owned by Story 13.5), `S-FR-REP-6` (§15 clause), `S-FR-REP-7` (operation owned by Story 13.5)
+- **Contracts:** — (no registry operation of its own) · **Also proves:** `S-FR-REP-5` (operation owned by Story 13.5), `S-FR-REP-6` (§15 clause), `S-FR-REP-7` (operation owned by Story 13.5)
 - **Depends on:** Story 13.5
-- **Traceability:** FR-REP-3, FR-REP-5, FR-REP-6, FR-REP-7 · NFR-REP-1, NFR-REP-2
+- **Traceability:** FR-REP-5, FR-REP-6, FR-REP-7
 - **Binding invariants:** also cited by its clauses: AD-12, AD-REP-2, AD-REP-3
 - **Files:** —
-- **Schema/DTO:** tables `"ListingModerationLog"`, `"Review"`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[REP-3.P1]`, `[S-FR-REP-6.f]`, `[S-FR-REP-7.f]`; `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.f]`
+- **Schema/DTO:** tables `"ListingModerationLog"`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.f]`; `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[S-FR-REP-6.f]`, `[S-FR-REP-7.f]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a listing hidden once, and a known seller's profile. **When:** an admin hides the listing, and a buyer opens the profile. **Then:** one hide with one log row, and the profile: the contrast cases.
-  - **Scenario (failure) — Given:** duplicate seller ids; a listing hidden twice; a search for "100%"; a profile for an unknown user. **When:** the command or read runs. **Then:** `RequestValidationFailed`; one log row and an explained no-op; only the literal "100%" text matches; `TargetNotFound` (404).
-- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+  - **Scenario (failure) — Given:** a listing hidden twice; a search for "100%"; a profile for an unknown user. **When:** the command or read runs. **Then:** one log row and an explained no-op; only the literal "100%" text matches; `TargetNotFound` (404).
+- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 

@@ -1440,6 +1440,8 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `ReviewAlreadyHidden` | — (stored only) | reviews | REP-2 Q-fail `allowedWithNotice`: the review was already hidden, citing `{ hiddenAt, hiddenBy }`, with zero writes (FR-REP-4, AD-REP-3 rule 1; decision log Impl-1 #38) | "Esta reseña ya estaba oculta desde el {hiddenAt}; no se registró otra acción." | no |
 | `ReviewUnhidden` | — (stored only) | reviews | REP-2.unhide `allowed`: the review is visible again and the unhide is logged, citing `{ reviewId, reasonCode }` (FR-REP-4; decision log Impl-1 #38) | "Volviste a mostrar la reseña; la acción quedó en el registro de moderación." | no |
 | `ReviewNotHidden` | — (stored only) | reviews | REP-2.unhide `allowedWithNotice`: the review was visible, citing `{ reviewId }`, with zero writes (FR-REP-4, AD-REP-3 rule 2; decision log Impl-1 #38) | "Esta reseña no estaba oculta; no se registró ninguna acción." | no |
+| `SellerRated` | — (stored only) | reviews | REP-3 Q4 `allowed`: the seller has visible reviews, citing `{ count, averageTenths }` (FR-REP-3; decision log Impl-1 #38) | "Calificación promedio de {count} reseñas visibles." | no |
+| `SellerNotYetReviewed` | — (stored only) | reviews | REP-3 Q4: no visible review, so `averageTenths` is null, citing `{ count: 0 }` (FR-REP-3; decision log Impl-1 #38). The UI renders "Aún sin reseñas", never 0.0 | "Aún sin reseñas." | no |
 | `'Unexpected'` | 500 | — | An invariant breach or an internal caller bypassing the parser | "Algo falló de nuestro lado; no se aplicó ningún cambio." | yes |
 
 **DecisionCodes** (non-error outcomes, ADD-§3.2) used by these contracts:

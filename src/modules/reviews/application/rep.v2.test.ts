@@ -152,3 +152,20 @@ describe('hideReview and unhideReview (REP-2, AD-REP-3)', () => {
     expect(codeOf(await caught(() => r.unhideReview(hide({ reviewId: id('ghost') }))))).toBe('ReviewNotFound');
   });
 });
+
+describe('getAggregates (REP-3 P1, Q2, Q4)', () => {
+  it('500 ids are read in one call and in input order; 0 and 501 ids are RequestValidationFailed', async () => {
+    await user(db, { id: id('camila') });
+    await user(db, { id: id('julian'), sellerTrack: 'individual' });
+    await review(db, { id: id('r1'), reviewerId: id('camila'), targetUserId: id('julian'), targetKind: 'individual', rating: 4 });
+    const { w, rep: r } = rep();
+    const ids = [...Array.from({ length: 499 }, (_, k) => id(`nadie${k}`)), id('julian')];
+    const { aggregates } = await r.getAggregates({ sellerIds: ids });
+    expect(aggregates.map((a) => a.sellerId)).toEqual(ids);
+    expect(aggregates.at(-1)).toMatchObject({ averageTenths: 40, count: 1 });
+    explainAssert(aggregates.at(-1)!.decision, { code: 'SellerRated', rule: 'FR-REP-3', inputs: { count: 1, averageTenths: 40 }, occurredAt: w.clock.iso() });
+    explainAssert(aggregates[0]!.decision, { code: 'SellerNotYetReviewed', inputs: { count: 0 } });
+    expect(codeOf(await caught(() => r.getAggregates({ sellerIds: [] })))).toBe('RequestValidationFailed');
+    expect(codeOf(await caught(() => r.getAggregates({ sellerIds: [...ids, id('otro')] })))).toBe('RequestValidationFailed');
+  });
+});

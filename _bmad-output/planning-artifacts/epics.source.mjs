@@ -609,16 +609,16 @@ export default {
         {
           title: 'Hide and unhide reviews with logged snapshots', kind: 'Core',
           as: 'As an admin, I want to hide abusive reviews and unhide mistakes, logging what I hid, so that moderation is reversible and accountable.',
-          ops: ['REP-2', 'REP-2.unhide'], tests: ['REP-2.Q1', 'REP-2.I1', 'REP-2.I2', 'REP-2.unhide.h', 'REP-2.unhide.f', 'REP-2.P2', 'REP-2.P3'], depends: ['13.1'],
+          ops: ['REP-2', 'REP-2.unhide'], tests: ['REP-2.Q1', 'REP-2.I1', 'REP-2.I2', 'REP-2.unhide.h', 'REP-2.unhide.f', 'REP-2.P2', 'REP-2.P3', 'NFR-REP-2.nextRead'], depends: ['13.1'],
           happy: ['a 1-star review containing personal data.', 'an admin hides it for Harassment.', '`hiddenAt`, reason and admin are set, one log row snapshots the rating and text, and an admin audit row is written; the row is never deleted, and unhiding clears the columns with an `unhide` log row.'],
           failure: ['two admins hide the same review at once; an admin unhides a visible review; reason Other with a 5-character note; an unknown review.', 'the commands run.', 'one hide, one log row and one explained no-op citing `hiddenAt` and `hiddenBy`; the unhide is an explained no-op with zero log rows; `RequestValidationFailed` (400) with zero writes; `ReviewNotFound` (404).'],
         },
         {
           title: 'Keep reputation honest: paid is not enough, and a racing hide never skews the aggregate', kind: 'MEC',
           as: 'As a buyer reading ratings, I want only closed purchases to review businesses, and aggregates that count exactly the visible reviews even while one is being hidden (Annex A MEC, R-12).',
-          ops: ['REP-3'], tests: ['REP-1.MEC', 'REP-3.Q1', 'REP-3.I1', 'REP-3.MEC'], depends: ['13.2'],
+          ops: ['REP-3'], tests: ['REP-1.MEC', 'REP-3.Q1', 'REP-3.I1', 'REP-3.MEC', 'REP-3.P1', 'NFR-REP-2.aggregates'], depends: ['13.2'],
           happy: ['ratings 5, 4 and 4 for one seller, and one hidden 1-star.', 'aggregates are read.', '4.3 (43 tenths, BigInt half-up), in input order, with the hidden review neither counted nor summed; a seller with no review reads `null`, never 0.0.'],
-          failure: ['an order Paid but not closed, 100 review attempts; a hide racing a new post on one seller, 100 times.', 'the reviews and the race run.', '`NotVerifiedPurchaser` citing `latestState: \'Paid\'` every time, with zero rows; after each race the aggregate counts exactly the visible committed set.'],
+          failure: ['an order Paid but not closed, 100 review attempts; a hide racing a new post on one seller, 100 times; duplicate seller ids.', 'the reviews, the race and the read run.', '`NotVerifiedPurchaser` citing `latestState: \'Paid\'` every time, with zero rows; after each race the aggregate counts exactly the visible committed set; `RequestValidationFailed`.'],
         },
         {
           title: 'Refuse self, unknown and duplicate reviews', kind: 'Failure-state',
@@ -637,9 +637,9 @@ export default {
         {
           title: 'Refuse invalid moderation and bad aggregate requests', kind: 'Failure-state',
           as: 'As an admin, I want invalid moderation actions and malformed reads refused with the reason, so that the moderation log stays exact.',
-          contracts: ['REP-3', 'S-FR-REP-5', 'S-FR-REP-6', 'S-FR-REP-7'], tests: ['REP-3.P1', 'S-FR-REP-5.f', 'S-FR-REP-6.f', 'S-FR-REP-7.f'], depends: ['13.5'],
+          contracts: ['S-FR-REP-5', 'S-FR-REP-6', 'S-FR-REP-7'], tests: ['S-FR-REP-5.f', 'S-FR-REP-6.f', 'S-FR-REP-7.f'], depends: ['13.5'],
           happy: ['a listing hidden once, and a known seller\'s profile.', 'an admin hides the listing, and a buyer opens the profile.', 'one hide with one log row, and the profile: the contrast cases.'],
-          failure: ['duplicate seller ids; a listing hidden twice; a search for "100%"; a profile for an unknown user.', 'the command or read runs.', '`RequestValidationFailed`; one log row and an explained no-op; only the literal "100%" text matches; `TargetNotFound` (404).'],
+          failure: ['a listing hidden twice; a search for "100%"; a profile for an unknown user.', 'the command or read runs.', 'one log row and an explained no-op; only the literal "100%" text matches; `TargetNotFound` (404).'],
         },
       ],
     },

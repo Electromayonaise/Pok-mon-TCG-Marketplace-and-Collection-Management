@@ -27,19 +27,21 @@ export interface RepV2UseCases {
 // </gen-solu2-api>
 
 import type { Citation, Decision, DecisionOutcome } from '../../../shared-kernel/decision.js';
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest } from '../../../shared-kernel/request.js';
 import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import { purchaseVerifiedFor, reviewableKind } from '../domain/rep.js';
+import { averageTenths, purchaseVerifiedFor, reviewableKind } from '../domain/rep.js';
 
 const raise = raiserFor('reviews');
 
 /** The schema's `text` CHECK (REP-1 input: 0–1000). */
 const MAX_TEXT = 1000;
+/** REP-3 P1: at most 500 sellers per read. */
+const MAX_SELLERS = 500;
 /** The moderation log's `note` CHECK. */
 const MAX_NOTE = 500;
 
@@ -60,6 +62,12 @@ function targetNotFound(): never {
 function checkText(text: string): void {
   const why = textIssue(text, 0, MAX_TEXT);
   if (why !== null) rejectRequest([{ field: 'text', issue: why === 'nul' ? NUL_ISSUE : 'debe tener como máximo 1.000 caracteres' }]);
+}
+
+/** A count above 2^53 − 1 cannot reach the DTO's number exactly (review E-20). */
+function assertSafeCount(count: bigint): number {
+  if (count > BigInt(Number.MAX_SAFE_INTEGER)) throw new UnexpectedError('reviews.getAggregates: a count beyond the safe integers');
+  return Number(count);
 }
 
 /** REP-2 P2 (ADD-§9.2, `review_log_other_has_note`): Other needs a 10–500 character note, any other reason a null or 0–500 one (#38). */
@@ -183,8 +191,29 @@ export class RepServiceV2 implements RepV2UseCases {
     });
   }
 
-  async getAggregates(_input: GetAggregatesRequest): Promise<GetAggregatesResponse> {
-    throw new NotImplementedError('reviews.getAggregates');
+  /**
+   * REP-3 (AD-REP-2 rule 1): one statement over the visible reviews, so a hide racing a post is either wholly in or
+   * wholly out of the read. One element per input id, in input order. Zero writes; the clock is read for `occurredAt`.
+   */
+  async getAggregates(input: GetAggregatesRequest): Promise<GetAggregatesResponse> {
+    const { sellerIds } = input;
+    if (sellerIds.length < 1 || sellerIds.length > MAX_SELLERS) rejectRequest([{ field: 'sellerIds', issue: 'indica entre 1 y 500 vendedores' }]);
+    if (new Set(sellerIds).size !== sellerIds.length) rejectRequest([{ field: 'sellerIds', issue: 'no debe repetir un vendedor' }]);
+    const now = this.deps.clock.now().toISOString();
+    const totals = await this.deps.transactions.run((tx) => this.deps.repo.visibleReviewTotals(tx, sellerIds), { readOnly: true });
+    const bySeller = new Map(totals.map((t) => [t.sellerId, t]));
+    return {
+      aggregates: sellerIds.map((sellerId) => {
+        const t = bySeller.get(sellerId);
+        const tenths = t === undefined ? null : averageTenths(t.sum, t.count);
+        if (t === undefined || tenths === null) {
+          return { sellerId, averageTenths: null, count: 0, decision: explained('allowed', 'SellerNotYetReviewed', [{ rule: 'FR-REP-3', inputs: { count: 0 } }], now) };
+        }
+        const count = assertSafeCount(t.count);
+        const averageTenthsValue = Number(tenths);
+        return { sellerId, averageTenths: averageTenthsValue, count, decision: explained('allowed', 'SellerRated', [{ rule: 'FR-REP-3', inputs: { count, averageTenths: averageTenthsValue } }], now) };
+      }),
+    };
   }
 
   async searchReviews(_input: SearchReviewsRequest): Promise<SearchReviewsResponse> {

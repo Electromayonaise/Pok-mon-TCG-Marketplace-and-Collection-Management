@@ -1,5 +1,4 @@
 // Core domain — REP. Pure (AD-SYS-6).
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
 
 /** ADD-§9.2 reasons that apply to reviews. */
 export type ReviewHideReason = 'Harassment' | 'PersonalData' | 'Spam' | 'OffTopic' | 'Other';
@@ -21,6 +20,8 @@ export function reviewableKind(target: ReviewTarget): 'business' | 'individual' 
 export const purchaseVerifiedFor = (kind: 'business' | 'individual'): boolean => kind === 'business';
 
 /** ADD-§2.9 (REP-3 Q1): floor((20 × sum + count) / (2 × count)) tenths, half-up in BigInt; null when count = 0. */
-export function averageTenths(_sum: bigint, _count: bigint): bigint | null {
-  throw new NotImplementedError('reviews.domain.averageTenths');
+export function averageTenths(sum: bigint, count: bigint): bigint | null {
+  if (count < 0n || sum < 0n) throw new RangeError('averageTenths: a negative sum or count');
+  if (count === 0n) return null;
+  return (20n * sum + count) / (2n * count);
 }

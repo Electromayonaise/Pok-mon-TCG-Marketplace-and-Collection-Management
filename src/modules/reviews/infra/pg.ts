@@ -92,4 +92,13 @@ export class PgRepRepository implements RepRepository {
       [l.id, l.reviewId, l.action, l.reasonCode, l.note, l.adminId, l.snapshot.rating, l.snapshot.text, l.now],
     );
   }
+
+  async visibleReviewTotals(tx: Tx, sellerIds: readonly CuidId[]): Promise<{ sellerId: CuidId; count: bigint; sum: bigint }[]> {
+    const { rows } = await tx.query<{ sellerId: CuidId; count: string; sum: string }>(
+      `SELECT "targetUserId" AS "sellerId", count(*)::text AS count, sum(rating)::text AS sum
+       FROM "Review" WHERE "hiddenAt" IS NULL AND "targetUserId" = ANY($1) GROUP BY "targetUserId"`,
+      [sellerIds],
+    );
+    return rows.map((r) => ({ sellerId: r.sellerId, count: BigInt(r.count), sum: BigInt(r.sum) }));
+  }
 }

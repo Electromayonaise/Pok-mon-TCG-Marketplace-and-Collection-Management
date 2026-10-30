@@ -89,4 +89,6 @@ export interface RepRepository {
   readReviewHide(tx: Tx, reviewId: CuidId): Promise<{ hiddenAt: IsoInstant | null; hiddenBy: CuidId | null } | null>;
   /** REP-2 Q2: one append-only log row with the snapshots. */
   insertReviewModerationLog(tx: Tx, row: NewReviewModerationLog): Promise<void>;
+  /** REP-3 Q1 (AD-REP-2 rule 1): one statement, the visible reviews' count and rating sum per target that has any. */
+  visibleReviewTotals(tx: Tx, sellerIds: readonly CuidId[]): Promise<{ sellerId: CuidId; count: bigint; sum: bigint }[]>;
 }
