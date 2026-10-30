@@ -35,9 +35,57 @@ export interface ColV2Deps {
 }
 // </gen-solu2-api>
 
+import type { OrderClosedLineV1 } from '../../../shared-kernel/events.js';
+import type { Tx } from '../../../shared-kernel/ports.js';
+import type { CuidId, IsoDate, IsoInstant } from '../../../shared-kernel/types.js';
+import type { PromptStatus } from '../domain/col.js';
+
+export interface CollectionRow { collectionId: CuidId; name: string; entryCount: number }
+
+/** One `"CollectionEntry"` to insert; its position is assigned by the repository (COL-1 Q2, COL-3 Q2). */
+export interface NewEntry {
+  id: CuidId;
+  catalogEntryId: CuidId;
+  source: 'Manual' | 'PlatformPurchase';
+  orderId: CuidId | null;
+  qty: number;
+  acquiredAt: IsoDate;
+  acquiredPriceCop: number | null;
+}
+
+export interface PromptRow { id: CuidId; orderId: CuidId; buyerId: CuidId; lines: OrderClosedLineV1[]; status: PromptStatus; resolvedAt: Date | null; acceptedIntoCollectionId: CuidId | null; buyerItemReceivedConfirmedAt: Date; createdAt: Date }
+
 /**
  * Repository port of COL (review A-4): the only way its application service reads or writes
- * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * its own tables (AD-8). Every method takes the transaction it runs in; `infra/pg.ts` implements them.
  */
-export interface ColRepository {}
+export interface ColRepository {
+  /** AD-COL-1 rule 1, COL-1 Q1 (AD-SYS-4 rule 4): `pg_advisory_xact_lock(col:owner:<ownerId>)`, taken first. */
+  lockCollectionOwner(tx: Tx, ownerId: CuidId): Promise<void>;
+  /** AD-COL-1 rule 1: how many collections the owner keeps. */
+  countCollections(tx: Tx, ownerId: CuidId): Promise<number>;
+  /** S-FR-COL-1.create under a savepoint; `'taken'` when `collection_name_unique_per_owner` refused it (23505). */
+  insertCollection(tx: Tx, c: { id: CuidId; ownerId: CuidId; name: string; now: IsoInstant }): Promise<'inserted' | 'taken'>;
+  /** S-FR-COL-1.rename of the owner's collection; `'missing'` for a foreign or unknown id, `'taken'` on the name (23505). */
+  renameCollection(tx: Tx, c: { collectionId: CuidId; ownerId: CuidId; name: string; now: IsoInstant }): Promise<'renamed' | 'missing' | 'taken'>;
+  /** S-FR-COL-1.delete of the owner's collection and, by cascade, its entries; the counts removed, or null for a foreign or unknown id. */
+  deleteCollection(tx: Tx, c: { collectionId: CuidId; ownerId: CuidId }): Promise<{ entriesRemoved: number; platformPurchaseEntriesRemoved: number } | null>;
+  /** S-FR-COL-1.list: the owner's collections with their entry counts, by `("nameKey", id)`. */
+  readCollections(tx: Tx, ownerId: CuidId): Promise<CollectionRow[]>;
+  /** COL-1 P3, COL-3 P3: whether the owner holds the collection, read `FOR SHARE`. */
+  ownsCollection(tx: Tx, collectionId: CuidId, ownerId: CuidId): Promise<boolean>;
+  /** COL-3 Q1 (AD-COL-1 rule 2): the owner's "General", if any. */
+  findGeneralCollection(tx: Tx, ownerId: CuidId): Promise<CuidId | null>;
+  /** COL-3 Q1: `INSERT "Collection" (name 'General') ON CONFLICT ("ownerId", "nameKey") DO NOTHING`, then the row; `created` on insert. */
+  ensureGeneralCollection(tx: Tx, c: { id: CuidId; ownerId: CuidId; now: IsoInstant }): Promise<{ collectionId: CuidId; created: boolean }>;
+  /** COL-1 Q2, COL-3 Q2: the entries at `max("manualPosition") + 1, + 2, …` of the collection, in the given order. */
+  insertCollectionEntries(tx: Tx, collectionId: CuidId, entries: NewEntry[], now: IsoInstant): Promise<void>;
+  /** COL-2 Q1: `INSERT … ON CONFLICT ("orderId") DO NOTHING`, else the existing prompt's id. */
+  insertPrompt(tx: Tx, p: { id: CuidId; orderId: CuidId; buyerId: CuidId; lines: OrderClosedLineV1[]; buyerItemReceivedConfirmedAt: IsoInstant; now: IsoInstant }): Promise<{ created: boolean; promptId: CuidId }>;
+  /** COL-1 Q2, COL-1.dismiss (AD-COL-2 rules 2, 4): the conditional `Pending → Accepted | Dismissed` of the buyer's prompt; the row, or null when none matched. */
+  resolvePrompt(tx: Tx, c: { promptId: CuidId; buyerId: CuidId; to: 'Accepted' | 'Dismissed'; collectionId: CuidId | null; now: IsoInstant }): Promise<PromptRow | null>;
+  /** COL-1 Q-fail: the prompt, or null for an unknown id. */
+  readPrompt(tx: Tx, promptId: CuidId): Promise<PromptRow | null>;
+  /** COL-1.list: the buyer's prompts, optionally by status, newest first by `("createdAt", id)`. */
+  readPrompts(tx: Tx, buyerId: CuidId, status: PromptStatus | null): Promise<PromptRow[]>;
+}

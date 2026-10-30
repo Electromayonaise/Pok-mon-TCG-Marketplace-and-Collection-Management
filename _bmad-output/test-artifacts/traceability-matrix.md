@@ -110,7 +110,7 @@
 | FR-MSG-6 | Verification changes between compose and send (CAP-18) | MSG-1, MSG-3 | AD-SYS-8, AD-MSG-2, AD-MSG-3, AD-IDN-1 | 10 — `MSG-1.I3`, `MSG-1.P3`, `MSG-1.P4` +7 | 9.1 (done), 9.2 (done), 9.4 (done) | red |
 | FR-MSG-7 | Inbox and read state (CAP-18) | S-FR-MSG-7 | AD-MSG-3 | 2 — `S-FR-MSG-7.f`, `S-FR-MSG-7.h` | 9.6 (backlog) | red |
 | FR-MSG-8 | Mute a conversation (buyer side) (CAP-18) | S-FR-MSG-8 | AD-MSG-3 | 2 — `S-FR-MSG-8.f`, `S-FR-MSG-8.h` | 9.6 (backlog) | red |
-| FR-COL-1 | Named collections (CAP-11) | COL-3, S-FR-COL-1, S-FR-COL-1.list | AD-SYS-1, AD-COL-1, AD-7 | 11 — `COL-3.I2`, `COL-3.P2`, `COL-3.P3` +8 | 11.1 (backlog), 11.2 (backlog), 11.4 (backlog) | red |
+| FR-COL-1 | Named collections (CAP-11) | COL-3, S-FR-COL-1, S-FR-COL-1.list | AD-SYS-1, AD-COL-1, AD-7 | 11 — `COL-3.I2`, `COL-3.P2`, `COL-3.P3` +8 | 11.1 (done), 11.2 (backlog), 11.4 (backlog) | red |
 | FR-COL-2 | Add an entry manually (CAP-8, CAP-12) | COL-3 | AD-SYS-1, AD-COL-1, AD-7 | 7 — `COL-3.I2`, `COL-3.P2`, `COL-3.P3` +4 | 11.2 (backlog), 11.4 (backlog) | red |
 | FR-COL-3 | Add an entry by link (CAP-24) | S-FR-COL-3 | AD-COL-1, AD-7, AD-8 | 2 — `S-FR-COL-3.f`, `S-FR-COL-3.h` | 11.5 (backlog), 11.6 (backlog) | red |
 | FR-COL-4 | Move and copy between collections (CAP-11) | S-FR-COL-4 | AD-COL-1 | 2 — `S-FR-COL-4.f`, `S-FR-COL-4.h` | 11.5 (backlog), 11.6 (backlog) | red |
@@ -250,7 +250,7 @@
 | AD-MSG-1 | Contact messages deterministic and rate-limited | Pure composer; fixed-order advisory locks | `MSG-2.I1`, `MSG-2.MEC` | 9.3 (done) | red |
 | AD-MSG-2 | One conversation per pair; idempotent send | Unique keys; `lastSeq` allocation | `MSG-1.I3` | 9.2 (done) | red |
 | AD-MSG-3 | Read state monotonic | `WHERE "lastReadSeq" < :seq` | `S-FR-MSG-7.f` | 9.6 (backlog) | red |
-| AD-COL-1 | Tagged-union entries; collections capped under an owner lock | CHECKs; `col:owner` lock | `COL-3.I2`, `S-FR-COL-1.f` | 11.1 (backlog), 11.2 (backlog) | red |
+| AD-COL-1 | Tagged-union entries; collections capped under an owner lock | CHECKs; `col:owner` lock | `COL-3.I2`, `S-FR-COL-1.f` | 11.1 (done), 11.2 (backlog) | red |
 | AD-COL-2 | One prompt per closed order; entries once | `UNIQUE orderId`; `WHERE status='Pending'` | `COL-1.MEC` | 11.3 (backlog) | red |
 | AD-VAL-1 | Valuation is a pure BigInt function | Pure function; brand types | `VAL-1.I1`, `VAL-1.MEC` | 12.1 (backlog), 12.3 (backlog) | red |
 | AD-VAL-2 | Trend and history recomputed, no zero division | `roundHalfAwayFromZero`; null baseline | `VAL-2.I1` | 12.3 (backlog) | red |

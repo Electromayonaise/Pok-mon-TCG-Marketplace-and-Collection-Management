@@ -43,11 +43,50 @@ export interface ColV2UseCases {
 }
 // </gen-solu2-api>
 
+import type { Citation, Decision } from '../../../shared-kernel/decision.js';
+import { ambientTx } from '../../../shared-kernel/db.js';
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest } from '../../../shared-kernel/request.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import { COLLECTION_LIMIT } from '../domain/col.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('collections');
+
+/** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
+function explained(code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
+  return { outcome: 'allowed', reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
+}
+
+/** COL-1 P3, COL-3 P3, S-FR-COL-1: a foreign and an unknown id get the same body, so the citation names no id. */
+function collectionNotFound(rule: string): never {
+  return raise('CollectionNotFound', [{ rule, inputs: { owned: false } }]);
+}
+
+/** S-FR-COL-1: 1–60 characters (the parser's bound, re-checked for internal callers). */
+function checkName(name: string): void {
+  const length = [...name].length;
+  if (length < 1 || length > 60) rejectRequest([{ field: 'name', issue: 'debe tener entre 1 y 60 caracteres' }]);
+}
+
+/** COL's use cases (contracts.md §10, §15); the prompts and addEntry throw NotImplementedError until Story 11.2/11.3, the binder, external entries, moves and the wishlist until Story 11.5. */
 export class ColServiceV2 implements ColV2UseCases {
   constructor(protected readonly deps: ColV2Deps) {}
+
+  /** A read on the ambient transaction, or a read-only one of its own (AD-SYS-4 rule 9). */
+  private async reading<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+    const tx = ambientTx();
+    return tx ? fn(tx) : this.deps.transactions.run(fn, { readOnly: true });
+  }
+
+  private async audit(tx: Tx, actorId: CuidId | null, action: string, aggregate: { type: string; id: CuidId }, decisionCode: string | null, data: Record<string, string | number | boolean | null>, now: IsoInstant): Promise<void> {
+    await this.deps.audit.record(tx, {
+      actorId, actorKind: actorId === null ? 'system' : 'user', module: 'collections', action,
+      aggregateType: aggregate.type, aggregateId: aggregate.id, decisionCode, data, at: now,
+    });
+  }
 
   async acceptPrompt(_input: AcceptPromptRequest): Promise<AcceptPromptResponse> {
     throw new NotImplementedError('collections.acceptPrompt');
@@ -65,18 +104,55 @@ export class ColServiceV2 implements ColV2UseCases {
     throw new NotImplementedError('collections.addEntry');
   }
 
-  async createCollection(_input: CreateCollectionRequest): Promise<CreateCollectionResponse> {
-    throw new NotImplementedError('collections.createCollection');
+  /** S-FR-COL-1.create (AD-COL-1 rule 1): under `col:owner`, the count, then the insert; `nameKey` refuses a taken name. */
+  async createCollection(input: CreateCollectionRequest): Promise<CreateCollectionResponse> {
+    const { repo, transactions, clock, ids } = this.deps;
+    const { ownerId, name } = input;
+    checkName(name);
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      await repo.lockCollectionOwner(tx, ownerId);
+      const count = await repo.countCollections(tx, ownerId);
+      if (count >= COLLECTION_LIMIT) return raise('CollectionLimitReached', [{ rule: 'AD-COL-1 rule 1', inputs: { limit: COLLECTION_LIMIT, count } }]);
+      const collectionId = ids.next();
+      if (await repo.insertCollection(tx, { id: collectionId, ownerId, name, now }) === 'taken') {
+        return raise('CollectionNameTaken', [{ rule: 'AD-COL-1 rule 1', inputs: { field: 'name' } }]);
+      }
+      await this.audit(tx, ownerId, 'collections.collection.created', { type: 'Collection', id: collectionId }, 'CollectionCreated', { count: count + 1 }, now);
+      return { collectionId, name, decision: explained('CollectionCreated', [{ rule: 'FR-COL-1', inputs: { collectionId, count: count + 1 } }], now) };
+    });
   }
 
-  async renameCollection(_input: RenameCollectionRequest): Promise<CollectionChangeResponse> {
-    throw new NotImplementedError('collections.renameCollection');
+  /** S-FR-COL-1.rename: under `col:owner`, the owner's collection only; `nameKey` refuses a taken name. */
+  async renameCollection(input: RenameCollectionRequest): Promise<CollectionChangeResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { ownerId, collectionId, name } = input;
+    checkName(name);
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      await repo.lockCollectionOwner(tx, ownerId);
+      const outcome = await repo.renameCollection(tx, { collectionId, ownerId, name, now });
+      if (outcome === 'missing') return collectionNotFound('FR-COL-1');
+      if (outcome === 'taken') return raise('CollectionNameTaken', [{ rule: 'AD-COL-1 rule 1', inputs: { field: 'name' } }]);
+      await this.audit(tx, ownerId, 'collections.collection.renamed', { type: 'Collection', id: collectionId }, null, {}, now);
+      return { collectionId, updatedAt: now };
+    });
   }
 
-  async deleteCollection(_input: DeleteCollectionRequest): Promise<DeleteCollectionResponse> {
-    throw new NotImplementedError('collections.deleteCollection');
+  /** S-FR-COL-1.delete (review G-15): under `col:owner`, the owner's collection and its entries, citing what it removed. */
+  async deleteCollection(input: DeleteCollectionRequest): Promise<DeleteCollectionResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { ownerId, collectionId } = input;
+    if (input.confirm !== true) return rejectRequest([{ field: 'confirm', issue: 'confirma el borrado' }]);
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      await repo.lockCollectionOwner(tx, ownerId);
+      const removed = await repo.deleteCollection(tx, { collectionId, ownerId });
+      if (removed === null) return collectionNotFound('FR-COL-1');
+      await this.audit(tx, ownerId, 'collections.collection.deleted', { type: 'Collection', id: collectionId }, 'CollectionDeleted', removed, now);
+      return { ...removed, decision: explained('CollectionDeleted', [{ rule: 'FR-COL-1', inputs: removed }], now) };
+    });
   }
-
   async addExternalEntry(_input: AddExternalEntryRequest): Promise<AddExternalEntryResponse> {
     throw new NotImplementedError('collections.addExternalEntry');
   }
@@ -113,7 +189,8 @@ export class ColServiceV2 implements ColV2UseCases {
     throw new NotImplementedError('collections.listPrompts');
   }
 
-  async listCollections(_input: ListCollectionsRequest): Promise<ListCollectionsResponse> {
-    throw new NotImplementedError('collections.listCollections');
+  /** S-FR-COL-1.list (§15.12): the owner's collections with their entry counts, by name. Zero writes. */
+  async listCollections(input: ListCollectionsRequest): Promise<ListCollectionsResponse> {
+    return { collections: await this.reading((tx) => this.deps.repo.readCollections(tx, input.ownerId)) };
   }
 }

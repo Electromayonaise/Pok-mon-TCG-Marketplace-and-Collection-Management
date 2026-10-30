@@ -753,3 +753,26 @@ describe('trading over HTTP (S-FR-TRD-1, S-FR-TRD-2w, S-FR-TRD-3; Story 10.1)', 
     expect([cancel.status, cancel.json.error?.code]).toEqual([409, 'TradeNotCancellable']);
   });
 });
+
+describe('collections over HTTP (S-FR-COL-1; Story 11.1)', () => {
+  it('an owner creates, lists, renames and deletes collections; a taken name is CollectionNameTaken 409 and a foreign id is CollectionNotFound 404 (Story 11.1)', async () => {
+    await user(db, { id: id('valentina') });
+    await user(db, { id: id('julian') });
+    const valentina = await signIn(id('valentina'));
+    const keep = await post('collections.create', { name: 'Keep' }, valentina);
+    expect(keep.status).toBe(200);
+    const collectionId = keep.json.result?.data.collectionId as string;
+    expect((await post('collections.create', { name: 'For trade' }, valentina)).status).toBe(200);
+    const taken = await post('collections.create', { name: 'keep' }, valentina);
+    expect([taken.status, taken.json.error?.code]).toEqual([409, 'CollectionNameTaken']);
+    expect((await get('collections.list', {}, valentina)).json.result?.data).toEqual({
+      collections: [{ collectionId: expect.any(String), name: 'For trade', entryCount: 0 }, { collectionId, name: 'Keep', entryCount: 0 }],
+    });
+    expect((await post('collections.rename', { collectionId, name: 'Guardadas' }, valentina)).status).toBe(200);
+    const foreign = await post('collections.delete', { collectionId, confirm: true }, await signIn(id('julian')));
+    expect([foreign.status, foreign.json.error?.code]).toEqual([404, 'CollectionNotFound']);
+    const deleted = await post('collections.delete', { collectionId, confirm: true }, valentina);
+    expect(deleted.json.result?.data).toMatchObject({ entriesRemoved: 0, platformPurchaseEntriesRemoved: 0 });
+    expect(await rows(db, 'Collection', 'id = $1', [collectionId])).toHaveLength(0);
+  });
+});

@@ -2,7 +2,7 @@
 title: 'Story 11.1: Organize my collections'
 type: 'feature'
 created: '2026-10-30'
-status: 'draft'
+status: 'done'
 baseline_commit: 'cfba71b'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -55,8 +55,8 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] domain + src tests; repository + service; wiring + HTTP case
-- [ ] `sprint-status.yaml` -- 11.1 `done`; `gen:trace:solu2`
+- [x] domain + src tests; repository + service; wiring + HTTP case
+- [x] `sprint-status.yaml` -- 11.1 `done`; `gen:trace:solu2`
 
 **Acceptance Criteria:**
 - Given 11.1 `done`, when `[S-FR-COL-1.h]`, `[S-FR-COL-1.f]`, `[S-FR-COL-1.list.h]`, `[S-FR-COL-1.delete.h]` run, then they pass.
@@ -64,3 +64,12 @@ context:
 ## Verification
 
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/col_supporting.test.ts` -- the 4 bound tests pass; the other 8 stay red for NotImplemented
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 11 at its close (decision #22).
+- `PgColRepository` holds every COL statement of the epic (the port is declared whole here); each story's service uses its part.
+- `CollectionNotFound` cites `{ owned: false }` with no id, so a foreign id's body equals an unknown id's (rename, delete, COL-1 P3, COL-3 P3).
+- `CollectionNameTaken` cites `{ field: 'name' }`; `CollectionLimitReached` cites `{ limit: 50, count }`.
+- §13 gains five stored-only rows (D2): `CollectionCreated`, `CollectionDeleted`, `CollectionEntryAdded`, `PromptAccepted`, `PromptDismissed`. The catalog test's number placeholders gain `entriesRemoved`, `platformPurchaseEntriesRemoved` and `entryCount`.
+- Wired: `collections.create`, `.rename`, `.delete`, `.list`.

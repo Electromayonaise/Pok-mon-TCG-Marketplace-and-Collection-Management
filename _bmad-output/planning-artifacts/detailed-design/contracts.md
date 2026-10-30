@@ -1416,6 +1416,11 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `InvalidAcquiredDate` † | 400 | collections | COL-3 P2 (C-GAP-2) | "La fecha {acquiredAt} es posterior a hoy ({today})." | no |
 | `PromptAlreadyResolved` | 409 | collections | COL-1 P2 | "Esta sugerencia ya fue {status} el {resolvedAt}." | no |
 | `PromptNotFound` | 404 | collections | COL-1 P1 | "No encontramos esa sugerencia." | no |
+| `CollectionCreated` | — (stored only) | collections | S-FR-COL-1.create `allowed`: the collection is created, citing `{ collectionId, count }` (FR-COL-1; decision log Impl-1 #36) | "Creaste la colección." | no |
+| `CollectionDeleted` | — (stored only) | collections | S-FR-COL-1.delete `allowed`: the collection and its entries are removed, citing `{ entriesRemoved, platformPurchaseEntriesRemoved }` (FR-COL-1, review G-15; decision log Impl-1 #36) | "Borraste la colección con {entriesRemoved} cartas, {platformPurchaseEntriesRemoved} de compras." | no |
+| `CollectionEntryAdded` | — (stored only) | collections | COL-3 Q4 `allowed`: one Manual entry is added, citing `{ entryId, source, createdGeneral }` (FR-COL-2; decision log Impl-1 #36) | "Agregaste la carta a tu colección." | no |
+| `PromptAccepted` | — (stored only) | collections | COL-1 Q4 `allowed`: the prompt is Accepted and one entry per line is added, citing `{ promptId, orderId, entryCount }` (FR-COL-7; decision log Impl-1 #36) | "Agregamos {entryCount} cartas de tu compra a la colección." | no |
+| `PromptDismissed` | — (stored only) | collections | COL-1.dismiss `allowed`: the prompt is Dismissed with no entry, citing `{ promptId, orderId }` (FR-COL-7; decision log Impl-1 #36) | "Descartaste la sugerencia." | no |
 | `InvalidValuationPeriod` | 400 | collections | VAL-2 P2 | "El periodo debe ser 7, 30, 90 o 365 días." | no |
 | `TargetNotFound` | 404 | reviews | REP-1 P2, P3; S-FR-REP-7 | "No encontramos ese vendedor." | no |
 | `NotVerifiedPurchaser` | 409 | reviews | REP-1 P4 | "Podrás reseñar esta tienda cuando confirmes que recibiste tu pedido; pagar no es suficiente ({latestState})." | no |
