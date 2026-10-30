@@ -2,7 +2,7 @@
 title: 'Story 11.4: Refuse foreign, resolved and invalid collection actions'
 type: 'feature'
 created: '2026-10-30'
-status: 'draft'
+status: 'done'
 baseline_commit: 'cfba71b'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -33,7 +33,11 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] run the 7 tests on the 11.3 tree; fix any gap; `sprint-status.yaml` 11.4 `done`, out of `impl2_scope`
+- [x] run the 7 tests on the 11.3 tree; fix any gap; `sprint-status.yaml` 11.4 `done`, out of `impl2_scope`
 
 **Acceptance Criteria:**
 - Given 11.4 `done`, when its 7 tests run, then they pass and `gate:atdd-red:impl1` is green.
+
+## Implementation Notes
+
+- D1 approved: proof-only. The 7 tests passed on the 11.3 tree with no fix; 11.4 left `impl2_scope` (decision log Impl-1 #36) and does not count toward the 43.

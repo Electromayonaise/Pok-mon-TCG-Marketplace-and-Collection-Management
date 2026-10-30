@@ -110,13 +110,13 @@
 | FR-MSG-6 | Verification changes between compose and send (CAP-18) | MSG-1, MSG-3 | AD-SYS-8, AD-MSG-2, AD-MSG-3, AD-IDN-1 | 10 — `MSG-1.I3`, `MSG-1.P3`, `MSG-1.P4` +7 | 9.1 (done), 9.2 (done), 9.4 (done) | red |
 | FR-MSG-7 | Inbox and read state (CAP-18) | S-FR-MSG-7 | AD-MSG-3 | 2 — `S-FR-MSG-7.f`, `S-FR-MSG-7.h` | 9.6 (backlog) | red |
 | FR-MSG-8 | Mute a conversation (buyer side) (CAP-18) | S-FR-MSG-8 | AD-MSG-3 | 2 — `S-FR-MSG-8.f`, `S-FR-MSG-8.h` | 9.6 (backlog) | red |
-| FR-COL-1 | Named collections (CAP-11) | COL-3, S-FR-COL-1, S-FR-COL-1.list | AD-SYS-1, AD-COL-1, AD-7 | 11 — `COL-3.I2`, `COL-3.P2`, `COL-3.P3` +8 | 11.1 (done), 11.2 (done), 11.4 (backlog) | red |
-| FR-COL-2 | Add an entry manually (CAP-8, CAP-12) | COL-3 | AD-SYS-1, AD-COL-1, AD-7 | 7 — `COL-3.I2`, `COL-3.P2`, `COL-3.P3` +4 | 11.2 (done), 11.4 (backlog) | red |
+| FR-COL-1 | Named collections (CAP-11) | COL-3, S-FR-COL-1, S-FR-COL-1.list | AD-SYS-1, AD-COL-1, AD-7 | 11 — `COL-3.I2`, `COL-3.P2`, `COL-3.P3` +8 | 11.1 (done), 11.2 (done), 11.4 (done) | red |
+| FR-COL-2 | Add an entry manually (CAP-8, CAP-12) | COL-3 | AD-SYS-1, AD-COL-1, AD-7 | 7 — `COL-3.I2`, `COL-3.P2`, `COL-3.P3` +4 | 11.2 (done), 11.4 (done) | red |
 | FR-COL-3 | Add an entry by link (CAP-24) | S-FR-COL-3 | AD-COL-1, AD-7, AD-8 | 2 — `S-FR-COL-3.f`, `S-FR-COL-3.h` | 11.5 (backlog), 11.6 (backlog) | red |
 | FR-COL-4 | Move and copy between collections (CAP-11) | S-FR-COL-4 | AD-COL-1 | 2 — `S-FR-COL-4.f`, `S-FR-COL-4.h` | 11.5 (backlog), 11.6 (backlog) | red |
 | FR-COL-5 | Binder layout, sorting and completion (CAP-10) | S-FR-COL-5 | AD-COL-1 | 2 — `S-FR-COL-5.f`, `S-FR-COL-5.h` | 11.5 (backlog), 11.6 (backlog) | red |
 | FR-COL-6 | Wishlist, separate from collections (CAP-13, CAP-14) | S-FR-COL-6 | AD-1, AD-7 | 2 — `S-FR-COL-6.f`, `S-FR-COL-6.h` | 11.5 (backlog), 11.6 (backlog) | red |
-| FR-COL-7 | Exactly one post-purchase prompt per closed order (CAP-27) | COL-1, COL-2, COL-1.list | AD-COL-2, AD-SYS-5, AD-COL-1, AD-SYS-2 | 11 — `COL-1.MEC`, `COL-1.P1`, `COL-1.P2` +8 | 11.3 (done), 11.4 (backlog) | red |
+| FR-COL-7 | Exactly one post-purchase prompt per closed order (CAP-27) | COL-1, COL-2, COL-1.list | AD-COL-2, AD-SYS-5, AD-COL-1, AD-SYS-2 | 11 — `COL-1.MEC`, `COL-1.P1`, `COL-1.P2` +8 | 11.3 (done), 11.4 (done) | red |
 | FR-VAL-1 | Current value in integer COP (CAP-9) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (backlog), 12.3 (backlog), 12.4 (backlog) | red |
 | FR-VAL-2 | Period trend with a defined zero baseline (CAP-9, CAP-3) | VAL-2 | AD-VAL-2, AD-SYS-7 | 4 — `VAL-2.I1`, `VAL-2.I3`, `VAL-2.P2` +1 | 12.2 (backlog), 12.3 (backlog), 12.4 (backlog), 12.5 (backlog) | red |
 | FR-VAL-3 | Unpriced and stale items (CAP-9, CAP-12) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (backlog), 12.3 (backlog), 12.4 (backlog) | red |

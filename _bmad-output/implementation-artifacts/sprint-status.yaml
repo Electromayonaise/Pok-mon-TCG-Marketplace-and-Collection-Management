@@ -130,7 +130,7 @@ development_status:
   11-1-organize-my-collections: done
   11-2-add-catalog-cards-to-a-collection: done
   11-3-turn-a-closed-order-into-one-prompt-and-one-entry-set: done
-  11-4-refuse-foreign-resolved-and-invalid-collection-actions: backlog
+  11-4-refuse-foreign-resolved-and-invalid-collection-actions: done
   11-5-use-the-binder-add-external-cards-move-entries-and-wishlist-cards: backlog
   11-6-refuse-unsafe-links-foreign-entries-and-unknown-wishlist-cards: backlog
   epic-11-retrospective: optional
@@ -182,13 +182,15 @@ impl1_delivery:
 # 10.1–10.3 turn its tests green (TRD-1's and TRD-2's re-read and first-fail chains, S-FR-TRD-1's unique index, the withdraw
 # re-read and the visibility rule); it is done and has left this list (decision log Impl-1 #35). 10-5 is built whole with
 # Epic 10, because Story 10.3 turns its [S-FR-TRD-9.f] green (TRD-1 P2 at now = expiresAt) and an accepted trade needs
-# cancel to release its unit; it is done and has left this list (decision log Impl-1 #35).
+# cancel to release its unit; it is done and has left this list (decision log Impl-1 #35). 11-4 is built with the whole of
+# Epic 11, because Stories 11.2 and 11.3 turn its tests green (COL-3 P2–P4 are addEntry's own first-fail chain, and COL-1's
+# re-read, Q-fail and rollback are acceptPrompt's and dismissPrompt's, which [COL-1.MEC] needs); it is done and has left
+# this list (decision log Impl-1 #36).
 impl2_scope:
   - 2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins
   - 8-5-reconcile-ledgers-and-report-never-repair-discrepancies
   - 8-6-set-commission-rates-and-read-the-ledger
   - 9-6-read-the-inbox-mark-threads-read-and-mute
-  - 11-4-refuse-foreign-resolved-and-invalid-collection-actions
   - 11-5-use-the-binder-add-external-cards-move-entries-and-wishlist-cards
   - 11-6-refuse-unsafe-links-foreign-entries-and-unknown-wishlist-cards
   - 12-4-refuse-foreign-collections-and-invalid-periods
