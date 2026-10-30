@@ -2,7 +2,7 @@
 title: 'Story 12.3: Value 500 mixed entries with zero drift and a zero baseline'
 type: 'feature'
 created: '2026-10-30'
-status: 'draft'
+status: 'done'
 baseline_commit: '49b09cc'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -36,7 +36,15 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] run the 2 tests; property test; record the runtime; `sprint-status.yaml` 12.3 `done`
+- [x] run the 2 tests; property test; record the runtime; `sprint-status.yaml` 12.3 `done`
 
 **Acceptance Criteria:**
 - Given 12.3 `done`, when `[VAL-1.MEC]` and `[VAL-2.I1]` run, then they pass.
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 12 at its close (decision #22). D5 (decision log Impl-1 #37): no benchmark of its own.
+- Both bound tests passed on the 12.2 tree with no fix: `[VAL-1.MEC]` (500 entries, a third FX-derived, five concurrent valuations on real connections) and `[VAL-2.I1]` (empty, all unpriced, all acquired in the period).
+- `val-domain.test.ts` adds the contract's property: over 1,000 random collections of up to 500 entries (fast-check, fixed seed), the total equals the BigInt reference sum, and the FX-derived part, each price rounded once from USD (ADD-§2.1), stays within `⌊Σ qty(fx) / 2⌋` of converting the exact sum once.
+- Runtime (TG-7), three runs on local Postgres 16: `[VAL-1.MEC]` 410, 452 and 455 ms (the 500-entry Given plus five concurrent valuations); `[VAL-2.I1]` 83, 125 and 96 ms.
+- NFR-VAL-2 on the same 500-entry collection, from Stories 12.1–12.2: current value p95 74.1 ms, current value plus the 30-day trend p95 281.2 ms, 365-day history p95 201.3 ms.

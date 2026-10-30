@@ -1,5 +1,6 @@
 // VAL's pure rules: the exact BigInt valuation, its branded input, the safe-integer boundary, the rounding and the daily
 // series (AD-VAL-1, AD-VAL-2, AD-SYS-7).
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
   addDays, assertSafeInteger, changePercentHundredths, chunks, isValuationPeriod, referencePrice, roundHalfAwayFromZero, series, valueEntries, type ValuationEntry,
@@ -111,5 +112,35 @@ describe('series (AD-VAL-2 rule 5, VAL-3 Q1–Q2)', () => {
   it('adds days across a month and a year end', () => {
     expect(addDays('2026-12-31', 1)).toBe('2027-01-01');
     expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
+  });
+});
+
+describe('valueEntries over 1,000 random collections (VAL-1 MEC, NFR-VAL-1; Story 12.3)', () => {
+  /** ADD-§2.1: an FX-derived observation's COP, rounded once from USD cents at the TRM in centavos. */
+  const copFromUsd = (usdCents: bigint, copPerUsdCentavos: bigint) => (usdCents * copPerUsdCentavos + 5_000n) / 10_000n;
+  const entryArb = fc.record({
+    qty: fc.integer({ min: 1, max: 999 }),
+    native: fc.boolean(),
+    cop: fc.integer({ min: 1, max: 100_000_000 }),
+    usdCents: fc.integer({ min: 1, max: 2_000_000 }),
+    stale: fc.boolean(),
+  });
+
+  it('the total is the exact reference sum, and the FX-derived part stays within ⌊Σ qty(fx) / 2⌋ of converting once', () => {
+    const rate = 412_345n; // 4,123.45 COP per USD, in centavos
+    fc.assert(fc.property(fc.array(entryArb, { maxLength: 500 }), (rows) => {
+      const entries = rows.map((r, i) => {
+        const cop = r.native ? BigInt(r.cop) : copFromUsd(BigInt(r.usdCents), rate);
+        return { entryId: `e${i}`, cardKind: 'catalog' as const, qty: BigInt(r.qty), price: referencePrice({ cop: Number(cop), stale: r.stale, copDerivation: r.native ? 'sourceNative' : 'fxDerived' }) };
+      });
+      const result = valueEntries(entries);
+      expect(result.totalCop).toBe(entries.reduce((sum, e) => sum + e.price.cop * e.qty, 0n));
+      const fx = rows.flatMap((r, i) => (r.native ? [] : [{ r, e: entries[i]! }]));
+      const summed = fx.reduce((sum, { e }) => sum + e.price.cop * e.qty, 0n);
+      const convertOnce = (fx.reduce((sum, { r }) => sum + BigInt(r.usdCents) * rate * BigInt(r.qty), 0n) + 5_000n) / 10_000n;
+      const drift = summed > convertOnce ? summed - convertOnce : convertOnce - summed;
+      expect(drift <= result.conversionDriftBoundCop).toBe(true);
+      expect(result.conversionDriftBoundCop).toBe(fx.reduce((sum, { r }) => sum + BigInt(r.qty), 0n) / 2n);
+    }), { numRuns: 1_000, seed: 20_261_030 });
   });
 });

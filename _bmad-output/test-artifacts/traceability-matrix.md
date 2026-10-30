@@ -25,7 +25,7 @@
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
-| NFR evidence status | Green — ATDD: 29; Green — benchmark: 13; Green — gate: 8; Red — ATDD: 11; Deferred — launch: 3; Planned — story DoD: 3; the page copy belongs to UI 6.2: 1; the 35 s visibility is the client's 30 s polling: 1 |
+| NFR evidence status | Green — ATDD: 31; Green — benchmark: 13; Green — gate: 8; Red — ATDD: 9; Deferred — launch: 3; Planned — story DoD: 3; the page copy belongs to UI 6.2: 1; the 35 s visibility is the client's 30 s polling: 1 |
 | Contract clauses / test ids | 112 / 389 (377 red, 12 green) |
 | Gate problems | 0 |
 
@@ -117,11 +117,11 @@
 | FR-COL-5 | Binder layout, sorting and completion (CAP-10) | S-FR-COL-5 | AD-COL-1 | 2 — `S-FR-COL-5.f`, `S-FR-COL-5.h` | 11.5 (backlog), 11.6 (backlog) | red |
 | FR-COL-6 | Wishlist, separate from collections (CAP-13, CAP-14) | S-FR-COL-6 | AD-1, AD-7 | 2 — `S-FR-COL-6.f`, `S-FR-COL-6.h` | 11.5 (backlog), 11.6 (backlog) | red |
 | FR-COL-7 | Exactly one post-purchase prompt per closed order (CAP-27) | COL-1, COL-2, COL-1.list | AD-COL-2, AD-SYS-5, AD-COL-1, AD-SYS-2 | 11 — `COL-1.MEC`, `COL-1.P1`, `COL-1.P2` +8 | 11.3 (done), 11.4 (done) | red |
-| FR-VAL-1 | Current value in integer COP (CAP-9) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (backlog), 12.4 (backlog) | red |
-| FR-VAL-2 | Period trend with a defined zero baseline (CAP-9, CAP-3) | VAL-2 | AD-VAL-2, AD-SYS-7 | 4 — `VAL-2.I1`, `VAL-2.I3`, `VAL-2.P2` +1 | 12.2 (done), 12.3 (backlog), 12.4 (backlog), 12.5 (backlog) | red |
-| FR-VAL-3 | Unpriced and stale items (CAP-9, CAP-12) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (backlog), 12.4 (backlog) | red |
+| FR-VAL-1 | Current value in integer COP (CAP-9) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (done), 12.4 (backlog) | red |
+| FR-VAL-2 | Period trend with a defined zero baseline (CAP-9, CAP-3) | VAL-2 | AD-VAL-2, AD-SYS-7 | 4 — `VAL-2.I1`, `VAL-2.I3`, `VAL-2.P2` +1 | 12.2 (done), 12.3 (done), 12.4 (backlog), 12.5 (backlog) | red |
+| FR-VAL-3 | Unpriced and stale items (CAP-9, CAP-12) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (done), 12.4 (backlog) | red |
 | FR-VAL-4 | Value history series (CAP-9) | VAL-3 | AD-VAL-2, AD-CAT-2 | 4 — `VAL-3.I2`, `VAL-3.P1`, `VAL-3.Q1` +1 | 12.2 (done), 12.4 (backlog), 12.5 (backlog) | red |
-| FR-VAL-5 | Money-shape separation (CAP-3, CAP-9) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (backlog), 12.4 (backlog) | red |
+| FR-VAL-5 | Money-shape separation (CAP-3, CAP-9) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (done), 12.4 (backlog) | red |
 | FR-REP-1 | Gated review of a business (CAP-7) | REP-1, REP-1.edit, REP-1.check | AD-REP-1, AD-2 | 11 — `REP-1.I1`, `REP-1.I2`, `REP-1.MEC` +8 | 13.1 (backlog), 13.4 (backlog) | red |
 | FR-REP-2 | Ungated review of an individual seller (CAP-7) | REP-1, REP-1.edit, REP-1.check | AD-REP-1, AD-2 | 11 — `REP-1.I1`, `REP-1.I2`, `REP-1.MEC` +8 | 13.1 (backlog), 13.4 (backlog) | red |
 | FR-REP-3 | Aggregate reputation with a stated rounding rule (CAP-7) | REP-3 | AD-12, AD-REP-2 | 4 — `REP-3.I1`, `REP-3.MEC`, `REP-3.P1` +1 | 13.3 (backlog), 13.6 (backlog) | red |
@@ -159,7 +159,7 @@
 | NFR-TRD-1 | (mandatory edge case): | TRD-1 | `TRD-1.MEC` | 9 | Green — ATDD |
 | NFR-MSG-4 | (mandatory edge case): | MSG-2, MSG-3 | `MSG-2.MEC`, `MSG-3.MEC` | 10 | Green — ATDD |
 | NFR-COL-1 | (mandatory edge case): | COL-1, COL-2 | `COL-1.MEC`, `COL-2.I1` | 11 | Red — ATDD |
-| NFR-VAL-1 | (mandatory edge case): | VAL-1, VAL-2 | `VAL-1.MEC`, `VAL-2.I1`, `VAL-2.I3` | 9 | Red — ATDD |
+| NFR-VAL-1 | (mandatory edge case): | VAL-1, VAL-2 | `VAL-1.MEC`, `VAL-2.I1`, `VAL-2.I3` | 9 | Green — ATDD (`[VAL-1.MEC]` and `[VAL-2.I1]` with Story 12.3, `[VAL-2.I3]` with Story 12.5) |
 | NFR-REP-1 | (mandatory edge case): | REP-1, REP-2, REP-3 | `REP-1.MEC`, `REP-3.MEC` | 22 | Red — ATDD |
 | NFR-IDN-1 | getCapabilities | — | — | 0 | Planned — story DoD |
 | NFR-IDN-3 | 0 procedures accept a client-supplied role | — | `SYS-8.R2.static`, `SYS-8.R2` | 2 | Green — gate |
@@ -189,7 +189,7 @@
 | NFR-COL-2 | a binder page render (sorted | — | — | 0 | Planned — story DoD |
 | NFR-COL-3 | there are 0 CatalogEntry writes from collections | — | `SYS-AD8`, `S-FR-COL-3.h` | 2 | Green — gate |
 | NFR-VAL-2 | current value plus the 30-day trend for 500 entries takes p95 ≤ 1,500 ms | VAL-1, VAL-3 | `NFR-VAL-2.current`, `NFR-VAL-2.trend`, `NFR-VAL-2.history` | 12 | Green — benchmark |
-| NFR-VAL-3 | 0 floating-point operations on COP in valuation code | VAL-1, VAL-2 | `VAL-1.I1`, `VAL-2.I3` | 9 | Red — ATDD |
+| NFR-VAL-3 | 0 floating-point operations on COP in valuation code | VAL-1, VAL-2 | `VAL-1.I1`, `VAL-2.I3` | 9 | Green — ATDD (`[VAL-1.I1]` with Story 12.1, `[VAL-2.I3]` with Story 12.5) |
 | NFR-REP-2 | a profile read (aggregate plus the first page) takes p95 ≤ 300 ms | REP-2, REP-3 | `S-FR-REP-7.h` | 12 | Red — ATDD (next read); Planned — story DoD (latency) |
 | NFR-REP-3 | 0 hard deletes of Review or Listing rows | — | `REP-2.I1`, `SYS-R2.grants` | 2 | Green — gate (grant); Red — ATDD (behaviour) |
 
@@ -252,8 +252,8 @@
 | AD-MSG-3 | Read state monotonic | `WHERE "lastReadSeq" < :seq` | `S-FR-MSG-7.f` | 9.6 (backlog) | red |
 | AD-COL-1 | Tagged-union entries; collections capped under an owner lock | CHECKs; `col:owner` lock | `COL-3.I2`, `S-FR-COL-1.f` | 11.1 (done), 11.2 (done) | red |
 | AD-COL-2 | One prompt per closed order; entries once | `UNIQUE orderId`; `WHERE status='Pending'` | `COL-1.MEC` | 11.3 (done) | red |
-| AD-VAL-1 | Valuation is a pure BigInt function | Pure function; brand types | `VAL-1.I1`, `VAL-1.MEC` | 12.1 (done), 12.3 (backlog) | red |
-| AD-VAL-2 | Trend and history recomputed, no zero division | `roundHalfAwayFromZero`; null baseline | `VAL-2.I1` | 12.3 (backlog) | red |
+| AD-VAL-1 | Valuation is a pure BigInt function | Pure function; brand types | `VAL-1.I1`, `VAL-1.MEC` | 12.1 (done), 12.3 (done) | red |
+| AD-VAL-2 | Trend and history recomputed, no zero division | `roundHalfAwayFromZero`; null baseline | `VAL-2.I1` | 12.3 (done) | red |
 | AD-REP-1 | Business reviews purchase-verified; one per pair | `review_business_iff_verified`; unique pair | `REP-1.I1` | 13.1 (backlog) | red |
 | AD-REP-2 | Aggregates from the same snapshot as the list | One statement; `REPEATABLE READ` profile read | `REP-3.MEC` | 13.3 (backlog) | red |
 | AD-REP-3 | Hide and unhide conditional and logged | `WHERE hiddenAt IS NULL`; log with snapshots | `REP-2.I2` | 13.2 (backlog) | red |
@@ -273,7 +273,7 @@
 | R-08 Two offers for the last unit are accepted from two tabs, and both h… | P0 | TRD | Integration (race, 100 ×) | `TRD-1.MEC` | 10.3 (done) | red |
 | R-09 Long, accented or emoji product names break the contact message; th… | P0 | MSG | Integration (boundary, race) | `MSG-2.MEC`, `MSG-3.MEC` | 9.2 (done), 9.3 (done) | red |
 | R-10 `OrderClosed` is delivered twice and the prompt accepted twice, dup… | P0 | COL | Integration (repeat, race) | `COL-1.MEC` | 11.3 (done) | red |
-| R-11 Valuation divides by a zero baseline or drifts over 500 entries (MEC) | P0 | VAL | Integration + pure | `VAL-1.MEC`, `VAL-2.I1`, `VAL-2.I3` | 12.3 (backlog), 12.5 (backlog) | red |
+| R-11 Valuation divides by a zero baseline or drifts over 500 entries (MEC) | P0 | VAL | Integration + pure | `VAL-1.MEC`, `VAL-2.I1`, `VAL-2.I3` | 12.3 (done), 12.5 (backlog) | red |
 | R-12 A paid-but-not-closed review is accepted; a hide racing a new revie… | P0 | REP | Integration (race, 100 ×) | `REP-1.MEC`, `REP-3.MEC` | 13.3 (backlog) | red |
 | R-13 A regulated value (phone, legal identity, document or comprobante k… | P0 | SYS | Integration + NFR scan | `SYS-8.R4`, `SYS-8.R4.error`, `NFR-SYS-8.canary` | 1.2 (done) | red |
 | R-14 An event is lost between commit and dispatch, or a crashed delivery… | P0 | SYS | Integration + NFR drain | `SYS-2.R6`, `SYS-2.R4`, `NFR-SYS-6.sweep` | 1.3 (done) | red |
