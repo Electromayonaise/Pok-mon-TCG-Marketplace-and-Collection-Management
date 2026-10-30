@@ -117,11 +117,11 @@
 | FR-COL-5 | Binder layout, sorting and completion (CAP-10) | S-FR-COL-5 | AD-COL-1 | 2 — `S-FR-COL-5.f`, `S-FR-COL-5.h` | 11.5 (backlog), 11.6 (backlog) | red |
 | FR-COL-6 | Wishlist, separate from collections (CAP-13, CAP-14) | S-FR-COL-6 | AD-1, AD-7 | 2 — `S-FR-COL-6.f`, `S-FR-COL-6.h` | 11.5 (backlog), 11.6 (backlog) | red |
 | FR-COL-7 | Exactly one post-purchase prompt per closed order (CAP-27) | COL-1, COL-2, COL-1.list | AD-COL-2, AD-SYS-5, AD-COL-1, AD-SYS-2 | 11 — `COL-1.MEC`, `COL-1.P1`, `COL-1.P2` +8 | 11.3 (done), 11.4 (done) | red |
-| FR-VAL-1 | Current value in integer COP (CAP-9) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (done), 12.4 (backlog) | red |
-| FR-VAL-2 | Period trend with a defined zero baseline (CAP-9, CAP-3) | VAL-2 | AD-VAL-2, AD-SYS-7 | 4 — `VAL-2.I1`, `VAL-2.I3`, `VAL-2.P2` +1 | 12.2 (done), 12.3 (done), 12.4 (backlog), 12.5 (backlog) | red |
-| FR-VAL-3 | Unpriced and stale items (CAP-9, CAP-12) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (done), 12.4 (backlog) | red |
-| FR-VAL-4 | Value history series (CAP-9) | VAL-3 | AD-VAL-2, AD-CAT-2 | 4 — `VAL-3.I2`, `VAL-3.P1`, `VAL-3.Q1` +1 | 12.2 (done), 12.4 (backlog), 12.5 (backlog) | red |
-| FR-VAL-5 | Money-shape separation (CAP-3, CAP-9) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (done), 12.4 (backlog) | red |
+| FR-VAL-1 | Current value in integer COP (CAP-9) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (done), 12.4 (done) | red |
+| FR-VAL-2 | Period trend with a defined zero baseline (CAP-9, CAP-3) | VAL-2 | AD-VAL-2, AD-SYS-7 | 4 — `VAL-2.I1`, `VAL-2.I3`, `VAL-2.P2` +1 | 12.2 (done), 12.3 (done), 12.4 (done), 12.5 (done) | red |
+| FR-VAL-3 | Unpriced and stale items (CAP-9, CAP-12) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (done), 12.4 (done) | red |
+| FR-VAL-4 | Value history series (CAP-9) | VAL-3 | AD-VAL-2, AD-CAT-2 | 4 — `VAL-3.I2`, `VAL-3.P1`, `VAL-3.Q1` +1 | 12.2 (done), 12.4 (done), 12.5 (done) | red |
+| FR-VAL-5 | Money-shape separation (CAP-3, CAP-9) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (done), 12.4 (done) | red |
 | FR-REP-1 | Gated review of a business (CAP-7) | REP-1, REP-1.edit, REP-1.check | AD-REP-1, AD-2 | 11 — `REP-1.I1`, `REP-1.I2`, `REP-1.MEC` +8 | 13.1 (backlog), 13.4 (backlog) | red |
 | FR-REP-2 | Ungated review of an individual seller (CAP-7) | REP-1, REP-1.edit, REP-1.check | AD-REP-1, AD-2 | 11 — `REP-1.I1`, `REP-1.I2`, `REP-1.MEC` +8 | 13.1 (backlog), 13.4 (backlog) | red |
 | FR-REP-3 | Aggregate reputation with a stated rounding rule (CAP-7) | REP-3 | AD-12, AD-REP-2 | 4 — `REP-3.I1`, `REP-3.MEC`, `REP-3.P1` +1 | 13.3 (backlog), 13.6 (backlog) | red |
@@ -222,7 +222,7 @@
 | AD-SYS-4 | Transaction handles, pooler-safe state, global lock order | `tx` first; `db()` ambient client; ascending unit locks | `INV-1.I3`, `SYS-4.R9` | 2.3 (done), 5.2 (done) | red |
 | AD-SYS-5 | Every transition is one conditional UPDATE | `WHERE <from-state>` + loser re-read | `VER-1.MEC`, `TRD-2.I3` | 3.2 (done), 10.2 (done) | red |
 | AD-SYS-6 | Determinism boundary (Clock, IdGenerator, no network) | `Clock` port; network guard; no SQL `now()` | `SYS-6.R1`, `SYS-6.R4` | 1.4 (done) | green |
-| AD-SYS-7 | Branded money, one set of formulas | BigInt helpers; rounding CHECK on deductions | `COM-1.I3`, `VAL-2.I3` | 8.2 (done), 12.5 (backlog) | red |
+| AD-SYS-7 | Branded money, one set of formulas | BigInt helpers; rounding CHECK on deductions | `COM-1.I3`, `VAL-2.I3` | 8.2 (done), 12.5 (done) | red |
 | AD-SYS-8 | Server-side authorization, regulated data, uploads | Procedure builders; redactor; quarantine promotion | `SYS-8.R2`, `VER-2.P3` | 1.1 (done), 3.3 (done) | red |
 | AD-IDN-1 | Capabilities from one pure function | `deriveCapabilities`; trace = projection | `IDN-3.I3` | 2.5 (done) | red |
 | AD-IDN-2 | Seller-track exclusivity | Conditional `UPDATE "User"."sellerTrack"` | `IDN-1.I1` | 2.2 (done) | red |
@@ -273,7 +273,7 @@
 | R-08 Two offers for the last unit are accepted from two tabs, and both h… | P0 | TRD | Integration (race, 100 ×) | `TRD-1.MEC` | 10.3 (done) | red |
 | R-09 Long, accented or emoji product names break the contact message; th… | P0 | MSG | Integration (boundary, race) | `MSG-2.MEC`, `MSG-3.MEC` | 9.2 (done), 9.3 (done) | red |
 | R-10 `OrderClosed` is delivered twice and the prompt accepted twice, dup… | P0 | COL | Integration (repeat, race) | `COL-1.MEC` | 11.3 (done) | red |
-| R-11 Valuation divides by a zero baseline or drifts over 500 entries (MEC) | P0 | VAL | Integration + pure | `VAL-1.MEC`, `VAL-2.I1`, `VAL-2.I3` | 12.3 (done), 12.5 (backlog) | red |
+| R-11 Valuation divides by a zero baseline or drifts over 500 entries (MEC) | P0 | VAL | Integration + pure | `VAL-1.MEC`, `VAL-2.I1`, `VAL-2.I3` | 12.3 (done), 12.5 (done) | red |
 | R-12 A paid-but-not-closed review is accepted; a hide racing a new revie… | P0 | REP | Integration (race, 100 ×) | `REP-1.MEC`, `REP-3.MEC` | 13.3 (backlog) | red |
 | R-13 A regulated value (phone, legal identity, document or comprobante k… | P0 | SYS | Integration + NFR scan | `SYS-8.R4`, `SYS-8.R4.error`, `NFR-SYS-8.canary` | 1.2 (done) | red |
 | R-14 An event is lost between commit and dispatch, or a crashed delivery… | P0 | SYS | Integration + NFR drain | `SYS-2.R6`, `SYS-2.R4`, `NFR-SYS-6.sweep` | 1.3 (done) | red |

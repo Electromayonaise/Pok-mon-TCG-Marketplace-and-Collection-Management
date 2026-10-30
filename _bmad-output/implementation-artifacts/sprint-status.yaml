@@ -139,7 +139,7 @@ development_status:
   12-2-show-the-valuation-trend-and-daily-history: done
   12-3-value-500-mixed-entries-with-zero-drift-and-a-zero-baseline: done
   12-4-refuse-foreign-collections-and-invalid-periods: done
-  12-5-explain-empty-series-and-rounding-edges: backlog
+  12-5-explain-empty-series-and-rounding-edges: done
   epic-12-retrospective: optional
   epic-13: backlog
   13-1-write-edit-and-check-eligibility-for-a-review: backlog
@@ -187,7 +187,9 @@ impl1_delivery:
 # re-read, Q-fail and rollback are acceptPrompt's and dismissPrompt's, which [COL-1.MEC] needs); it is done and has left
 # this list (decision log Impl-1 #36). 12-4 is built with the whole of Epic 12, because Stories 12.1 and 12.2 turn its
 # tests green ([VAL-1.P1] and [VAL-3.P1] are VAL-1's and VAL-3's own ownership precondition, and [VAL-2.P2] is VAL-2's own
-# period check); it is done and has left this list (decision log Impl-1 #37).
+# period check); it is done and has left this list (decision log Impl-1 #37). 12-5 is built whole with Epic 12 too, because
+# Story 12.2 turns its tests green ([VAL-3.Q4] is VAL-3's own Q4, and [VAL-2.I3] is VAL-2 Q2's rounding, which [VAL-2.Q1]
+# needs); it is done and has left this list (decision log Impl-1 #37).
 impl2_scope:
   - 2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins
   - 8-5-reconcile-ledgers-and-report-never-repair-discrepancies
@@ -195,7 +197,6 @@ impl2_scope:
   - 9-6-read-the-inbox-mark-threads-read-and-mute
   - 11-5-use-the-binder-add-external-cards-move-entries-and-wishlist-cards
   - 11-6-refuse-unsafe-links-foreign-entries-and-unknown-wishlist-cards
-  - 12-5-explain-empty-series-and-rounding-edges
   - 13-4-refuse-self-unknown-and-duplicate-reviews
   - 13-5-read-profiles-search-moderation-logs-and-hide-listings
   - 13-6-refuse-invalid-moderation-and-bad-aggregate-requests

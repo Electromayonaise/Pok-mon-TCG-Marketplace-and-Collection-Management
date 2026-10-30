@@ -2,7 +2,7 @@
 title: 'Story 12.5: Explain empty series and rounding edges'
 type: 'feature'
 created: '2026-10-30'
-status: 'draft'
+status: 'done'
 baseline_commit: '49b09cc'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -33,7 +33,13 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] run the 2 tests on the 12.4 tree; fix any gap; `sprint-status.yaml` 12.5 `done`, out of `impl2_scope`
+- [x] run the 2 tests on the 12.4 tree; fix any gap; `sprint-status.yaml` 12.5 `done`, out of `impl2_scope`
 
 **Acceptance Criteria:**
 - Given 12.5 `done`, when its 2 tests run, then they pass and `gate:atdd-red:impl1` is green; `epic-12: done` once the gate is signed.
+
+## Implementation Notes
+
+- D1 approved (decision log Impl-1 #37). Code review is batched with the rest of Epic 12 at its close (decision #22).
+- The 2 tests passed on the 12.4 tree with no fix: `[VAL-3.Q4]` through `series` (no priced entry → `points: []`, `ValuationHistoryEmpty` citing `{ pricedEntries: 0 }`), and `[VAL-2.I3]` through `roundHalfAwayFromZero` (3 → 4 is 3,333; 30,000 → 29,999 is 0, never −0).
+- The story leaves `impl2_scope` with a note in `sprint-status.yaml` and does not count toward the 43.
