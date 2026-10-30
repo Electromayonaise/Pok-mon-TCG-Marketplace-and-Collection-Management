@@ -26,7 +26,7 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 
 - ~~`PgAuditLog.record` stamps `createdAt` with its own clock read, so an audited use case reads the clock twice (pre-existing, shared with Story 2.1). The fix passes the instant through the `AuditLog` port.~~ Resolved before Epic 3: `AuditEntry.at` carries the writer's `now`, and both identity call sites pass it.
 - IDN-3 Q4's per-line es-CO text: `CapabilityTraceLine` has no text field; page 1.3 (Impl-2) renders each line from `derivedFrom`.
-- The contact card's `IndividualSellerProfileIncomplete` carries the seller-facing text. Story 9.3 (the contact handoff) calls it only for an individual listing's seller and owns the buyer-facing refusal.
+- ~~The contact card's `IndividualSellerProfileIncomplete` carries the seller-facing text. Story 9.3 (the contact handoff) calls it only for an individual listing's seller and owns the buyer-facing refusal.~~ Resolved by Story 9.3 (decision log Impl-1 #34): the buyer gets `ListingNotFound` citing `{ sellerContact: false }`, and the counted row rolls back.
 - A `"User"` row deleted mid-trace surfaces as an FK violation (500) instead of `AccountNotFound`. No flow deletes a `"User"` row today.
 
 ## Deferred from: 3-1-submit-a-business-application-with-its-legal-identity (2026-10-26)
@@ -43,7 +43,7 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 - Length checks run on untrimmed input, so whitespace-only names pass the 2-character minimum. The contracts do not say whether to trim; decide it with the UI form.
 - `bankName` has no length bound in the contract, zod or the schema. Add one with a contract change.
 - The rejection reason's `textEsCo` is never shown to the business, and the status copy shows the reason code and a raw ISO date. Presentation belongs to the verification UI story.
-- A non-admin can flood `"LegalIdentityAccessLog"` with denied rows. Needs the throttle tables (NFR-SYS-14).
+- A non-admin can flood `"LegalIdentityAccessLog"` with denied rows. Needs the throttle tables (NFR-SYS-14). Epic 9 does not close it: Story 9.5's limiter counts `"ContactRequestLog"` only, which is the contact handoff's own table, not a general throttle. Owner: Story 2.4's Impl-2 completion, which wires `"AuthThrottleEvent"` and the sign-in hook (decision log Impl-1 #34).
 - `legal-identity-confined` misses the table name built from concatenation or reached through an accessor. The same literal-style limit Story 1.4 recorded.
 - ~~`nfr-evidence.md` leaves every row at "Red — ATDD" after its story is done (NFR-VER-2, NFR-IDN-2). Refresh the whole table once.~~ Resolved by Story 4.4: the table was refreshed as a whole, with a new "Green — ATDD" status, and each later epic refreshes its own rows.
 
@@ -108,3 +108,16 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 - One quarantined proof can back two top-up requests: two concurrent `requestTopUp` calls with one `uploadKey` both promote it, and a failed best-effort delete of the quarantine copy lets it be used again. Martín deferred it (decision log Impl-1 #33): a single-use upload ticket closes it at the source, and until then an admin sees both requests, with one transfer reference, before crediting. Owner: Epic 3's upload-ticket item (with the production storage).
 - Whitespace-only or NUL-bearing `transferReference` and rejection reasons pass the length checks (a NUL then fails in Postgres as 500). Same as Epic 3's trim item; decide it with the top-up and queue forms (UI 7.1, 7.3).
 - The top-up proof is read whole before the 5 MiB check, and an ambiguous COMMIT deletes a promoted proof that a committed row may point to. Same as Epic 3's upload-ticket and production-storage items.
+
+## Deferred from: spec of Epic 9 (9.1–9.5) (2026-10-30)
+
+- Story 9.6 (the inbox, thread, read marks and mute: `S-FR-MSG-7.inbox`, `.thread`, `.read`, `S-FR-MSG-8`) stays in `impl2_scope`; its four procedures stay unwired and its 4 tests red for NotImplemented. Owner: Epic 9's Impl-2 completion.
+- Production deployments must set `IP_HMAC_KEY` (≥ 32 bytes) before this branch ships: `loadConfig()` now requires it, and every route reads the config. `.env.example` and `docker-compose.yml` carry a local value. Owner: the launch checklist (decision log Impl-1 #34).
+
+## Deferred from: code review of Epic 9 (9.1–9.5) (2026-10-30)
+
+- A message body that is whitespace only passes `normalizeBody`, and one with a NUL passes it and then fails in Postgres (22021) as 500. Same as Epic 3's and Epic 8's trim items; decide it with the composer (UI 12.2, 12.3).
+- `messaging.send`'s zod input bounds `body` at 2,000 UTF-16 units before NFC, while MSG-1 P2, `normalizeBody` and the `char_length` CHECK count 2,000 code points after NFC, so a body of 1,001 or more astral characters is refused at the router. The bound comes from `operations.json` (`maxLength`); fix it there with a contract change. Owner: the next contract revision.
+- The trade path of `generateContactMessage` accepts an empty offer (no items and no cash renders "Ofrezco .") and calls `BigInt` on `tradeSummary.cashCop` unchecked. Only `kind='purchase'` is wired; TRD-1 is the trade caller. Owner: Epic 10 (Story 10.1's TRD-1 validates the terms before it calls the handoff).
+- `NotBusinessAccount` on the messaging path renders the raw `{status}` token (`none`, `Rejected`) inside Spanish text, the repo-wide convention noted in Epic 7. The composer's copy (UI 12.3) should map it.
+

@@ -686,3 +686,66 @@
 - **Environment note:** Docker did not run in this session either. A `postgresql-16` cluster on port 55432 (`max_connections=200`, `fsync=off`, `full_page_writes=off`) ran `npm run test:ci` in about 3 minutes, green.
 - **Artifact changed:** `src/modules/commission/**`, `src/modules/identity/{application/admin.ts,index.ts}`, `src/modules/listings/{ports,infra,application}/` (the seller lock + test), `src/server/composition.ts` (+ test), `src/shared-kernel/codes.ts`, `test-support/solu2/fixtures.ts`, `_bmad-output/planning-artifacts/ARCHITECTURE.md` (AD-SYS-4 rules 4–5, AD-COM-2), `_bmad-output/planning-artifacts/detailed-design/contracts.md` (COM-2 P3a, §13: nine rows), `schemas/operations.json`, `ui-states.md`, `_bmad-output/planning-artifacts/epics.source.mjs` and `epics.md`, `_bmad-output/test-artifacts/nfr/com3_latency.test.ts`, `_bmad-output/test-artifacts/nfr-evidence.md`, `deferred-work.md`, the four Epic 8 story files, and `sprint-status.yaml` (8.4 out of `impl2_scope`; `epic-8: done`).
 - **Decided by:** Martín.
+
+### 34. Epic 9 is built through 9.5, identity's reader serves BusinessCannotInitiate, the contact windows are (now − w, now], two bound-test Givens are fixed, its close review guarantees the 2,000-character URL, and the epic is signed (Governance)
+
+- **Phase:** 3 (Epic 9 planning at `787392b`, then the close review over `787392b..7be44bf`).
+- **Persona/Skill:** `bmad-quick-dev`, epic-batched (#22), then `bmad-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor).
+- **Prompt (summary):** Four rounds.
+  - **The specs.** Martín approved the five Epic 9 specs (9.1–9.5) together. With them came seven choices:
+    - **Scope.** Stories 9.4 and 9.5 are in `impl2_scope`, but their six bound tests check clauses that 9.2 and 9.3 must build:
+      - `[MSG-1.P3]`, `[MSG-1.P4]` and `[MSG-1.P5]` are P3–P5 of 9.2's `sendMessage`, and `[MSG-3.MEC]` needs P5's refusal;
+      - `[MSG-2.P2]` and `[MSG-2.P3]` are P2–P3 of 9.3's `generateContactMessage`, and 9.3's `[MSG-2.R1]` (exactly 30 of 50) needs the P4 limiter of `[MSG-2.P4]`.
+
+      Story 9.6 (inbox, thread, read, mute) has procedures of its own, so its 4 tests stay red for NotImplemented.
+    - **`BusinessCannotInitiate`.** MSG-1 P4 needs the sender's seller kind, but the bound `IdentityForMsg` fake offers only `requireMessagingEligibility`, `getDisplayNames` and `getBusinessName`.
+    - **The compose→send race (R-09).** Whether MSG-3, read inside the send transaction, locks the latest application.
+    - **Story 2.5's deferral.** The buyer-facing refusal when `getContactCard` raises the seller-facing `IndividualSellerProfileIncomplete`.
+    - **`ipHmac`.** MSG-2's per-IP limit needs the caller IP's HMAC (S-7), and neither the tRPC context nor `config.ts` had it.
+    - **Epic 3's deferral.** Whether Story 9.5 introduces the throttle tables that would stop a non-admin flooding `"LegalIdentityAccessLog"` (NFR-SYS-14).
+    - **Minor choices:** the benchmark file and bindings, three stored-only §13 rows, the es-CO template, 9.6 untouched.
+  - **Two bound tests during implementation.**
+    - `[MSG-3.MEC]` rejects the business with `"rejectionReasonCode" = 'DataMismatch'` but never seeds that `RejectionReason`, so every repetition failed on the FK (23503).
+    - `[MSG-2.R1]` failed twice. Its 50 concurrent calls share one virtual instant, so contracts.md's half-open `[now − w, now)` windows counted none of them (50 allowed). And it put all 50 listings on one seller, so FR-MSG-3's 10 per requester and seller per day allowed 10, not 30.
+  - **The CI gate.** The pushed branch failed `impl1-quality-gate`. The `ContactMessageGenerated` template named a PascalCase product ("WhatsApp"), and a messaging src test approved a business with a direct `UPDATE … now()` (`[SYS-AD8]`, `[SYS-6.R1]`). The session had run the suites piecemeal and not the full `npm run test:ci` before the push.
+  - **The close review.** It left 3 decisions, 7 patches, 4 deferrals and 10 dismissed findings. The decisions:
+    - the leftmost `x-forwarded-for` hop is client-controlled, so a new header per request escapes the per-IP limit;
+    - `externalUrl ≤ 2000` (MSG-2 I2) is not guaranteed once the FR-MSG-2 minimums cannot fit (a 400-character seller name, heavy emoji graphemes);
+    - contracts.md MSG-1 P5, MSG-3's MEC and AD-MSG-2 rule 2 say the refusal carries the composed body back, which the ErrorBody cannot do and AD-SYS-8 rule 3 forbids.
+- **AI output (summary):** The agent recommended:
+  - **(recommended)** Build 9.4 and 9.5 with the epic as proof-only stories, each committed right after the story it proves (#23), as 7.3, 7.4 and 8.4 were (#32, #33). They leave `impl2_scope` and do not count toward the 43 Impl-1 stories. The alternatives were a gate exception, or postponing MSG.
+  - **(recommended)** identity exports `sellerKindOf(repo, tx, userId)` beside `requireAdmin`; MSG's `repo` is its own tables plus identity's `AdminFactsReader`; messaging raises its own code. The alternatives were inferring the kind from the sender's eligibility (a Rejected business would get `NotBusinessAccount`) or a port method (changes the bound fake).
+  - **(recommended)** Inside an ambient transaction, MSG-3 takes the latest application `FOR SHARE`, so a rejection waits for the send's commit. The alternative was a plain read.
+  - **(recommended)** The buyer gets `ListingNotFound` citing `{ sellerContact: false }`, with zero writes. The alternatives were a new code, or propagating the seller-facing text.
+  - **(recommended)** Wire `inventory.contact` with `IP_HMAC_KEY` (≥ 32 bytes) in `config.ts`, `.env.example` and `docker-compose.yml`, the HMAC computed in the request context and passed to resolvers as a third argument. The alternative was leaving the procedure unwired until Story 2.4's hook.
+  - **(recommended)** Keep the Epic 3 item deferred with Story 2.4's Impl-2 completion as its owner: 9.5's limiter counts only `"ContactRequestLog"`, which is not a general throttle.
+  - **(recommended)** The minor choices: one `nfr/msg_latency.test.ts` with `[NFR-MSG-2.send]` bound to 9.2 and `[NFR-MSG-1.contact]` to 9.3; §13 rows `MessagingEligible`, `RecipientNotYetVerified`, `MessageSent` and `ContactMessageGenerated`; the PRD's es-CO template.
+  - **(recommended)** Fix both bound-test Givens, leaving their assertions unchanged: `[MSG-3.MEC]` seeds `DataMismatch` once; `[MSG-2.R1]` spreads its 50 listings over five sellers of 10. The alternatives were changing a fixture for every suite, unbinding the MEC, dropping the per-seller limit, or asserting 10.
+  - **(recommended)** Make the windows `(now − w, now]` and amend contracts.md MSG-2 P4 and Time, and AD-MSG-1 rule 3: a row stamped `now` counts, and the oldest row stops counting exactly at the cited `retryAt` (with `[now − w, now)` it still counts at `retryAt`). The alternatives were a closed window, or a bound-test change.
+  - Fix the gate in its own commit: a template without the product name, and the test approving through identity's `decideApplication`.
+  - **(recommended)** Read the caller IP from `x-real-ip`, else the rightmost `x-forwarded-for` hop, normalized. The alternatives were a trusted-hop count in a new variable, or the leftmost hop as built.
+  - **(recommended)** A last `overflow` step: the seller name to 20 graphemes, then every name below 20, until the URL fits; prices, cash, conditions, quantities and `copyText` stay whole. The alternatives were `Unexpected` (a long seller name becomes uncontactable) or a deferral.
+  - **(recommended)** Amend the contract: the client keeps the text it composed, and the refusal never echoes it. The alternative was a `composedBody` field in the ErrorBody.
+  - Apply all 7 patches.
+- **Human decision:** ACCEPT every recommendation, and sign the Epic 9 gate (#5).
+- **Reason:** `done` keeps meaning what the bound tests prove, and the gate needs no exception. The two Given fixes change what the tests set up, not what they assert, and each assertion is the contract's. The window bound and the overflow step make two contract promises (the retry time, I2) true at their edges. Identity keeps its tables and its codes to itself.
+- **Also decided (the patches):**
+  - A retry looks up the sender's `clientMessageId` right after P3, before P4 and P5, so a rejection after the original committed never turns a delivered message into a refusal (EC-14).
+  - The 60-minute repeat matches counted rows only, so a chain of repeats no longer renews itself.
+  - A single listing with no unit is `Unexpected`, not an empty product name.
+  - A pool-of-1 test proves the contact path's catalog and identity reads join its transaction (AD-SYS-4 rule 9).
+  - The send's audit data is `{ conversationId, seq }`, as the spec says.
+  - `IP_HMAC_KEY` is checked in bytes.
+  - contracts.md MSG-2 Q4 cites `truncationSteps` joined by commas (citation inputs are primitives), and §13 `ListingNotFound` names D4's source.
+- **Also in this epic:**
+  - `messaging.send` and `inventory.contact` are wired; MSG's identity port spans IDN (`getDisplayNames`) and VER (`getBusinessName`, `requireMessagingEligibility`).
+  - Story 2.5's deferral is closed. The Epic 3 throttle item stays open with its owner named.
+  - Production must set `IP_HMAC_KEY` before this branch ships (`deferred-work.md`, the launch checklist).
+  - The measured figures (local Postgres 16):
+    - `[NFR-MSG-2.send]` p95 6.6 ms (p50 3.0);
+    - `[NFR-MSG-1.contact]` p95 4.5 ms (p50 2.4);
+    - `[MSG-3.MEC]` 100 repetitions in 572 ms;
+    - `[MSG-2.MEC]` 188 ms.
+- **Environment note:** Docker did not run in this session either. A `postgresql-16` cluster on port 55432 (`max_connections=200`, `fsync=off`, `full_page_writes=off`) ran `npm run test:ci`.
+- **Artifact changed:** `src/modules/messaging/**`, `src/modules/listings/{domain/contact.ts,ports/contact.v2.ts,infra/pg.ts,application/contact.v2.ts,index.ts}` (+ tests), `src/modules/identity/{application/{admin.ts,ver.v2.ts},domain/ver.ts,ports/ver.v2.ts,infra/pg.ts,index.ts}` (+ tests), `src/server/{composition.ts,ip-hmac.ts,trpc/init.ts,trpc/router.v2.ts}` (+ tests), `src/shared-kernel/config.ts` (+ test), `app/api/trpc/[trpc]/route.ts`, `.env.example`, `docker-compose.yml`, `test-support/solu2/fixtures.ts`, `_bmad-output/planning-artifacts/detailed-design/contracts.md` (MSG-1 P5, MSG-2 Q1/P4/Q4/Time, MSG-3 MEC; §13: four rows and `ListingNotFound`), `_bmad-output/planning-artifacts/ARCHITECTURE.md` (AD-MSG-1 rules 3–4, AD-MSG-2 rule 2), `epics.source.mjs` and `epics.md`, `_bmad-output/test-artifacts/atdd/msg_contracts.test.ts` (the two Givens), `_bmad-output/test-artifacts/nfr/msg_latency.test.ts`, `_bmad-output/test-artifacts/nfr-evidence.md`, `deferred-work.md`, the five Epic 9 story files, and `sprint-status.yaml` (9.4 and 9.5 out of `impl2_scope`; `epic-9: done`).
+- **Decided by:** Martín.

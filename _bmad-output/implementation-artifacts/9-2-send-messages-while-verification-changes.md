@@ -87,3 +87,12 @@ context:
 - `messaging.send` is wired (the canBuy builder is P1) with MSG's identity port bound to IDN (`getDisplayNames`) and VER (`getBusinessName`, `requireMessagingEligibility`). §13 gains the stored-only `MessageSent` row.
 - **TG-7 runtime** (local Postgres 16, `fsync=off`): `[MSG-3.MEC]` 100 repetitions in 572 ms.
 - Measured: `[NFR-MSG-2.send]` p95 6.6 ms (p50 3.0).
+
+### Review Findings
+
+Epic 9 close review (2026-10-30, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `787392b..7be44bf` (code paths, the two bound-test Givens and the NFR file). Totals for the epic: 3 decisions, 7 patches, 4 deferrals, 10 dismissed. Martín resolved the decisions with every recommendation and approved every patch (decision log Impl-1 #34).
+
+- [x] [Review][Decision→Patch] contracts.md MSG-1 P5, MSG-3 MEC and AD-MSG-2 rule 2 said the refusal carries the composed body back; the ErrorBody has no such field and the body is regulated — the contract now says the client keeps its own text and the refusal never echoes it; no code change
+- [x] [Review][Patch] A retry whose original committed before a rejection got `NotBusinessAccount` (EC-14 broken) — the sender's `clientMessageId` is looked up right after P3, before P4 and P5 [src/modules/messaging/application/msg.v2.ts]
+- [x] [Review][Patch] The audit row's data carried `recipientStatus` beyond the approved `{ conversationId, seq }` [src/modules/messaging/application/msg.v2.ts]
+- [x] [Review][Defer] whitespace or NUL bodies; zod's UTF-16 bound against P2's code points; the raw `{status}` token in the es-CO text (deferred-work.md)

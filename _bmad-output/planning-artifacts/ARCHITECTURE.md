@@ -1530,7 +1530,7 @@ flowchart LR
      - fills the es-CO template;
      - encodes with RFC 3986;
      - truncates in the FR-MSG-2 order until `externalUrl ≤ 2000`: product name to a minimum of 20 graphemes, then offered item names longest first to 20, then "+N more items".
-     Prices, cash, conditions, quantities and the seller name are never truncated, and neither is `copyText`. A property test asserts byte-identical output across 1,000 repeated calls.
+     Prices, cash, conditions, quantities and the seller name are never truncated, and neither is `copyText`. If the minimums cannot fit, a last `overflow` step cuts the seller name to 20 graphemes and then every name below 20 until `externalUrl ≤ 2000` (decision log Impl-1 #34). A property test asserts byte-identical output across 1,000 repeated calls.
   5. `externalUrl = https://wa.me/<E164 without +>?text=<encoded>`. No module calls it. The phone is read through `identity.getContactCard` and never logged.
 - **Trade-off:** de-duplicated repeats and trade handoffs are not limited. Abuse through repeated trade offers is already bounded by `DuplicateOpenOffer` and the seller lock.
 
@@ -1546,7 +1546,7 @@ flowchart LR
   2. Eligibility is read in the send transaction:
      - `Approved` → allowed;
      - `Pending` → `allowedWithNotice` with `RecipientNotYetVerified`;
-     - anything else → `NotBusinessAccount`. On this path the response carries the composed text back to the client so the user can copy it (FR-MSG-6).
+     - anything else → `NotBusinessAccount`. On this path the client keeps the text it composed so the user can copy it (FR-MSG-6); the refusal never echoes the body, which is regulated (AD-SYS-8 rule 3; decision log Impl-1 #34).
      A reply from the business to its own buyer is always allowed while the business is `Approved` or `Pending`. A `Rejected` business's thread is read-only for both sides: a send from either side raises `NotBusinessAccount`.
   3. The send allocates `seq` with `UPDATE "Conversation" SET "lastSeq" = "lastSeq" + 1, "lastMessageAt" = :now WHERE id RETURNING "lastSeq"`. That also serializes concurrent sends in one conversation. It then inserts `Message` with `recipientVerificationAtSend` set to the eligibility status just read.
   4. A retry with the same `clientMessageId` hits the unique key and returns the original message unchanged (EC-14).

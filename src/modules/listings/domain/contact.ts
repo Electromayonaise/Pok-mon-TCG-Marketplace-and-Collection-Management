@@ -22,7 +22,7 @@ export interface ContactMessage {
   text: string;
   externalUrl: string;
   copyText: string;
-  truncationSteps: ('productName' | 'offeredItems' | 'collapsedItems')[];
+  truncationSteps: ('productName' | 'offeredItems' | 'collapsedItems' | 'overflow')[];
 }
 
 /** ADD-§2.7: `$45.000 COP`, dot thousands, from the exact integer (no float, NFR-COM-4). */
@@ -71,18 +71,21 @@ function largestFitting(lo: number, hi: number, fits: (n: number) => boolean): n
  * MSG-2 Q1: NFC every string, fill the template, encode, and truncate in the FR-MSG-2 order until
  * `externalUrl.length ≤ 2000`: the product name down to 20 graphemes, then offered item names longest first
  * down to 20, then trailing items collapse into "+N más" (at least the first stays). Prices, cash, conditions,
- * quantities and the seller name are never truncated, and neither is `copyText`.
+ * quantities and the seller name are never truncated, and neither is `copyText`. If the minimums still do not fit, a
+ * last `overflow` step cuts the seller name and then every name below 20 graphemes (decision log Impl-1 #34).
  */
 export function composeContactMessage(input: ContactInput): ContactMessage {
   const nfc = (s: string) => s.normalize('NFC');
   const product = graphemes(nfc(input.productName));
   const items = (input.trade?.offeredItems ?? []).map((i) => ({ name: graphemes(nfc(i.name)), prefix: `${i.qty}× `, suffix: ` (${nfc(i.condition)})` }));
   const cash = input.trade && input.trade.cashCop > 0n ? formatCop(input.trade.cashCop) : null;
+  const seller = graphemes(nfc(input.sellerName));
   const productLen = { n: product.length };
+  const sellerLen = { n: seller.length };
   const itemLens = items.map((i) => i.name.length);
   let kept = items.length;
   const parts = (): Parts => ({
-    seller: nfc(input.sellerName), product: shorten(product, productLen.n), condition: input.condition === null ? null : nfc(input.condition),
+    seller: shorten(seller, sellerLen.n), product: shorten(product, productLen.n), condition: input.condition === null ? null : nfc(input.condition),
     price: formatCop(input.priceCop), items: items.slice(0, kept).map((i, k) => `${i.prefix}${shorten(i.name, itemLens[k]!)}${i.suffix}`),
     more: items.length - kept, cash,
   });
@@ -108,6 +111,18 @@ export function composeContactMessage(input: ContactInput): ContactMessage {
   if (!fits() && items.length > 1) {
     steps.push('collapsedItems');
     kept = largestFitting(1, items.length - 1, (m) => { kept = m; return fits(); }) ?? 1;
+  }
+  if (!fits()) {
+    // Decision log Impl-1 #34: when the FR-MSG-2 minimums cannot fit (a 400-character seller name, heavy emoji
+    // graphemes), the seller name drops to 20 graphemes, then every name below 20 together, until I2 holds.
+    // Prices, cash, conditions and quantities are still never cut, and copyText stays whole.
+    steps.push('overflow');
+    sellerLen.n = Math.min(sellerLen.n, MIN_GRAPHEMES);
+    for (let n = MIN_GRAPHEMES - 1; !fits() && n >= 1; n--) {
+      sellerLen.n = Math.min(sellerLen.n, n);
+      productLen.n = Math.min(productLen.n, n);
+      for (let k = 0; k < itemLens.length; k++) itemLens[k] = Math.min(itemLens[k]!, n);
+    }
   }
   const text = render(input.kind, parts());
   return { text, externalUrl: waMeUrl(input.phoneE164, text), copyText, truncationSteps: steps };

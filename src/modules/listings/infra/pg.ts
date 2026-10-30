@@ -383,7 +383,7 @@ export class PgContactRepository implements ContactRepository {
     }>(
       `WITH w AS (SELECT $5::timestamptz AS now)
        SELECT
-         EXISTS (SELECT 1 FROM "ContactRequestLog" c, w WHERE c."requesterId" = $1 AND c."listingId" = $3
+         EXISTS (SELECT 1 FROM "ContactRequestLog" c, w WHERE c."requesterId" = $1 AND c."listingId" = $3 AND c.counted
                    AND c."createdAt" > w.now - interval '60 minutes' AND c."createdAt" <= w.now) AS repeat,
          (SELECT count(*)::int FROM "ContactRequestLog" c, w WHERE c."requesterId" = $1 AND c.counted
                    AND c."createdAt" > w.now - interval '1 hour' AND c."createdAt" <= w.now) AS rh,

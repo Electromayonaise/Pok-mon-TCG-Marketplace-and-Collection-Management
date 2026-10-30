@@ -111,7 +111,7 @@ development_status:
   8-5-reconcile-ledgers-and-report-never-repair-discrepancies: backlog
   8-6-set-commission-rates-and-read-the-ledger: backlog
   epic-8-retrospective: optional
-  epic-9: in-progress
+  epic-9: done
   9-1-answer-messaging-eligibility-from-current-verification: done
   9-2-send-messages-while-verification-changes: done
   9-3-generate-the-contact-handoff-for-every-product-name: done

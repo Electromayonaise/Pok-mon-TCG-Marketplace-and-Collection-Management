@@ -702,7 +702,7 @@ describe('inventory.contact over HTTP (MSG-2; Story 9.3)', () => {
     await catalogEntry(db, id('char'));
     await unit(db, { id: id('uval'), sellerId: id('valentina'), catalogEntryId: id('char'), quantity: 1 });
     await listing(db, { id: id('lv'), sellerId: id('valentina'), unitId: id('uval'), sellerKind: 'individual', priceCop: 45_000 });
-    const res = await post('inventory.contact', { listingId: id('lv') }, await signIn(id('camila')), { 'x-forwarded-for': '203.0.113.7, 10.0.0.1' });
+    const res = await post('inventory.contact', { listingId: id('lv') }, await signIn(id('camila')), { 'x-forwarded-for': '198.51.100.9, 203.0.113.7' });
     expect(res.status).toBe(200);
     expect(res.json.result?.data).toMatchObject({ decision: { reasonCode: 'ContactMessageGenerated' } });
     expect(String(res.json.result?.data.externalUrl)).toMatch(/^https:\/\/wa\.me\/573001234567\?text=/);

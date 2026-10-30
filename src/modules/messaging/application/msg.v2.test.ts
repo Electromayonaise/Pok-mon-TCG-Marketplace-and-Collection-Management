@@ -7,7 +7,7 @@ import { PgTransactionRunner, useTestDatabase } from '../../../../test-support/d
 import { PG } from '../../../../test-support/env.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
 import { caught, citedInputs } from '../../../../test-support/errors.js';
-import { admin, business, conversation, id, rows, user, wiring } from '../../../../test-support/solu2/fixtures.js';
+import { admin, business, conversation, id, rejectionReason, rows, user, wiring } from '../../../../test-support/solu2/fixtures.js';
 import { IdnServiceV2, VerServiceV2 } from '../../identity/index.js';
 import type { TransactionRunner } from '../../../shared-kernel/ports.js';
 import type { SendMessageRequest } from '../dto/msg.v2.dto.js';
@@ -85,6 +85,18 @@ describe('MsgServiceV2.sendMessage (MSG-1)', () => {
     await new VerServiceV2(wiring(db)).decideApplication({ applicationId: id(`app${id('andres').slice(0, 8)}`), decision: { kind: 'approve' }, adminId: id('admin') });
     expect(await msg.sendMessage(send())).toMatchObject({ messageId: first.messageId, seq: 1, decision: { reasonCode: 'RecipientNotYetVerified' } });
     expect(await rows(db, 'audit_events', `action = 'messaging.message.sent'`)).toHaveLength(1);
+  });
+
+  it('a retry after the business was rejected still returns the original message (EC-14, looked up before P5)', async () => {
+    await user(db, { id: id('camila') });
+    await business(db, id('andres'), 'Pending');
+    const msg = messaging();
+    const first = await msg.sendMessage(send());
+    await admin(db);
+    await rejectionReason(db, { code: 'DataMismatch' });
+    await new VerServiceV2(wiring(db)).decideApplication({ applicationId: id(`app${id('andres').slice(0, 8)}`), decision: { kind: 'reject', reasonCode: 'DataMismatch', note: null }, adminId: id('admin') });
+    expect(await msg.sendMessage(send())).toMatchObject({ messageId: first.messageId, seq: 1 });
+    expect(codeOf(await caught(() => msg.sendMessage(send({ clientMessageId: 'cm-2' }))))).toBe('NotBusinessAccount');
   });
 
   it('runs on a pool of 1: the eligibility read joins the send\'s connection', async () => {

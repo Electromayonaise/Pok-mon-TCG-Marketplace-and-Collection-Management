@@ -25,4 +25,9 @@ describe('loadConfig', () => {
   it('accepts the postgres:// scheme as well as postgresql://', () => {
     expect(loadConfig({ ...valid, DATABASE_URL: 'postgres://u:p@db:5432/x' }).databaseUrl).toBe('postgres://u:p@db:5432/x');
   });
+
+  it('counts IP_HMAC_KEY in bytes, not characters', () => {
+    expect(() => loadConfig({ ...valid, IP_HMAC_KEY: 'ñ'.repeat(15) })).toThrow(/IP_HMAC_KEY/);
+    expect(loadConfig({ ...valid, IP_HMAC_KEY: 'ñ'.repeat(16) }).ipHmacKey).toBe('ñ'.repeat(16));
+  });
 });

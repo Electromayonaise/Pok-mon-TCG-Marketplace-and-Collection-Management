@@ -47,7 +47,8 @@ export class MsgServiceV2 implements MsgV2UseCases {
    * MSG-1 (AD-MSG-2): P2–P5 first-fail, then the conversation, the seq and the savepointed insert in one transaction.
    * P1 `canBuy` is the procedure builder's. Eligibility is read in this transaction (identity takes the latest
    * application `FOR SHARE`, decision log Impl-1 #34), so a rejection either waits for this commit or is seen here.
-   * A retry with the same `clientMessageId` returns the original message and writes nothing (EC-14).
+   * A retry with the same `clientMessageId` returns the original message and writes nothing (EC-14), looked up before
+   * P4 and P5, so a rejection after the original committed never turns a delivered message into a refusal.
    */
   async sendMessage(input: SendMessageRequest): Promise<SendMessageResponse> {
     const { repo, transactions, clock, ids, audit, identity } = this.deps;
@@ -68,13 +69,16 @@ export class MsgServiceV2 implements MsgV2UseCases {
         if (conversation === null) return raise('ConversationNotVisibleToCaller', [{ rule: 'FR-MSG-7', inputs: { participant: false } }]);
         pair = { buyerId: conversation.buyerId, businessId: conversation.businessId, conversationId: conversation.id };
       } else {
-        if (await sellerKindOf(repo, tx, senderId) === 'business') return raise('BusinessCannotInitiate', [{ rule: 'FR-MSG-4', inputs: { sellerKind: 'business' } }]);
         pair = { buyerId: senderId, businessId: target.recipientId!, conversationId: null };
+      }
+      // I3 (EC-14): the sender's message under this clientMessageId, if it already committed, with its decision at send.
+      const sent = await repo.findSentMessage(tx, pair.conversationId ? { conversationId: pair.conversationId } : { buyerId: pair.buyerId, businessId: pair.businessId }, senderId, clientMessageId);
+      if (sent !== null) return { conversationId: sent.conversationId, messageId: sent.messageId, seq: sent.seq, decision: sendDecision(sent.recipientVerificationAtSend, now) };
+      if (pair.conversationId === null && await sellerKindOf(repo, tx, senderId) === 'business') {
+        return raise('BusinessCannotInitiate', [{ rule: 'FR-MSG-4', inputs: { sellerKind: 'business' } }]);
       }
       // P5: buyer sending → the recipient business; business replying → its own status. Both are the pair's business.
       const { status } = await identity.requireMessagingEligibility({ businessId: pair.businessId });
-      const sent = await repo.findSentMessage(tx, pair.conversationId ? { conversationId: pair.conversationId } : { buyerId: pair.buyerId, businessId: pair.businessId }, senderId, clientMessageId);
-      if (sent !== null) return { conversationId: sent.conversationId, messageId: sent.messageId, seq: sent.seq, decision: sendDecision(sent.recipientVerificationAtSend, now) };
       const conversationId = pair.conversationId ?? await repo.startOrGetConversation(tx, { id: ids.next(), buyerId: pair.buyerId, businessId: pair.businessId, now });
       const seq = await repo.allocateSeq(tx, conversationId, now);
       const messageId = ids.next();
@@ -84,7 +88,7 @@ export class MsgServiceV2 implements MsgV2UseCases {
       await audit.record(tx, {
         actorId: senderId, actorKind: 'user', module: 'messaging', action: 'messaging.message.sent',
         aggregateType: 'Message', aggregateId: messageId, decisionCode: status === 'Approved' ? 'MessageSent' : 'RecipientNotYetVerified',
-        data: { conversationId, seq, recipientStatus: status }, at: now,
+        data: { conversationId, seq }, at: now,
       });
       return { conversationId, messageId, seq, decision: sendDecision(status, now) };
     });

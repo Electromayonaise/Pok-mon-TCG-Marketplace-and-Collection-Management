@@ -117,11 +117,11 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 
 | Status | NFRs |
 |---|---|
-| Green — benchmark (wholly or in part) | 8 (NFR-SYS-2, NFR-SYS-6, NFR-SYS-9, NFR-VER-3, NFR-CAT-1, NFR-INV-4, NFR-DSC-1, NFR-ORD-2) |
-| Green — ATDD (wholly or in part) | 24 (NFR-SYS-1, -7, -8, -10, -13, -14, NFR-IDN-2, NFR-VER-1, -2, -4, NFR-CAT-2, -3, -4, NFR-INV-1, -2, -3, NFR-DSC-2, -3, NFR-ORD-1, -3, -4, NFR-TRD-3; NFR-SYS-8, -10, -14, NFR-INV-2 and NFR-TRD-3 in part) |
+| Green — benchmark (wholly or in part) | 10 (NFR-SYS-2, NFR-SYS-6, NFR-SYS-9, NFR-VER-3, NFR-CAT-1, NFR-INV-4, NFR-DSC-1, NFR-ORD-2, NFR-MSG-1, NFR-MSG-2) |
+| Green — ATDD (wholly or in part) | 27 (NFR-SYS-1, -7, -8, -10, -13, -14, NFR-IDN-2, NFR-VER-1, -2, -4, NFR-CAT-2, -3, -4, NFR-INV-1, -2, -3, NFR-DSC-2, -3, NFR-ORD-1, -3, -4, NFR-TRD-3, NFR-MSG-1, -2, -4; NFR-SYS-8, -10, -14, NFR-INV-2 and NFR-TRD-3 in part) |
 | Green — gate (wholly or in part) | 8 (NFR-SYS-3, NFR-SYS-4, NFR-SYS-12, NFR-IDN-3, NFR-MSG-3, NFR-COL-3, NFR-REP-3, NFR-ORD-3) |
-| Red — ATDD (wholly or in part) | 19 |
-| Planned — story DoD (wholly or in part) | 8: the latency NFRs without a benchmark yet. Each gets one in its story, with the shared harness |
+| Red — ATDD (wholly or in part) | 16 |
+| Planned — story DoD (wholly or in part) | 6: the latency NFRs without a benchmark yet. Each gets one in its story, with the shared harness |
 | Deferred — launch | 3: NFR-SYS-11 (WCAG audit), and the transfer times of NFR-VER-4 and NFR-ORD-2 on a shaped 10 Mbps link |
 
 Rows marked "in part" are counted under each of their statuses, so the summary adds up to more than 56. No NFR is left without a named artifact or an owner phase.

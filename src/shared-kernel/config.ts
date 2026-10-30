@@ -7,7 +7,7 @@ const Env = z.object({
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.url({ protocol: /^https?$/ }),
   // S-7: the HMAC key of every stored caller IP (ARCHITECTURE §14, decision log Impl-1 #34).
-  IP_HMAC_KEY: z.string().min(32),
+  IP_HMAC_KEY: z.string().refine((key) => Buffer.byteLength(key, 'utf8') >= 32, 'must be at least 32 bytes'),
 });
 
 export type AppConfig = Readonly<{

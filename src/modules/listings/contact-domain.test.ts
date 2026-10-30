@@ -64,4 +64,15 @@ describe('composeContactMessage (MSG-2 Q1)', () => {
   it('NFC-normalizes every string, so a decomposed name renders composed', () => {
     expect(composeContactMessage(purchase({ productName: 'Pokémon'.normalize('NFD') })).text).toContain('Pokémon'.normalize('NFC'));
   });
+
+  it('overflow: a 400-character seller name and heavy emoji graphemes still fit in 2,000, keeping the prices (decision log Impl-1 #34)', () => {
+    const family = '👨‍👩‍👧‍👦';
+    const m = composeContactMessage(purchase({ sellerName: 'ñ'.repeat(400), productName: family.repeat(40) }));
+    expect(m.externalUrl.length).toBeLessThanOrEqual(MAX_URL_LENGTH);
+    expect(m.truncationSteps).toEqual(['productName', 'overflow']);
+    expect(decoded(m.externalUrl)).toBe(m.text);
+    expect(m.text).toContain('$45.000 COP');
+    expect(m.text).toContain('(NM)');
+    expect(m.copyText).toContain('ñ'.repeat(400));
+  });
 });

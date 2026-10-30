@@ -915,7 +915,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
     - buyer sending → the business's status;
     - business replying → its own status.
 
-    Violation: `NotBusinessAccount` (HTTP 409, identity), propagated. The response carries the composed `body` back so the user can copy it (FR-MSG-6).
+    Violation: `NotBusinessAccount` (HTTP 409, identity), propagated. The client keeps the text it composed so the user can copy it (FR-MSG-6); the refusal never echoes the body, which is regulated (AD-SYS-8 rule 3; decision log Impl-1 #34).
 - **Postcondition (Q):**
   - Q1 Start path: `INSERT "Conversation" … ON CONFLICT ("buyerId", "businessId") DO NOTHING`, then select it, then the two participant rows `ON CONFLICT DO NOTHING`.
   - Q2 `UPDATE "Conversation" SET "lastSeq" = "lastSeq" + 1, "lastMessageAt" = :now, "updatedAt" = :now WHERE id RETURNING "lastSeq"`. Then `SAVEPOINT send_insert` and `INSERT "Message" { senderId, body, clientMessageId, seq, "recipientVerificationAtSend", "createdAt": now }`. Returns `{ conversationId, messageId, seq, decision }`.
@@ -956,10 +956,10 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
     2. offered item names, longest first, down to 20;
     3. trailing items collapse into "+N más".
 
-    Prices, cash, conditions, quantities, the seller name and `copyText` are never truncated. `externalUrl = https://wa.me/<E.164 without +>?text=<encoded>`.
+    Prices, cash, conditions, quantities, the seller name and `copyText` are never truncated. If the URL still exceeds 2,000 after step 3 (a long seller name, heavy emoji graphemes), a last `overflow` step cuts the seller name to 20 graphemes and then every name below 20 together until it fits; prices, cash, conditions, quantities and `copyText` stay whole (decision log Impl-1 #34). `externalUrl = https://wa.me/<E.164 without +>?text=<encoded>`.
   - Q2 For `kind='purchase'`: one `"ContactRequestLog" { listingId, sellerId, ipHmac, kind, counted, createdAt: now }` row. `counted=false` for a repeat of the same `(requesterId, listingId)` within 60 min (EC-36). For `kind='trade'`: no limiter and no log row (EC-37).
   - Q3 No event and no audit row: contact generation changes no domain state, and the log row is its record. The phone is read through `identity.getContactCard` and is never logged.
-  - Q4 The decision cites `{ rule: 'FR-MSG-2', inputs: { truncated: boolean, truncationSteps: string[], urlLength } }`.
+  - Q4 The decision cites `{ rule: 'FR-MSG-2', inputs: { truncated: boolean, truncationSteps: string, urlLength } }`; `truncationSteps` joins the steps with commas, because citation inputs are primitives (AD-SYS-1 rule 5; decision log Impl-1 #34).
   - Q-fail Any refusal → zero writes, and the phone is never read.
 - **Invariant (I):**
   - I1 Equal inputs give byte-identical outputs (1 distinct output over 1,000 runs). Bound to: AD-MSG-1 rule 4 (NFR-MSG-1).
@@ -990,7 +990,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Invariant (I):**
   - I1 It is computed from current facts on every call, with no cache. Bound to: AD-IDN-1 rule 4, AD-MSG-2 rule 2.
   - I2 An observed `Approved → Pending` is logged as an invariant breach and answered as `Pending`. Bound to: AD-MSG-2 rule 5.
-- **Concurrency / idempotency:** a read. **MEC:** the business is rejected after the buyer composed and before the send commits → the send's in-transaction read sees `Rejected` → `NotBusinessAccount`, with the composed text returned for copying and zero writes. `Pending → Approved` in the same gap → `allowed` with no notice. Both hold in 100/100 repetitions (NFR-MSG-4).
+- **Concurrency / idempotency:** a read. **MEC:** the business is rejected after the buyer composed and before the send commits → the send's in-transaction read sees `Rejected` → `NotBusinessAccount` with zero writes; the client still holds the composed text for copying (decision log Impl-1 #34). `Pending → Approved` in the same gap → `allowed` with no notice. Both hold in 100/100 repetitions (NFR-MSG-4).
 - **Time:** none. Status is not time-based.
 - **Latency budget (NFR):** inside MSG-1's send budget, p95 ≤ 500 ms (NFR-MSG-2).
 
@@ -1332,7 +1332,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `NotBusinessListing` | 409 | listings | INV-1 P3 | "Esta publicación es de una persona; contáctala en lugar de comprar." | no |
 | `NotIndividualSellerListing` | 409 | listings | MSG-2 P3; S-FR-TRD-1 | "Esta publicación es de una tienda; cómprala o escríbele en la app." | no |
 | `InsufficientQuantity` | 409 | listings | INV-1 P5; TRD-1 P6; S-FR-INV-9 | "Pediste {requested}; quedan {available}." | no |
-| `ListingNotFound` | 404 | listings | INV-1 P2; MSG-2 P2; S-FR-INV-10 | "Esta publicación ya no está disponible." | no |
+| `ListingNotFound` | 404 | listings | INV-1 P2; MSG-2 P2 and an incomplete seller profile (decision log Impl-1 #34); S-FR-INV-10 | "Esta publicación ya no está disponible." | no |
 | `ListingNotOwnedByCaller` | 403 | listings | S-FR-INV-9 | "Solo quien publicó puede cambiar esta publicación." | no |
 | `ListingNotPurchasable` | 409 | listings | INV-1 P4 | "Esta tienda no puede vender ahora." | no |
 | `InvalidSearchArea` | 400 | listings | DSC-3 | "El radio debe estar entre 1 y 300 km y el centro en Colombia." | no |

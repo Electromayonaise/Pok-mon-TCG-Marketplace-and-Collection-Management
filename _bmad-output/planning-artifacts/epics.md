@@ -1081,7 +1081,7 @@ Let buyers contact individual sellers through a generated WhatsApp handoff, and 
 - **Contracts:** `MSG-2` generateContactMessage
 - **Depends on:** Story 5.1, Story 2.5
 - **Traceability:** FR-MSG-1, FR-MSG-2, FR-MSG-3, FR-TRD-6 · NFR-MSG-1, NFR-MSG-3, NFR-MSG-4 · Risk R-09 (P0) · UI 12.1, 12.3 (dev)
-- **Binding invariants:** AD-MSG-1 — Contact messages deterministic and rate-limited (Pure composer; fixed-order advisory locks); also cited by its clauses: AD-SYS-6, AD-SYS-8
+- **Binding invariants:** AD-MSG-1 — Contact messages deterministic and rate-limited (Pure composer; fixed-order advisory locks); also cited by its clauses: AD-SYS-1, AD-SYS-6, AD-SYS-8
 - **Files:** `src/modules/listings/application/contact.v2.ts` (`ContactServiceV2.generateContactMessage`), `src/modules/listings/ports/contact.v2.ts` (`ContactRepository`), `src/modules/listings/domain/contact.ts`, `src/modules/listings/infra/pg.ts`
 - **Schema/DTO:** tables `"ContactRequestLog"`; DTOs `GenerateContactMessageRequest` → `GenerateContactMessageResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/msg_contracts.test.ts` › `[MSG-2.Q1]`, `[MSG-2.I1]`, `[MSG-2.MEC]`, `[MSG-2.R1]`; `_bmad-output/test-artifacts/nfr/msg_latency.test.ts` › `[NFR-MSG-1.contact]`
@@ -1113,7 +1113,7 @@ Let buyers contact individual sellers through a generated WhatsApp handoff, and 
 - **Contracts:** — (no registry operation of its own) · **Also proves:** `MSG-2` (operation owned by Story 9.3)
 - **Depends on:** Story 9.3
 - **Traceability:** FR-MSG-1, FR-MSG-2, FR-MSG-3, FR-TRD-6 · NFR-MSG-1, NFR-MSG-3, NFR-MSG-4
-- **Binding invariants:** also cited by its clauses: AD-MSG-1, AD-SYS-6, AD-SYS-8
+- **Binding invariants:** also cited by its clauses: AD-MSG-1, AD-SYS-1, AD-SYS-6, AD-SYS-8
 - **Files:** —
 - **Schema/DTO:** tables `"ContactRequestLog"`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/msg_contracts.test.ts` › `[MSG-2.P2]`, `[MSG-2.P3]`, `[MSG-2.P4]`

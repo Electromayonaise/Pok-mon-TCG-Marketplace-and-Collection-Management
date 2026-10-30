@@ -46,6 +46,7 @@ export class ContactServiceV2 implements ContactV2UseCases {
     return transactions.run(async (tx) => {
       const listing = await repo.readContactListing(tx, listingId);
       if (listing === null || !listing.visible) return raise('ListingNotFound', [{ rule: 'FR-MSG-1', inputs: { visible: false } }]);
+      if (listing.kind === 'single' && listing.unit === null) throw new UnexpectedError(`Unexpected: single listing ${listingId} has no unit (listing_single_has_unit)`);
       if (listing.sellerKindAtCreation !== 'individual') return raise('NotIndividualSellerListing', [{ rule: 'FR-MSG-1', inputs: { sellerKind: listing.sellerKindAtCreation } }]);
       if (kind === 'purchase') {
         const ip = ipHmac ?? null;

@@ -69,7 +69,7 @@ export interface ContactRepository {
    * there is one, always in that order (the fixed-order pair AD-SYS-4 rule 5 allows).
    */
   lockContactKeys(tx: Tx, requesterId: CuidId, ipHmac: string | null): Promise<void>;
-  /** MSG-2 P4: the half-open windows `(now − w, now]` over counted rows (decision log Impl-1 #34); `repeat` reads any row of the pair in the last 60 min. */
+  /** MSG-2 P4: the half-open windows `(now − w, now]` over counted rows (decision log Impl-1 #34); `repeat` reads a counted row of the pair in the last 60 min, so a chain of repeats never renews itself. */
   readContactWindows(tx: Tx, k: { requesterId: CuidId; sellerId: CuidId; listingId: CuidId; ipHmac: string | null; now: IsoInstant }): Promise<ContactWindows>;
   /** MSG-2 Q2: one log row; no phone and no text. */
   insertContactLog(tx: Tx, r: { id: CuidId; requesterId: CuidId; listingId: CuidId; sellerId: CuidId; ipHmac: string | null; counted: boolean; now: IsoInstant }): Promise<void>;

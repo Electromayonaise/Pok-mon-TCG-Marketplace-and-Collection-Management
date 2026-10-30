@@ -83,3 +83,17 @@ context:
 - The decision cites `truncationSteps` joined with commas, since citation inputs are primitives (AD-SYS-1 rule 5). §13 gains the stored-only `ContactMessageGenerated` row.
 - **TG-7 runtime** (local Postgres 16, `fsync=off`): `[MSG-2.MEC]` (8 names × prices) in 188 ms; `[MSG-2.I1]` 1,000 runs in 854 ms.
 - Measured: `[NFR-MSG-1.contact]` p95 4.5 ms (p50 2.4).
+
+### Review Findings
+
+Epic 9 close review (2026-10-30, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `787392b..7be44bf` (code paths, the two bound-test Givens and the NFR file). Totals for the epic: 3 decisions, 7 patches, 4 deferrals, 10 dismissed. Martín resolved the decisions with every recommendation and approved every patch (decision log Impl-1 #34).
+
+- [x] [Review][Decision→Patch] The leftmost `x-forwarded-for` hop is client-controlled, so a new header per request escaped the 60-per-IP limit — `callerIp` reads `x-real-ip` (set and overwritten by the hosting proxy), else the rightmost hop, normalized (no port or brackets, lower-case IPv6, IPv4-mapped as IPv4); this amends D5's "first hop" [src/server/ip-hmac.ts + test]
+- [x] [Review][Decision→Patch] `externalUrl ≤ 2000` (I2) was not guaranteed: a 400-character seller name or heavy emoji graphemes overflow after the three FR-MSG-2 steps — a last `overflow` step cuts the seller name to 20 graphemes, then every name below 20, until it fits; contracts.md MSG-2 Q1 and AD-MSG-1 rule 4 amended [src/modules/listings/domain/contact.ts + test]
+- [x] [Review][Patch] The 60-minute repeat matched uncounted rows, so a chain of repeats renewed itself and skipped every limit — it now matches counted rows only [src/modules/listings/infra/pg.ts + test]
+- [x] [Review][Patch] A single listing with no unit rendered an empty product name — `Unexpected` (`listing_single_has_unit`) [src/modules/listings/application/contact.v2.ts]
+- [x] [Review][Patch] No pool-of-1 proof for the contact path (AD-SYS-4 rule 9) [src/modules/listings/application/contact.v2.test.ts]
+- [x] [Review][Patch] `IP_HMAC_KEY` was checked in characters; S-7 says bytes [src/shared-kernel/config.ts + test]
+- [x] [Review][Patch] contracts.md Q4 still said `truncationSteps: string[]`, and §13 `ListingNotFound` did not name D4's source
+- [x] [Review][Defer] the trade path's empty offer and unchecked `cashCop` (Epic 10) (deferred-work.md)
+- Dismissed (10): compose without a key (tests only; production always passes one); the required key failing start-up (intended, now a launch-checklist item); a Rejected status visible in the citation (MSG-3 Q-fail cites `{ status }`); the replayed decision's `occurredAt` and a retry with another body (idempotency is by key); a second `DuplicateSend` (the re-run now finds the winner first); `now` read before the locks (one Clock read, as the contract says); FOR SHARE with no application yet (nothing to protect); a seller contacting their own listing (their own phone); `sellerContact` telling apart a missing listing (approved D4 citation); self-messaging (P4 or P5 refuses it before the insert).
