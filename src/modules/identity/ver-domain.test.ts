@@ -1,8 +1,8 @@
 // VER-2 P2 and P5–P7: the DIAN NIT check digit (the ADD-§2.5 vectors), the CC length, and the
 // submission verdict judged from the latest application's snapshot only (AD-VER-3, FR-VER-6).
-// S-FR-VER-7's copy, S-FR-VER-2's queue cursor and S-FR-VER-5.audit's access-log cursor.
+// MSG-3's eligibility mapping. S-FR-VER-7's copy, S-FR-VER-2's queue cursor and S-FR-VER-5.audit's access-log cursor.
 import { describe, expect, it } from 'vitest';
-import { decodeAccessLogCursor, decodeQueueCursor, encodeAccessLogCursor, encodeQueueCursor, evaluateSubmission, isValidCc, isValidNit, nitCheckDigit, verificationCopy } from './domain/ver.js';
+import { decodeAccessLogCursor, decodeQueueCursor, encodeAccessLogCursor, encodeQueueCursor, evaluateSubmission, isValidCc, isValidNit, messagingEligibility, nitCheckDigit, verificationCopy } from './domain/ver.js';
 
 describe('nitCheckDigit / isValidNit (ADD-§2.5)', () => {
   it.each([
@@ -93,5 +93,14 @@ describe('encodeAccessLogCursor / decodeAccessLogCursor (S-FR-VER-5.audit)', () 
   it('the two lists refuse each other\'s cursors', () => {
     expect(decodeAccessLogCursor(encodeQueueCursor({ submittedAt: key.createdAt, id: key.id }))).toBeNull();
     expect(decodeQueueCursor(encodeAccessLogCursor(key))).toBeNull();
+  });
+});
+
+describe('messagingEligibility (MSG-3 Q1, Q-fail)', () => {
+  it('maps Approved and Pending to eligible, and every other status to null', () => {
+    expect(messagingEligibility('Approved')).toEqual({ status: 'Approved', verified: true });
+    expect(messagingEligibility('Pending')).toEqual({ status: 'Pending', verified: false });
+    expect(messagingEligibility('Rejected')).toBeNull();
+    expect(messagingEligibility('none')).toBeNull();
   });
 });

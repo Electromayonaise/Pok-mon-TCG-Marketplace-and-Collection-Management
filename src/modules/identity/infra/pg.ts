@@ -357,6 +357,13 @@ export class PgVerRepository implements Omit<VerRepository, keyof IdnRepository 
     return rows[0] ?? null;
   }
 
+  async lockLatestApplicationForShare(tx: Tx, businessId: CuidId): Promise<void> {
+    await tx.query(
+      `SELECT id FROM "BusinessApplication" WHERE "businessId" = $1 ORDER BY "submittedAt" DESC, id DESC LIMIT 1 FOR SHARE`,
+      [businessId],
+    );
+  }
+
   async readLatestBusinessName(tx: Tx, businessId: CuidId): Promise<string | null> {
     const { rows } = await tx.query<{ businessName: string }>(
       `SELECT "businessName" FROM "BusinessApplication" WHERE "businessId" = $1 ORDER BY "submittedAt" DESC, id DESC LIMIT 1`,

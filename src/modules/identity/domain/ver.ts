@@ -138,3 +138,13 @@ export function decodeAccessLogCursor(cursor: string): AccessLogKey | null {
   const key = decodeKeyset('legal-access', cursor);
   return key === null ? null : { createdAt: key[0], id: key[1] };
 }
+
+/**
+ * MSG-3 Q1 / Q-fail: the latest application's status as messaging eligibility (FR-IDN-6, AD-MSG-2 rule 2).
+ * `Approved` and `Pending` receive messages; anything else (`Rejected`, no application) is null.
+ */
+export function messagingEligibility(verification: ApplicationStatus | 'none'): { status: 'Approved' | 'Pending'; verified: boolean } | null {
+  if (verification === 'Approved') return { status: 'Approved', verified: true };
+  if (verification === 'Pending') return { status: 'Pending', verified: false };
+  return null;
+}

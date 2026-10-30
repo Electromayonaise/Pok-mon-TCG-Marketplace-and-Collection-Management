@@ -107,6 +107,11 @@ export interface VerRepository extends IdnRepository {
   /** P-VER.name: the latest application's name. */
   readLatestBusinessName(tx: Tx, businessId: CuidId): Promise<string | null>;
   /**
+   * MSG-3 inside the send transaction (decision log Impl-1 #34): `FOR SHARE` on the latest application, so a
+   * rejection cannot commit between the send's eligibility read and its commit. No row → nothing to lock.
+   */
+  lockLatestApplicationForShare(tx: Tx, businessId: CuidId): Promise<void>;
+  /**
    * VER-3 Q2: the application with its legal identity, or null when either is absent. Implemented
    * only by `infra/legalIdentityRepository.ts`; it is the one instrumented reader (AD-VER-2 rule 5).
    */
