@@ -25,7 +25,7 @@
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
-| NFR evidence status | Green — ATDD: 32; Green — benchmark: 12; Green — gate: 8; Deferred — launch: 3; Red — ATDD: 4; Green — ATDD (Story 13.3: 1; 100/100 each on local Postgres 16: `[REP-1.MEC]` 146–161 ms, `[REP-3.MEC]` 446–502 ms): 1; Planned — story DoD: 2; the page copy belongs to UI 6.2: 1; the 35 s visibility is the client's 30 s polling: 1; Green — benchmark (p95: current 74 ms, current + 30-day trend 281 ms, 365-point history 262 ms: 1; local Postgres 16): 2; Green — benchmark (the next read and the aggregates, p95 0.7 ms and 1.8 ms: 1; Red — ATDD and Planned — story DoD (the profile read, Story 13.5 in Impl-2: 1; decision log Impl-1 #38): 1 |
+| NFR evidence status | Green — ATDD: 34; Green — benchmark: 14; Green — gate: 8; Deferred — launch: 3; Planned — story DoD: 3; Red — ATDD: 3 |
 | Contract clauses / test ids | 112 / 391 (379 red, 12 green) |
 | Gate problems | 0 |
 
@@ -149,7 +149,7 @@
 | NFR-SYS-11 | Accessibility | — | — | 0 | Deferred — launch |
 | NFR-SYS-12 | Platform personal-data consent | — | — | 0 | Green — gate |
 | NFR-SYS-13 | Error-code integrity | — | `SYS-1.R2`, `SYS-1.R6` | 2 | Green — ATDD |
-| NFR-SYS-14 | Abuse baseline | — | `S-FR-IDN-7.f`, `MSG-2.R1` | 2 | Green — ATDD (`[S-FR-IDN-7.f]`, the count only: no sign-in records a failure yet, decision log Impl-1 #26); Red — ATDD (`[MSG-2.R1]`) |
+| NFR-SYS-14 | Abuse baseline | — | `S-FR-IDN-7.f`, `MSG-2.R1` | 2 | Green — ATDD (`[S-FR-IDN-7.f]` counts only, since no sign-in records a failure yet, decision log Impl-1 #26, and `[MSG-2.R1]` with Story 9.5) |
 | NFR-IDN-2 | (mandatory edge case): | IDN-1 | `IDN-1.MEC`, `IDN-1.I1` | 7 | Green — ATDD |
 | NFR-VER-1 | (mandatory edge case): | VER-1 | `VER-1.MEC` | 7 | Green — ATDD |
 | NFR-INV-1 | (Annex scenario 3): | INV-1 | `INV-1.I1` | 9 | Green — ATDD |
@@ -158,9 +158,9 @@
 | NFR-COM-1 | (mandatory edge case): | COM-1 | `COM-1.MEC`, `COM-1.MEC2` | 8 | Green — ATDD |
 | NFR-TRD-1 | (mandatory edge case): | TRD-1 | `TRD-1.MEC` | 9 | Green — ATDD |
 | NFR-MSG-4 | (mandatory edge case): | MSG-2, MSG-3 | `MSG-2.MEC`, `MSG-3.MEC` | 10 | Green — ATDD |
-| NFR-COL-1 | (mandatory edge case): | COL-1, COL-2 | `COL-1.MEC`, `COL-2.I1` | 11 | Red — ATDD |
+| NFR-COL-1 | (mandatory edge case): | COL-1, COL-2 | `COL-1.MEC`, `COL-2.I1` | 11 | Green — ATDD (`[COL-1.MEC]` and `[COL-2.I1]` with Story 11.3) |
 | NFR-VAL-1 | (mandatory edge case): | VAL-1, VAL-2 | `VAL-1.MEC`, `VAL-2.I1`, `VAL-2.I3` | 9 | Green — ATDD (`[VAL-1.MEC]` and `[VAL-2.I1]` with Story 12.3, `[VAL-2.I3]` with Story 12.5) |
-| NFR-REP-1 | (mandatory edge case): | REP-1, REP-2, REP-3 | `REP-1.MEC`, `REP-3.MEC` | 22 | Green — ATDD (Story 13.3; 100/100 each on local Postgres 16: `[REP-1.MEC]` 146–161 ms, `[REP-3.MEC]` 446–502 ms) |
+| NFR-REP-1 | (mandatory edge case): | REP-1, REP-2, REP-3 | `REP-1.MEC`, `REP-3.MEC` | 22 | Green — ATDD (Story 13.3, 100/100 each on local Postgres 16: `[REP-1.MEC]` 146–161 ms, `[REP-3.MEC]` 446–502 ms) |
 | NFR-IDN-1 | getCapabilities | — | — | 0 | Planned — story DoD |
 | NFR-IDN-3 | 0 procedures accept a client-supplied role | — | `SYS-8.R2.static`, `SYS-8.R2` | 2 | Green — gate |
 | NFR-VER-2 | 100% of legalIdentity reads and denials are audited | VER-3 | `VER-3.I1`, `VER-3.I2`, `IDN-3.I1` | 7 | Green — ATDD |
@@ -170,27 +170,27 @@
 | NFR-CAT-2 | a 10,000-row ingestion run completes in ≤ 120 s | CAT-2 | `CAT-2.I1`, `CAT-2.MEC` | 9 | Green — ATDD |
 | NFR-CAT-3 | 0 fabricated prices | CAT-3 | `CAT-3.I1`, `CAT-3.Q4`, `S-FR-CAT-8.f` | 6 | Green — ATDD |
 | NFR-CAT-4 | The daily TRM job runs outside request paths | — | `S-FR-CAT-8.h`, `S-FR-CAT-8.f` | 2 | Green — ATDD |
-| NFR-INV-2 | a mixed race of purchases and trades gives the same result as NFR-INV-1. | INV-1 | `INV-1.I3`, `TRD-1.MEC` | 10 | Green — ATDD (`[INV-1.I3]`); Red — ATDD (`[TRD-1.MEC]`) |
+| NFR-INV-2 | a mixed race of purchases and trades gives the same result as NFR-INV-1. | INV-1 | `INV-1.I3`, `TRD-1.MEC` | 10 | Green — ATDD (`[INV-1.I3]` with Story 5.2, `[TRD-1.MEC]` with Story 10.3) |
 | NFR-INV-4 | a single reservation completes in p95 ≤ 150 ms (a bundle of 20 components in p95 | INV-1, INV-2 | `NFR-INV-4.reserve`, `NFR-INV-4.bundle`, `NFR-INV-4.create` | 23 | Green — benchmark |
 | NFR-DSC-1 | view=listings with a 15 km area responds in p95 ≤ 1,000 ms on the §3 seed and in | DSC-1 | `NFR-DSC-1.seed`, `NFR-DSC-1.scale` | 9 | Green — benchmark |
 | NFR-DSC-2 | distance error is ≤ 1 m against the haversine reference for 1,000 random Colombi | DSC-1 | `DSC-1.I4` | 7 | Green — ATDD |
 | NFR-DSC-3 | ordering is deterministic | DSC-1 | `DSC-1.R1` | 7 | Green — ATDD |
 | NFR-ORD-2 | order creation (including the reservation) responds in p95 ≤ 800 ms | ORD-1 | `NFR-ORD-2.p95` | 7 | Green — benchmark (creation); Deferred — launch (the upload's transfer time needs the production storage) |
 | NFR-ORD-3 | 0 funds-held states or payment-gateway calls | — | `ORD-1.I4`, `SYS-6.R4` | 2 | Green — gate (`[SYS-6.R4]`); Green — ATDD (`[ORD-1.I4]`) |
-| NFR-ORD-4 | the stalled-order gap is documented in UI copy | — | `S-FR-ORD-10.h` | 1 | Green — ATDD (the support contact and the 7-day notice, `OrderAwaitingBusiness`); the page copy belongs to UI 6.2 |
+| NFR-ORD-4 | the stalled-order gap is documented in UI copy | — | `S-FR-ORD-10.h` | 1 | Green — ATDD (the support contact and the 7-day notice, `OrderAwaitingBusiness`, and the page copy belongs to UI 6.2) |
 | NFR-COM-2 | reconciliation is exact over a randomised sequence of 10,000 top-ups and deducti | COM-1, COM-3 | `COM-3.Q1`, `COM-3.I1` | 14 | Red — ATDD |
 | NFR-COM-3 | the deduction handler runs in p95 ≤ 200 ms | COM-1, COM-2 | `NFR-COM-3.deduction`, `NFR-COM-3.topUp` | 18 | Green — benchmark |
 | NFR-COM-4 | 0 floating-point operations on COP in the commission code path | COM-1 | `COM-1.I3` | 8 | Green — ATDD |
 | NFR-TRD-2 | accept responds in p95 ≤ 800 ms and other actions in p95 ≤ 500 ms. | TRD-1 | `NFR-TRD-2.counter`, `NFR-TRD-2.accept` | 11 | Green — benchmark |
 | NFR-TRD-3 | a trade-versus-purchase race on a shared unit never oversells (NFR-INV-2). | TRD-1 | `INV-1.I3`, `TRD-1.I1` | 10 | Green — ATDD |
 | NFR-MSG-1 | contact-message generation takes p95 ≤ 200 ms | MSG-2 | `MSG-2.I1`, `NFR-MSG-1.contact` | 8 | Green — ATDD (determinism); Green — benchmark (latency) |
-| NFR-MSG-2 | in-app freshness through polling | MSG-1 | `MSG-1.R1`, `NFR-MSG-2.send` | 8 | Green — ATDD (ordering); Green — benchmark (send); the 35 s visibility is the client's 30 s polling (UI 12.2) |
+| NFR-MSG-2 | in-app freshness through polling | MSG-1 | `MSG-1.R1`, `NFR-MSG-2.send` | 8 | Green — ATDD (ordering); Green — benchmark (send, and the 35 s visibility is the client's 30 s polling, UI 12.2) |
 | NFR-MSG-3 | 0 outbound calls to external messaging services (NFR-SYS-3 guard). | MSG-2 | `SYS-6.R4` | 8 | Green — gate |
 | NFR-COL-2 | a binder page render (sorted | — | — | 0 | Planned — story DoD |
-| NFR-COL-3 | there are 0 CatalogEntry writes from collections | — | `SYS-AD8`, `S-FR-COL-3.h` | 2 | Green — gate |
-| NFR-VAL-2 | current value plus the 30-day trend for 500 entries takes p95 ≤ 1,500 ms | VAL-1, VAL-3 | `NFR-VAL-2.current`, `NFR-VAL-2.trend`, `NFR-VAL-2.history` | 12 | Green — benchmark (p95: current 74 ms, current + 30-day trend 281 ms, 365-point history 262 ms; local Postgres 16) |
+| NFR-COL-3 | there are 0 CatalogEntry writes from collections | — | `SYS-AD8`, `S-FR-COL-3.h` | 2 | Green — gate (`[SYS-AD8]`); Red — ATDD (`[S-FR-COL-3.h]`, Story 11.5 in Impl-2) |
+| NFR-VAL-2 | current value plus the 30-day trend for 500 entries takes p95 ≤ 1,500 ms | VAL-1, VAL-3 | `NFR-VAL-2.current`, `NFR-VAL-2.trend`, `NFR-VAL-2.history` | 12 | Green — benchmark (p95: current 74 ms, current + 30-day trend 281 ms, 365-point history 262 ms, local Postgres 16) |
 | NFR-VAL-3 | 0 floating-point operations on COP in valuation code | VAL-1, VAL-2 | `VAL-1.I1`, `VAL-2.I3` | 9 | Green — ATDD (`[VAL-1.I1]` with Story 12.1, `[VAL-2.I3]` with Story 12.5) |
-| NFR-REP-2 | a profile read (aggregate plus the first page) takes p95 ≤ 300 ms | REP-2, REP-3 | `NFR-REP-2.nextRead`, `NFR-REP-2.aggregates`, `S-FR-REP-7.h` | 14 | Green — benchmark (the next read and the aggregates, p95 0.7 ms and 1.8 ms; local Postgres 16); Red — ATDD and Planned — story DoD (the profile read, Story 13.5 in Impl-2; decision log Impl-1 #38) |
+| NFR-REP-2 | a profile read (aggregate plus the first page) takes p95 ≤ 300 ms | REP-2, REP-3 | `NFR-REP-2.nextRead`, `NFR-REP-2.aggregates`, `S-FR-REP-7.h` | 14 | Green — benchmark (the next read and the aggregates, p95 0.7 ms and 1.8 ms, local Postgres 16); Red — ATDD (`[S-FR-REP-7.h]`, the profile read, Story 13.5 in Impl-2, decision log Impl-1 #38); Planned — story DoD (the profile benchmark, Story 13.5) |
 | NFR-REP-3 | 0 hard deletes of Review or Listing rows | — | `REP-2.I1`, `SYS-R2.grants` | 2 | Green — gate (grant); Green — ATDD (behaviour, Story 13.2) |
 
 ## 4. Architecture decisions (§14)
