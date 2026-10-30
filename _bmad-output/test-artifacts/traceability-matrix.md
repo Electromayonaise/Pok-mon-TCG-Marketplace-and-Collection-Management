@@ -85,14 +85,14 @@
 | FR-ORD-9 | Closed-purchase query (CAP-7) | S-FR-ORD-9 | AD-ORD-3, AD-2 | 2 — `S-FR-ORD-9.f`, `S-FR-ORD-9.h` | 7.5 (done) | red |
 | FR-ORD-10 | Admin order lookup and support contact (CAP-22) | S-FR-ORD-10 | AD-ORD-3, AD-SYS-8 | 2 — `S-FR-ORD-10.f`, `S-FR-ORD-10.h` | 7.5 (done) | red |
 | FR-COM-1 | Open an account on approval (CAP-21) | S-FR-COM-1 | AD-COM-1 | 2 — `S-FR-COM-1.f`, `S-FR-COM-1.h` | 8.1 (done) | red |
-| FR-COM-2 | Request a top-up (manual V1 behind a port) (CAP-21) | S-FR-COM-2, S-FR-COM-2.mine, S-FR-COM-2.url | AD-COM-3, AD-14 | 5 — `S-FR-COM-2.f`, `S-FR-COM-2.f2`, `S-FR-COM-2.h` +2 | 8.1 (done), 8.4 (ready-for-dev) | red |
-| FR-COM-3 | Admin confirms or rejects a top-up (CAP-21) | COM-2, COM-2.queue | AD-COM-3, AD-COM-1 | 8 — `COM-2.I1`, `COM-2.P2`, `COM-2.P3` +5 | 8.3 (done), 8.4 (ready-for-dev) | red |
-| FR-COM-4 | Deduct commission exactly once per order (CAP-21) | COM-1 | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 8 — `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +5 | 8.2 (done), 8.4 (ready-for-dev) | red |
-| FR-COM-5 | Commission amount and rounding rule (CAP-21) | COM-1 | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 8 — `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +5 | 8.2 (done), 8.4 (ready-for-dev) | red |
-| FR-COM-6 | Threshold events without flapping (CAP-21) | COM-1, COM-2, COM-2.queue | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 16 — `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +13 | 8.2 (done), 8.3 (done), 8.4 (ready-for-dev) | red |
+| FR-COM-2 | Request a top-up (manual V1 behind a port) (CAP-21) | S-FR-COM-2, S-FR-COM-2.mine, S-FR-COM-2.url | AD-COM-3, AD-14 | 5 — `S-FR-COM-2.f`, `S-FR-COM-2.f2`, `S-FR-COM-2.h` +2 | 8.1 (done), 8.4 (done) | red |
+| FR-COM-3 | Admin confirms or rejects a top-up (CAP-21) | COM-2, COM-2.queue | AD-COM-3, AD-COM-1 | 8 — `COM-2.I1`, `COM-2.P2`, `COM-2.P3` +5 | 8.3 (done), 8.4 (done) | red |
+| FR-COM-4 | Deduct commission exactly once per order (CAP-21) | COM-1 | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 8 — `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +5 | 8.2 (done), 8.4 (done) | red |
+| FR-COM-5 | Commission amount and rounding rule (CAP-21) | COM-1 | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 8 — `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +5 | 8.2 (done), 8.4 (done) | red |
+| FR-COM-6 | Threshold events without flapping (CAP-21) | COM-1, COM-2, COM-2.queue | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 16 — `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +13 | 8.2 (done), 8.3 (done), 8.4 (done) | red |
 | FR-COM-7 | Configure the commission rate (CAP-21) | S-FR-COM-7, S-FR-COM-7.list | AD-COM-2 | 3 — `S-FR-COM-7.f`, `S-FR-COM-7.h`, `S-FR-COM-7.list.h` | 8.6 (backlog) | red |
 | FR-COM-8 | Ledger views and reconciliation (CAP-21) | COM-3, S-FR-COM-8.ledger, COM-3.last | AD-SYS-4, AD-SYS-1, AD-COM-1, AD-19 | 7 — `COM-3.I1`, `COM-3.P2`, `COM-3.Q1` +4 | 8.5 (backlog), 8.6 (backlog) | red |
-| FR-COM-9 | Low-balance notice (CAP-21) | S-FR-COM-9 | AD-COM-3 | 2 — `S-FR-COM-9.f`, `S-FR-COM-9.h` | 8.1 (done), 8.4 (ready-for-dev) | red |
+| FR-COM-9 | Low-balance notice (CAP-21) | S-FR-COM-9 | AD-COM-3 | 2 — `S-FR-COM-9.f`, `S-FR-COM-9.h` | 8.1 (done), 8.4 (done) | red |
 | FR-TRD-1 | Make an offer on an open-to-trade listing (CAP-25) | TRD-2, S-FR-TRD-1 | AD-TRD-1, AD-SYS-5 | 9 — `TRD-2.I3`, `TRD-2.P2`, `TRD-2.P5` +6 | 10.1 (backlog), 10.2 (backlog), 10.4 (backlog) | red |
 | FR-TRD-2 | Turn-taking: reject, counter, withdraw (CAP-25) | TRD-2, S-FR-TRD-2w | AD-TRD-1, AD-SYS-5 | 9 — `TRD-2.I3`, `TRD-2.P2`, `TRD-2.P5` +6 | 10.1 (backlog), 10.2 (backlog), 10.4 (backlog) | red |
 | FR-TRD-3 | Visibility (CAP-25) | S-FR-TRD-3, S-FR-TRD-3.mine | AD-TRD-1 | 3 — `S-FR-TRD-3.f`, `S-FR-TRD-3.h`, `S-FR-TRD-3.mine.h` | 10.1 (backlog), 10.3 (backlog), 10.4 (backlog) | red |
