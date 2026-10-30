@@ -385,7 +385,7 @@ export default {
         {
           title: 'Confirm or reject a top-up', kind: 'Core',
           as: 'As an admin, I want to confirm or reject top-ups from a queue exactly once, so that a business resumes as soon as its balance is positive.',
-          ops: ['COM-2', 'COM-2.reject', 'COM-2.queue'], tests: ['COM-2.Q1', 'COM-2.Q2', 'COM-2.I1', 'COM-2.reject.h', 'COM-2.queue.h'], depends: ['8.1'],
+          ops: ['COM-2', 'COM-2.reject', 'COM-2.queue'], tests: ['COM-2.Q1', 'COM-2.Q2', 'COM-2.I1', 'COM-2.reject.h', 'COM-2.queue.h', 'NFR-COM-3.topUp'], depends: ['8.1'],
           happy: ['a 100,000 top-up for an Exhausted account at 0.', 'an admin confirms it from the queue (Pending, oldest first).', 'the balance is 100,000, the listings resume, and one Replenished event is published; a rejected top-up records its reason and credits nothing.'],
           failure: ['20,000 confirmed on −25,000, and two admins confirming one top-up at once.', 'the confirmations run.', '−5,000 naming 5,001 as needed to resume, with nothing published; one credit, one decision row and one `TopUpNotPending`.'],
         },

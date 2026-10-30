@@ -25,8 +25,8 @@
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
-| NFR evidence status | Green — ATDD: 24; Green — benchmark: 9; Green — gate: 8; Red — ATDD (`[COM-1.I3]` green with Story 8.2: 1; `[VAL-1.I1]` waits for Epic 12): 1; Red — ATDD: 16; Deferred — launch: 3; Planned — story DoD: 8; the page copy belongs to UI 6.2: 1 |
-| Contract clauses / test ids | 112 / 381 (369 red, 12 green) |
+| NFR evidence status | Green — ATDD: 24; Green — benchmark: 9; Green — gate: 8; Red — ATDD (`[COM-1.I3]` green with Story 8.2: 1; `[VAL-1.I1]` waits for Epic 12): 1; Red — ATDD: 16; Deferred — launch: 3; Planned — story DoD: 7; the page copy belongs to UI 6.2: 1 |
+| Contract clauses / test ids | 112 / 382 (370 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -86,10 +86,10 @@
 | FR-ORD-10 | Admin order lookup and support contact (CAP-22) | S-FR-ORD-10 | AD-ORD-3, AD-SYS-8 | 2 — `S-FR-ORD-10.f`, `S-FR-ORD-10.h` | 7.5 (done) | red |
 | FR-COM-1 | Open an account on approval (CAP-21) | S-FR-COM-1 | AD-COM-1 | 2 — `S-FR-COM-1.f`, `S-FR-COM-1.h` | 8.1 (done) | red |
 | FR-COM-2 | Request a top-up (manual V1 behind a port) (CAP-21) | S-FR-COM-2, S-FR-COM-2.mine, S-FR-COM-2.url | AD-COM-3, AD-14 | 5 — `S-FR-COM-2.f`, `S-FR-COM-2.f2`, `S-FR-COM-2.h` +2 | 8.1 (done), 8.4 (ready-for-dev) | red |
-| FR-COM-3 | Admin confirms or rejects a top-up (CAP-21) | COM-2, COM-2.queue | AD-COM-3, AD-COM-1 | 8 — `COM-2.I1`, `COM-2.P2`, `COM-2.P3` +5 | 8.3 (ready-for-dev), 8.4 (ready-for-dev) | red |
+| FR-COM-3 | Admin confirms or rejects a top-up (CAP-21) | COM-2, COM-2.queue | AD-COM-3, AD-COM-1 | 8 — `COM-2.I1`, `COM-2.P2`, `COM-2.P3` +5 | 8.3 (done), 8.4 (ready-for-dev) | red |
 | FR-COM-4 | Deduct commission exactly once per order (CAP-21) | COM-1 | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 8 — `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +5 | 8.2 (done), 8.4 (ready-for-dev) | red |
 | FR-COM-5 | Commission amount and rounding rule (CAP-21) | COM-1 | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 8 — `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +5 | 8.2 (done), 8.4 (ready-for-dev) | red |
-| FR-COM-6 | Threshold events without flapping (CAP-21) | COM-1, COM-2, COM-2.queue | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 16 — `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +13 | 8.2 (done), 8.3 (ready-for-dev), 8.4 (ready-for-dev) | red |
+| FR-COM-6 | Threshold events without flapping (CAP-21) | COM-1, COM-2, COM-2.queue | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 16 — `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +13 | 8.2 (done), 8.3 (done), 8.4 (ready-for-dev) | red |
 | FR-COM-7 | Configure the commission rate (CAP-21) | S-FR-COM-7, S-FR-COM-7.list | AD-COM-2 | 3 — `S-FR-COM-7.f`, `S-FR-COM-7.h`, `S-FR-COM-7.list.h` | 8.6 (backlog) | red |
 | FR-COM-8 | Ledger views and reconciliation (CAP-21) | COM-3, S-FR-COM-8.ledger, COM-3.last | AD-SYS-4, AD-SYS-1, AD-COM-1, AD-19 | 7 — `COM-3.I1`, `COM-3.P2`, `COM-3.Q1` +4 | 8.5 (backlog), 8.6 (backlog) | red |
 | FR-COM-9 | Low-balance notice (CAP-21) | S-FR-COM-9 | AD-COM-3 | 2 — `S-FR-COM-9.f`, `S-FR-COM-9.h` | 8.1 (done), 8.4 (ready-for-dev) | red |
@@ -179,7 +179,7 @@
 | NFR-ORD-3 | 0 funds-held states or payment-gateway calls | — | `ORD-1.I4`, `SYS-6.R4` | 2 | Green — gate (`[SYS-6.R4]`); Green — ATDD (`[ORD-1.I4]`) |
 | NFR-ORD-4 | the stalled-order gap is documented in UI copy | — | `S-FR-ORD-10.h` | 1 | Green — ATDD (the support contact and the 7-day notice, `OrderAwaitingBusiness`); the page copy belongs to UI 6.2 |
 | NFR-COM-2 | reconciliation is exact over a randomised sequence of 10,000 top-ups and deducti | COM-1, COM-3 | `COM-3.Q1`, `COM-3.I1` | 14 | Red — ATDD |
-| NFR-COM-3 | the deduction handler runs in p95 ≤ 200 ms | COM-1, COM-2 | `NFR-COM-3.deduction` | 17 | Green — benchmark (deduction); Planned — story DoD (top-up) |
+| NFR-COM-3 | the deduction handler runs in p95 ≤ 200 ms | COM-1, COM-2 | `NFR-COM-3.deduction`, `NFR-COM-3.topUp` | 18 | Green — benchmark |
 | NFR-COM-4 | 0 floating-point operations on COP in the commission code path | COM-1 | `COM-1.I3` | 8 | Green — ATDD |
 | NFR-TRD-2 | accept responds in p95 ≤ 800 ms and other actions in p95 ≤ 500 ms. | TRD-1 | — | 9 | Planned — story DoD |
 | NFR-TRD-3 | a trade-versus-purchase race on a shared unit never oversells (NFR-INV-2). | TRD-1 | `INV-1.I3`, `TRD-1.I1` | 10 | Green — ATDD (`[INV-1.I3]`); Red — ATDD (`[TRD-1.I1]`) |
@@ -243,7 +243,7 @@
 | AD-ORD-3 | One visibility predicate; locked comprobante | Visibility SQL; comprobante update predicate | `ORD-3.I3`, `S-FR-ORD-2.f` | 7.1 (done), 7.2 (done) | red |
 | AD-COM-1 | One atomic account update + one ledger entry | `UPDATE … RETURNING`; `UNIQUE (businessId, seq)` | `COM-3.I1` | 8.5 (backlog) | red |
 | AD-COM-2 | Deduction keyed by `orderId`, priced at the trigger time | Partial unique; rate by `commissionTriggeredAt` | `COM-1.I1` | 8.2 (done) | red |
-| AD-COM-3 | Top-ups have one domain path | `WHERE status='Pending'`; unique TopUp entry | `COM-2.I1` | 8.3 (ready-for-dev) | red |
+| AD-COM-3 | Top-ups have one domain path | `WHERE status='Pending'`; unique TopUp entry | `COM-2.I1` | 8.3 (done) | red |
 | AD-TRD-1 | Offer action = one conditional update | `status`, `turn`, `version`, `expiresAt` predicate | `TRD-2.I3` | 10.2 (backlog) | red |
 | AD-TRD-2 | Accept serialized per seller | `trd:seller` advisory lock | `TRD-1.MEC` | 10.3 (backlog) | red |
 | AD-TRD-3 | Completion computed; cancel releases once | `WHERE status='Accepted' AND no confirmation` | `TRD-3.I1` | 10.5 (backlog) | red |

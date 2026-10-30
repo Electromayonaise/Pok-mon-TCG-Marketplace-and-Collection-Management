@@ -130,7 +130,7 @@ export interface AppDeps {
  * The procedures whose contracts the done stories implement: IDN-1.ingress (Story 2.1),
  * IDN-3 (Story 2.5), S-SYS.replay (Story 1.3), S-SYS.tick, .deliveries, .health
  * (Story 1.5), VER-2 (Story 3.1), VER-1 (Story 3.2), VER-3 and S-FR-VER-5.audit (Story 3.4) and
- * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), CAT-3 and S-FR-CAT-8.fetch (Story 4.4), S-FR-CAT-1 (Story 4.5), INV-2 (Story 5.1), S-FR-INV-2, -9 and -10 (Story 5.6), DSC-1 (Story 6.2), DSC-2 (Story 6.3), ORD-1 and S-FR-ORD-2 (Story 7.1), ORD-2, -3 and -4 (Story 7.2), S-FR-ORD-6, -7, -9 and -10 (Story 7.5; S-FR-ORD-8 has no jobs route yet), and S-FR-COM-2 and -9 (Story 8.1). Every other procedure stays NotImplemented until its story wires it.
+ * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), CAT-3 and S-FR-CAT-8.fetch (Story 4.4), S-FR-CAT-1 (Story 4.5), INV-2 (Story 5.1), S-FR-INV-2, -9 and -10 (Story 5.6), DSC-1 (Story 6.2), DSC-2 (Story 6.3), ORD-1 and S-FR-ORD-2 (Story 7.1), ORD-2, -3 and -4 (Story 7.2), S-FR-ORD-6, -7, -9 and -10 (Story 7.5; S-FR-ORD-8 has no jobs route yet), S-FR-COM-2 and -9 (Story 8.1, with the commission subscriber, which runs COM-1 for Story 8.2), and COM-2, COM-2.reject and COM-2.queue (Story 8.3). Every other procedure stays NotImplemented until its story wires it.
  */
 function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2; inv: InvServiceV2; dsc: DscServiceV2; ord: OrdServiceV2; com: ComServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
   return {
@@ -187,6 +187,9 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
     'commission.myAccount': (_input, businessId) => s.com.getMyCommissionAccount({ businessId }),
     'commission.myTopUps': ({ cursor }, businessId) => s.com.listMyTopUps({ businessId, cursor }),
     'commission.topUpProofUrl': ({ topUpRequestId }, actorId) => s.com.getTopUpProofUrl({ topUpRequestId, actorId }),
+    'commission.admin.confirmTopUp': ({ topUpRequestId }, adminId) => s.com.confirmTopUp({ topUpRequestId, adminId }),
+    'commission.admin.rejectTopUp': ({ topUpRequestId, reason }, adminId) => s.com.rejectTopUp({ topUpRequestId, reason, adminId }),
+    'commission.admin.topUpQueue': ({ cursor }, adminId) => s.com.listTopUpQueue({ adminId, cursor }),
     'admin.events.replay': (input, adminId) => s.adminEvents.replayEventDelivery({ ...input, adminId }),
     'admin.jobs.tickHealth': (_input, adminId) => s.adminEvents.getTickHealth({ adminId }),
     'admin.events.deliveries': (input, adminId) => s.adminEvents.listDeliveries({ ...input, adminId }),

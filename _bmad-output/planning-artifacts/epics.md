@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 381 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 382 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -984,11 +984,11 @@ Keep each business's prepaid commission balance exact. Each order is charged exa
 - **Binding invariants:** AD-COM-3 — Top-ups have one domain path (`WHERE status='Pending'`; unique TopUp entry); also cited by its clauses: AD-COM-1
 - **Files:** `src/modules/commission/application/com.v2.ts` (`ComServiceV2.confirmTopUp`, `ComServiceV2.rejectTopUp`, `ComServiceV2.listTopUpQueue`), `src/modules/commission/ports/com.v2.ts` (`ComRepository`), `src/modules/commission/domain/com.ts`, `src/modules/commission/infra/pg.ts`
 - **Schema/DTO:** tables `"CommissionAccount"`, `"CommissionLedgerEntry"`, `"TopUpDecisionLog"`, `"TopUpRequest"`; DTOs `ConfirmTopUpRequest` → `ConfirmTopUpResponse`, `RejectTopUpRequest` → `RejectTopUpResponse`, `ListTopUpQueueRequest` → `ListTopUpQueueResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/com_contracts.test.ts` › `[COM-2.Q1]`, `[COM-2.Q2]`, `[COM-2.I1]`, `[COM-2.reject.h]`, `[COM-2.queue.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/com_contracts.test.ts` › `[COM-2.Q1]`, `[COM-2.Q2]`, `[COM-2.I1]`, `[COM-2.reject.h]`, `[COM-2.queue.h]`; `_bmad-output/test-artifacts/nfr/com3_latency.test.ts` › `[NFR-COM-3.topUp]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a 100,000 top-up for an Exhausted account at 0. **When:** an admin confirms it from the queue (Pending, oldest first). **Then:** the balance is 100,000, the listings resume, and one Replenished event is published; a rejected top-up records its reason and credits nothing.
   - **Scenario (failure) — Given:** 20,000 confirmed on −25,000, and two admins confirming one top-up at once. **When:** the confirmations run. **Then:** −5,000 naming 5,001 as needed to resume, with nothing published; one credit, one decision row and one `TopUpNotPending`.
-- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-COM-3: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-COM-3: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
 
 ### Story 8.4: Refuse invalid top-ups and decided requests
 

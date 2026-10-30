@@ -14,7 +14,7 @@ import { VirtualClock } from '../../test-support/clock.js';
 import { useTestDatabase } from '../../test-support/db.js';
 import { PG } from '../../test-support/env.js';
 import { FixtureFeedSource, FixtureFxRateSource, InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
-import { admin, at, business, catalogEntry, commissionAccount, DAY, feedRun, HOUR, id, individualSeller, ins, listing, observation, order, purchasableListing, rejectionReason, rows, T0, user } from '../../test-support/solu2/fixtures.js';
+import { admin, at, business, catalogEntry, commissionAccount, DAY, feedRun, HOUR, id, individualSeller, ins, listing, observation, order, purchasableListing, rejectionReason, rows, T0, topUp, user } from '../../test-support/solu2/fixtures.js';
 import { createAuth } from './auth.js';
 import { compose } from './composition.js';
 import { betterAuthSessions } from './sessions.js';
@@ -583,7 +583,7 @@ describe('the order reads, cancel, lookup and support contact over HTTP (S-FR-OR
   });
 });
 
-describe('the commission account and top-ups over HTTP (S-FR-COM-1, -2, -9, COM-1; Stories 8.1, 8.2)', () => {
+describe('the commission account and top-ups over HTTP (S-FR-COM-1, -2, -9, COM-1, COM-2; Stories 8.1–8.3)', () => {
   /** A failed commission delivery of `type`, replayed by an admin through an app that keeps the real commission handler (the shared app binds an inert one). */
   async function replayToCommission(type: 'BusinessApplicationApproved' | 'OrderClosed', aggregateId: string, payload: object): Promise<string> {
     await admin(db);
@@ -630,6 +630,24 @@ describe('the commission account and top-ups over HTTP (S-FR-COM-1, -2, -9, COM-
     expect(mine.rows).toMatchObject([{ topUpRequestId, status: 'Pending' }]);
     const url = (await get('commission.topUpProofUrl', { topUpRequestId }, andres)).json.result?.data as { url: string };
     expect(url.url).toMatch(/^sim:\/\/topup-proofs\//);
+  });
+
+  it('an admin reads the queue, confirms one top-up and rejects another; a non-admin is AdminOnly 403 (COM-2; Story 8.3)', async () => {
+    await admin(db);
+    await business(db, id('andres'), 'Approved');
+    await commissionAccount(db, id('andres'), 0);
+    await topUp(db, { id: id('t1'), businessId: id('andres'), amountCop: 100_000 });
+    await topUp(db, { id: id('t2'), businessId: id('andres'), amountCop: 20_000 });
+    const adminCookie = await signIn(id('admin'));
+    const refused = await post('commission.admin.confirmTopUp', { topUpRequestId: id('t1') }, await signIn(id('andres')));
+    expect([refused.status, refused.json.error?.code]).toEqual([403, 'AdminOnly']);
+    const queue = (await get('commission.admin.topUpQueue', { cursor: null }, adminCookie)).json.result?.data as { rows: { topUpRequestId: string }[] };
+    expect(queue.rows.map((r) => r.topUpRequestId).sort()).toEqual([id('t1'), id('t2')].sort());
+    expect((await post('commission.admin.confirmTopUp', { topUpRequestId: id('t1') }, adminCookie)).json.result?.data).toMatchObject({ status: 'Confirmed', balanceAfter: 100_000, resumed: true });
+    expect((await post('commission.admin.rejectTopUp', { topUpRequestId: id('t2'), reason: 'No encontramos la transferencia.' }, adminCookie)).json.result?.data).toMatchObject({ status: 'Rejected' });
+    const again = await post('commission.admin.confirmTopUp', { topUpRequestId: id('t1') }, adminCookie);
+    expect([again.status, again.json.error?.code]).toEqual([409, 'TopUpNotPending']);
+    expect(await rows(db, 'TopUpDecisionLog')).toHaveLength(2);
   });
 
   it('an individual account is NotBusinessAccount 409, and a foreign proof is the unknown-id body', async () => {

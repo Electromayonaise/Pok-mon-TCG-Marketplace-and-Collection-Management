@@ -99,6 +99,19 @@ export interface ComTablesRepository {
     id: CuidId; businessId: CuidId; seq: bigint; amountCop: bigint; orderId: CuidId; rateBps: number; baseCop: bigint;
     trigger: CommissionTrigger; commissionTriggeredAt: IsoInstant; balanceAfter: bigint; now: IsoInstant;
   }): Promise<boolean>;
+  /**
+   * COM-2 Q1.1 (AD-COM-3 rule 2): the conditional decision `WHERE status = 'Pending'`; the request's
+   * business and amount, or null when 0 rows changed (unknown, or decided first by someone else).
+   */
+  decideTopUp(tx: Tx, d: { id: CuidId; decision: 'Confirmed' | 'Rejected'; adminId: CuidId; reason: string | null; now: IsoInstant }): Promise<{ businessId: CuidId; amountCop: bigint } | null>;
+  /** COM-2 Q-fail: the request as it now stands, for the loser's refusal. */
+  readTopUp(tx: Tx, id: CuidId): Promise<TopUpRow | null>;
+  /** COM-2 Q1.2 (AD-COM-1 rule 2): the credit entry; `UNIQUE ("topUpRequestId") WHERE kind='TopUp'` backs I1. */
+  insertTopUpEntry(tx: Tx, e: { id: CuidId; businessId: CuidId; seq: bigint; amountCop: bigint; topUpRequestId: CuidId; balanceAfter: bigint; now: IsoInstant }): Promise<void>;
+  /** COM-2 Q1.3: the append-only decision row. */
+  insertTopUpDecisionLog(tx: Tx, l: { id: CuidId; topUpRequestId: CuidId; adminId: CuidId; decision: 'Confirmed' | 'Rejected'; now: IsoInstant }): Promise<void>;
+  /** COM-2.queue: Pending requests oldest first by `("submittedAt", id)`, after the keyset when given (index `top_up_queue`). */
+  listPendingTopUps(tx: Tx, after: { at: IsoInstant; id: CuidId } | null, limit: number): Promise<TopUpRow[]>;
   /** S-FR-COM-2.request: the Pending row; the balance is untouched. */
   insertTopUp(tx: Tx, r: { id: CuidId; businessId: CuidId; amountCop: number; transferReference: string; proofObjectKey: string; now: IsoInstant }): Promise<void>;
   /** S-FR-COM-2.mine: the business's own requests, newest first by `("submittedAt", id)`, after the keyset when given. */

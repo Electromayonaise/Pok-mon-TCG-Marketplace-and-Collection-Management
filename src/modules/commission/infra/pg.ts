@@ -110,6 +110,42 @@ export class PgComRepository implements ComTablesRepository {
     return rows.length === 1;
   }
 
+  async decideTopUp(tx: Tx, d: { id: CuidId; decision: 'Confirmed' | 'Rejected'; adminId: CuidId; reason: string | null; now: IsoInstant }): Promise<{ businessId: CuidId; amountCop: bigint } | null> {
+    const { rows } = await tx.query<{ businessId: CuidId; amountCop: string }>(
+      `UPDATE "TopUpRequest" SET status = $2, "rejectionReason" = $3, "decidedBy" = $4, "decidedAt" = $5, "updatedAt" = $5, version = version + 1
+       WHERE id = $1 AND status = 'Pending' RETURNING "businessId", "amountCop"::text AS "amountCop"`,
+      [d.id, d.decision, d.reason, d.adminId, d.now],
+    );
+    return rows[0] ? { businessId: rows[0].businessId, amountCop: BigInt(rows[0].amountCop) } : null;
+  }
+
+  async readTopUp(tx: Tx, id: CuidId): Promise<TopUpRow | null> {
+    const { rows } = await tx.query<Raw<TopUpRow, 'amountCop'>>(`SELECT ${TOP_UP_COLUMNS} FROM "TopUpRequest" WHERE id = $1`, [id]);
+    return rows[0] ? topUp(rows[0]) : null;
+  }
+
+  async insertTopUpEntry(tx: Tx, e: { id: CuidId; businessId: CuidId; seq: bigint; amountCop: bigint; topUpRequestId: CuidId; balanceAfter: bigint; now: IsoInstant }): Promise<void> {
+    await tx.query(
+      `INSERT INTO "CommissionLedgerEntry" (id, "businessId", seq, kind, "amountCop", "topUpRequestId", "balanceAfter", "createdAt") VALUES ($1, $2, $3, 'TopUp', $4, $5, $6, $7)`,
+      [e.id, e.businessId, e.seq.toString(), e.amountCop.toString(), e.topUpRequestId, e.balanceAfter.toString(), e.now],
+    );
+  }
+
+  async insertTopUpDecisionLog(tx: Tx, l: { id: CuidId; topUpRequestId: CuidId; adminId: CuidId; decision: 'Confirmed' | 'Rejected'; now: IsoInstant }): Promise<void> {
+    await tx.query(`INSERT INTO "TopUpDecisionLog" (id, "topUpRequestId", "adminId", decision, "createdAt") VALUES ($1, $2, $3, $4, $5)`, [l.id, l.topUpRequestId, l.adminId, l.decision, l.now]);
+  }
+
+  async listPendingTopUps(tx: Tx, after: { at: IsoInstant; id: CuidId } | null, limit: number): Promise<TopUpRow[]> {
+    const { rows } = await tx.query<Raw<TopUpRow, 'amountCop'>>(
+      after === null
+        ? `SELECT ${TOP_UP_COLUMNS} FROM "TopUpRequest" WHERE status = 'Pending' ORDER BY "submittedAt", id COLLATE "C" LIMIT $1`
+        : `SELECT ${TOP_UP_COLUMNS} FROM "TopUpRequest" WHERE status = 'Pending' AND ("submittedAt", id COLLATE "C") > ($2, $3)
+           ORDER BY "submittedAt", id COLLATE "C" LIMIT $1`,
+      after === null ? [limit] : [limit, after.at, after.id],
+    );
+    return rows.map(topUp);
+  }
+
   async insertTopUp(tx: Tx, r: { id: CuidId; businessId: CuidId; amountCop: number; transferReference: string; proofObjectKey: string; now: IsoInstant }): Promise<void> {
     await tx.query(
       `INSERT INTO "TopUpRequest" (id, "businessId", "amountCop", "transferReference", "proofObjectKey", status, "submittedAt", "createdAt", "updatedAt")

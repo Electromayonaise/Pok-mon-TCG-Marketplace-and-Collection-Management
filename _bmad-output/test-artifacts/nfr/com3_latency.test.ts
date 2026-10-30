@@ -46,4 +46,14 @@ describe('NFR-COM-3 — commission latency (PRD §7)', () => {
     })));
     expect(result.p95).toBeLessThanOrEqual(200);
   }, 300_000);
+
+  it('[NFR-COM-3.topUp] 500 measured confirmTopUp calls on the §3 seed: p95 ≤ 800 ms', async () => {
+    await seedMarketplace(db);
+    const com = commission();
+    // Given: 550 Pending top-ups of 50,000 spread over the eight seeded accounts, each confirmed once by the seed's admin.
+    const values = Array.from({ length: 550 }, (_, k) => `('${id(`btop${k}`)}', '${businessId(k % 8)}', 50000, 'REF-${1000 + k}', 'topup-proofs/bench', 'Pending', $1::timestamptz, $1, $1)`);
+    await db.query(`INSERT INTO "TopUpRequest" (id, "businessId", "amountCop", "transferReference", "proofObjectKey", status, "submittedAt", "createdAt", "updatedAt") VALUES ${values.join(', ')}`, [at(-HOUR)]);
+    const result = await measure('nfr-com-3-topup', (k) => com.confirmTopUp({ topUpRequestId: id(`btop${k}`), adminId: id('admin') }));
+    expect(result.p95).toBeLessThanOrEqual(800);
+  }, 300_000);
 });

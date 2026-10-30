@@ -47,7 +47,7 @@ import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest } from '../../../shared-kernel/request.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import { isAdmin, requireBusinessAccount } from '../../identity/index.js';
+import { isAdmin, requireAdmin, requireBusinessAccount } from '../../identity/index.js';
 import {
   commissionOf, commissionTrigger, crossing, decodeKeyset, encodeKeyset, isLowBalance, isTopUpProofUploadKey, isValidTopUpAmount, LOW_BALANCE_THRESHOLD_COP, MAX_PROOF_BYTES, neededToResume,
   sniffProofType, topUpProofUploadPrefix,
@@ -68,6 +68,9 @@ const DEDUCTION_SAVEPOINT = 'apply_deduction';
 /** The `"TopUpRequest"` CHECK on `transferReference`, repeated for in-process callers. */
 const MIN_REFERENCE = 4;
 const MAX_REFERENCE = 40;
+/** The `"TopUpRequest"` CHECK on `rejectionReason`, repeated for in-process callers. */
+const MIN_REJECTION_REASON = 10;
+const MAX_REJECTION_REASON = 300;
 
 /** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
 function explained(code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant, outcome: Decision['outcome'] = 'allowed'): Decision {
@@ -187,12 +190,71 @@ export class ComServiceV2 implements ComV2UseCases {
     return { outcome: 'charged', amountCop: cop(amountCop), balanceAfter, ledgerSeq, trigger, crossing: crossed };
   }
 
-  async confirmTopUp(_input: ConfirmTopUpRequest): Promise<ConfirmTopUpResponse> {
-    throw new NotImplementedError('commission.confirmTopUp');
+  /**
+   * COM-2 Q-fail (AD-COM-3 rule 2): the refusal of a 0-row decision, from the request as `tx` re-reads
+   * it. The loser writes nothing and cites the winner.
+   */
+  private async refuseDecision(tx: Tx, topUpRequestId: CuidId): Promise<never> {
+    const row = await this.deps.repo.readTopUp(tx, topUpRequestId);
+    if (row === null) return raise('TopUpNotFound', [{ rule: 'FR-COM-3', inputs: { topUpRequestId } }]);
+    if (row.status === 'Pending') throw new UnexpectedError(`Unexpected: top-up ${topUpRequestId} is still Pending after a 0-row decision`);
+    return raise('TopUpNotPending', [{ rule: 'AD-COM-3', inputs: { status: row.status, decidedBy: row.decidedBy, decidedAt: row.decidedAt?.toISOString() ?? null } }]);
   }
 
-  async rejectTopUp(_input: RejectTopUpRequest): Promise<RejectTopUpResponse> {
-    throw new NotImplementedError('commission.rejectTopUp');
+  /**
+   * COM-2 (AD-COM-1, AD-COM-3): in one transaction, the admin check (AD-16), the conditional
+   * confirmation, the atomic credit and its `TopUp` entry, the decision row, and on a crossing from
+   * ≤ 0 to > 0 one `CommissionBalanceReplenished`.
+   */
+  async confirmTopUp(input: ConfirmTopUpRequest): Promise<ConfirmTopUpResponse> {
+    const { repo, transactions, clock, ids, outbox, audit } = this.deps;
+    const { topUpRequestId, adminId } = input;
+    return transactions.run(async (tx) => {
+      await requireAdmin(repo, tx, adminId);
+      const now = clock.now().toISOString();
+      const decided = await repo.decideTopUp(tx, { id: topUpRequestId, decision: 'Confirmed', adminId, reason: null, now });
+      if (decided === null) return this.refuseDecision(tx, topUpRequestId);
+      const { businessId, amountCop } = decided;
+      const changed = await repo.applyBalanceChange(tx, businessId, amountCop, now);
+      if (changed === null) throw new UnexpectedError(`Unexpected: top-up ${topUpRequestId} names business ${businessId}, which has no commission account (COM-2 P4)`);
+      await repo.insertTopUpEntry(tx, { id: ids.next(), businessId, seq: changed.ledgerSeq, amountCop, topUpRequestId, balanceAfter: changed.balanceAfter, now });
+      await repo.insertTopUpDecisionLog(tx, { id: ids.next(), topUpRequestId, adminId, decision: 'Confirmed', now });
+      const ledgerSeq = cop(changed.ledgerSeq);
+      const balanceAfter = cop(changed.balanceAfter);
+      const resumed = crossing(changed.balanceAfter - amountCop, changed.balanceAfter) === 'replenished';
+      if (resumed) await outbox.enqueue(tx, 'CommissionBalanceReplenished', businessId, { businessId, ledgerSeq, balanceAfter });
+      const needed = neededToResume(changed.balanceAfter);
+      const neededToResumeCop = needed === null ? null : cop(needed);
+      const code = needed === null ? 'TopUpConfirmed' : 'TopUpConfirmedBelowZero';
+      const inputs = { topUpRequestId, amountCop: cop(amountCop), balanceAfter, resumed, neededToResumeCop };
+      await audit.record(tx, {
+        actorId: adminId, actorKind: 'admin', module: 'commission', action: 'commission.topUp.confirmed',
+        aggregateType: 'TopUpRequest', aggregateId: topUpRequestId, decisionCode: code, data: { ...inputs, ledgerSeq }, at: now,
+      });
+      const decision = explained(code, [{ rule: 'FR-COM-3', inputs }], now);
+      return { topUpRequestId, status: 'Confirmed' as const, balanceAfter, ledgerSeq, resumed, neededToResumeCop, decision };
+    });
+  }
+
+  /** COM-2.reject: the same conditional decision to `Rejected` with its reason; nothing is credited and nothing is published. */
+  async rejectTopUp(input: RejectTopUpRequest): Promise<RejectTopUpResponse> {
+    const { repo, transactions, clock, ids, audit } = this.deps;
+    const { topUpRequestId, adminId, reason } = input;
+    const length = [...reason].length;
+    if (length < MIN_REJECTION_REASON || length > MAX_REJECTION_REASON) {
+      rejectRequest([{ field: 'reason', issue: `debe tener entre ${MIN_REJECTION_REASON} y ${MAX_REJECTION_REASON} caracteres` }]);
+    }
+    return transactions.run(async (tx) => {
+      await requireAdmin(repo, tx, adminId);
+      const now = clock.now().toISOString();
+      if ((await repo.decideTopUp(tx, { id: topUpRequestId, decision: 'Rejected', adminId, reason, now })) === null) return this.refuseDecision(tx, topUpRequestId);
+      await repo.insertTopUpDecisionLog(tx, { id: ids.next(), topUpRequestId, adminId, decision: 'Rejected', now });
+      await audit.record(tx, {
+        actorId: adminId, actorKind: 'admin', module: 'commission', action: 'commission.topUp.rejected',
+        aggregateType: 'TopUpRequest', aggregateId: topUpRequestId, decisionCode: 'TopUpRejected', data: { topUpRequestId }, at: now,
+      });
+      return { topUpRequestId, status: 'Rejected' as const, decision: explained('TopUpRejected', [{ rule: 'FR-COM-3', inputs: { topUpRequestId } }], now) };
+    });
   }
 
   async reconcile(_input: ReconcileRequest): Promise<ReconcileResponse> {
@@ -315,8 +377,16 @@ export class ComServiceV2 implements ComV2UseCases {
     };
   }
 
-  async listTopUpQueue(_input: ListTopUpQueueRequest): Promise<ListTopUpQueueResponse> {
-    throw new NotImplementedError('commission.listTopUpQueue');
+  /** COM-2.queue (AD-16): the admin's queue of Pending requests, oldest first. */
+  async listTopUpQueue(input: ListTopUpQueueRequest): Promise<ListTopUpQueueResponse> {
+    const { repo } = this.deps;
+    const after = this.decodeCursor(input.cursor);
+    const rows = await this.reading(async (tx) => {
+      await requireAdmin(repo, tx, input.adminId);
+      return repo.listPendingTopUps(tx, after, TOP_UPS_PAGE);
+    });
+    const { nextCursor } = page(rows, TOP_UPS_PAGE);
+    return { rows: rows.map(topUpDto), nextCursor };
   }
 
   /** S-FR-COM-2.mine (AD-COM-3 rule 4): the business's own requests, newest first. */
