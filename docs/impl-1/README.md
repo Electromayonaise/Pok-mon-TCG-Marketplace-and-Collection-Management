@@ -68,7 +68,7 @@ The README was followed to the letter in a fresh `git clone` of `main` at `949c2
 
 | Artifact | Path | Last commit |
 |---|---|---|
-| Sprint status | [`_bmad-output/implementation-artifacts/sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml) | this close |
+| Sprint status | [`_bmad-output/implementation-artifacts/sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml) | [`f549b79`](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/commit/f549b79) (the close changes no status) |
 | Story files (62) | `[0-9]*-*.md` in [`_bmad-output/implementation-artifacts/`](../../_bmad-output/implementation-artifacts/) | [`f549b79`](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/commit/f549b79) |
 | Walkthrough | [`_bmad-output/implementation-artifacts/walkthrough-impl1.md`](../../_bmad-output/implementation-artifacts/walkthrough-impl1.md) | this close |
 | Deferred work | [`_bmad-output/implementation-artifacts/deferred-work.md`](../../_bmad-output/implementation-artifacts/deferred-work.md) | this close |

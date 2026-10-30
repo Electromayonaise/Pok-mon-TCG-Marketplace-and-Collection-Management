@@ -1003,3 +1003,45 @@
   - `sprint-status.yaml` (13.4 out of `impl2_scope`; `epic-13: done`).
 - **Decided by:** Martín.
 
+
+### 39. Impl-1 closes: the final trace passes, the walkthrough covers the 43 stories, the deliverables stay in `_bmad-output/`, and two NFRs get an owner (Governance)
+
+- **Phase:** 4, Wrap-up (`853449c:docs/impl-1/task-statement.md` §5), over `949c219` (the merge of PR #11).
+- **Persona/Skill:** `bmad-testarch-trace`, `bmad-testarch-test-review`, then `bmad-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor) over the close's changes.
+- **Prompt (summary):** Close Impl-1 with documentation, trace and verification only: no story of `impl2_scope`, no contract change. The agent put each scope and format choice to Martín as a menu:
+  - **D1, the walkthrough's place.** §6.1 item 4 names `docs/impl-1/walkthrough-impl1.md`, but since the reorganization every BMAD artifact lives in `_bmad-output/`.
+  - **D2, the deliverable map.** The session prompt named `docs/impl-1.md`; the repository keeps one `README.md` per course task.
+  - **D3, the walkthrough's structure** for 43 stories.
+  - **D4, what the trace and the test review produce.**
+  - **D5, `nfr-evidence.md`.** NFR-COL-1 still read "Red" with COL done; `[TRD-1.MEC]` and `[MSG-2.R1]` were red with their stories done; the summary did not count VAL or REP; and a semicolon inside a status detail made the matrix count broken categories.
+  - **D6, the README.** It still described the six-story delivery.
+  - **D7, the clean-clone check** (Docker ran in this session).
+  - **D8, the commits.**
+  - **During the trace:** NFR-IDN-1 and NFR-COL-2 are "Planned — story DoD", but no story in `epics.md` names them in its Traceability.
+  - **During the README check:** `npm run dev` writes an untracked `AGENTS.md` (Next.js 16), which leaves the clean clone dirty.
+- **AI output (summary):** The agent recommended:
+  - **(recommended)** D1: keep the walkthrough in `_bmad-output/implementation-artifacts/` and map it from `docs/impl-1/README.md`. The alternatives were moving it to `docs/impl-1/` or keeping a stub in both places.
+  - **(recommended)** D2: `docs/impl-1/README.md` as the map. The alternative was a new `docs/impl-1.md`.
+  - **(recommended)** D3: one section per epic, with a card per done story (the goal quoted from `epics.md` with its line, procedures, database, blast radius from the story's commits, bound tests), then governance, real suite output, known limits by owner and how to reproduce. The alternatives were keeping the six long sections and adding 37 short ones, or full detail ×43.
+  - **(recommended)** D4: two reports, `impl1-final-trace.md` (per-story results from a real vitest JSON run, the ≥ 2-test check, risks and a gate decision) and `impl1-test-review.md`, with `traceability-matrix.md` regenerated and its generator unchanged. The alternatives were extending `gen-solu2-trace.mjs`, or reports without the JSON run.
+  - **(recommended)** D5: refresh every stale row from the run, recount the summary, and keep each status detail free of semicolons.
+  - **(recommended)** D6: rewrite the README's status and "What Impl-1 delivers", and fix what the check finds.
+  - **(recommended)** D7: both README paths, the Quick start and the development setup.
+  - **(recommended)** D8: one commit per deliverable, then the close review's.
+  - **(recommended)** the two NFRs: record their owners in `deferred-work.md` only (NFR-COL-2 with Story 11.5, NFR-IDN-1 with Epic 2's Impl-2 completion), without touching the certified backlog. The alternatives were binding them in `epics.source.mjs`, or adding an NFR-IDN-1 benchmark now.
+  - **(recommended)** `AGENTS.md`: ignore it in `.gitignore`. The alternatives were documenting it only, or committing it as the file itself suggests.
+- **Human decision:** ACCEPT every recommendation.
+- **Reason:** The close adds no behaviour, so it changes only documents, the trace and one ignore rule. Keeping the artifacts where the reorganization put them, and saying so in the map, is cheaper and clearer than a second copy. The per-story trace from a real run is what §6.2 asks the trace to prove; the design matrix stays generated as it was.
+- **Also decided (from the work):**
+  - **The trace** reads one run of `949c219`: 43 / 43 Impl-1 stories `done` with every bound test passing (at least 2 each), the 19 pulled-forward stories passing, P0 15 / 15 and P1 5 / 5 risks covered, 0 skipped, and the 7 reserved stories' 28 tests red for `NotImplementedError`. Gate: **PASS**.
+  - **The test review** over 80 files and 873 `it` blocks: 95 / 100 (A), Approve with Comments: 3 MEDIUM (two lock-wait tests that sleep 200 ms, a watchdog copied into seven files) and 4 LOW. Report only; the findings are in `deferred-work.md`.
+  - **The README check.** The development setup and `npm test` passed as written (exit 0). The Quick start failed in this container on its environment: Docker Hub answered 429 for the Node base image, and with that image from `mirror.gcr.io`, `npm ci` inside the build could not reach the registry through the container's TLS proxy. With the proxy and its CA passed to the build stage through a temporary Dockerfile outside the repository, the image built and `docker compose up -d --wait --no-build` brought both services up `healthy`, with both probes green. The README now mentions the proxy case.
+  - **No bug was found** in a done story, so nothing needed Martín's options on a fix.
+- **Environment note:** Docker ran in this session (the daemon was started by hand). The working copy's `npm run test:ci` ran on a local `postgresql-16` cluster on port 55432 (`max_connections=200`), and the agent read its exit code (`TESTCI_EXIT=0`) before each push. The worker restarted twice; the cluster was started again each time.
+- **Artifact changed:**
+  - `_bmad-output/test-artifacts/impl1-final-trace.md` and `impl1-test-review.md` (new).
+  - `_bmad-output/test-artifacts/nfr-evidence.md` and `traceability-matrix.md` (regenerated).
+  - `_bmad-output/implementation-artifacts/walkthrough-impl1.md` (rewritten) and `deferred-work.md`.
+  - `README.md`, `.gitignore`, `docs/impl-1/README.md` and `docs/README.md`.
+  - This log.
+- **Decided by:** Martín.
