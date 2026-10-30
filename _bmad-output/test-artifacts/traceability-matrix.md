@@ -106,8 +106,8 @@
 | FR-MSG-2 | Deterministic rendering and edge-safe encoding (CAP-6) | MSG-2 | AD-MSG-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (backlog), 9.5 (backlog) | red |
 | FR-MSG-3 | Protect sellers' phone numbers (CAP-6) | MSG-2 | AD-MSG-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (backlog), 9.5 (backlog) | red |
 | FR-MSG-4 | In-app messaging eligibility (CAP-18) | MSG-3 | AD-IDN-1, AD-MSG-2 | 3 — `MSG-3.MEC`, `MSG-3.Q1`, `MSG-3.QF1` | 9.1 (done) | red |
-| FR-MSG-5 | Send a message (CAP-18) | MSG-1 | AD-SYS-8, AD-MSG-2, AD-MSG-3 | 7 — `MSG-1.I3`, `MSG-1.P3`, `MSG-1.P4` +4 | 9.2 (done), 9.4 (backlog) | red |
-| FR-MSG-6 | Verification changes between compose and send (CAP-18) | MSG-1, MSG-3 | AD-SYS-8, AD-MSG-2, AD-MSG-3, AD-IDN-1 | 10 — `MSG-1.I3`, `MSG-1.P3`, `MSG-1.P4` +7 | 9.1 (done), 9.2 (done), 9.4 (backlog) | red |
+| FR-MSG-5 | Send a message (CAP-18) | MSG-1 | AD-SYS-8, AD-MSG-2, AD-MSG-3 | 7 — `MSG-1.I3`, `MSG-1.P3`, `MSG-1.P4` +4 | 9.2 (done), 9.4 (done) | red |
+| FR-MSG-6 | Verification changes between compose and send (CAP-18) | MSG-1, MSG-3 | AD-SYS-8, AD-MSG-2, AD-MSG-3, AD-IDN-1 | 10 — `MSG-1.I3`, `MSG-1.P3`, `MSG-1.P4` +7 | 9.1 (done), 9.2 (done), 9.4 (done) | red |
 | FR-MSG-7 | Inbox and read state (CAP-18) | S-FR-MSG-7 | AD-MSG-3 | 2 — `S-FR-MSG-7.f`, `S-FR-MSG-7.h` | 9.6 (backlog) | red |
 | FR-MSG-8 | Mute a conversation (buyer side) (CAP-18) | S-FR-MSG-8 | AD-MSG-3 | 2 — `S-FR-MSG-8.f`, `S-FR-MSG-8.h` | 9.6 (backlog) | red |
 | FR-COL-1 | Named collections (CAP-11) | COL-3, S-FR-COL-1, S-FR-COL-1.list | AD-SYS-1, AD-COL-1, AD-7 | 11 — `COL-3.I2`, `COL-3.P2`, `COL-3.P3` +8 | 11.1 (backlog), 11.2 (backlog), 11.4 (backlog) | red |
