@@ -40,6 +40,7 @@ import { requireAdmin } from './admin.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
+import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId } from '../../../shared-kernel/types.js';
 import {
@@ -89,6 +90,8 @@ export class VerServiceV2 implements VerV2UseCases {
     const rule = choice.kind === 'approve' ? 'FR-VER-3' : 'FR-VER-4';
     return transactions.run(async (tx) => {
       await requireAdmin(this.deps.repo, tx, adminId);
+      // The note is free text the parser bounds; a NUL would fail in Postgres as 500 (decision log Impl-1 #38).
+      if (choice.kind === 'reject' && typeof choice.note === 'string' && textIssue(choice.note, 0, Infinity) === 'nul') rejectRequest([{ field: 'note', issue: NUL_ISSUE }]);
       const at = clock.now();
       const now = at.toISOString();
       const refuseDecided = async (): Promise<never> => {
@@ -467,10 +470,11 @@ export class VerServiceV2 implements VerV2UseCases {
 }
 
 const blank = (value: unknown): boolean => value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
-/** Counts code points, as the schema's `char_length` CHECKs do, not UTF-16 units. */
-const lengthIn = (value: string, min: number, max: number): boolean => {
-  const length = [...value].length;
-  return length >= min && length <= max;
+/** A text field's issue (decision log Impl-1 #38): a NUL, or a length outside `min`–`max` (the minimum after trim), else none. */
+const textIssues = (value: unknown, min: number, max: number, field: string, lengthIssue: string): RequestIssue[] => {
+  if (typeof value !== 'string') return [{ field, issue: lengthIssue }];
+  const why = textIssue(value, min, max);
+  return why === null ? [] : [{ field, issue: why === 'nul' ? NUL_ISSUE : lengthIssue }];
 };
 
 /**
@@ -494,14 +498,14 @@ function checkSubmissionShape(input: SubmitApplicationRequest): void {
 
   const issues: RequestIssue[] = [];
   const check = (ok: boolean, field: string, issue: string) => { if (!ok) issues.push({ field, issue }); };
-  check(lengthIn(input.businessName, 2, 80), 'businessName', 'debe tener entre 2 y 80 caracteres');
+  issues.push(...textIssues(input.businessName, 2, 80, 'businessName', 'debe tener entre 2 y 80 caracteres'));
   if (legal.type === 'NIT') check(isValidNit(legal.number!), 'legalIdentity.number', 'no es un NIT válido con su dígito de verificación');
   else if (legal.type === 'CC') check(isValidCc(legal.number!), 'legalIdentity.number', 'una cédula tiene entre 6 y 10 dígitos');
   else check(false, 'legalIdentity.type', 'debe ser NIT o CC');
   check(input.documentUploadKeys.length <= 3, 'documentUploadKeys', 'admite como máximo 3 documentos');
   check(new Set(input.documentUploadKeys).size === input.documentUploadKeys.length, 'documentUploadKeys', 'no debe repetir un documento');
   check(isHttpsUrl(input.externalPresenceUrl), 'externalPresenceUrl', 'debe ser un enlace https de hasta 2048 caracteres');
-  check(lengthIn(input.city, 2, 60), 'city', 'debe tener entre 2 y 60 caracteres');
+  issues.push(...textIssues(input.city, 2, 60, 'city', 'debe tener entre 2 y 60 caracteres'));
   issues.push(...paymentIssues(pay, 'paymentInstructions'));
   check(input.consentVersion === CURRENT_CONSENT_VERSION, 'consentVersion', 'no es la versión vigente del aviso de privacidad');
   const [first, ...rest] = issues;
@@ -514,7 +518,7 @@ function paymentIssues(pay: Partial<PaymentInstructionsInput>, prefix: string): 
   const check = (ok: boolean, field: string, issue: string) => { if (!ok) issues.push({ field: `${prefix}.${field}`, issue }); };
   check(pay.accountType === 'savings' || pay.accountType === 'checking', 'accountType', 'debe ser ahorros o corriente');
   check(typeof pay.accountNumber === 'string' && /^[0-9]{6,20}$/.test(pay.accountNumber), 'accountNumber', 'debe tener entre 6 y 20 dígitos');
-  check(typeof pay.holderName === 'string' && lengthIn(pay.holderName, 2, 80), 'holderName', 'debe tener entre 2 y 80 caracteres');
+  issues.push(...textIssues(pay.holderName, 2, 80, `${prefix}.holderName`, 'debe tener entre 2 y 80 caracteres'));
   // An unpromoted client key could name another account's object (AD-SYS-8 rule 5.3).
   check(pay.qrUploadKey == null, 'qrUploadKey', 'el código QR de pago aún no se puede adjuntar');
   return issues;
@@ -525,7 +529,7 @@ function checkReasonShape(input: UpsertRejectionReasonRequest): void {
   const issues: RequestIssue[] = [];
   const check = (ok: boolean, field: string, issue: string) => { if (!ok) issues.push({ field, issue }); };
   check(typeof input.code === 'string' && /^[A-Z][A-Za-z]+$/.test(input.code), 'code', 'debe empezar en mayúscula y tener solo letras');
-  check(typeof input.textEsCo === 'string' && lengthIn(input.textEsCo, 10, 300), 'textEsCo', 'debe tener entre 10 y 300 caracteres');
+  issues.push(...textIssues(input.textEsCo, 10, 300, 'textEsCo', 'debe tener entre 10 y 300 caracteres'));
   const policy = input.policy;
   if (policy?.barred === false) {
     check(Number.isInteger(policy.cooldownDays) && policy.cooldownDays >= 0 && policy.cooldownDays <= 365, 'policy.cooldownDays', 'debe ser un número entero de días entre 0 y 365');

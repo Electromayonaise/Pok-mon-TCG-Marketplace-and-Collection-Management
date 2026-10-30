@@ -23,6 +23,7 @@ import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
+import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import { sellerKindOf } from '../../identity/index.js';
 import { CLIENT_MESSAGE_ID, normalizeBody } from '../domain/msg.js';
@@ -54,7 +55,9 @@ export class MsgServiceV2 implements MsgV2UseCases {
     const { repo, transactions, clock, ids, audit, identity } = this.deps;
     const body = normalizeBody(input.body);
     const issues: RequestIssue[] = [];
-    if (body === null) issues.push({ field: 'body', issue: 'debe tener entre 1 y 2.000 caracteres' });
+    // A body of only spaces, or one with a NUL, is refused too (decision log Impl-1 #38).
+    const why = body === null ? 'length' : textIssue(body, 1, 2000);
+    if (why !== null) issues.push({ field: 'body', issue: why === 'nul' ? NUL_ISSUE : 'debe tener entre 1 y 2.000 caracteres' });
     if (!CLIENT_MESSAGE_ID.test(input.clientMessageId)) issues.push({ field: 'clientMessageId', issue: 'debe tener entre 1 y 64 letras, dígitos, guiones o guiones bajos' });
     const target = input.target as Partial<{ recipientId: CuidId; conversationId: CuidId }>;
     if ((target.recipientId === undefined) === (target.conversationId === undefined)) issues.push({ field: 'target', issue: 'indica exactamente un destinatario o una conversación' });

@@ -27,6 +27,13 @@ function messaging(transactions: TransactionRunner = db.transactions) {
 const send = (o: Partial<SendMessageRequest> = {}): SendMessageRequest => ({ target: { recipientId: id('andres') }, body: 'Hola', clientMessageId: 'cm-1', senderId: id('camila'), ...o });
 
 describe('MsgServiceV2.sendMessage (MSG-1)', () => {
+  it('P2: a body of spaces and a body with a NUL are RequestValidationFailed, and nothing is written (#38)', async () => {
+    await user(db, { id: id('camila') });
+    await business(db, id('andres'), 'Approved');
+    for (const body of ['   \n ', 'Hola\u0000']) expect(codeOf(await caught(() => messaging().sendMessage(send({ body }))))).toBe('RequestValidationFailed');
+    expect(await rows(db, 'Conversation')).toHaveLength(0);
+  });
+
   it('P2: an empty body, a bad clientMessageId and two targets are one RequestValidationFailed, and nothing is written', async () => {
     await user(db, { id: id('camila') });
     await business(db, id('andres'), 'Approved');

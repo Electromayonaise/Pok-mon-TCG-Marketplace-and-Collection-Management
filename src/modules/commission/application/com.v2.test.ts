@@ -153,6 +153,19 @@ describe('confirmTopUp, rejectTopUp and the queue (COM-2, AD-COM-3)', () => {
     expect(await rows(db, 'TopUpRequest', `status = 'Pending'`)).toHaveLength(1);
   });
 
+  it('a reason of spaces or with a NUL, and a reference with a NUL, are RequestValidationFailed with nothing written (#38)', async () => {
+    await shop();
+    await admin(db);
+    await topUp(db, { id: id('t1'), businessId: id('andres'), amountCop: 50_000 });
+    const { com } = commission();
+    for (const reason of [' '.repeat(12), 'No encontramos\u0000 la transferencia.']) {
+      expect(codeOf(await caught(() => com.rejectTopUp({ topUpRequestId: id('t1'), adminId: id('admin'), reason })))).toBe('RequestValidationFailed');
+    }
+    for (const transferReference of ['    ', 'REF\u0000-1']) expect(codeOf(await caught(() => com.requestTopUp(request({ transferReference }))))).toBe('RequestValidationFailed');
+    expect(await rows(db, 'TopUpDecisionLog')).toHaveLength(0);
+    expect(await rows(db, 'TopUpRequest')).toHaveLength(1);
+  });
+
   it('a reject racing a confirm: one decision, one log row, and the loser cites the winner', async () => {
     await shop();
     await admin(db);

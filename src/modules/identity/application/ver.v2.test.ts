@@ -174,6 +174,22 @@ describe('VerServiceV2.submitApplication — shape (P1–P2)', () => {
   });
 });
 
+describe('VerServiceV2 — free text (decision log Impl-1 #38)', () => {
+  it('names of spaces, a NUL in a name and a NUL in the decision note are RequestValidationFailed, with nothing written', async () => {
+    await admin(db);
+    await rejectionReason(db, { code: 'Fraud', barred: true });
+    const applicationId = await business(db, id('andres'), 'Pending');
+    const { ver } = setup();
+    for (const o of [{ businessName: ' a ' }, { city: 'Medell\u0000ín' }]) {
+      expect(codeOf(await caught(() => ver.submitApplication(application(id('nuevo'), o))))).toBe('RequestValidationFailed');
+    }
+    const note = await caught(() => ver.decideApplication({ applicationId, decision: { kind: 'reject', reasonCode: 'Fraud', note: 'Doc\u0000' }, adminId: id('admin') }));
+    expect(codeOf(note)).toBe('RequestValidationFailed');
+    expect(await rows(db, 'BusinessApplication', 'id = $1', [applicationId])).toMatchObject([{ status: 'Pending' }]);
+    expect(codeOf(await caught(() => ver.upsertRejectionReason({ adminId: id('admin'), code: 'Blank', textEsCo: ' '.repeat(12), policy: { barred: true } })))).toBe('RequestValidationFailed');
+  });
+});
+
 describe('VerServiceV2.submitApplication — the latest application (P6–P7)', () => {
   it('an Approved business is AlreadyVerifiedBusiness citing FR-VER-1', async () => {
     await business(db, id('andres'), 'Approved');
