@@ -11,3 +11,6 @@ next-env.d.ts
 generated/
 tools/lint/node_modules/
 *.tsbuildinfo
+# Written on every `next dev` by Next.js 16 (node_modules/next/dist/server/lib/generate-agent-files.js);
+# not a project file (decision log Impl-1 #39).
+/AGENTS.md

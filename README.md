@@ -15,7 +15,7 @@
 
 <br/>
 
-![Status](https://img.shields.io/badge/status-Impl--1%20delivery%3A%206%20stories%20done-orange?style=for-the-badge)
+![Status](https://img.shields.io/badge/status-Impl--1%3A%2043%20of%2043%20stories%20done-brightgreen?style=for-the-badge)
 ![Region](https://img.shields.io/badge/region-Colombia-8A2BE2?style=for-the-badge)
 ![Made with BMAD](https://img.shields.io/badge/planned%20with-BMAD%2FWDS-2596BE?style=for-the-badge)
 
@@ -67,6 +67,8 @@ Compose builds the service, starts PostgreSQL 16, applies the migrations and ser
 
 On Windows, clone with `git clone -c core.longpaths=true …`, because some paths under `.agents/skills/` exceed 260 characters.
 
+The image build downloads the base images from Docker Hub and the npm packages from the registry. Behind a proxy that re-signs TLS, `npm ci` inside the build fails ("Exit handler never called"); build with the proxy and its CA available to the build stage, or use the development setup below, which needs only the PostgreSQL image.
+
 ## Development setup
 
 You need Node.js 22 (`.nvmrc`) and Docker.
@@ -112,22 +114,29 @@ Windows (WinNAT/Hyper-V) can reserve a port range that includes 55432. `npm run 
 
 ## What Impl-1 delivers
 
-The delivery of 2026-10-26 (decision log #22) is the foundation and the first three Identity stories. The other Impl-1 stories follow one epic at a time, and their ATDD tests stay red for the right reason (`NotImplementedError`) until then.
+Impl-1 is closed: all 43 stories of its cut are `done`, together with 19 stories pulled forward from Impl-2 (62 of the project's 69). The 7 stories reserved for Impl-2 (8.5, 8.6, 9.6, 11.5, 11.6, 13.5, 13.6) keep their ATDD tests red for the right reason (`NotImplementedError`). The final trace's gate is PASS: every Impl-1 story's bound tests pass, at least two per story, and every P0 risk is covered.
 
-> **The graded delivery is the tag [`impl1-entrega`](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/tree/impl1-entrega).** Stories after it are built in the epic-batched flow of decision #22 (`bmad-quick-dev` with the ATDD tests as the spec, one code review per epic) and are not part of that delivery.
+> The first graded delivery (the foundation and three Identity stories, decision log #22) is the tag [`impl1-entrega`](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/tree/impl1-entrega). The close of Impl-1 is the tag `impl1-done`.
 
-| Story | What it guarantees |
+| Epic | What it guarantees |
 |---|---|
-| 1.1 | Every refusal is one `{ error: ErrorBody }`: a registry code, its HTTP status, an es-CO message and a cited decision. A stack trace never reaches the client |
-| 1.2 | Every change is audited in its own transaction (`audit_events`, append-only), and regulated values are redacted from every log line, audit row and error |
-| 1.3 | Every committed event reaches each subscriber exactly once in effect: a transactional outbox, at most 3 attempts, a sweeper and an admin replay |
-| 2.1 | An individual seller completes their profile and claims the track in one transaction. The phone is stored only in the profile |
-| 2.2 | When a profile completion and a business claim race on one account, exactly one track wins (proven over 100 concurrent repetitions) |
-| 2.3 | An account that may not list learns why and when it may reapply. Capabilities, verification and eligibility come from one pure projection |
+| 1 SYS | Every refusal is one `{ error: ErrorBody }` with a registry code, its HTTP status, an es-CO message and a cited decision; every change is audited and regulated values are redacted at every egress; every committed event reaches each subscriber exactly once in effect; time, ids and module boundaries are deterministic |
+| 2 IDN | A seller claims the individual or business track exactly once, and an account that may not list learns why from one capability projection |
+| 3 VER | A business application with its legal identity is decided exactly once, and every legal-identity read is audited |
+| 4 CAT | Catalog feed runs keep each card's id through renames and reprints, and a price is never fabricated |
+| 5 INV | Listings share one stock pool, and a reservation in the caller's transaction is restored on abort: the last unit is never sold twice |
+| 6 DSC | Area search ranks listings deterministically and explains what it excluded |
+| 7 ORD | An order is bought, paid and closed safely in any order of confirmations, with no funds held by the platform |
+| 8 COM | Each order is charged exactly once against the business's prepaid commission account |
+| 9 MSG | Messaging follows the business's current verification, and the contact handoff renders every product name |
+| 10 TRD | Two sessions accepting the last unit get one Accepted and one Unfulfillable |
+| 11 COL | A closed order becomes exactly one prompt and one entry set |
+| 12 VAL | A collection is valued exactly in COP, with a null (never NaN) change on a zero baseline |
+| 13 REP | Only closed purchases review businesses, and a hide racing a new review never skews the aggregate |
 
-**Over HTTP** (decision log #24): `access.completeIndividualProfile` (2.1) and `admin.events.replay` (1.3) are wired to their services behind a Better Auth session. A request without a session gets `NotAuthenticated` (401), and a non-admin replay gets `AdminOnly` (403). Story 2.3 has no procedure; later stories call its projection. Every other procedure belongs to a story after the cut and answers `Unexpected` (500). Sign-up and sign-in are not configured yet, because no Impl-1 story owns them.
+**Over HTTP**, 84 of the 111 procedures are wired behind a Better Auth session (or public, where the contract says so). A request without a session gets `NotAuthenticated` (401), and a non-admin on an admin procedure `AdminOnly` (403). The other 27 belong to the reserved stories or to the jobs route and answer `Unexpected` (500) until they are built. Sign-up and sign-in are not configured yet (Story 2.4's Impl-2 completion), and the production storage, malware scanner, catalog feed and TRM adapters are not chosen yet: [`walkthrough-impl1.md`](_bmad-output/implementation-artifacts/walkthrough-impl1.md) §18 lists every known limit with its owner.
 
-[`_bmad-output/implementation-artifacts/walkthrough-impl1.md`](_bmad-output/implementation-artifacts/walkthrough-impl1.md) covers each story's goal, procedures, database changes and test evidence, together with the gate output. Each story's full record is in `_bmad-output/implementation-artifacts/`.
+The walkthrough covers each story's goal, procedures, database changes, blast radius and test evidence, together with the suite and gate output. Each story's full record is in `_bmad-output/implementation-artifacts/`.
 
 **Where each deliverable is** (Impl-1 task statement §6.1):
 
@@ -139,6 +148,8 @@ The delivery of 2026-10-26 (decision log #22) is the foundation and the first th
 | Sprint status | [`_bmad-output/implementation-artifacts/sprint-status.yaml`](_bmad-output/implementation-artifacts/sprint-status.yaml) |
 | Story files | [`_bmad-output/implementation-artifacts/`](_bmad-output/implementation-artifacts/) |
 | Walkthrough and test output | [`_bmad-output/implementation-artifacts/walkthrough-impl1.md`](_bmad-output/implementation-artifacts/walkthrough-impl1.md) |
+| Final trace and test review | [`_bmad-output/test-artifacts/impl1-final-trace.md`](_bmad-output/test-artifacts/impl1-final-trace.md), [`impl1-test-review.md`](_bmad-output/test-artifacts/impl1-test-review.md) |
+| Deliverable map | [`docs/impl-1/README.md`](docs/impl-1/README.md) |
 | AI decision log | [`_bmad-output/decision-logs/impl-1-ai-decision-log.md`](_bmad-output/decision-logs/impl-1-ai-decision-log.md) |
 | PRD | [`_bmad-output/planning-artifacts/prd.md`](_bmad-output/planning-artifacts/prd.md) and `addendum.md` |
 | Contracts (OpenAPI, schemas) | [`_bmad-output/planning-artifacts/detailed-design/`](_bmad-output/planning-artifacts/detailed-design/) |
