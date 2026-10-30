@@ -815,3 +815,19 @@ describe('collections over HTTP (S-FR-COL-1, COL-3, COL-1, COL-2; Stories 11.1â€
     expect(await rows(db, 'CollectionEntry')).toMatchObject([{ source: 'PlatformPurchase', orderId: id('o1'), acquiredPriceCop: '45000' }]);
   });
 });
+
+describe('valuation over HTTP (VAL-1; Story 12.1)', () => {
+  it('the owner values a collection through the real catalog in one snapshot; another user gets CollectionNotFound 404', async () => {
+    await user(db, { id: id('valentina') });
+    await user(db, { id: id('julian') });
+    await catalogEntry(db, id('char'));
+    await feedRun(db, id('run1'));
+    await observation(db, { id: id('obs1'), catalogEntryId: id('char'), cop: 45_000, observedAt: at(-DAY), runId: id('run1') });
+    await ins(db, 'Collection', { id: id('coll1'), ownerId: id('valentina'), name: 'General' });
+    await ins(db, 'CollectionEntry', { id: id('e1'), collectionId: id('coll1'), cardKind: 'catalog', catalogEntryId: id('char'), source: 'Manual', qty: 2, acquiredAt: '2026-09-01', manualPosition: 0 });
+    const valued = await get('valuation.current', { collectionId: id('coll1') }, await signIn(id('valentina')));
+    expect(valued.json.result?.data).toMatchObject({ totalCop: 90_000, valuedCount: 1, staleCount: 0, notValued: [], decision: { reasonCode: 'CollectionValued' } });
+    const foreign = await get('valuation.current', { collectionId: id('coll1') }, await signIn(id('julian')));
+    expect([foreign.status, foreign.json.error?.code]).toEqual([404, 'CollectionNotFound']);
+  });
+});

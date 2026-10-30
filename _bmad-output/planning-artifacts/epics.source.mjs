@@ -560,7 +560,7 @@ export default {
         {
           title: 'Value a collection exactly', kind: 'Core',
           as: 'As Valentina, I want my collection\'s value summed exactly from the latest reference prices, with unvalued entries explained, so that I can trust the total.',
-          ops: ['VAL-1'], tests: ['VAL-1.Q1', 'VAL-1.I1', 'VAL-1.I2'], depends: ['11.2', '4.5', '4.4'],
+          ops: ['VAL-1'], tests: ['VAL-1.Q1', 'VAL-1.I1', 'VAL-1.I2', 'NFR-VAL-2.current'], depends: ['11.2', '4.5', '4.4'],
           happy: ['entries priced at 45,000 × 2 and 9,999 × 1, one unpriced and one external.', 'Valentina values the collection.', 'total 99,999, valued count 2, stale count 1, and the unpriced and external entries listed with their codes; 90 entries of 999 × 99,999,999 sum exactly in BigInt.'],
           failure: ['600 distinct cards, read in two price chunks of at most 500.', 'the valuation runs.', 'both chunks are read as of the same instant.'],
         },

@@ -2,7 +2,7 @@
 title: 'Story 12.1: Value a collection exactly'
 type: 'feature'
 created: '2026-10-30'
-status: 'draft'
+status: 'done'
 baseline_commit: '49b09cc'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -56,8 +56,8 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] domain + repository + service + src tests; §13 row; wiring; benchmark + binding
-- [ ] `sprint-status.yaml` -- 12.1 `done`
+- [x] domain + repository + service + src tests; §13 row; wiring; benchmark + binding
+- [x] `sprint-status.yaml` -- 12.1 `done`
 
 **Acceptance Criteria:**
 - Given 12.1 `done`, when `[VAL-1.Q1]`, `[VAL-1.I1]`, `[VAL-1.I2]`, `[NFR-VAL-2.current]` run, then they pass; 12.3's `[VAL-1.MEC]` and 12.4's `[VAL-1.P1]` are early greens (D1).
@@ -65,3 +65,12 @@ context:
 ## Verification
 
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/val_contracts.test.ts -t "VAL-1"`
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 12 at its close (decision #22). The specs were approved together with D1–D5 (decision log Impl-1 #37).
+- `ValServiceV2.snapshot` runs every read in one `REPEATABLE READ READ ONLY` transaction; the catalog's `getReferencePricesAsOf` joins it as the ambient transaction, so the chunks of 500 share one snapshot and one `asOf`.
+- P1 is `PgValRepository.ownsCollectionForRead` (no `FOR SHARE`); a refusal cites `{ owned: false }`, as COL does, and reads nothing else.
+- The pure `valueEntries` takes only `ReferencePriceInput` (built by `referencePrice`); `val-domain.test.ts` proves with `@ts-expect-error` that a listing `Cop` does not type-check. `assertSafeInteger` maps a total or bound above 2^53 − 1 to `Unexpected`.
+- §13 gains `CollectionValued` (D2). `valuation.current` is wired, with an HTTP test through the real catalog.
+- Measured: `[NFR-VAL-2.current]` p95 74.1 ms (p50 58.0, max 116.6) on the seed's 500-entry collection, local Postgres 16.

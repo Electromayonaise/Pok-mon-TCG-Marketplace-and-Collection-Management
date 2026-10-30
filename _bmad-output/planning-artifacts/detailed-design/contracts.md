@@ -1422,6 +1422,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `CollectionEntryAdded` | — (stored only) | collections | COL-3 Q4 `allowed`: one Manual entry is added, citing `{ entryId, source, createdGeneral }` (FR-COL-2; decision log Impl-1 #36) | "Agregaste la carta a tu colección." | no |
 | `PromptAccepted` | — (stored only) | collections | COL-1 Q4 `allowed`: the prompt is Accepted and one entry per line (split at 999 copies) is added, citing `{ promptId, orderId, entryCount }` (FR-COL-7; decision log Impl-1 #36) | "Agregamos tu compra a la colección. Entradas nuevas: {entryCount}." | no |
 | `PromptDismissed` | — (stored only) | collections | COL-1.dismiss `allowed`: the prompt is Dismissed with no entry, citing `{ promptId, orderId }` (FR-COL-7; decision log Impl-1 #36) | "Descartaste la sugerencia." | no |
+| `CollectionValued` | — (stored only) | collections | VAL-1 Q4 `allowed`: the collection is valued from the latest reference prices, citing `{ valuedCount, notValuedCount, staleCount, conversionDriftBoundCop }` (FR-VAL-1; decision log Impl-1 #37) | "Sumamos el valor de tus cartas con sus precios de referencia más recientes." | no |
 | `InvalidValuationPeriod` | 400 | collections | VAL-2 P2 | "El periodo debe ser 7, 30, 90 o 365 días." | no |
 | `TargetNotFound` | 404 | reviews | REP-1 P2, P3; S-FR-REP-7 | "No encontramos ese vendedor." | no |
 | `NotVerifiedPurchaser` | 409 | reviews | REP-1 P4 | "Podrás reseñar esta tienda cuando confirmes que recibiste tu pedido; pagar no es suficiente ({latestState})." | no |

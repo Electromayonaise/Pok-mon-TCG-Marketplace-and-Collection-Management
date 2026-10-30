@@ -38,7 +38,7 @@ export function createValModule(w: CollectionsWiring): ValUseCases {
   return new ValService({ collections: new PgCollectionRepository(w.sql), catalog: w.catalog, transactions: w.transactions, clock: w.clock });
 }
 
-export { PgColRepository } from './infra/pg.js';
+export { PgColRepository, PgValRepository } from './infra/pg.js';
 
 // <gen-solu2-api>
 export { ColServiceV2 } from './application/col.v2.js';
