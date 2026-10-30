@@ -10,13 +10,98 @@ export interface ContactV2UseCases {
 }
 // </gen-solu2-api>
 
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import type { Citation, Decision } from '../../../shared-kernel/decision.js';
+import { DomainError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import type { IsoInstant } from '../../../shared-kernel/types.js';
+import { composeContactMessage } from '../domain/contact.js';
+import type { ContactWindows } from '../ports/contact.v2.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('listings');
+
+/** FR-MSG-3 (AD-MSG-1 rule 3): the three counted windows, checked in this order. */
+const LIMITS = [
+  { window: 'requesterHour', limit: 30, ms: 3_600_000, rule: 'FR-MSG-3' },
+  { window: 'requesterSellerDay', limit: 10, ms: 86_400_000, rule: 'FR-MSG-3' },
+  { window: 'ipHour', limit: 60, ms: 3_600_000, rule: 'NFR-SYS-14' },
+] as const satisfies readonly { window: Exclude<keyof ContactWindows, 'repeat'>; limit: number; ms: number; rule: string }[];
+
+const IP_HMAC = /^[0-9a-f]{64}$/;
+
+/** MSG-2: the WhatsApp contact handoff, hosted in listings (contracts.md §9, AD-4). */
 export class ContactServiceV2 implements ContactV2UseCases {
   constructor(protected readonly deps: ContactV2Deps) {}
 
-  async generateContactMessage(_input: GenerateContactMessageRequest): Promise<GenerateContactMessageResponse> {
-    throw new NotImplementedError('listings.generateContactMessage');
+  /**
+   * MSG-2 (AD-MSG-1): P2–P4 first-fail, then the pure composer. P1 `canBuy` is the procedure builder's (the trade
+   * path's caller, TRD-1, checked it). The phone is read only after every check passed, inside the transaction, so a
+   * refusal reads no phone and writes nothing. A purchase is counted under the fixed-order advisory locks; a trade is not.
+   */
+  async generateContactMessage(input: GenerateContactMessageRequest): Promise<GenerateContactMessageResponse> {
+    const { repo, transactions, clock, ids, identity } = this.deps;
+    const { kind, listingId, requesterId, tradeSummary, ipHmac } = input;
+    if (ipHmac !== null && !IP_HMAC.test(ipHmac)) throw new UnexpectedError('Unexpected: ipHmac is not a 64-hex HMAC-SHA256 (S-7)');
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      const listing = await repo.readContactListing(tx, listingId);
+      if (listing === null || !listing.visible) return raise('ListingNotFound', [{ rule: 'FR-MSG-1', inputs: { visible: false } }]);
+      if (listing.kind === 'single' && listing.unit === null) throw new UnexpectedError(`Unexpected: single listing ${listingId} has no unit (listing_single_has_unit)`);
+      if (listing.sellerKindAtCreation !== 'individual') return raise('NotIndividualSellerListing', [{ rule: 'FR-MSG-1', inputs: { sellerKind: listing.sellerKindAtCreation } }]);
+      if (kind === 'purchase') {
+        const ip = ipHmac ?? null;
+        await repo.lockContactKeys(tx, requesterId, ip);
+        const windows = await repo.readContactWindows(tx, { requesterId, sellerId: listing.sellerId, listingId, ipHmac: ip, now });
+        if (!windows.repeat) {
+          for (const { window, limit, ms, rule } of LIMITS) {
+            const { count, oldest } = windows[window];
+            if (count >= limit) {
+              const retryAt = new Date(new Date(oldest!).getTime() + ms).toISOString();
+              return raise('ContactRateLimited', [{ rule, inputs: { retryAt, window, limit } }]);
+            }
+          }
+        }
+        await repo.insertContactLog(tx, { id: ids.next(), requesterId, listingId, sellerId: listing.sellerId, ipHmac: ip, counted: !windows.repeat, now });
+      }
+      const productName = listing.unit === null ? listing.title ?? '' : await this.entryName(listing.unit.catalogEntryId);
+      const card = await this.contactCard(listing.sellerId);
+      const { names } = await identity.getDisplayNames({ userIds: [requesterId] });
+      const message = composeContactMessage({
+        kind, sellerName: card.displayName, phoneE164: card.contactPhoneE164, productName, condition: listing.unit?.condition ?? null, priceCop: listing.priceCop,
+        trade: kind === 'trade' && tradeSummary !== null ? { offeredItems: tradeSummary.offeredItems, cashCop: BigInt(tradeSummary.cashCop) } : null,
+      });
+      return {
+        text: message.text, externalUrl: message.externalUrl, copyText: message.copyText,
+        requesterDisplayName: names[0]?.displayName ?? '', decision: decisionOf(message.truncationSteps, message.externalUrl.length, now),
+      };
+    });
   }
+
+  private async entryName(catalogEntryId: string): Promise<string> {
+    const { entries } = await this.deps.catalog.getEntries({ catalogEntryIds: [catalogEntryId] });
+    const entry = entries[0];
+    if (!entry) throw new UnexpectedError(`Unexpected: catalog entry ${catalogEntryId} of a listing is missing`);
+    return entry.name;
+  }
+
+  /**
+   * P-IDN.contact. Its `IndividualSellerProfileIncomplete` carries the seller-facing text; the buyer sees
+   * `ListingNotFound` instead (decision log Impl-1 #34, closing Story 2.5's deferral).
+   */
+  private async contactCard(sellerId: string) {
+    try {
+      return await this.deps.identity.getContactCard({ sellerId });
+    } catch (error) {
+      if (error instanceof DomainError && error.code === 'IndividualSellerProfileIncomplete') {
+        return raise('ListingNotFound', [{ rule: 'FR-MSG-1', inputs: { sellerContact: false } }]);
+      }
+      throw error;
+    }
+  }
+}
+
+/** MSG-2 Q4: `{ truncated, truncationSteps, urlLength }`; the steps are joined, as citation inputs are primitives (AD-SYS-1 rule 5). */
+function decisionOf(steps: string[], urlLength: number, now: IsoInstant): Decision {
+  const citations: [Citation] = [{ rule: 'FR-MSG-2', inputs: { truncated: steps.length > 0, truncationSteps: steps.join(','), urlLength } }];
+  return { outcome: 'allowed', reasonCode: 'ContactMessageGenerated', humanMessage: renderMessage('ContactMessageGenerated', citations[0].inputs), citations, occurredAt: now };
 }

@@ -5,6 +5,7 @@ import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import { COLOMBIA_BBOX, type Condition, type CuidId, type IsoInstant } from '../../../shared-kernel/types.js';
 import { boundingBox, EARTH_RADIUS_KM, RADIUS_EPSILON_KM, type Area } from '../domain/dsc.js';
+import type { ContactListingRow, ContactRepository, ContactWindows } from '../ports/contact.v2.js';
 import type { DscRepository, ListingPage, ListingQuery, RankedListingRow } from '../ports/dsc.v2.js';
 import type { AvailabilityCandidate, InvRepository, ListingDetailRow, ListingHeader, ListingUnit, NewListingRow, ReserveFacts, ResolvedUnit } from '../ports/inv.v2.js';
 import type { IDiscoveryQuery, IInventoryUnitRepository, IListingRepository } from '../ports/listings.js';
@@ -352,4 +353,62 @@ export class PgDscRepository implements DscRepository {
 /** P-INV.availability's area filter (Story 6.2): the same predicates DSC-1 uses, over listing `l`. */
 export function availabilityAreaSql(area: Area, params: unknown[]): string {
   return areaSql(area, params).where;
+}
+
+/** MSG-2's reads and writes (AD-MSG-1): the listing facts and `"ContactRequestLog"`. */
+export class PgContactRepository implements ContactRepository {
+  async readContactListing(tx: Tx, listingId: CuidId): Promise<ContactListingRow | null> {
+    const { rows } = await tx.query<Omit<ContactListingRow, 'priceCop' | 'unit'> & { priceCop: string; catalogEntryId: CuidId | null; condition: string | null }>(
+      `SELECT l.id, l."sellerId", l."sellerKindAtCreation", l.kind, l.title, l."priceCop"::text AS "priceCop",
+              (l."hiddenAt" IS NULL AND l."withdrawnAt" IS NULL AND l."deactivatedAt" IS NULL) AS visible,
+              u."catalogEntryId", u.condition
+         FROM "Listing" l LEFT JOIN "InventoryUnit" u ON u.id = l."inventoryUnitId"
+        WHERE l.id = $1`,
+      [listingId],
+    );
+    const r = rows[0];
+    if (!r) return null;
+    const { catalogEntryId, condition, priceCop, ...rest } = r;
+    return { ...rest, priceCop: BigInt(priceCop), unit: catalogEntryId === null || condition === null ? null : { catalogEntryId, condition } };
+  }
+
+  async lockContactKeys(tx: Tx, requesterId: CuidId, ipHmac: string | null): Promise<void> {
+    await tx.query(`SELECT pg_advisory_xact_lock(hashtextextended('msg:contact:req:' || $1, 0))`, [requesterId]);
+    if (ipHmac !== null) await tx.query(`SELECT pg_advisory_xact_lock(hashtextextended('msg:contact:ip:' || $1, 0))`, [ipHmac]);
+  }
+
+  async readContactWindows(tx: Tx, k: { requesterId: CuidId; sellerId: CuidId; listingId: CuidId; ipHmac: string | null; now: IsoInstant }): Promise<ContactWindows> {
+    const { rows } = await tx.query<{
+      repeat: boolean; rh: number; rhOldest: Date | null; rsd: number; rsdOldest: Date | null; ih: number; ihOldest: Date | null;
+    }>(
+      `WITH w AS (SELECT $5::timestamptz AS now)
+       SELECT
+         EXISTS (SELECT 1 FROM "ContactRequestLog" c, w WHERE c."requesterId" = $1 AND c."listingId" = $3 AND c.counted
+                   AND c."createdAt" > w.now - interval '60 minutes' AND c."createdAt" <= w.now) AS repeat,
+         (SELECT count(*)::int FROM "ContactRequestLog" c, w WHERE c."requesterId" = $1 AND c.counted
+                   AND c."createdAt" > w.now - interval '1 hour' AND c."createdAt" <= w.now) AS rh,
+         (SELECT min(c."createdAt") FROM "ContactRequestLog" c, w WHERE c."requesterId" = $1 AND c.counted
+                   AND c."createdAt" > w.now - interval '1 hour' AND c."createdAt" <= w.now) AS "rhOldest",
+         (SELECT count(*)::int FROM "ContactRequestLog" c, w WHERE c."requesterId" = $1 AND c."sellerId" = $2 AND c.counted
+                   AND c."createdAt" > w.now - interval '24 hours' AND c."createdAt" <= w.now) AS rsd,
+         (SELECT min(c."createdAt") FROM "ContactRequestLog" c, w WHERE c."requesterId" = $1 AND c."sellerId" = $2 AND c.counted
+                   AND c."createdAt" > w.now - interval '24 hours' AND c."createdAt" <= w.now) AS "rsdOldest",
+         (SELECT count(*)::int FROM "ContactRequestLog" c, w WHERE $4::text IS NOT NULL AND c."ipHmac" = $4 AND c.counted
+                   AND c."createdAt" > w.now - interval '1 hour' AND c."createdAt" <= w.now) AS ih,
+         (SELECT min(c."createdAt") FROM "ContactRequestLog" c, w WHERE $4::text IS NOT NULL AND c."ipHmac" = $4 AND c.counted
+                   AND c."createdAt" > w.now - interval '1 hour' AND c."createdAt" <= w.now) AS "ihOldest"`,
+      [k.requesterId, k.sellerId, k.listingId, k.ipHmac, k.now],
+    );
+    const r = rows[0]!;
+    const window = (count: number, oldest: Date | null) => ({ count, oldest: oldest?.toISOString() ?? null });
+    return { repeat: r.repeat, requesterHour: window(r.rh, r.rhOldest), requesterSellerDay: window(r.rsd, r.rsdOldest), ipHour: window(r.ih, r.ihOldest) };
+  }
+
+  async insertContactLog(tx: Tx, r: { id: CuidId; requesterId: CuidId; listingId: CuidId; sellerId: CuidId; ipHmac: string | null; counted: boolean; now: IsoInstant }): Promise<void> {
+    await tx.query(
+      `INSERT INTO "ContactRequestLog" (id, "requesterId", "listingId", "sellerId", "ipHmac", kind, counted, "createdAt")
+       VALUES ($1, $2, $3, $4, $5, 'purchase', $6, $7)`,
+      [r.id, r.requesterId, r.listingId, r.sellerId, r.ipHmac, r.counted, r.now],
+    );
+  }
 }

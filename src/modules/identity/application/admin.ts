@@ -1,6 +1,7 @@
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId } from '../../../shared-kernel/types.js';
+import { deriveCapabilities, type SellerKind } from '../domain/idn.js';
 import type { GetCapabilitiesResponse } from '../dto/idn.v2.dto.js';
 import type { IdnRepository } from '../ports/idn.v2.js';
 
@@ -31,4 +32,13 @@ export async function isAdmin(repo: AdminFactsReader, tx: Tx, userId: CuidId): P
  */
 export function requireBusinessAccount(capabilities: Pick<GetCapabilitiesResponse, 'sellerKind'>, rule: string): void {
   if (capabilities.sellerKind !== 'business') raise('NotBusinessAccount', [{ rule, inputs: { status: capabilities.sellerKind } }]);
+}
+
+/**
+ * MSG-1 P4 (decision log Impl-1 #34): a user's seller kind, read by identity in the caller's `tx` from its own facts,
+ * so messaging raises its own `BusinessCannotInitiate` without reading an identity table. null for an unknown user.
+ */
+export async function sellerKindOf(repo: AdminFactsReader, tx: Tx, userId: CuidId): Promise<SellerKind | null> {
+  const facts = await repo.readCapabilityFacts(tx, userId);
+  return facts === null ? null : deriveCapabilities(facts).sellerKind;
 }

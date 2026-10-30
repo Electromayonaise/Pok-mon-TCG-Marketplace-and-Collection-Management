@@ -7,6 +7,7 @@ import { auth } from '../../../../src/server/auth.js';
 import { compose } from '../../../../src/server/composition.js';
 import { db } from '../../../../src/server/db.js';
 import { betterAuthSessions } from '../../../../src/server/sessions.js';
+import { loadConfig } from '../../../../src/shared-kernel/config.js';
 import { serveTrpc } from '../../../../src/server/trpc/init.js';
 import type { Clock } from '../../../../src/shared-kernel/ports.js';
 import { createLogger } from '../../../../src/shared-kernel/regulated.js';
@@ -17,8 +18,8 @@ const log = createLogger((line) => console.error(line));
 let app: ReturnType<typeof compose> | undefined;
 
 function handler(req: Request): Promise<Response> {
-  app ??= compose({ pool: db().pool, clock: systemClock, sessions: betterAuthSessions(auth()) });
-  return serveTrpc(req, app.router, systemClock, { identity: app.identity, log });
+  app ??= compose({ pool: db().pool, clock: systemClock, sessions: betterAuthSessions(auth()), ipHmacKey: loadConfig().ipHmacKey });
+  return serveTrpc(req, app.router, systemClock, { identity: app.identity, ipHmac: app.ipHmac, log });
 }
 
 export { handler as GET, handler as POST };

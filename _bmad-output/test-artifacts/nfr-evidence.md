@@ -99,10 +99,10 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 | NFR-TRD-1 | Reliability (MEC) | 100 repetitions: one Accepted, one Unfulfillable | Two accepts for the last unit | `[TRD-1.MEC]` | Red — ATDD |
 | NFR-TRD-2 | Performance | Accept p95 ≤ 800 ms; other actions ≤ 500 ms | PRD §7 protocol | — | Planned — story DoD |
 | NFR-TRD-3 | Reliability | Trade vs purchase on a shared unit never oversells | Mixed race | `[INV-1.I3]`, `[TRD-1.I1]` | Green — ATDD (`[INV-1.I3]`); Red — ATDD (`[TRD-1.I1]`) |
-| NFR-MSG-1 | Performance / determinism | Generation p95 ≤ 200 ms; 1 distinct output per input over 1,000 runs | Repeated generation | `[MSG-2.I1]` | Red — ATDD (determinism); Planned — story DoD (latency) |
-| NFR-MSG-2 | Performance | Send p95 ≤ 500 ms; visible to the recipient ≤ 35 s at p95 (30 s polling) | PRD §7 protocol; polling interval in the client | `[MSG-1.R1]` | Red — ATDD (ordering); Planned — story DoD (latency) |
+| NFR-MSG-1 | Performance / determinism | Generation p95 ≤ 200 ms; 1 distinct output per input over 1,000 runs | Repeated generation; PRD §7 protocol on the §3 seed | `[MSG-2.I1]`, `[NFR-MSG-1.contact]` (Story 9.3) | Green — ATDD (determinism); Green — benchmark (latency) |
+| NFR-MSG-2 | Performance | Send p95 ≤ 500 ms; visible to the recipient ≤ 35 s at p95 (30 s polling) | PRD §7 protocol; polling interval in the client | `[MSG-1.R1]`, `[NFR-MSG-2.send]` (Story 9.2) | Green — ATDD (ordering); Green — benchmark (send); the 35 s visibility is the client's 30 s polling (UI 12.2) |
 | NFR-MSG-3 | Security / scope | 0 outbound calls to messaging services | Network guard | `[SYS-6.R4]` | Green — gate |
-| NFR-MSG-4 | Correctness (MEC) | Every fixture name renders (ñ, accents, emoji, 500 chars, URL-like) | Contact-message generation over the fixture names; state change between compose and send | `[MSG-2.MEC]`, `[MSG-3.MEC]` | Red — ATDD |
+| NFR-MSG-4 | Correctness (MEC) | Every fixture name renders (ñ, accents, emoji, 500 chars, URL-like) | Contact-message generation over the fixture names; state change between compose and send | `[MSG-2.MEC]`, `[MSG-3.MEC]` | Green — ATDD |
 | NFR-COL-1 | Reliability (MEC) | 100 repetitions: one prompt, one entry set | Duplicate `OrderClosed` and double accept | `[COL-1.MEC]`, `[COL-2.I1]` | Red — ATDD |
 | NFR-COL-2 | Performance | Binder page (500 entries, sorted) p95 ≤ 800 ms; wishlist of 200 ≤ 1,000 ms | PRD §7 protocol on the seed's 500-entry collection | — | Planned — story DoD |
 | NFR-COL-3 | Integrity | 0 `CatalogEntry` writes from `collections` | Table-ownership scan; count assertion around FR-COL-3 | `[SYS-AD8]`, `[S-FR-COL-3.h]` | Green — gate |
@@ -117,11 +117,11 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 
 | Status | NFRs |
 |---|---|
-| Green — benchmark (wholly or in part) | 8 (NFR-SYS-2, NFR-SYS-6, NFR-SYS-9, NFR-VER-3, NFR-CAT-1, NFR-INV-4, NFR-DSC-1, NFR-ORD-2) |
-| Green — ATDD (wholly or in part) | 24 (NFR-SYS-1, -7, -8, -10, -13, -14, NFR-IDN-2, NFR-VER-1, -2, -4, NFR-CAT-2, -3, -4, NFR-INV-1, -2, -3, NFR-DSC-2, -3, NFR-ORD-1, -3, -4, NFR-TRD-3; NFR-SYS-8, -10, -14, NFR-INV-2 and NFR-TRD-3 in part) |
+| Green — benchmark (wholly or in part) | 10 (NFR-SYS-2, NFR-SYS-6, NFR-SYS-9, NFR-VER-3, NFR-CAT-1, NFR-INV-4, NFR-DSC-1, NFR-ORD-2, NFR-MSG-1, NFR-MSG-2) |
+| Green — ATDD (wholly or in part) | 27 (NFR-SYS-1, -7, -8, -10, -13, -14, NFR-IDN-2, NFR-VER-1, -2, -4, NFR-CAT-2, -3, -4, NFR-INV-1, -2, -3, NFR-DSC-2, -3, NFR-ORD-1, -3, -4, NFR-TRD-3, NFR-MSG-1, -2, -4; NFR-SYS-8, -10, -14, NFR-INV-2 and NFR-TRD-3 in part) |
 | Green — gate (wholly or in part) | 8 (NFR-SYS-3, NFR-SYS-4, NFR-SYS-12, NFR-IDN-3, NFR-MSG-3, NFR-COL-3, NFR-REP-3, NFR-ORD-3) |
-| Red — ATDD (wholly or in part) | 19 |
-| Planned — story DoD (wholly or in part) | 8: the latency NFRs without a benchmark yet. Each gets one in its story, with the shared harness |
+| Red — ATDD (wholly or in part) | 16 |
+| Planned — story DoD (wholly or in part) | 6: the latency NFRs without a benchmark yet. Each gets one in its story, with the shared harness |
 | Deferred — launch | 3: NFR-SYS-11 (WCAG audit), and the transfer times of NFR-VER-4 and NFR-ORD-2 on a shaped 10 Mbps link |
 
 Rows marked "in part" are counted under each of their statuses, so the summary adds up to more than 56. No NFR is left without a named artifact or an owner phase.
@@ -144,3 +144,5 @@ Each benchmark writes its figures (milliseconds, n = 500) to `.vitest-results/`.
 | NFR-ORD-2 | `[NFR-ORD-2.p95]` | `nfr-ord-2.json` | 6.5 | 11.0 | p95 ≤ 800 | 2026-10-27, Epic 7 review, `createOrder` with the real listings and identity on the §3 seed, buyers with no open seed order, one order per buyer and business (decision log Impl-1 #32), local Postgres 16 |
 | NFR-COM-3 | `[NFR-COM-3.deduction]` | `nfr-com-3-deduction.json` | 1.9 | 3.3 | p95 ≤ 200 | 2026-10-30, Story 8.2, the handler in its own transaction against the eight seeded accounts, a new order per call, local Postgres 16 |
 | NFR-COM-3 | `[NFR-COM-3.topUp]` | `nfr-com-3-topup.json` | 2.0 | 3.1 | p95 ≤ 800 | 2026-10-30, Story 8.3, `confirmTopUp` by the seed's admin, 550 Pending top-ups over the eight seeded accounts, local Postgres 16 |
+| NFR-MSG-1 | `[NFR-MSG-1.contact]` | `nfr-msg-1-contact.json` | 2.4 | 4.5 | p95 ≤ 200 | 2026-10-30, Story 9.3, purchase handoffs with the real identity and catalog over the seed's visible individual singles, one buyer per call (≤ 3 calls each) and one IP per call, local Postgres 16 |
+| NFR-MSG-2 | `[NFR-MSG-2.send]` | `nfr-msg-2-send.json` | 3.0 | 6.6 | p95 ≤ 500 | 2026-10-30, Story 9.2, `sendMessage` with the real identity, verified seed buyers to the eight Approved businesses, each pair's first call opening its conversation, local Postgres 16 |

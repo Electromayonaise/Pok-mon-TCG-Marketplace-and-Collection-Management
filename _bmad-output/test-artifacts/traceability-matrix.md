@@ -25,8 +25,8 @@
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
-| NFR evidence status | Green — ATDD: 24; Green — benchmark: 9; Green — gate: 8; Red — ATDD (`[COM-1.I3]` green with Story 8.2: 1; `[VAL-1.I1]` waits for Epic 12): 1; Red — ATDD: 16; Deferred — launch: 3; Planned — story DoD: 7; the page copy belongs to UI 6.2: 1 |
-| Contract clauses / test ids | 112 / 382 (370 red, 12 green) |
+| NFR evidence status | Green — ATDD: 27; Green — benchmark: 11; Green — gate: 8; Red — ATDD (`[COM-1.I3]` green with Story 8.2: 1; `[VAL-1.I1]` waits for Epic 12): 1; Red — ATDD: 13; Deferred — launch: 3; Planned — story DoD: 5; the page copy belongs to UI 6.2: 1; the 35 s visibility is the client's 30 s polling: 1 |
+| Contract clauses / test ids | 112 / 384 (372 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -38,7 +38,7 @@
 | FR-IDN-3 | Answer listing eligibility (CAP-19, CAP-5) | IDN-2 | AD-IDN-1, AD-16 | 4 — `IDN-2.I1`, `IDN-2.Q1`, `IDN-2.QF1` +1 | 2.3 (done) | red |
 | FR-IDN-4 | Guard seller-type exclusivity atomically (CAP-5, CAP-19) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | 2.1 (done), 2.2 (done), 3.1 (done), 3.3 (done) | red |
 | FR-IDN-5 | Capability audit trace for admins (CAP-15) | IDN-3 | AD-IDN-1, AD-VER-2, AD-13, AD-SYS-8 | 5 — `IDN-3.I1`, `IDN-3.I3`, `IDN-3.P2` +2 | 2.5 (done) | red |
-| FR-IDN-6 | Messaging, review-target and seller-kind queries (CAP-18, CAP-7, CAP-1) | MSG-3, S-FR-IDN-6 | AD-IDN-1, AD-MSG-2 | 5 — `MSG-3.MEC`, `MSG-3.Q1`, `MSG-3.QF1` +2 | 2.5 (done), 9.1 (backlog) | red |
+| FR-IDN-6 | Messaging, review-target and seller-kind queries (CAP-18, CAP-7, CAP-1) | MSG-3, S-FR-IDN-6 | AD-IDN-1, AD-MSG-2 | 5 — `MSG-3.MEC`, `MSG-3.Q1`, `MSG-3.QF1` +2 | 2.5 (done), 9.1 (done) | red |
 | FR-IDN-7 | Authentication and admin gating (CAP-15, CAP-28) | S-FR-IDN-7 | AD-16, AD-IDN-3, AD-SYS-8 | 2 — `S-FR-IDN-7.f`, `S-FR-IDN-7.h` | 2.4 (done) | red |
 | FR-VER-1 | Submit a business application (CAP-15, CAP-5) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | 2.1 (done), 2.2 (done), 3.1 (done), 3.3 (done) | red |
 | FR-VER-2 | Admin review queue (CAP-15) | VER-3, S-FR-VER-2 | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 8 — `VER-3.I1`, `VER-3.I2`, `VER-3.I3` +5 | 3.4 (done), 3.5 (done) | red |
@@ -98,16 +98,16 @@
 | FR-TRD-3 | Visibility (CAP-25) | S-FR-TRD-3, S-FR-TRD-3.mine | AD-TRD-1 | 3 — `S-FR-TRD-3.f`, `S-FR-TRD-3.h`, `S-FR-TRD-3.mine.h` | 10.1 (backlog), 10.3 (backlog), 10.4 (backlog) | red |
 | FR-TRD-4 | Accept and reserve (CAP-25) | TRD-1 | AD-TRD-2, AD-6, AD-TRD-3 | 9 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +6 | 10.3 (backlog), 10.4 (backlog) | red |
 | FR-TRD-5 | Competing offers become unfulfillable (CAP-25) | TRD-1 | AD-TRD-2, AD-6, AD-TRD-3 | 9 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +6 | 10.3 (backlog), 10.4 (backlog) | red |
-| FR-TRD-6 | Contact handoff reuses the listings service (CAP-25, CAP-6) | TRD-1, MSG-2 | AD-TRD-2, AD-6, AD-TRD-3, AD-MSG-1 | 16 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +13 | 9.3 (backlog), 9.5 (backlog), 10.3 (backlog), 10.4 (backlog) | red |
+| FR-TRD-6 | Contact handoff reuses the listings service (CAP-25, CAP-6) | TRD-1, MSG-2 | AD-TRD-2, AD-6, AD-TRD-3, AD-MSG-1 | 16 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +13 | 9.3 (done), 9.5 (done), 10.3 (backlog), 10.4 (backlog) | red |
 | FR-TRD-7 | Mutual completion (computed) (CAP-26) | S-FR-TRD-7 | AD-TRD-3 | 2 — `S-FR-TRD-7.f`, `S-FR-TRD-7.h` | 10.5 (backlog) | red |
 | FR-TRD-8 | Cancel an accepted trade before confirmation (CAP-26) | TRD-3 | AD-TRD-3, AD-INV-2 | 4 — `TRD-3.I1`, `TRD-3.P1`, `TRD-3.P2` +1 | 10.5 (backlog) | red |
 | FR-TRD-9 | Expire open offers (CAP-25) | S-FR-TRD-9 | AD-TRD-1, AD-SYS-6 | 2 — `S-FR-TRD-9.f`, `S-FR-TRD-9.h` | 10.5 (backlog) | red |
-| FR-MSG-1 | Generate an external contact message (listings service) (CAP-6, CAP-25) | MSG-2 | AD-MSG-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (backlog), 9.5 (backlog) | red |
-| FR-MSG-2 | Deterministic rendering and edge-safe encoding (CAP-6) | MSG-2 | AD-MSG-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (backlog), 9.5 (backlog) | red |
-| FR-MSG-3 | Protect sellers' phone numbers (CAP-6) | MSG-2 | AD-MSG-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (backlog), 9.5 (backlog) | red |
-| FR-MSG-4 | In-app messaging eligibility (CAP-18) | MSG-3 | AD-IDN-1, AD-MSG-2 | 3 — `MSG-3.MEC`, `MSG-3.Q1`, `MSG-3.QF1` | 9.1 (backlog) | red |
-| FR-MSG-5 | Send a message (CAP-18) | MSG-1 | AD-SYS-8, AD-MSG-2, AD-MSG-3 | 7 — `MSG-1.I3`, `MSG-1.P3`, `MSG-1.P4` +4 | 9.2 (backlog), 9.4 (backlog) | red |
-| FR-MSG-6 | Verification changes between compose and send (CAP-18) | MSG-1, MSG-3 | AD-SYS-8, AD-MSG-2, AD-MSG-3, AD-IDN-1 | 10 — `MSG-1.I3`, `MSG-1.P3`, `MSG-1.P4` +7 | 9.1 (backlog), 9.2 (backlog), 9.4 (backlog) | red |
+| FR-MSG-1 | Generate an external contact message (listings service) (CAP-6, CAP-25) | MSG-2 | AD-MSG-1, AD-SYS-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (done), 9.5 (done) | red |
+| FR-MSG-2 | Deterministic rendering and edge-safe encoding (CAP-6) | MSG-2 | AD-MSG-1, AD-SYS-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (done), 9.5 (done) | red |
+| FR-MSG-3 | Protect sellers' phone numbers (CAP-6) | MSG-2 | AD-MSG-1, AD-SYS-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (done), 9.5 (done) | red |
+| FR-MSG-4 | In-app messaging eligibility (CAP-18) | MSG-3 | AD-IDN-1, AD-MSG-2 | 3 — `MSG-3.MEC`, `MSG-3.Q1`, `MSG-3.QF1` | 9.1 (done) | red |
+| FR-MSG-5 | Send a message (CAP-18) | MSG-1 | AD-SYS-8, AD-MSG-2, AD-MSG-3 | 7 — `MSG-1.I3`, `MSG-1.P3`, `MSG-1.P4` +4 | 9.2 (done), 9.4 (done) | red |
+| FR-MSG-6 | Verification changes between compose and send (CAP-18) | MSG-1, MSG-3 | AD-SYS-8, AD-MSG-2, AD-MSG-3, AD-IDN-1 | 10 — `MSG-1.I3`, `MSG-1.P3`, `MSG-1.P4` +7 | 9.1 (done), 9.2 (done), 9.4 (done) | red |
 | FR-MSG-7 | Inbox and read state (CAP-18) | S-FR-MSG-7 | AD-MSG-3 | 2 — `S-FR-MSG-7.f`, `S-FR-MSG-7.h` | 9.6 (backlog) | red |
 | FR-MSG-8 | Mute a conversation (buyer side) (CAP-18) | S-FR-MSG-8 | AD-MSG-3 | 2 — `S-FR-MSG-8.f`, `S-FR-MSG-8.h` | 9.6 (backlog) | red |
 | FR-COL-1 | Named collections (CAP-11) | COL-3, S-FR-COL-1, S-FR-COL-1.list | AD-SYS-1, AD-COL-1, AD-7 | 11 — `COL-3.I2`, `COL-3.P2`, `COL-3.P3` +8 | 11.1 (backlog), 11.2 (backlog), 11.4 (backlog) | red |
@@ -157,7 +157,7 @@
 | NFR-ORD-1 | (mandatory edge case): | ORD-2, ORD-3, ORD-4 | `ORD-3.MEC`, `ORD-4.MEC`, `ORD-2.MEC` | 18 | Green — ATDD |
 | NFR-COM-1 | (mandatory edge case): | COM-1 | `COM-1.MEC`, `COM-1.MEC2` | 8 | Green — ATDD |
 | NFR-TRD-1 | (mandatory edge case): | TRD-1 | `TRD-1.MEC` | 9 | Red — ATDD |
-| NFR-MSG-4 | (mandatory edge case): | MSG-2, MSG-3 | `MSG-2.MEC`, `MSG-3.MEC` | 10 | Red — ATDD |
+| NFR-MSG-4 | (mandatory edge case): | MSG-2, MSG-3 | `MSG-2.MEC`, `MSG-3.MEC` | 10 | Green — ATDD |
 | NFR-COL-1 | (mandatory edge case): | COL-1, COL-2 | `COL-1.MEC`, `COL-2.I1` | 11 | Red — ATDD |
 | NFR-VAL-1 | (mandatory edge case): | VAL-1, VAL-2 | `VAL-1.MEC`, `VAL-2.I1`, `VAL-2.I3` | 9 | Red — ATDD |
 | NFR-REP-1 | (mandatory edge case): | REP-1, REP-2, REP-3 | `REP-1.MEC`, `REP-3.MEC` | 22 | Red — ATDD |
@@ -183,8 +183,8 @@
 | NFR-COM-4 | 0 floating-point operations on COP in the commission code path | COM-1 | `COM-1.I3` | 8 | Green — ATDD |
 | NFR-TRD-2 | accept responds in p95 ≤ 800 ms and other actions in p95 ≤ 500 ms. | TRD-1 | — | 9 | Planned — story DoD |
 | NFR-TRD-3 | a trade-versus-purchase race on a shared unit never oversells (NFR-INV-2). | TRD-1 | `INV-1.I3`, `TRD-1.I1` | 10 | Green — ATDD (`[INV-1.I3]`); Red — ATDD (`[TRD-1.I1]`) |
-| NFR-MSG-1 | contact-message generation takes p95 ≤ 200 ms | MSG-2 | `MSG-2.I1` | 7 | Red — ATDD (determinism); Planned — story DoD (latency) |
-| NFR-MSG-2 | in-app freshness through polling | MSG-1 | `MSG-1.R1` | 7 | Red — ATDD (ordering); Planned — story DoD (latency) |
+| NFR-MSG-1 | contact-message generation takes p95 ≤ 200 ms | MSG-2 | `MSG-2.I1`, `NFR-MSG-1.contact` | 8 | Green — ATDD (determinism); Green — benchmark (latency) |
+| NFR-MSG-2 | in-app freshness through polling | MSG-1 | `MSG-1.R1`, `NFR-MSG-2.send` | 8 | Green — ATDD (ordering); Green — benchmark (send); the 35 s visibility is the client's 30 s polling (UI 12.2) |
 | NFR-MSG-3 | 0 outbound calls to external messaging services (NFR-SYS-3 guard). | MSG-2 | `SYS-6.R4` | 8 | Green — gate |
 | NFR-COL-2 | a binder page render (sorted | — | — | 0 | Planned — story DoD |
 | NFR-COL-3 | there are 0 CatalogEntry writes from collections | — | `SYS-AD8`, `S-FR-COL-3.h` | 2 | Green — gate |
@@ -247,8 +247,8 @@
 | AD-TRD-1 | Offer action = one conditional update | `status`, `turn`, `version`, `expiresAt` predicate | `TRD-2.I3` | 10.2 (backlog) | red |
 | AD-TRD-2 | Accept serialized per seller | `trd:seller` advisory lock | `TRD-1.MEC` | 10.3 (backlog) | red |
 | AD-TRD-3 | Completion computed; cancel releases once | `WHERE status='Accepted' AND no confirmation` | `TRD-3.I1` | 10.5 (backlog) | red |
-| AD-MSG-1 | Contact messages deterministic and rate-limited | Pure composer; fixed-order advisory locks | `MSG-2.I1`, `MSG-2.MEC` | 9.3 (backlog) | red |
-| AD-MSG-2 | One conversation per pair; idempotent send | Unique keys; `lastSeq` allocation | `MSG-1.I3` | 9.2 (backlog) | red |
+| AD-MSG-1 | Contact messages deterministic and rate-limited | Pure composer; fixed-order advisory locks | `MSG-2.I1`, `MSG-2.MEC` | 9.3 (done) | red |
+| AD-MSG-2 | One conversation per pair; idempotent send | Unique keys; `lastSeq` allocation | `MSG-1.I3` | 9.2 (done) | red |
 | AD-MSG-3 | Read state monotonic | `WHERE "lastReadSeq" < :seq` | `S-FR-MSG-7.f` | 9.6 (backlog) | red |
 | AD-COL-1 | Tagged-union entries; collections capped under an owner lock | CHECKs; `col:owner` lock | `COL-3.I2`, `S-FR-COL-1.f` | 11.1 (backlog), 11.2 (backlog) | red |
 | AD-COL-2 | One prompt per closed order; entries once | `UNIQUE orderId`; `WHERE status='Pending'` | `COL-1.MEC` | 11.3 (backlog) | red |
@@ -271,7 +271,7 @@
 | R-06 A business confirms payment before the buyer's "paid", or a double … | P0 | ORD | Integration (race) | `ORD-3.MEC`, `ORD-4.MEC`, `ORD-2.MEC` | 7.2 (done) | red |
 | R-07 Two orders at one instant against one order's balance, plus a dupli… | P0 | COM | Integration (race, repeat) | `COM-1.MEC`, `COM-1.MEC2` | 8.2 (done) | red |
 | R-08 Two offers for the last unit are accepted from two tabs, and both h… | P0 | TRD | Integration (race, 100 ×) | `TRD-1.MEC` | 10.3 (backlog) | red |
-| R-09 Long, accented or emoji product names break the contact message; th… | P0 | MSG | Integration (boundary, race) | `MSG-2.MEC`, `MSG-3.MEC` | 9.2 (backlog), 9.3 (backlog) | red |
+| R-09 Long, accented or emoji product names break the contact message; th… | P0 | MSG | Integration (boundary, race) | `MSG-2.MEC`, `MSG-3.MEC` | 9.2 (done), 9.3 (done) | red |
 | R-10 `OrderClosed` is delivered twice and the prompt accepted twice, dup… | P0 | COL | Integration (repeat, race) | `COL-1.MEC` | 11.3 (backlog) | red |
 | R-11 Valuation divides by a zero baseline or drifts over 500 entries (MEC) | P0 | VAL | Integration + pure | `VAL-1.MEC`, `VAL-2.I1`, `VAL-2.I3` | 12.3 (backlog), 12.5 (backlog) | red |
 | R-12 A paid-but-not-closed review is accepted; a hide racing a new revie… | P0 | REP | Integration (race, 100 ×) | `REP-1.MEC`, `REP-3.MEC` | 13.3 (backlog) | red |
@@ -314,7 +314,7 @@
 | TRD-2 | core | FR-TRD-2, FR-TRD-1 | AD-TRD-1, AD-SYS-5 | 7 | red |
 | TRD-3 | core | FR-TRD-8 | AD-TRD-3, AD-INV-2 | 4 | red |
 | MSG-1 | core | FR-MSG-5, FR-MSG-6 | AD-SYS-8, AD-MSG-2, AD-MSG-3 | 7 | red |
-| MSG-2 | core | FR-MSG-1, FR-MSG-2, FR-MSG-3, FR-TRD-6 | AD-MSG-1, AD-SYS-6, AD-SYS-8 | 7 | red |
+| MSG-2 | core | FR-MSG-1, FR-MSG-2, FR-MSG-3, FR-TRD-6 | AD-MSG-1, AD-SYS-1, AD-SYS-6, AD-SYS-8 | 7 | red |
 | MSG-3 | core | FR-MSG-4, FR-MSG-6, FR-IDN-6 | AD-IDN-1, AD-MSG-2 | 3 | red |
 | COL-1 | core | FR-COL-7 | AD-COL-2, AD-SYS-5, AD-COL-1 | 8 | red |
 | COL-2 | core | FR-COL-7 | AD-SYS-2, AD-9, AD-COL-2, AD-8 | 3 | red |

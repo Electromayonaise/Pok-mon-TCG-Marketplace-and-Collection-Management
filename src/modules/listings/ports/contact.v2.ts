@@ -35,9 +35,42 @@ export interface ContactV2Deps {
 }
 // </gen-solu2-api>
 
+import type { Tx } from '../../../shared-kernel/ports.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+
+/** MSG-2 P2–P3: a listing as the contact handoff reads it; `unit` is a single listing's unit, null for a bundle. */
+export interface ContactListingRow {
+  id: CuidId;
+  sellerId: CuidId;
+  sellerKindAtCreation: 'business' | 'individual';
+  kind: 'single' | 'bundle';
+  visible: boolean;
+  title: string | null;
+  priceCop: bigint;
+  unit: { catalogEntryId: CuidId; condition: string } | null;
+}
+
+/** MSG-2 P4: the counted rows of each window, the oldest of each, and whether the pair is a repeat (EC-36). */
+export interface ContactWindows {
+  repeat: boolean;
+  requesterHour: { count: number; oldest: IsoInstant | null };
+  requesterSellerDay: { count: number; oldest: IsoInstant | null };
+  ipHour: { count: number; oldest: IsoInstant | null };
+}
+
 /**
  * Repository port of CON (review A-4): the only way its application service reads or writes
- * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * `"ContactRequestLog"` and the listing facts it needs (AD-8). Every method takes the transaction it runs in.
  */
-export interface ContactRepository {}
+export interface ContactRepository {
+  readContactListing(tx: Tx, listingId: CuidId): Promise<ContactListingRow | null>;
+  /**
+   * AD-MSG-1 rule 3: `pg_advisory_xact_lock(msg:contact:req:<requesterId>)`, then `msg:contact:ip:<ipHmac>` when
+   * there is one, always in that order (the fixed-order pair AD-SYS-4 rule 5 allows).
+   */
+  lockContactKeys(tx: Tx, requesterId: CuidId, ipHmac: string | null): Promise<void>;
+  /** MSG-2 P4: the half-open windows `(now − w, now]` over counted rows (decision log Impl-1 #34); `repeat` reads a counted row of the pair in the last 60 min, so a chain of repeats never renews itself. */
+  readContactWindows(tx: Tx, k: { requesterId: CuidId; sellerId: CuidId; listingId: CuidId; ipHmac: string | null; now: IsoInstant }): Promise<ContactWindows>;
+  /** MSG-2 Q2: one log row; no phone and no text. */
+  insertContactLog(tx: Tx, r: { id: CuidId; requesterId: CuidId; listingId: CuidId; sellerId: CuidId; ipHmac: string | null; counted: boolean; now: IsoInstant }): Promise<void>;
+}

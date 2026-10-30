@@ -6,8 +6,11 @@
 // queue paging and its cursor, the none and barred copies, and the payment-instruction edges.
 // VER-3 and S-FR-VER-5.audit: the denial that survives its error, what the audit rows leave out,
 // the signed keys, and the access log's paging, filter and foreign cursor.
+// MSG-3: a Rejected business, the read on a pool of 1, and the FOR SHARE that holds a rejection back.
+import pg from 'pg';
 import { describe, expect, it } from 'vitest';
-import { useTestDatabase } from '../../../../test-support/db.js';
+import { PgTransactionRunner, useTestDatabase } from '../../../../test-support/db.js';
+import { PG } from '../../../../test-support/env.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
 import { caught, citedInputs, httpOf } from '../../../../test-support/errors.js';
 import { admin, at, business, DAY, explainAssert, id, ins, rejectionReason, rows, user, wiring } from '../../../../test-support/solu2/fixtures.js';
@@ -503,5 +506,37 @@ describe('PgVerRepository.insertApplication (I1)', () => {
     });
     expect(latest).toMatchObject({ status: 'Pending' });
     expect(await rows(db, 'BusinessApplication')).toHaveLength(1);
+  });
+});
+
+describe('VerServiceV2.requireMessagingEligibility (MSG-3)', () => {
+  it('a Rejected business is NotBusinessAccount citing its status', async () => {
+    await business(db, id('andres'), 'Rejected');
+    const error = await caught(() => new VerServiceV2(wiring(db)).requireMessagingEligibility({ businessId: id('andres') }));
+    expect(codeOf(error)).toBe('NotBusinessAccount');
+    expect(citedInputs(error)).toEqual({ status: 'Rejected' });
+  });
+
+  it('inside a transaction on a pool of 1 it reads on that connection, and its FOR SHARE holds a rejection until commit', async () => {
+    await business(db, id('andres'), 'Approved');
+    await rejectionReason(db, { code: 'DataMismatch' });
+    const pool = new pg.Pool({ ...PG, database: (db.pool.options as { database: string }).database, max: 1 });
+    try {
+      const transactions = new PgTransactionRunner(pool);
+      const ver = new VerServiceV2({ ...wiring(db), transactions });
+      let rejected = false;
+      let rejection: Promise<unknown> = Promise.resolve();
+      await transactions.run(async () => {
+        expect(await ver.requireMessagingEligibility({ businessId: id('andres') })).toMatchObject({ status: 'Approved', verified: true });
+        rejection = db.query(`UPDATE "BusinessApplication" SET status = 'Rejected', "rejectionReasonCode" = 'DataMismatch', "reapplyNotBefore" = $1 WHERE "businessId" = $2`, [at(DAY), id('andres')])
+          .then(() => { rejected = true; });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        expect(rejected).toBe(false);
+      });
+      await rejection;
+      expect(rejected).toBe(true);
+    } finally {
+      await pool.end();
+    }
   });
 });

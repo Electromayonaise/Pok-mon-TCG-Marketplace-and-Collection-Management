@@ -22,6 +22,8 @@ export function createMsgModule(w: MessagingWiring): MsgUseCases {
   return new MsgService({ conversations: new PgConversationRepository(w.sql), identity: w.identity, transactions: w.transactions, clock: w.clock, ids: w.ids });
 }
 
+export { PgMsgRepository } from './infra/pg.js';
+
 // <gen-solu2-api>
 export { MsgServiceV2 } from './application/msg.v2.js';
 export type { MsgV2UseCases } from './application/msg.v2.js';

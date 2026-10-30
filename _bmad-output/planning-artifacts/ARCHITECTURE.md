@@ -1521,7 +1521,7 @@ flowchart LR
      2. the listing exists and is visible (hidden, withdrawn or deactivated → `ListingNotFound`);
      3. individual-seller listing (`NotIndividualSellerListing`);
      4. rate limits.
-  3. Rate limiting is a transaction that takes `msg:contact:req:<requesterId>` then `msg:contact:ip:<ipHmac>`, always in that fixed order (the exception allowed by AD-SYS-4 rule 5: no other transaction takes both namespaces, so no cycle can form), counts rows with `counted` in the rolling windows, and inserts one row.
+  3. Rate limiting is a transaction that takes `msg:contact:req:<requesterId>` then `msg:contact:ip:<ipHmac>`, always in that fixed order (the exception allowed by AD-SYS-4 rule 5: no other transaction takes both namespaces, so no cycle can form), counts rows with `counted` in the rolling windows `(now − w, now]` (a row stamped `now` counts, and the oldest stops counting at the cited retry time; decision log Impl-1 #34), and inserts one row.
      - The limits are 30 per hour per requester, 10 per requester per seller per day, and 60 per IP per hour. A breach raises `ContactRateLimited`, citing the retry time: the oldest counted row plus the window.
      - A repeat for the same `(requesterId, listingId)` within 60 min inserts `counted=false` and is not refused [EC-36].
      - `kind='trade'` calls skip the limiter entirely [EC-37].
@@ -1530,7 +1530,7 @@ flowchart LR
      - fills the es-CO template;
      - encodes with RFC 3986;
      - truncates in the FR-MSG-2 order until `externalUrl ≤ 2000`: product name to a minimum of 20 graphemes, then offered item names longest first to 20, then "+N more items".
-     Prices, cash, conditions, quantities and the seller name are never truncated, and neither is `copyText`. A property test asserts byte-identical output across 1,000 repeated calls.
+     Prices, cash, conditions, quantities and the seller name are never truncated, and neither is `copyText`. If the minimums cannot fit, a last `overflow` step cuts the seller name to 20 graphemes and then every name below 20 until `externalUrl ≤ 2000` (decision log Impl-1 #34). A property test asserts byte-identical output across 1,000 repeated calls.
   5. `externalUrl = https://wa.me/<E164 without +>?text=<encoded>`. No module calls it. The phone is read through `identity.getContactCard` and never logged.
 - **Trade-off:** de-duplicated repeats and trade handoffs are not limited. Abuse through repeated trade offers is already bounded by `DuplicateOpenOffer` and the seller lock.
 
@@ -1546,7 +1546,7 @@ flowchart LR
   2. Eligibility is read in the send transaction:
      - `Approved` → allowed;
      - `Pending` → `allowedWithNotice` with `RecipientNotYetVerified`;
-     - anything else → `NotBusinessAccount`. On this path the response carries the composed text back to the client so the user can copy it (FR-MSG-6).
+     - anything else → `NotBusinessAccount`. On this path the client keeps the text it composed so the user can copy it (FR-MSG-6); the refusal never echoes the body, which is regulated (AD-SYS-8 rule 3; decision log Impl-1 #34).
      A reply from the business to its own buyer is always allowed while the business is `Approved` or `Pending`. A `Rejected` business's thread is read-only for both sides: a send from either side raises `NotBusinessAccount`.
   3. The send allocates `seq` with `UPDATE "Conversation" SET "lastSeq" = "lastSeq" + 1, "lastMessageAt" = :now WHERE id RETURNING "lastSeq"`. That also serializes concurrent sends in one conversation. It then inserts `Message` with `recipientVerificationAtSend` set to the eligibility status just read.
   4. A retry with the same `clientMessageId` hits the unique key and returns the original message unchanged (EC-14).

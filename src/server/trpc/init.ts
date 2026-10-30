@@ -30,16 +30,17 @@ export const UNWIRED_IDENTITY: IdentityGate = {
   requireCanBuy: async () => { throw new NotImplementedError('identity.requireCanBuy'); },
 };
 
-/** Per-request context. `clock` is the only source of `now` (AD-SYS-6). */
+/** Per-request context. `clock` is the only source of `now` (AD-SYS-6); `ipHmac` is the caller IP's HMAC (S-7), never the IP. */
 export interface TrpcContext {
   headers: Headers;
   clock: Clock;
   identity: IdentityGate;
+  ipHmac: string | null;
 }
 
 /** Never throws: the gates run in the builders, where a refusal becomes an ErrorBody. */
-export function createContext(req: Request, clock: Clock, identity: IdentityGate = UNWIRED_IDENTITY): TrpcContext {
-  return { headers: req.headers, clock, identity };
+export function createContext(req: Request, clock: Clock, identity: IdentityGate = UNWIRED_IDENTITY, ipHmacOf: (headers: Headers) => string | null = () => null): TrpcContext {
+  return { headers: req.headers, clock, identity, ipHmac: ipHmacOf(req.headers) };
 }
 
 /**
@@ -73,12 +74,12 @@ export const adminProcedure = withSession
  * Serves one non-batched tRPC request (R-9); the HTTP status is the refusal's `httpStatus`.
  * A refusal that formats as `'Unexpected'` writes one `trpc.unexpected` line to `log`.
  */
-export function serveTrpc(req: Request, appRouter: AnyRouter, clock: Clock, o: { identity?: IdentityGate; log?: Logger } = {}): Promise<Response> {
+export function serveTrpc(req: Request, appRouter: AnyRouter, clock: Clock, o: { identity?: IdentityGate; log?: Logger; ipHmac?: (headers: Headers) => string | null } = {}): Promise<Response> {
   return requestClock.run(clock, () => fetchRequestHandler({
     endpoint: '/api/trpc',
     req,
     router: appRouter,
-    createContext: () => createContext(req, clock, o.identity),
+    createContext: () => createContext(req, clock, o.identity, o.ipHmac),
     allowBatching: false,
     responseMeta: ({ data }) => {
       const refusal = data.find((d) => 'error' in d) as { error: ErrorBody } | undefined;

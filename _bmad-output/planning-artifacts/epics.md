@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 382 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 384 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -1068,11 +1068,11 @@ Let buyers contact individual sellers through a generated WhatsApp handoff, and 
 - **Binding invariants:** AD-MSG-2 — One conversation per pair; idempotent send (Unique keys; `lastSeq` allocation); also cited by its clauses: AD-MSG-3, AD-SYS-8
 - **Files:** `src/modules/messaging/application/msg.v2.ts` (`MsgServiceV2.sendMessage`), `src/modules/messaging/ports/msg.v2.ts` (`MsgRepository`), `src/modules/messaging/domain/msg.ts`, `src/modules/messaging/infra/pg.ts`
 - **Schema/DTO:** tables `"Conversation"`, `"Message"`; DTOs `SendMessageRequest` → `SendMessageResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/msg_contracts.test.ts` › `[MSG-1.Q1]`, `[MSG-1.Q2]`, `[MSG-1.I3]`, `[MSG-1.R1]`, `[MSG-3.MEC]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/msg_contracts.test.ts` › `[MSG-1.Q1]`, `[MSG-1.Q2]`, `[MSG-1.I3]`, `[MSG-1.R1]`, `[MSG-3.MEC]`; `_bmad-output/test-artifacts/nfr/msg_latency.test.ts` › `[NFR-MSG-2.send]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Camila writes to Approved Andrés for the first time. **When:** she sends. **Then:** one conversation, two participants and message seq 1; a retry with the same `clientMessageId` returns the original and writes nothing.
   - **Scenario (failure) — Given:** Andrés is rejected between compose and send, 100 times; two first messages and 20 concurrent sends. **When:** the sends run. **Then:** either the message was sent before the rejection, or `NotBusinessAccount` with zero writes; one conversation with seqs 1..20 and no gap.
-- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7); NFR-MSG-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7).
 
 ### Story 9.3: Generate the contact handoff for every product name
 
@@ -1081,14 +1081,14 @@ Let buyers contact individual sellers through a generated WhatsApp handoff, and 
 - **Contracts:** `MSG-2` generateContactMessage
 - **Depends on:** Story 5.1, Story 2.5
 - **Traceability:** FR-MSG-1, FR-MSG-2, FR-MSG-3, FR-TRD-6 · NFR-MSG-1, NFR-MSG-3, NFR-MSG-4 · Risk R-09 (P0) · UI 12.1, 12.3 (dev)
-- **Binding invariants:** AD-MSG-1 — Contact messages deterministic and rate-limited (Pure composer; fixed-order advisory locks); also cited by its clauses: AD-SYS-6, AD-SYS-8
-- **Files:** `src/modules/listings/application/contact.v2.ts` (`ContactServiceV2.generateContactMessage`), `src/modules/listings/ports/contact.v2.ts` (`ContactRepository`), `src/modules/listings/infra/pg.ts`
+- **Binding invariants:** AD-MSG-1 — Contact messages deterministic and rate-limited (Pure composer; fixed-order advisory locks); also cited by its clauses: AD-SYS-1, AD-SYS-6, AD-SYS-8
+- **Files:** `src/modules/listings/application/contact.v2.ts` (`ContactServiceV2.generateContactMessage`), `src/modules/listings/ports/contact.v2.ts` (`ContactRepository`), `src/modules/listings/domain/contact.ts`, `src/modules/listings/infra/pg.ts`
 - **Schema/DTO:** tables `"ContactRequestLog"`; DTOs `GenerateContactMessageRequest` → `GenerateContactMessageResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/msg_contracts.test.ts` › `[MSG-2.Q1]`, `[MSG-2.I1]`, `[MSG-2.MEC]`, `[MSG-2.R1]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/msg_contracts.test.ts` › `[MSG-2.Q1]`, `[MSG-2.I1]`, `[MSG-2.MEC]`, `[MSG-2.R1]`; `_bmad-output/test-artifacts/nfr/msg_latency.test.ts` › `[NFR-MSG-1.contact]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Valentina's visible individual listing at 45,000 COP. **When:** Camila requests contact. **Then:** a message naming the product and the price, a `wa.me` link and one counted request; equal inputs give byte-identical output across 1,000 runs.
   - **Scenario (failure) — Given:** product names with ñ, accents, emoji, 500 characters and URL-like text, at 1,000 and 100,000,000 COP; 50 concurrent requests from one requester. **When:** the handoff is generated. **Then:** every message fits in 2,000 characters, round-trips exactly and keeps the full price; exactly 30 requests are allowed in the hour.
-- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7); NFR-MSG-1: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7).
 
 ### Story 9.4: Refuse outsiders and businesses that initiate
 
@@ -1104,7 +1104,7 @@ Let buyers contact individual sellers through a generated WhatsApp handoff, and 
 - **Gherkin:**
   - **Scenario (happy) — Given:** Camila participates in a conversation. **When:** she writes to it. **Then:** the message is sent: the contrast case.
   - **Scenario (failure) — Given:** a business opens a conversation; a non-participant writes; the recipient business is Rejected. **When:** the send runs. **Then:** `BusinessCannotInitiate` (409); `ConversationNotVisibleToCaller` (403); `NotBusinessAccount` propagated from identity, with nothing written.
-- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-MSG-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 9.5: Refuse hidden or business listings and rate-limit contact
 
@@ -1113,14 +1113,14 @@ Let buyers contact individual sellers through a generated WhatsApp handoff, and 
 - **Contracts:** — (no registry operation of its own) · **Also proves:** `MSG-2` (operation owned by Story 9.3)
 - **Depends on:** Story 9.3
 - **Traceability:** FR-MSG-1, FR-MSG-2, FR-MSG-3, FR-TRD-6 · NFR-MSG-1, NFR-MSG-3, NFR-MSG-4
-- **Binding invariants:** also cited by its clauses: AD-MSG-1, AD-SYS-6, AD-SYS-8
+- **Binding invariants:** also cited by its clauses: AD-MSG-1, AD-SYS-1, AD-SYS-6, AD-SYS-8
 - **Files:** —
 - **Schema/DTO:** tables `"ContactRequestLog"`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/msg_contracts.test.ts` › `[MSG-2.P2]`, `[MSG-2.P3]`, `[MSG-2.P4]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Camila made 29 counted contact requests this hour. **When:** she makes the 30th. **Then:** it is allowed: the contrast case.
   - **Scenario (failure) — Given:** the listing is hidden, the listing is a business listing, or it is the 31st request in the hour. **When:** contact is requested. **Then:** `ListingNotFound` (404) without reading the phone; `NotIndividualSellerListing` (409); `ContactRateLimited` (429) citing `retryAt`; a repeat for the same listing within 60 min is logged but not counted.
-- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-MSG-1: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 9.6: Read the inbox, mark threads read and mute
 

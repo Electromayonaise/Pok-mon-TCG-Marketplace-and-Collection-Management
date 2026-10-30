@@ -22,10 +22,12 @@ export interface ProcedureShape {
 /**
  * A wired resolver: the parsed wire input and the session actor. The actor is the builder's,
  * never the input's (AD-SYS-8 rule 2); a `public` procedure gets none. A procedure with no input
- * schema (`orders.supportContact.get`) gets `undefined`.
+ * schema (`orders.supportContact.get`) gets `undefined`. `request` carries the request facts a contract
+ * needs beyond the input, such as the caller IP's HMAC (MSG-2 P4, S-7).
  */
-export type Resolvers = { [P in keyof typeof INPUTS]?: (input: z.infer<(typeof INPUTS)[P]>, actorId: CuidId) => Promise<unknown> }
-  & { [P in Exclude<(typeof PROCEDURES)[number]['procedure'], keyof typeof INPUTS>]?: (input: undefined, actorId: CuidId) => Promise<unknown> };
+export interface RequestFacts { ipHmac: string | null }
+export type Resolvers = { [P in keyof typeof INPUTS]?: (input: z.infer<(typeof INPUTS)[P]>, actorId: CuidId, request: RequestFacts) => Promise<unknown> }
+  & { [P in Exclude<(typeof PROCEDURES)[number]['procedure'], keyof typeof INPUTS>]?: (input: undefined, actorId: CuidId, request: RequestFacts) => Promise<unknown> };
 
 const BUILDERS = { public: publicProcedure, authed: authedProcedure, canBuy: canBuyProcedure, admin: adminProcedure };
 const inputs: Partial<Record<string, z.ZodObject>> = INPUTS;
@@ -35,9 +37,9 @@ function registryProcedure({ procedure, kind, builder }: (typeof PROCEDURES)[num
   const base = BUILDERS[builder] as typeof publicProcedure;
   const input = inputs[procedure];
   const withInput = input ? base.input(input) : base;
-  const wired = (resolvers as Partial<Record<string, (input: unknown, actorId: CuidId) => Promise<unknown>>>)[procedure];
+  const wired = (resolvers as Partial<Record<string, (input: unknown, actorId: CuidId, request: RequestFacts) => Promise<unknown>>>)[procedure];
   const resolve = wired
-    ? ({ ctx, input: parsed }: { ctx: object; input: unknown }) => wired(parsed, (ctx as { actorId: CuidId }).actorId)
+    ? ({ ctx, input: parsed }: { ctx: object; input: unknown }) => wired(parsed, (ctx as { actorId: CuidId }).actorId, { ipHmac: (ctx as { ipHmac: string | null }).ipHmac })
     : async (): Promise<never> => { throw new NotImplementedError(procedure); };
   return kind === 'query' ? withInput.query(resolve) : withInput.mutation(resolve);
 }

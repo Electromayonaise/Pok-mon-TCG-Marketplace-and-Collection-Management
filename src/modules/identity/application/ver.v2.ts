@@ -37,7 +37,6 @@ export interface VerV2UseCases {
 import type { Citation, Decision } from '../../../shared-kernel/decision.js';
 import { ambientTx } from '../../../shared-kernel/db.js';
 import { requireAdmin } from './admin.js';
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
@@ -45,8 +44,9 @@ import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId } from '../../../shared-kernel/types.js';
 import {
   CURRENT_CONSENT_VERSION, decodeAccessLogCursor, decodeQueueCursor, encodeAccessLogCursor, encodeQueueCursor, evaluateSubmission, isValidCc,
-  isValidNit, rejectionSnapshot, verificationCopy,
+  isValidNit, messagingEligibility, rejectionSnapshot, verificationCopy,
 } from '../domain/ver.js';
+import { deriveCapabilities } from '../domain/idn.js';
 import type { PaymentInstructionsInput } from '../dto/ver.v2.dto.js';
 import type { ApplicationTransition, RejectionReasonRow } from '../ports/ver.v2.js';
 import { IdnServiceV2 } from './idn.v2.js';
@@ -75,7 +75,7 @@ const DOCUMENT_MAGIC = [
 type DocumentType = (typeof DOCUMENT_MAGIC)[number][0];
 type DocumentRefusal = 'missing' | 'size' | 'magic' | 'scanner';
 
-/** Every method not yet done throws NotImplementedError (red for the right reason). */
+/** VER's use cases (contracts.md §5) and MSG-3 (§9). */
 export class VerServiceV2 implements VerV2UseCases {
   constructor(protected readonly deps: VerV2Deps) {}
 
@@ -416,8 +416,29 @@ export class VerServiceV2 implements VerV2UseCases {
     return { businessName: await transactions.run((tx) => repo.readLatestBusinessName(tx, input.businessId), { readOnly: true }) };
   }
 
-  async requireMessagingEligibility(_input: RequireMessagingEligibilityRequest): Promise<RequireMessagingEligibilityResponse> {
-    throw new NotImplementedError('identity.requireMessagingEligibility');
+  /**
+   * MSG-3: the business's current verification, from one `deriveCapabilities(facts)` read with no cache (AD-IDN-1 rule 4).
+   * Inside the send transaction (AD-SYS-4 rule 9) it reads on that transaction, after taking the latest application
+   * `FOR SHARE` (decision log Impl-1 #34). Zero writes, no event, no audit. Any other state is `NotBusinessAccount`,
+   * citing only the status, so an unknown id and an individual seller give the same body.
+   */
+  async requireMessagingEligibility({ businessId }: RequireMessagingEligibilityRequest): Promise<RequireMessagingEligibilityResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const read = async (tx: Tx, lock: boolean) => {
+      if (lock) await repo.lockLatestApplicationForShare(tx, businessId);
+      const facts = await repo.readCapabilityFacts(tx, businessId);
+      return facts === null ? 'none' : deriveCapabilities(facts).verification;
+    };
+    const tx = ambientTx();
+    const verification = tx ? await read(tx, true) : await transactions.run((t) => read(t, false), { readOnly: true });
+    const eligible = messagingEligibility(verification);
+    if (eligible === null) return raise('NotBusinessAccount', [{ rule: 'FR-IDN-6', inputs: { status: verification } }]);
+    const citations: [Citation] = [{ rule: 'FR-IDN-6', inputs: { businessId, status: eligible.status } }];
+    const now = clock.now().toISOString();
+    const decision: Decision = eligible.verified
+      ? { outcome: 'allowed', reasonCode: 'MessagingEligible', humanMessage: renderMessage('MessagingEligible', citations[0].inputs), citations, occurredAt: now }
+      : { outcome: 'allowedWithNotice', reasonCode: 'RecipientNotYetVerified', humanMessage: renderMessage('RecipientNotYetVerified', citations[0].inputs), citations, occurredAt: now };
+    return { ...eligible, decision };
   }
 
   /** S-FR-VER-8.list: admin only; every reason, active or not, by code. */

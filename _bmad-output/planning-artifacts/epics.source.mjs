@@ -427,14 +427,14 @@ export default {
         {
           title: 'Send messages while verification changes', kind: 'MEC',
           as: 'As Camila, I want my first message to open one conversation with gapless order, and to fail cleanly if the business is rejected while I type (Annex A MEC, R-09).',
-          ops: ['MSG-1'], tests: ['MSG-1.Q1', 'MSG-1.Q2', 'MSG-1.I3', 'MSG-1.R1', 'MSG-3.MEC'], depends: ['9.1', '2.5', '3.5'],
+          ops: ['MSG-1'], tests: ['MSG-1.Q1', 'MSG-1.Q2', 'MSG-1.I3', 'MSG-1.R1', 'MSG-3.MEC', 'NFR-MSG-2.send'], depends: ['9.1', '2.5', '3.5'],
           happy: ['Camila writes to Approved Andrés for the first time.', 'she sends.', 'one conversation, two participants and message seq 1; a retry with the same `clientMessageId` returns the original and writes nothing.'],
           failure: ['Andrés is rejected between compose and send, 100 times; two first messages and 20 concurrent sends.', 'the sends run.', 'either the message was sent before the rejection, or `NotBusinessAccount` with zero writes; one conversation with seqs 1..20 and no gap.'],
         },
         {
           title: 'Generate the contact handoff for every product name', kind: 'MEC',
           as: 'As Camila, I want the WhatsApp contact message to name the product and price exactly for any name, so that the seller knows what I mean (Annex A MEC, R-09).',
-          ops: ['MSG-2'], tests: ['MSG-2.Q1', 'MSG-2.I1', 'MSG-2.MEC', 'MSG-2.R1'], depends: ['5.1', '2.5'],
+          ops: ['MSG-2'], tests: ['MSG-2.Q1', 'MSG-2.I1', 'MSG-2.MEC', 'MSG-2.R1', 'NFR-MSG-1.contact'], depends: ['5.1', '2.5'],
           happy: ['Valentina\'s visible individual listing at 45,000 COP.', 'Camila requests contact.', 'a message naming the product and the price, a `wa.me` link and one counted request; equal inputs give byte-identical output across 1,000 runs.'],
           failure: ['product names with ñ, accents, emoji, 500 characters and URL-like text, at 1,000 and 100,000,000 COP; 50 concurrent requests from one requester.', 'the handoff is generated.', 'every message fits in 2,000 characters, round-trips exactly and keeps the full price; exactly 30 requests are allowed in the hour.'],
         },
