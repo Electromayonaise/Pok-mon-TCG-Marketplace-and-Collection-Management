@@ -1,7 +1,9 @@
-// NFR benchmark — NFR-VAL-2: the current value of a 500-entry collection p95 ≤ 1,500 ms at N = 1 (contracts.md §11). PRD §7
+// NFR benchmark — NFR-VAL-2: the current value plus the 30-day trend of a 500-entry collection p95 ≤ 1,500 ms, and its
+// 365-day history p95 ≤ 2,500 ms, at N = 1 (contracts.md §11). PRD §7
 // protocol: Postgres, the §3 seed's 500-entry collection (480 catalog entries with 90 days of history, 20 link-added), 50
 // warm-up and 500 measured calls, server-side service time. The service is composed as the composition root binds it (the
-// real catalog, no fakes), so the measured path is the real one.
+// real catalog, no fakes), so the measured path is the real one. The trend and history runs take 550 × 200–300 ms locally,
+// so their timeout leaves room for a slower CI runner.
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CatServiceV2 } from '../../../src/modules/catalog/index.js';
@@ -49,4 +51,25 @@ describe('NFR-VAL-2 — valuation latency (PRD §7)', () => {
     const result = await measure('nfr-val-2-current', () => val.valueCollection(big));
     expect(result.p95).toBeLessThanOrEqual(1_500);
   }, 300_000);
+
+  it('[NFR-VAL-2.trend] 500 measured reads of the current value plus the 30-day trend of the 500-entry collection: p95 ≤ 1,500 ms', async () => {
+    await seedMarketplace(db);
+    const val = valuation();
+    // Given: the seed's history reaches 90 days back, so the 30-day trend has a baseline.
+    expect((await val.valuationTrend({ ...big, period: 30 })).changePercentHundredths).not.toBeNull();
+    const result = await measure('nfr-val-2-trend', async () => {
+      await val.valueCollection(big);
+      await val.valuationTrend({ ...big, period: 30 });
+    });
+    expect(result.p95).toBeLessThanOrEqual(1_500);
+  }, 600_000);
+
+  it('[NFR-VAL-2.history] 500 measured 365-day histories of the 500-entry collection: p95 ≤ 2,500 ms', async () => {
+    await seedMarketplace(db);
+    const val = valuation();
+    // Given: the entries were acquired on 2026-08-01, so the series runs from that day to today.
+    expect((await val.valuationHistory({ ...big, days: 365 })).points.length).toBeGreaterThan(60);
+    const result = await measure('nfr-val-2-history', () => val.valuationHistory({ ...big, days: 365 }));
+    expect(result.p95).toBeLessThanOrEqual(2_500);
+  }, 600_000);
 });

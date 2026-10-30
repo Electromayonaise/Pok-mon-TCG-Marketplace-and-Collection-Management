@@ -25,8 +25,8 @@
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
-| NFR evidence status | Green — ATDD: 29; Green — benchmark: 12; Green — gate: 8; Red — ATDD: 11; Deferred — launch: 3; Planned — story DoD: 3; the page copy belongs to UI 6.2: 1; the 35 s visibility is the client's 30 s polling: 1; Green — benchmark (current value: 1; the trend and the history wait for Story 12.2): 1 |
-| Contract clauses / test ids | 112 / 387 (375 red, 12 green) |
+| NFR evidence status | Green — ATDD: 29; Green — benchmark: 13; Green — gate: 8; Red — ATDD: 11; Deferred — launch: 3; Planned — story DoD: 3; the page copy belongs to UI 6.2: 1; the 35 s visibility is the client's 30 s polling: 1 |
+| Contract clauses / test ids | 112 / 389 (377 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -118,9 +118,9 @@
 | FR-COL-6 | Wishlist, separate from collections (CAP-13, CAP-14) | S-FR-COL-6 | AD-1, AD-7 | 2 — `S-FR-COL-6.f`, `S-FR-COL-6.h` | 11.5 (backlog), 11.6 (backlog) | red |
 | FR-COL-7 | Exactly one post-purchase prompt per closed order (CAP-27) | COL-1, COL-2, COL-1.list | AD-COL-2, AD-SYS-5, AD-COL-1, AD-SYS-2 | 11 — `COL-1.MEC`, `COL-1.P1`, `COL-1.P2` +8 | 11.3 (done), 11.4 (done) | red |
 | FR-VAL-1 | Current value in integer COP (CAP-9) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (backlog), 12.4 (backlog) | red |
-| FR-VAL-2 | Period trend with a defined zero baseline (CAP-9, CAP-3) | VAL-2 | AD-VAL-2, AD-SYS-7 | 4 — `VAL-2.I1`, `VAL-2.I3`, `VAL-2.P2` +1 | 12.2 (backlog), 12.3 (backlog), 12.4 (backlog), 12.5 (backlog) | red |
+| FR-VAL-2 | Period trend with a defined zero baseline (CAP-9, CAP-3) | VAL-2 | AD-VAL-2, AD-SYS-7 | 4 — `VAL-2.I1`, `VAL-2.I3`, `VAL-2.P2` +1 | 12.2 (done), 12.3 (backlog), 12.4 (backlog), 12.5 (backlog) | red |
 | FR-VAL-3 | Unpriced and stale items (CAP-9, CAP-12) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (backlog), 12.4 (backlog) | red |
-| FR-VAL-4 | Value history series (CAP-9) | VAL-3 | AD-VAL-2, AD-CAT-2 | 4 — `VAL-3.I2`, `VAL-3.P1`, `VAL-3.Q1` +1 | 12.2 (backlog), 12.4 (backlog), 12.5 (backlog) | red |
+| FR-VAL-4 | Value history series (CAP-9) | VAL-3 | AD-VAL-2, AD-CAT-2 | 4 — `VAL-3.I2`, `VAL-3.P1`, `VAL-3.Q1` +1 | 12.2 (done), 12.4 (backlog), 12.5 (backlog) | red |
 | FR-VAL-5 | Money-shape separation (CAP-3, CAP-9) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (backlog), 12.4 (backlog) | red |
 | FR-REP-1 | Gated review of a business (CAP-7) | REP-1, REP-1.edit, REP-1.check | AD-REP-1, AD-2 | 11 — `REP-1.I1`, `REP-1.I2`, `REP-1.MEC` +8 | 13.1 (backlog), 13.4 (backlog) | red |
 | FR-REP-2 | Ungated review of an individual seller (CAP-7) | REP-1, REP-1.edit, REP-1.check | AD-REP-1, AD-2 | 11 — `REP-1.I1`, `REP-1.I2`, `REP-1.MEC` +8 | 13.1 (backlog), 13.4 (backlog) | red |
@@ -188,7 +188,7 @@
 | NFR-MSG-3 | 0 outbound calls to external messaging services (NFR-SYS-3 guard). | MSG-2 | `SYS-6.R4` | 8 | Green — gate |
 | NFR-COL-2 | a binder page render (sorted | — | — | 0 | Planned — story DoD |
 | NFR-COL-3 | there are 0 CatalogEntry writes from collections | — | `SYS-AD8`, `S-FR-COL-3.h` | 2 | Green — gate |
-| NFR-VAL-2 | current value plus the 30-day trend for 500 entries takes p95 ≤ 1,500 ms | VAL-1, VAL-3 | `NFR-VAL-2.current` | 10 | Green — benchmark (current value; the trend and the history wait for Story 12.2) |
+| NFR-VAL-2 | current value plus the 30-day trend for 500 entries takes p95 ≤ 1,500 ms | VAL-1, VAL-3 | `NFR-VAL-2.current`, `NFR-VAL-2.trend`, `NFR-VAL-2.history` | 12 | Green — benchmark |
 | NFR-VAL-3 | 0 floating-point operations on COP in valuation code | VAL-1, VAL-2 | `VAL-1.I1`, `VAL-2.I3` | 9 | Red — ATDD |
 | NFR-REP-2 | a profile read (aggregate plus the first page) takes p95 ≤ 300 ms | REP-2, REP-3 | `S-FR-REP-7.h` | 12 | Red — ATDD (next read); Planned — story DoD (latency) |
 | NFR-REP-3 | 0 hard deletes of Review or Listing rows | — | `REP-2.I1`, `SYS-R2.grants` | 2 | Green — gate (grant); Red — ATDD (behaviour) |

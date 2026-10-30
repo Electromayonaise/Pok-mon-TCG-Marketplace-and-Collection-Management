@@ -15,16 +15,24 @@ export interface ValV2UseCases {
 // </gen-solu2-api>
 
 import type { Citation, Decision } from '../../../shared-kernel/decision.js';
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import type { Tx } from '../../../shared-kernel/ports.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest } from '../../../shared-kernel/request.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import { assertSafeInteger, chunks, referencePrice, valueEntries, type ReferencePriceInput, type ValuationEntry } from '../domain/val.js';
+import { bogotaDate } from '../domain/col.js';
+import {
+  addDays, assertSafeInteger, bogotaDayStart, changePercentHundredths, chunks, isValuationPeriod, referencePrice, series, valueEntries,
+  type HistoryEntry, type ReferencePriceInput, type ValuationEntry,
+} from '../domain/val.js';
 import type { ValuationEntryRow } from '../ports/val.v2.js';
 
 const raise = raiserFor('collections');
+
+/** AD-VAL-2 rule 6 (A-54): every trend and history reads "Lo que valían tus cartas actuales". */
+const LABEL = 'current-cards-were-worth' as const;
+const DAY_MS = 86_400_000;
 
 /** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
 function explained(code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
@@ -81,11 +89,73 @@ export class ValServiceV2 implements ValV2UseCases {
     });
   }
 
-  async valuationTrend(_input: ValuationTrendRequest): Promise<ValuationTrendResponse> {
-    throw new NotImplementedError('collections.valuationTrend');
+  /** VAL-2 Q1: `V(t)` over `entries` priced by `prices`, as an exact BigInt. */
+  private static value(entries: readonly ValuationEntryRow[], prices: ReadonlyMap<CuidId, ReferencePriceInput>): bigint {
+    return valueEntries(ValServiceV2.valuationInput(entries, prices)).totalCop;
   }
 
-  async valuationHistory(_input: ValuationHistoryRequest): Promise<ValuationHistoryResponse> {
-    throw new NotImplementedError('collections.valuationHistory');
+  /**
+   * VAL-2 (AD-VAL-2 rules 1–4): P1, then P2; `V(start)` and `V(now)` in one snapshot over the current entries acquired by
+   * each instant's Bogotá date, and the percentages in BigInt, null on a zero baseline (never NaN or Infinity).
+   */
+  async valuationTrend(input: ValuationTrendRequest): Promise<ValuationTrendResponse> {
+    const { collectionId, period, actorId } = input;
+    const now = this.deps.clock.now();
+    const asOf = now.toISOString();
+    return this.snapshot(async (tx) => {
+      await this.owned(tx, collectionId, actorId, 'VAL-2 P1');
+      if (!isValuationPeriod(period)) return raise('InvalidValuationPeriod', [{ rule: 'FR-VAL-2', inputs: { period } }]);
+      const start = new Date(now.getTime() - period * DAY_MS).toISOString();
+      const entries = await this.deps.repo.readValuationEntries(tx, collectionId);
+      const startDate = bogotaDate(new Date(start));
+      const today = bogotaDate(now);
+      const atStart = entries.filter((e) => e.acquiredAt <= startDate);
+      const pricesNow = await this.pricesAsOf(entries, asOf);
+      const valueAtStart = ValServiceV2.value(atStart, await this.pricesAsOf(atStart, start));
+      const valueNow = ValServiceV2.value(entries.filter((e) => e.acquiredAt <= today), pricesNow);
+      const change = valueNow - valueAtStart;
+      const percent = changePercentHundredths(valueAtStart, valueNow);
+      const market = changePercentHundredths(valueAtStart, ValServiceV2.value(atStart, pricesNow));
+      const valueAtStartCop = assertSafeInteger(valueAtStart, 'valueAtStartCop');
+      const valueNowCop = assertSafeInteger(valueNow, 'valueNowCop');
+      const changeCop = assertSafeInteger(change, 'changeCop');
+      const decision = percent === null
+        ? explained('ValuationNoBaseline', [{ rule: 'FR-VAL-2', inputs: { valueAtStartCop, changeCop } }], asOf)
+        : explained('ValuationTrendComputed', [{ rule: 'FR-VAL-2', inputs: { period, valueAtStartCop, valueNowCop } }], asOf);
+      return {
+        period, start, asOf, valueAtStartCop, valueNowCop, changeCop,
+        changePercentHundredths: percent === null ? null : Number(percent),
+        marketChangePercentHundredths: market === null ? null : Number(market),
+        label: LABEL, decision,
+      };
+    });
+  }
+
+  /**
+   * VAL-3 (AD-VAL-2 rule 5): P1, then P2; one `getPriceHistory` per 500 distinct cards over at most 365 Bogotá days
+   * (decision log Impl-1 #37, D3), and the pure `series`, which carries prices forward and never interpolates.
+   */
+  async valuationHistory(input: ValuationHistoryRequest): Promise<ValuationHistoryResponse> {
+    const { collectionId, days, actorId } = input;
+    const now = this.deps.clock.now();
+    const asOf = now.toISOString();
+    return this.snapshot(async (tx) => {
+      await this.owned(tx, collectionId, actorId, 'VAL-3 P1');
+      if (!Number.isSafeInteger(days) || days < 1 || days > 365) rejectRequest([{ field: 'days', issue: 'debe ser un número entero entre 1 y 365' }]);
+      const entries = (await this.deps.repo.readValuationEntries(tx, collectionId)).filter((e) => e.cardKind === 'catalog' && e.catalogEntryId !== null);
+      const from = new Date(bogotaDayStart(addDays(bogotaDate(now), -(days - 1)))).toISOString();
+      const observations = new Map<CuidId, HistoryEntry['observations']>();
+      for (const chunk of chunks([...new Set(entries.map((e) => e.catalogEntryId!))])) {
+        const { series: rows } = await this.deps.catalog.getPriceHistory({ catalogEntryIds: chunk, from, to: asOf });
+        for (const r of rows) observations.set(r.catalogEntryId, r.observations);
+      }
+      const history = entries.map((e) => ({ qty: BigInt(e.qty), acquiredAt: e.acquiredAt, observations: observations.get(e.catalogEntryId!) ?? [] }));
+      const pricedEntries = history.filter((e) => e.observations.length > 0).length;
+      const points = series(history, days, now).map((p) => ({ date: p.date, valueCop: assertSafeInteger(p.valueCop, 'valueCop'), stale: p.stale }));
+      const decision = pricedEntries === 0
+        ? explained('ValuationHistoryEmpty', [{ rule: 'FR-VAL-4', inputs: { pricedEntries } }], asOf)
+        : explained('ValuationHistoryShown', [{ rule: 'FR-VAL-4', inputs: { pricedEntries, points: points.length } }], asOf);
+      return { points, label: LABEL, decision };
+    });
   }
 }

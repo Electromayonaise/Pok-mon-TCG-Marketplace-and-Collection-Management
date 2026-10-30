@@ -2,7 +2,7 @@
 title: 'Story 12.2: Show the valuation trend and daily history'
 type: 'feature'
 created: '2026-10-30'
-status: 'draft'
+status: 'done'
 baseline_commit: '49b09cc'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -55,8 +55,8 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] trend + history + series + src tests; §13 rows; wiring; benchmarks + binding
-- [ ] `sprint-status.yaml` -- 12.2 `done`
+- [x] trend + history + series + src tests; §13 rows; wiring; benchmarks + binding
+- [x] `sprint-status.yaml` -- 12.2 `done`
 
 **Acceptance Criteria:**
 - Given 12.2 `done`, when `[VAL-2.Q1]`, `[VAL-3.Q1]`, `[VAL-3.I2]`, `[NFR-VAL-2.trend]`, `[NFR-VAL-2.history]` run, then they pass; 12.3's `[VAL-2.I1]`, 12.4's `[VAL-2.P2]`, `[VAL-3.P1]` and 12.5's `[VAL-3.Q4]`, `[VAL-2.I3]` are early greens (D1).
@@ -64,3 +64,13 @@ context:
 ## Verification
 
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/val_contracts.test.ts -t "VAL-2|VAL-3"`
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 12 at its close (decision #22). The specs were approved together with D1–D5 (decision log Impl-1 #37).
+- VAL-2 reads the entries once, then prices the whole set as of `now` and the entries acquired by `bogotaDate(start)` as of `start`, all in 12.1's snapshot. `V(now)` keeps the `acquiredAt ≤ today` filter of Q1; the market change reuses the `now` prices over the baseline set, so it costs no third read.
+- `roundHalfAwayFromZero` lives in `domain/val.ts` (the catalog's own `changePercent` is in its domain, which VAL may not import); `changePercentHundredths` returns `null` on a zero baseline, and `val-domain.test.ts` covers ±0.5 at both signs, −0 and the symmetry of I2.
+- VAL-3 drops external entries before the history read, asks `getPriceHistory` from the Bogotá start of `today − days + 1` to `now` (D3; contracts.md VAL-3 Q2 says so now) and builds the points with the pure `series`, which walks each entry's observations with a forward-only pointer. Today's staleness is judged at `now` (D4).
+- §13 gains `ValuationNoBaseline` (its template, the rule of decision log Impl-1 #16), `ValuationTrendComputed`, `ValuationHistoryShown` and `ValuationHistoryEmpty` (D2). `valuation.trend` and `valuation.history` are wired, with an HTTP test.
+- Epic 4's `getPriceHistory` window deferral is closed; its `getFxRate` deferral stays open, now owned by the jobs route (D3).
+- Measured on the seed's 500-entry collection, local Postgres 16: `[NFR-VAL-2.trend]` (current value plus the 30-day trend) p95 281.2 ms (p50 221.8, max 320.6); `[NFR-VAL-2.history]` (365 days) p95 201.3 ms (p50 164.1, max 249.8). Their timeouts are 600 s, since each run is 550 calls of 200–300 ms.

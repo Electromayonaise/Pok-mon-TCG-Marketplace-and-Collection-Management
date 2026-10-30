@@ -136,7 +136,7 @@ development_status:
   epic-11-retrospective: optional
   epic-12: in-progress
   12-1-value-a-collection-exactly: done
-  12-2-show-the-valuation-trend-and-daily-history: backlog
+  12-2-show-the-valuation-trend-and-daily-history: done
   12-3-value-500-mixed-entries-with-zero-drift-and-a-zero-baseline: backlog
   12-4-refuse-foreign-collections-and-invalid-periods: backlog
   12-5-explain-empty-series-and-rounding-edges: backlog

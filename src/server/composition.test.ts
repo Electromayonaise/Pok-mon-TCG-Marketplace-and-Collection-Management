@@ -816,7 +816,7 @@ describe('collections over HTTP (S-FR-COL-1, COL-3, COL-1, COL-2; Stories 11.1â€
   });
 });
 
-describe('valuation over HTTP (VAL-1; Story 12.1)', () => {
+describe('valuation over HTTP (VAL-1, VAL-2, VAL-3; Stories 12.1, 12.2)', () => {
   it('the owner values a collection through the real catalog in one snapshot; another user gets CollectionNotFound 404', async () => {
     await user(db, { id: id('valentina') });
     await user(db, { id: id('julian') });
@@ -829,5 +829,24 @@ describe('valuation over HTTP (VAL-1; Story 12.1)', () => {
     expect(valued.json.result?.data).toMatchObject({ totalCop: 90_000, valuedCount: 1, staleCount: 0, notValued: [], decision: { reasonCode: 'CollectionValued' } });
     const foreign = await get('valuation.current', { collectionId: id('coll1') }, await signIn(id('julian')));
     expect([foreign.status, foreign.json.error?.code]).toEqual([404, 'CollectionNotFound']);
+  });
+
+  it('the owner reads the 30-day trend and a 7-day history; a 14-day period and 366 days are refused at the parser', async () => {
+    await user(db, { id: id('valentina') });
+    await catalogEntry(db, id('char'));
+    await feedRun(db, id('run1'));
+    await observation(db, { id: id('obs0'), catalogEntryId: id('char'), cop: 40_000, observedAt: at(-40 * DAY), runId: id('run1') });
+    await observation(db, { id: id('obs1'), catalogEntryId: id('char'), cop: 45_000, observedAt: at(-DAY), runId: id('run1') });
+    await ins(db, 'Collection', { id: id('coll1'), ownerId: id('valentina'), name: 'General' });
+    await ins(db, 'CollectionEntry', { id: id('e1'), collectionId: id('coll1'), cardKind: 'catalog', catalogEntryId: id('char'), source: 'Manual', qty: 1, acquiredAt: '2026-08-01', manualPosition: 0 });
+    const valentina = await signIn(id('valentina'));
+    const trend = await get('valuation.trend', { collectionId: id('coll1'), period: 30 }, valentina);
+    expect(trend.json.result?.data).toMatchObject({ valueAtStartCop: 40_000, valueNowCop: 45_000, changePercentHundredths: 1_250, label: 'current-cards-were-worth', decision: { reasonCode: 'ValuationTrendComputed' } });
+    const history = await get('valuation.history', { collectionId: id('coll1'), days: 7 }, valentina);
+    const points = history.json.result?.data.points as { date: string; valueCop: number; stale: boolean }[];
+    expect(points).toHaveLength(7);
+    expect(points.at(-1)).toEqual({ date: '2026-10-01', valueCop: 45_000, stale: false });
+    expect((await get('valuation.trend', { collectionId: id('coll1'), period: 14 }, valentina)).status).toBe(400);
+    expect((await get('valuation.history', { collectionId: id('coll1'), days: 366 }, valentina)).json.error?.code).toBe('RequestValidationFailed');
   });
 });

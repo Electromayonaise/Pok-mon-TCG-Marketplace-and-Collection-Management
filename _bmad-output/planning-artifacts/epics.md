@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 387 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 389 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -1352,11 +1352,11 @@ Value collections exactly in COP from reference prices read as of one instant. S
 - **Binding invariants:** also cited by its clauses: AD-CAT-2, AD-SYS-7, AD-VAL-2
 - **Files:** `src/modules/collections/application/val.v2.ts` (`ValServiceV2.valuationTrend`, `ValServiceV2.valuationHistory`), `src/modules/collections/ports/val.v2.ts` (`ValRepository`), `src/modules/collections/domain/val.ts`, `src/modules/collections/infra/pg.ts`
 - **Schema/DTO:** DTOs `ValuationTrendRequest` → `ValuationTrendResponse`, `ValuationHistoryRequest` → `ValuationHistoryResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/val_contracts.test.ts` › `[VAL-2.Q1]`, `[VAL-3.Q1]`, `[VAL-3.I2]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/val_contracts.test.ts` › `[VAL-2.Q1]`, `[VAL-3.Q1]`, `[VAL-3.I2]`; `_bmad-output/test-artifacts/nfr/val2_latency.test.ts` › `[NFR-VAL-2.trend]`, `[NFR-VAL-2.history]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a card worth 40,000 thirty days ago and 45,000 now. **When:** Valentina reads the trend and the history. **Then:** +12.50 % with the market change and the "current cards" label; one point per Bogotá day, stepping up by a new card's value on its acquisition date.
   - **Scenario (failure) — Given:** a day with no new observation. **When:** the history is computed. **Then:** the last price is carried forward and marked stale after 36 h, never interpolated.
-- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 12.3: Value 500 mixed entries with zero drift and a zero baseline
 

@@ -567,7 +567,7 @@ export default {
         {
           title: 'Show the valuation trend and daily history', kind: 'Core',
           as: 'As Valentina, I want the 30-day trend and a daily value series, so that I see how my collection moved.',
-          ops: ['VAL-2', 'VAL-3'], tests: ['VAL-2.Q1', 'VAL-3.Q1', 'VAL-3.I2'], depends: ['12.1'],
+          ops: ['VAL-2', 'VAL-3'], tests: ['VAL-2.Q1', 'VAL-3.Q1', 'VAL-3.I2', 'NFR-VAL-2.trend', 'NFR-VAL-2.history'], depends: ['12.1'],
           happy: ['a card worth 40,000 thirty days ago and 45,000 now.', 'Valentina reads the trend and the history.', '+12.50 % with the market change and the "current cards" label; one point per Bogotá day, stepping up by a new card\'s value on its acquisition date.'],
           failure: ['a day with no new observation.', 'the history is computed.', 'the last price is carried forward and marked stale after 36 h, never interpolated.'],
         },
