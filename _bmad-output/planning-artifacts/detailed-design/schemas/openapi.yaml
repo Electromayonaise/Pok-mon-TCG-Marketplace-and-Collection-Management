@@ -6521,7 +6521,7 @@ paths:
                           httpStatus:
                             const: 403
         "409":
-          description: "Refusal: TradeOfferNotOpen."
+          description: "Refusal: TradeOfferNotOpen, NotYourTurn."
           content:
             "application/json":
               schema:
@@ -6538,6 +6538,7 @@ paths:
                             type: "string"
                             enum:
                               - "TradeOfferNotOpen"
+                              - "NotYourTurn"
                           httpStatus:
                             const: 409
         "500":
@@ -6999,6 +7000,47 @@ paths:
                               - "TradeOfferNotVisibleToCaller"
                           httpStatus:
                             const: 403
+        "404":
+          description: "Refusal: ListingNotFound."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "ListingNotFound"
+                          httpStatus:
+                            const: 404
+        "409":
+          description: "Refusal: TradeNotAccepted, NotIndividualSellerListing."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "TradeNotAccepted"
+                              - "NotIndividualSellerListing"
+                          httpStatus:
+                            const: 409
         "500":
           "$ref": "#/components/responses/Unexpected"
       parameters:

@@ -25,8 +25,8 @@
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
-| NFR evidence status | Green — ATDD: 27; Green — benchmark: 11; Green — gate: 8; Red — ATDD (`[COM-1.I3]` green with Story 8.2: 1; `[VAL-1.I1]` waits for Epic 12): 1; Red — ATDD: 13; Deferred — launch: 3; Planned — story DoD: 5; the page copy belongs to UI 6.2: 1; the 35 s visibility is the client's 30 s polling: 1 |
-| Contract clauses / test ids | 112 / 384 (372 red, 12 green) |
+| NFR evidence status | Green — ATDD: 28; Green — benchmark: 12; Green — gate: 8; Red — ATDD (`[COM-1.I3]` green with Story 8.2: 1; `[VAL-1.I1]` waits for Epic 12): 1; Red — ATDD: 11; Deferred — launch: 3; Planned — story DoD: 4; the page copy belongs to UI 6.2: 1; the 35 s visibility is the client's 30 s polling: 1 |
+| Contract clauses / test ids | 112 / 386 (374 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -93,15 +93,15 @@
 | FR-COM-7 | Configure the commission rate (CAP-21) | S-FR-COM-7, S-FR-COM-7.list | AD-COM-2 | 3 — `S-FR-COM-7.f`, `S-FR-COM-7.h`, `S-FR-COM-7.list.h` | 8.6 (backlog) | red |
 | FR-COM-8 | Ledger views and reconciliation (CAP-21) | COM-3, S-FR-COM-8.ledger, COM-3.last | AD-SYS-4, AD-SYS-1, AD-COM-1, AD-19 | 7 — `COM-3.I1`, `COM-3.P2`, `COM-3.Q1` +4 | 8.5 (backlog), 8.6 (backlog) | red |
 | FR-COM-9 | Low-balance notice (CAP-21) | S-FR-COM-9 | AD-COM-3 | 2 — `S-FR-COM-9.f`, `S-FR-COM-9.h` | 8.1 (done), 8.4 (done) | red |
-| FR-TRD-1 | Make an offer on an open-to-trade listing (CAP-25) | TRD-2, S-FR-TRD-1 | AD-TRD-1, AD-SYS-5 | 9 — `TRD-2.I3`, `TRD-2.P2`, `TRD-2.P5` +6 | 10.1 (backlog), 10.2 (backlog), 10.4 (backlog) | red |
-| FR-TRD-2 | Turn-taking: reject, counter, withdraw (CAP-25) | TRD-2, S-FR-TRD-2w | AD-TRD-1, AD-SYS-5 | 9 — `TRD-2.I3`, `TRD-2.P2`, `TRD-2.P5` +6 | 10.1 (backlog), 10.2 (backlog), 10.4 (backlog) | red |
-| FR-TRD-3 | Visibility (CAP-25) | S-FR-TRD-3, S-FR-TRD-3.mine | AD-TRD-1 | 3 — `S-FR-TRD-3.f`, `S-FR-TRD-3.h`, `S-FR-TRD-3.mine.h` | 10.1 (backlog), 10.3 (backlog), 10.4 (backlog) | red |
-| FR-TRD-4 | Accept and reserve (CAP-25) | TRD-1 | AD-TRD-2, AD-6, AD-TRD-3 | 9 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +6 | 10.3 (backlog), 10.4 (backlog) | red |
-| FR-TRD-5 | Competing offers become unfulfillable (CAP-25) | TRD-1 | AD-TRD-2, AD-6, AD-TRD-3 | 9 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +6 | 10.3 (backlog), 10.4 (backlog) | red |
-| FR-TRD-6 | Contact handoff reuses the listings service (CAP-25, CAP-6) | TRD-1, MSG-2 | AD-TRD-2, AD-6, AD-TRD-3, AD-MSG-1 | 16 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +13 | 9.3 (done), 9.5 (done), 10.3 (backlog), 10.4 (backlog) | red |
-| FR-TRD-7 | Mutual completion (computed) (CAP-26) | S-FR-TRD-7 | AD-TRD-3 | 2 — `S-FR-TRD-7.f`, `S-FR-TRD-7.h` | 10.5 (backlog) | red |
-| FR-TRD-8 | Cancel an accepted trade before confirmation (CAP-26) | TRD-3 | AD-TRD-3, AD-INV-2 | 4 — `TRD-3.I1`, `TRD-3.P1`, `TRD-3.P2` +1 | 10.5 (backlog) | red |
-| FR-TRD-9 | Expire open offers (CAP-25) | S-FR-TRD-9 | AD-TRD-1, AD-SYS-6 | 2 — `S-FR-TRD-9.f`, `S-FR-TRD-9.h` | 10.5 (backlog) | red |
+| FR-TRD-1 | Make an offer on an open-to-trade listing (CAP-25) | TRD-2, S-FR-TRD-1 | AD-TRD-1, AD-SYS-5 | 9 — `TRD-2.I3`, `TRD-2.P2`, `TRD-2.P5` +6 | 10.1 (done), 10.2 (done), 10.4 (done) | red |
+| FR-TRD-2 | Turn-taking: reject, counter, withdraw (CAP-25) | TRD-2, S-FR-TRD-2w | AD-TRD-1, AD-SYS-5 | 9 — `TRD-2.I3`, `TRD-2.P2`, `TRD-2.P5` +6 | 10.1 (done), 10.2 (done), 10.4 (done) | red |
+| FR-TRD-3 | Visibility (CAP-25) | S-FR-TRD-3, S-FR-TRD-3.mine | AD-TRD-1 | 3 — `S-FR-TRD-3.f`, `S-FR-TRD-3.h`, `S-FR-TRD-3.mine.h` | 10.1 (done), 10.3 (done), 10.4 (done) | red |
+| FR-TRD-4 | Accept and reserve (CAP-25) | TRD-1 | AD-TRD-2, AD-6, AD-TRD-3 | 9 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +6 | 10.3 (done), 10.4 (done) | red |
+| FR-TRD-5 | Competing offers become unfulfillable (CAP-25) | TRD-1 | AD-TRD-2, AD-6, AD-TRD-3 | 9 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +6 | 10.3 (done), 10.4 (done) | red |
+| FR-TRD-6 | Contact handoff reuses the listings service (CAP-25, CAP-6) | TRD-1, MSG-2 | AD-TRD-2, AD-6, AD-TRD-3, AD-MSG-1 | 16 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +13 | 9.3 (done), 9.5 (done), 10.3 (done), 10.4 (done) | red |
+| FR-TRD-7 | Mutual completion (computed) (CAP-26) | S-FR-TRD-7 | AD-TRD-3 | 2 — `S-FR-TRD-7.f`, `S-FR-TRD-7.h` | 10.5 (done) | red |
+| FR-TRD-8 | Cancel an accepted trade before confirmation (CAP-26) | TRD-3 | AD-TRD-3, AD-INV-2 | 4 — `TRD-3.I1`, `TRD-3.P1`, `TRD-3.P2` +1 | 10.5 (done) | red |
+| FR-TRD-9 | Expire open offers (CAP-25) | S-FR-TRD-9 | AD-TRD-1, AD-SYS-6 | 2 — `S-FR-TRD-9.f`, `S-FR-TRD-9.h` | 10.5 (done) | red |
 | FR-MSG-1 | Generate an external contact message (listings service) (CAP-6, CAP-25) | MSG-2 | AD-MSG-1, AD-SYS-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (done), 9.5 (done) | red |
 | FR-MSG-2 | Deterministic rendering and edge-safe encoding (CAP-6) | MSG-2 | AD-MSG-1, AD-SYS-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (done), 9.5 (done) | red |
 | FR-MSG-3 | Protect sellers' phone numbers (CAP-6) | MSG-2 | AD-MSG-1, AD-SYS-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (done), 9.5 (done) | red |
@@ -145,7 +145,7 @@
 | NFR-SYS-7 | Server-side authorization | — | `SYS-8.R2`, `SYS-8.R2.static` | 2 | Green — ATDD |
 | NFR-SYS-8 | Admin audit trail | IDN-3 | `IDN-3.Q1`, `REP-2.Q1`, `SYS-R2` +1 | 9 | Green — ATDD (identity, VER, the grants); Red — ATDD (`[REP-2.Q1]`) |
 | NFR-SYS-9 | Latency baseline | — | `NFR-ORD-2.p95` | 1 | Green — benchmark |
-| NFR-SYS-10 | Concurrency proofs run on PostgreSQL | — | `INV-1.I1`, `TRD-1.MEC`, `REP-3.MEC` | 3 | Green — ATDD (`[INV-1.I1]`); Red — ATDD (`[TRD-1.MEC]`, `[REP-3.MEC]`) |
+| NFR-SYS-10 | Concurrency proofs run on PostgreSQL | — | `INV-1.I1`, `TRD-1.MEC`, `REP-3.MEC` | 3 | Green — ATDD (`[INV-1.I1]`, `[TRD-1.MEC]`); Red — ATDD (`[REP-3.MEC]`) |
 | NFR-SYS-11 | Accessibility | — | — | 0 | Deferred — launch |
 | NFR-SYS-12 | Platform personal-data consent | — | — | 0 | Green — gate |
 | NFR-SYS-13 | Error-code integrity | — | `SYS-1.R2`, `SYS-1.R6` | 2 | Green — ATDD |
@@ -156,7 +156,7 @@
 | NFR-INV-3 | (mandatory edge case): | INV-1 | `INV-1.MEC` | 9 | Green — ATDD |
 | NFR-ORD-1 | (mandatory edge case): | ORD-2, ORD-3, ORD-4 | `ORD-3.MEC`, `ORD-4.MEC`, `ORD-2.MEC` | 18 | Green — ATDD |
 | NFR-COM-1 | (mandatory edge case): | COM-1 | `COM-1.MEC`, `COM-1.MEC2` | 8 | Green — ATDD |
-| NFR-TRD-1 | (mandatory edge case): | TRD-1 | `TRD-1.MEC` | 9 | Red — ATDD |
+| NFR-TRD-1 | (mandatory edge case): | TRD-1 | `TRD-1.MEC` | 9 | Green — ATDD |
 | NFR-MSG-4 | (mandatory edge case): | MSG-2, MSG-3 | `MSG-2.MEC`, `MSG-3.MEC` | 10 | Green — ATDD |
 | NFR-COL-1 | (mandatory edge case): | COL-1, COL-2 | `COL-1.MEC`, `COL-2.I1` | 11 | Red — ATDD |
 | NFR-VAL-1 | (mandatory edge case): | VAL-1, VAL-2 | `VAL-1.MEC`, `VAL-2.I1`, `VAL-2.I3` | 9 | Red — ATDD |
@@ -181,8 +181,8 @@
 | NFR-COM-2 | reconciliation is exact over a randomised sequence of 10,000 top-ups and deducti | COM-1, COM-3 | `COM-3.Q1`, `COM-3.I1` | 14 | Red — ATDD |
 | NFR-COM-3 | the deduction handler runs in p95 ≤ 200 ms | COM-1, COM-2 | `NFR-COM-3.deduction`, `NFR-COM-3.topUp` | 18 | Green — benchmark |
 | NFR-COM-4 | 0 floating-point operations on COP in the commission code path | COM-1 | `COM-1.I3` | 8 | Green — ATDD |
-| NFR-TRD-2 | accept responds in p95 ≤ 800 ms and other actions in p95 ≤ 500 ms. | TRD-1 | — | 9 | Planned — story DoD |
-| NFR-TRD-3 | a trade-versus-purchase race on a shared unit never oversells (NFR-INV-2). | TRD-1 | `INV-1.I3`, `TRD-1.I1` | 10 | Green — ATDD (`[INV-1.I3]`); Red — ATDD (`[TRD-1.I1]`) |
+| NFR-TRD-2 | accept responds in p95 ≤ 800 ms and other actions in p95 ≤ 500 ms. | TRD-1 | `NFR-TRD-2.counter`, `NFR-TRD-2.accept` | 11 | Green — benchmark |
+| NFR-TRD-3 | a trade-versus-purchase race on a shared unit never oversells (NFR-INV-2). | TRD-1 | `INV-1.I3`, `TRD-1.I1` | 10 | Green — ATDD |
 | NFR-MSG-1 | contact-message generation takes p95 ≤ 200 ms | MSG-2 | `MSG-2.I1`, `NFR-MSG-1.contact` | 8 | Green — ATDD (determinism); Green — benchmark (latency) |
 | NFR-MSG-2 | in-app freshness through polling | MSG-1 | `MSG-1.R1`, `NFR-MSG-2.send` | 8 | Green — ATDD (ordering); Green — benchmark (send); the 35 s visibility is the client's 30 s polling (UI 12.2) |
 | NFR-MSG-3 | 0 outbound calls to external messaging services (NFR-SYS-3 guard). | MSG-2 | `SYS-6.R4` | 8 | Green — gate |
@@ -200,7 +200,7 @@
 | AD-1 | Module dependency graph is AD-1's | Each module imports only neighbours' `index.ts`; `catalog` imports no module; admin guard lives in `server/trpc` | `SYS-AD1` | 1.4 (done) | green |
 | AD-2 | Three facts, no custody | Fact CHECKs on `"Order"`; no balance/escrow/payment column | `ORD-2.I2`, `ORD-1.I4` | 7.1 (done), 7.2 (done) | red |
 | AD-3 | Commission balance is the single source of purchasability | Fail-closed `SellerCommissionState` read `FOR SHARE` at listing insert; projection seq gate | `INV-2.I2`, `INV-3.I2` | 5.1 (done), 5.5 (done) | red |
-| AD-4 | Trading is a one-way flow off `listings` | `CHECK (sellerKindAtCreation='individual' OR NOT openToTrade)`; `getTradeability` / `reserveForTrade` ports | `INV-2.I4`, `TRD-1.I1` | 5.3 (done), 10.3 (backlog) | red |
+| AD-4 | Trading is a one-way flow off `listings` | `CHECK (sellerKindAtCreation='individual' OR NOT openToTrade)`; `getTradeability` / `reserveForTrade` ports | `INV-2.I4`, `TRD-1.I1` | 5.3 (done), 10.3 (done) | red |
 | AD-5 | One location query path | One SQL builder with no seller-kind branch | `DSC-1.I1` | 6.2 (done) | red |
 | AD-6 | `InventoryUnit` is the sole quantity owner | `CHECK (quantity >= 0)`; conditional decrement | `INV-1.I1`, `INV-1.MEC` | 5.2 (done) | red |
 | AD-7 | Catalog, listing and binder records are independent | Upsert `SET` list without `id`/`kind`; tagged-union CHECKs | `CAT-2.I3`, `COL-3.I2` | 4.2 (done), 11.2 (backlog) | red |
@@ -220,7 +220,7 @@
 | AD-SYS-2 | Transactional outbox; at most 3 automatic attempts | `EventDelivery` attempt procedure | `SYS-2.R4` | 1.3 (done) | red |
 | AD-SYS-3 | Commission triggered by the first of two order events | `commissionTrigger(facts)`; partial unique on deductions | `COM-1.I4` | 8.2 (done) | red |
 | AD-SYS-4 | Transaction handles, pooler-safe state, global lock order | `tx` first; `db()` ambient client; ascending unit locks | `INV-1.I3`, `SYS-4.R9` | 2.3 (done), 5.2 (done) | red |
-| AD-SYS-5 | Every transition is one conditional UPDATE | `WHERE <from-state>` + loser re-read | `VER-1.MEC`, `TRD-2.I3` | 3.2 (done), 10.2 (backlog) | red |
+| AD-SYS-5 | Every transition is one conditional UPDATE | `WHERE <from-state>` + loser re-read | `VER-1.MEC`, `TRD-2.I3` | 3.2 (done), 10.2 (done) | red |
 | AD-SYS-6 | Determinism boundary (Clock, IdGenerator, no network) | `Clock` port; network guard; no SQL `now()` | `SYS-6.R1`, `SYS-6.R4` | 1.4 (done) | green |
 | AD-SYS-7 | Branded money, one set of formulas | BigInt helpers; rounding CHECK on deductions | `COM-1.I3`, `VAL-2.I3` | 8.2 (done), 12.5 (backlog) | red |
 | AD-SYS-8 | Server-side authorization, regulated data, uploads | Procedure builders; redactor; quarantine promotion | `SYS-8.R2`, `VER-2.P3` | 1.1 (done), 3.3 (done) | red |
@@ -244,9 +244,9 @@
 | AD-COM-1 | One atomic account update + one ledger entry | `UPDATE … RETURNING`; `UNIQUE (businessId, seq)` | `COM-3.I1` | 8.5 (backlog) | red |
 | AD-COM-2 | Deduction keyed by `orderId`, priced at the trigger time | Partial unique; rate by `commissionTriggeredAt` | `COM-1.I1` | 8.2 (done) | red |
 | AD-COM-3 | Top-ups have one domain path | `WHERE status='Pending'`; unique TopUp entry | `COM-2.I1` | 8.3 (done) | red |
-| AD-TRD-1 | Offer action = one conditional update | `status`, `turn`, `version`, `expiresAt` predicate | `TRD-2.I3` | 10.2 (backlog) | red |
-| AD-TRD-2 | Accept serialized per seller | `trd:seller` advisory lock | `TRD-1.MEC` | 10.3 (backlog) | red |
-| AD-TRD-3 | Completion computed; cancel releases once | `WHERE status='Accepted' AND no confirmation` | `TRD-3.I1` | 10.5 (backlog) | red |
+| AD-TRD-1 | Offer action = one conditional update | `status`, `turn`, `version`, `expiresAt` predicate | `TRD-2.I3` | 10.2 (done) | red |
+| AD-TRD-2 | Accept serialized per seller | `trd:seller` advisory lock | `TRD-1.MEC` | 10.3 (done) | red |
+| AD-TRD-3 | Completion computed; cancel releases once | `WHERE status='Accepted' AND no confirmation` | `TRD-3.I1` | 10.5 (done) | red |
 | AD-MSG-1 | Contact messages deterministic and rate-limited | Pure composer; fixed-order advisory locks | `MSG-2.I1`, `MSG-2.MEC` | 9.3 (done) | red |
 | AD-MSG-2 | One conversation per pair; idempotent send | Unique keys; `lastSeq` allocation | `MSG-1.I3` | 9.2 (done) | red |
 | AD-MSG-3 | Read state monotonic | `WHERE "lastReadSeq" < :seq` | `S-FR-MSG-7.f` | 9.6 (backlog) | red |
@@ -270,7 +270,7 @@
 | R-05 A caller aborts after a reserve and the stock is not restored; the … | P0 | INV | Integration (race, abort) | `INV-1.MEC`, `INV-1.I1`, `INV-1.I3` | 5.2 (done) | red |
 | R-06 A business confirms payment before the buyer's "paid", or a double … | P0 | ORD | Integration (race) | `ORD-3.MEC`, `ORD-4.MEC`, `ORD-2.MEC` | 7.2 (done) | red |
 | R-07 Two orders at one instant against one order's balance, plus a dupli… | P0 | COM | Integration (race, repeat) | `COM-1.MEC`, `COM-1.MEC2` | 8.2 (done) | red |
-| R-08 Two offers for the last unit are accepted from two tabs, and both h… | P0 | TRD | Integration (race, 100 ×) | `TRD-1.MEC` | 10.3 (backlog) | red |
+| R-08 Two offers for the last unit are accepted from two tabs, and both h… | P0 | TRD | Integration (race, 100 ×) | `TRD-1.MEC` | 10.3 (done) | red |
 | R-09 Long, accented or emoji product names break the contact message; th… | P0 | MSG | Integration (boundary, race) | `MSG-2.MEC`, `MSG-3.MEC` | 9.2 (done), 9.3 (done) | red |
 | R-10 `OrderClosed` is delivered twice and the prompt accepted twice, dup… | P0 | COL | Integration (repeat, race) | `COL-1.MEC` | 11.3 (backlog) | red |
 | R-11 Valuation divides by a zero baseline or drifts over 500 entries (MEC) | P0 | VAL | Integration + pure | `VAL-1.MEC`, `VAL-2.I1`, `VAL-2.I3` | 12.3 (backlog), 12.5 (backlog) | red |

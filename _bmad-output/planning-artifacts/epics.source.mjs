@@ -476,14 +476,14 @@ export default {
         {
           title: 'Counter an offer turn by turn', kind: 'Core',
           as: 'As Valentina, I want to counter Julián\'s offer on my turn, so that we can converge on terms.',
-          ops: ['TRD-2'], tests: ['TRD-2.Q1', 'TRD-2.I3'], depends: ['10.1'],
+          ops: ['TRD-2'], tests: ['TRD-2.Q1', 'TRD-2.I3', 'NFR-TRD-2.counter'], depends: ['10.1'],
           happy: ['Julián\'s Open offer, with the turn at the seller.', 'Valentina counters with 30,000 COP.', 'the turn flips, round 2 is recorded and the version advances.'],
           failure: ['two tabs of Valentina counter with the same version.', 'both submit.', 'one round, and one `TradeOfferNotOpen`.'],
         },
         {
           title: 'Accept the last unit from two sessions', kind: 'MEC',
           as: 'As Valentina, I want only one of two offers for my last copy to be accepted, so that I never promise a card twice (Annex A MEC, R-08).',
-          ops: ['TRD-1', 'S-FR-TRD-3.handoff'], tests: ['TRD-1.Q1', 'TRD-1.Q3', 'TRD-1.F1', 'TRD-1.I1', 'TRD-1.MEC'], depends: ['10.2', '9.3'],
+          ops: ['TRD-1', 'S-FR-TRD-3.handoff'], tests: ['TRD-1.Q1', 'TRD-1.Q3', 'TRD-1.F1', 'TRD-1.I1', 'TRD-1.MEC', 'NFR-TRD-2.accept'], depends: ['10.2', '9.3'],
           happy: ['Julián\'s offer on Valentina\'s listing.', 'she accepts.', 'Accepted with a reservation, one accept round, one `TradeAccepted` with no delivery row, and one contact handoff for Julián.'],
           failure: ['two offers for the last unit accepted from two sessions, 100 times; the handoff fails after commit.', 'both accepts run.', 'one Accepted and one Unfulfillable, stock 0, one event and one handoff; siblings on the exhausted listing become Unfulfillable; the accept stands with `handoff: null`.'],
         },

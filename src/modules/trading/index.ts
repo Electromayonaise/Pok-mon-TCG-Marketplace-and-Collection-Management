@@ -22,6 +22,8 @@ export function createTrdModule(w: TradingWiring): TrdUseCases {
   return new TrdService({ offers: new PgTradeOfferRepository(w.sql), listings: w.listings, transactions: w.transactions, outbox: w.outbox, clock: w.clock });
 }
 
+export { PgTrdRepository } from './infra/pg.js';
+
 // <gen-solu2-api>
 export { TrdServiceV2 } from './application/trd.v2.js';
 export type { TrdV2UseCases } from './application/trd.v2.js';

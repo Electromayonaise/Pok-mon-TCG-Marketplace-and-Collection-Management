@@ -749,3 +749,78 @@
 - **Environment note:** Docker did not run in this session either. A `postgresql-16` cluster on port 55432 (`max_connections=200`, `fsync=off`, `full_page_writes=off`) ran `npm run test:ci`.
 - **Artifact changed:** `src/modules/messaging/**`, `src/modules/listings/{domain/contact.ts,ports/contact.v2.ts,infra/pg.ts,application/contact.v2.ts,index.ts}` (+ tests), `src/modules/identity/{application/{admin.ts,ver.v2.ts},domain/ver.ts,ports/ver.v2.ts,infra/pg.ts,index.ts}` (+ tests), `src/server/{composition.ts,ip-hmac.ts,trpc/init.ts,trpc/router.v2.ts}` (+ tests), `src/shared-kernel/config.ts` (+ test), `app/api/trpc/[trpc]/route.ts`, `.env.example`, `docker-compose.yml`, `test-support/solu2/fixtures.ts`, `_bmad-output/planning-artifacts/detailed-design/contracts.md` (MSG-1 P5, MSG-2 Q1/P4/Q4/Time, MSG-3 MEC; §13: four rows and `ListingNotFound`), `_bmad-output/planning-artifacts/ARCHITECTURE.md` (AD-MSG-1 rules 3–4, AD-MSG-2 rule 2), `epics.source.mjs` and `epics.md`, `_bmad-output/test-artifacts/atdd/msg_contracts.test.ts` (the two Givens), `_bmad-output/test-artifacts/nfr/msg_latency.test.ts`, `_bmad-output/test-artifacts/nfr-evidence.md`, `deferred-work.md`, the five Epic 9 story files, and `sprint-status.yaml` (9.4 and 9.5 out of `impl2_scope`; `epic-9: done`).
 - **Decided by:** Martín.
+
+### 35. Epic 10 is built whole, the trade handoff names items through listings, a stale version is refused before the turn, its close review keeps expired offers Expired, and the epic is signed (Governance)
+
+- **Phase:** 3 (Epic 10 planning at `6b3cc16`, then the close review over `6b3cc16..0b562b6`).
+- **Persona/Skill:** `bmad-quick-dev`, epic-batched (#22), then `bmad-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor).
+- **Prompt (summary):** Three rounds.
+  - **The specs.** Martín approved the five Epic 10 specs (10.1–10.5) together. With them came seven choices:
+    - **D1, scope of 10.4.** Story 10.4 is in `impl2_scope`, but all 12 of its bound tests check clauses that 10.1–10.3 must build:
+      - `[TRD-1.P2]`–`[TRD-1.P6]` are TRD-1's conditional update, re-read and Q-fail, which `[TRD-1.MEC]` needs;
+      - `[TRD-2.P2]` and `[TRD-2.P5]`–`[TRD-2.P8]` are TRD-2's first-fail chain, and `[TRD-2.I3]` needs P6;
+      - `[S-FR-TRD-1.f]`, `[S-FR-TRD-2w.f]` and `[S-FR-TRD-3.f]` are 10.1's unique index, withdraw re-read and visibility rule.
+    - **D2, scope of 10.5.** One of its 8 tests, `[S-FR-TRD-9.f]` (an accept at `now = expiresAt`), is TRD-1 P2 and turns green with 10.3. The other 7 need `cancelTrade`, `confirmCompletion` and `expireDueOffers`.
+    - **D3, item names.** MSG-2's `TradeSummary` needs names, but trading holds only `itemRef`s and may not import `catalog`.
+    - **D4, the re-read order.** `[TRD-2.I3]` (two tabs, one version) leaves the loser seeing the flipped turn, so a stale version must be refused before the turn. contracts.md put the turn first.
+    - **D5:** the refusal of `trading.handoff` for an offer that is not Accepted.
+    - **D6:** Epic 9's deferral (an empty trade summary, an unchecked `BigInt`).
+    - **D7, minor choices:** the benchmark file and bindings, eight stored-only §13 rows, the page size and cursor of `trading.mine`, makeOffer's check order, and the wiring.
+  - **D3 again, during implementation.** The approved form (an optional `name` on P-CAT.refs) breaks `[P-CAT.refs.h]` and `[P-INV.refs.h]`, two done tests that assert the rows with `toEqual`.
+  - **The close review.** It left 4 decisions, 11 patches, 2 deferrals and 13 dismissed findings. The decisions:
+    - **R1:** the Q-fail and sibling marks match `status='Open'` only, so an offer already past `expiresAt` is stored Unfulfillable instead of reading Expired;
+    - **R2:** the handoff reads the listing live, so after an accept a hidden or deactivated listing, or a missing catalog entry, makes `trading.handoff` fail, and an edit changes the text;
+    - **R3:** `trading.mine` paged on the mutable `updatedAt`;
+    - **R4:** a seller's withdraw got an undeclared `NotYourTurn` that read "Es turno de seller", checked after status and version.
+- **AI output (summary):** The agent recommended:
+  - **(recommended)** D1: build 10.4 as a proof-only story committed right after 10.3 (#23), as 7.3, 7.4, 8.4, 9.4 and 9.5 were (#32–#34). It leaves `impl2_scope` and does not count toward the 43. The alternatives were a gate exception, or postponing the epic.
+  - **(recommended)** D2: build 10.5 whole with the epic, because an accepted trade with no cancel holds its unit forever. `expireDueOffers` is a service method; its jobs route stays with the Story 4.1/4.4/7.5 item. The alternatives were rebinding `[S-FR-TRD-9.f]` to 10.3 and leaving 7 tests red, or a gate exception.
+  - D3 (first form), then **(recommended)** D3 revised: `TradeSummaryDTO` items become `{ itemRef?, name?, condition, qty }`. trading sends `itemRef`s, the contact service names them through its own `catalog.getEntries`, and an item with a `name` is used as is. No test changes. The alternatives were a `withNames` flag on P-CAT.refs, or changing the two bound tests to `toMatchObject`.
+  - **(recommended)** D4: amend the order, so a stale version is refused before the turn. The clause numbers stay, because the test ids name them; the contract says P4 (P6) is evaluated before P3 (P5). The alternative was a bound-test change.
+  - **(recommended)** D5: `TradeNotAccepted` (409), declared on `trading.handoff`. The alternative was `TradeOfferNotOpen`.
+  - **(recommended)** D6: two layers. trading's `checkTerms` runs before anything is stored, and the contact service raises `Unexpected` for a broken summary. The alternative was trading alone.
+  - **(recommended)** D7 as listed.
+  - **(recommended)** R1: exclude expired offers from both marks. The alternative was the contract as written.
+  - **(recommended)** R2: declare listings' `ListingNotFound` and `NotIndividualSellerListing` on `trading.handoff`, and defer a snapshot. The alternatives were a snapshot now, or a deferral only.
+  - **(recommended)** R3: page on the immutable `(createdAt DESC, id)`, as `orders.mine` does. The alternative was keeping `updatedAt`.
+  - **(recommended)** R4: refuse a seller's withdraw first, with `NotYourTurn` citing `{ turn: 'proposer' }`, declared. The alternatives were `TradeOfferNotVisibleToCaller`, or declaring the code only.
+  - Apply all 11 patches.
+- **Human decision:** ACCEPT every recommendation (D3 in its revised form), and sign the Epic 10 gate (#5).
+- **Reason:** `done` keeps meaning what the bound tests prove, and the gate needs no exception. No bound test changes. trading never imports `catalog` and never raises a listings code. The order and expiry amendments make the contract match what its own tests and AD-TRD-1 rule 5 require.
+- **Also decided (the patches):**
+  - Only listings' refusals (`ListingNotOpenToTrade`, `ListingNotFound`, `NotIndividualSellerListing`, `InsufficientQuantity`) end an accept attempt. Any other error rolls back and leaves the offer Open. The refusal propagates even if the follow-up transaction fails, and that audit row cites `{ refusedBy }`.
+  - `storeReservation` asserts its one row.
+  - Duplicate `(itemRef, condition)` rows are `RequestValidationFailed`, so the 4-copy bound and the unchanged-counter check see every copy.
+  - The contact service checks the trade summary (a null one too) before it reads the phone.
+  - `requireTradeItems` cites the caller's rule.
+  - The counter SQL takes the round limit as a parameter.
+  - A pool-of-1 test covers offer and counter.
+  - contracts.md:
+    - TRD-1 Q1 step 2 names the placeholder reservation that the `trade_offer_accepted_has_reservation` CHECK needs;
+    - the §13 sources list the new raisers;
+    - the composition doc comment lists the trading wiring.
+- **Also in this epic:**
+  - All ten `trading.*` procedures are wired. TRD's `listings` port is INV's trade surface plus the contact service.
+  - listings exports `requireTradeItems`, the `requireBusinessAccount` pattern of #33.
+  - §13 gains eight stored-only rows: `TradeOfferMade`, `TradeOfferWithdrawn`, `TradeOfferRejected`, `TradeOfferShown`, `TradeOfferCountered`, `TradeOfferAccepted`, `TradeCancelled` and `TradeCompletionConfirmed`.
+  - The "rest stays unwired" HTTP case now uses `messaging.inbox`.
+  - Epic 9's trade-summary deferral is closed.
+  - The measured figures (local Postgres 16):
+    - `[NFR-TRD-2.counter]` p95 6.0 ms (p50 3.0);
+    - `[NFR-TRD-2.accept]` p95 14.3 ms (p50 9.3), with the post-commit handoff;
+    - `[TRD-1.MEC]` 100 repetitions in 5,954 ms.
+- **Environment note:** Docker did not run in this session either. A `postgresql-16` cluster on port 55432 (`max_connections=200`, `fsync=off`, `full_page_writes=off`) ran `npm run test:ci` before every push. The first run caught three §13 templates whose placeholders the catalog test does not allow, and the `fix(epic-10)` placeholder commit rewrote them. The second run also failed, on a stale generated `ui-states.md` (D5 changed `operations.json`) and on a type import in `domain/trd.ts` that `gate:purity` forbids. The agent misread its exit code and pushed `impl-1-epic-10` red once. The close-review commit fixes both, and a trading src test that wrote `"Listing"` (`[SYS-AD8]`) now goes through listings' API. The agent now reads the script's own exit code before every push.
+- **Artifact changed:**
+  - `src/modules/trading/**`.
+  - `src/modules/listings/{application/inv.v2.ts,application/contact.v2.ts,dto/contact.v2.dto.ts,index.ts}` (+ tests).
+  - `src/server/composition.ts` (+ test).
+  - `test-support/solu2/{fixtures.ts,services.ts}`.
+  - `_bmad-output/planning-artifacts/detailed-design/contracts.md`: TRD-1 P3/P4, Q1 and Q-fail; TRD-2 P5/P6 and concurrency; MSG-2 `TradeSummary`; §13 (eight rows and four sources); §15 TRD; §15.12.
+  - `schemas/operations.json` (`trading.withdraw`, `trading.handoff`).
+  - `_bmad-output/planning-artifacts/ARCHITECTURE.md` (AD-TRD-1 rule 2, AD-TRD-2 rules 2–3).
+  - `epics.source.mjs` and `epics.md`.
+  - `_bmad-output/test-artifacts/nfr/trd2_latency.test.ts` and `_bmad-output/test-artifacts/nfr-evidence.md`.
+  - `deferred-work.md`.
+  - The five Epic 10 story files.
+  - `sprint-status.yaml` (10.4 and 10.5 out of `impl2_scope`; `epic-10: done`).
+- **Decided by:** Martín.

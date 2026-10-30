@@ -813,23 +813,23 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Precondition (P)**, first-fail:
   - P1 Visible to the actor. Violation: `TradeOfferNotVisibleToCaller` (HTTP 403, trading), with an identical body for an unknown id.
   - P2 `status='Open'` and `expiresAt > now`. Violation: `TradeOfferNotOpen` (HTTP 409, trading), citing the derived status.
-  - P3 `turn = 'seller'` and the actor is the seller. Violation: `NotYourTurn` (HTTP 409, trading), citing `{ turn }`.
+  - P3 `turn = 'seller'` and the actor is the seller. Violation: `NotYourTurn` (HTTP 409, trading), citing `{ turn }`. Evaluated after P4: a stale version is refused first, because a stale tab's turn is stale too (decision log Impl-1 #35).
   - P4 `version = expectedVersion`; the value comes from the rendered offer (refinement R-6). Violation: `TradeOfferNotOpen` (HTTP 409, trading), citing the latest round.
   - P5 `listings.getTradeability(listingId)` allows it in the ambient `tx`. Violation: `ListingNotOpenToTrade` (HTTP 409, listings) or `ListingNotFound` (HTTP 404, listings), propagated.
   - P6 `listings.reserveForTrade(tx, listingId, 1)` succeeds. Violation: `InsufficientQuantity` (HTTP 409, listings), propagated.
 - **Postcondition (Q):**
   - Q1 One transaction, in lock order:
     1. `pg_advisory_xact_lock(trd:seller:<sellerId>)`;
-    2. `UPDATE "TradeOffer" SET status='Accepted', "acceptedAt"=:now, "updatedAt"=:now, version=version+1 WHERE id AND status='Open' AND turn='seller' AND version=:expectedVersion AND "expiresAt" > :now`;
+    2. `UPDATE "TradeOffer" SET status='Accepted', "acceptedAt"=:now, "updatedAt"=:now, version=version+1 WHERE id AND status='Open' AND turn='seller' AND version=:expectedVersion AND "expiresAt" > :now`. The schema requires an `Accepted` row to hold a reservation, so this step stores a placeholder `"reservationRef" = { listingId, units: [] }` that step 5 replaces in the same transaction (decision log Impl-1 #35);
     3. P5;
     4. P6;
     5. store `"reservationRef"`, and insert the round `accept`;
-    6. `UPDATE … SET status='Unfulfillable', "unfulfillableReason"='ListingNoLongerAvailable' WHERE "listingId" = ANY(:exhaustedListingIds) AND status='Open' AND id <> :offerId`, with one `markedUnfulfillable` round each (`"roundCount"` unchanged, Solu-1 review E-10);
+    6. `UPDATE … SET status='Unfulfillable', "unfulfillableReason"='ListingNoLongerAvailable' WHERE "listingId" = ANY(:exhaustedListingIds) AND status='Open' AND "expiresAt" > :now AND id <> :offerId`, with one `markedUnfulfillable` round each (`"roundCount"` unchanged, Solu-1 review E-10);
     7. enqueue `TradeAccepted { tradeOfferId, listingId, sellerId, proposerId, terms, acceptedAt }`, with no `EventDelivery` row (no V1 subscriber).
   - Q2 After commit, exactly one `listings.generateContactMessage({ kind: 'trade', listingId, requesterId: proposerId, tradeSummary })`, returned as `handoff`. If it throws, the accept stays committed and `handoff = null`; page 8.2 regenerates it (Solu-1 review F-14).
   - Q3 Audit: `audit('trading.offer.accepted', TradeOffer:id)`, plus `audit('trading.offer.unfulfillable', …)` per sibling.
   - Q4 The decision cites `{ rule: 'FR-TRD-4', inputs: { offerId, listingId, reservedQty: 1 } }`. Each sibling cites `ListingNoLongerAvailable`.
-  - Q-fail At P5 or P6, `tx` rolls back. A follow-up transaction takes the same lock and marks the own offer `Unfulfillable` (a no-op if already marked), then rethrows the original error (AD-TRD-2 rule 3). No reservation, event or accept round exists.
+  - Q-fail At a P5 or P6 refusal (`ListingNotOpenToTrade`, `ListingNotFound`, `NotIndividualSellerListing`, `InsufficientQuantity`), `tx` rolls back. A follow-up transaction takes the same lock and marks the own offer `Unfulfillable` while it is live (a no-op if already marked, or once past `expiresAt`, where it keeps reading `Expired`), then rethrows the original error, even if the follow-up fails (AD-TRD-2 rule 3). Any other error rolls back and leaves the offer `Open` (decision log Impl-1 #35). No reservation, event or accept round exists.
 - **Invariant (I):**
   - I1 Two accepts on the same last unit never both commit. Bound to: AD-TRD-2 rules 1 and 4, AD-6.
   - I2 After an accept, no `Open` offer remains on an exhausted listing. Bound to: AD-TRD-2 rule 2 step 6.
@@ -854,7 +854,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - P2 The terms are not empty (some items or `cashCop > 0`). Violation: `EmptyTradeOffer` (HTTP 400, trading).
   - P3 Every `itemRef` resolves through `listings.resolveItemRefs` (OQ-6). Violation: `InvalidItemRef` (HTTP 400, listings), propagated.
   - P4 `status='Open'` and `expiresAt > now`. Violation: `TradeOfferNotOpen` (HTTP 409, trading).
-  - P5 `turn` = the actor's role. Violation: `NotYourTurn` (HTTP 409, trading), citing `{ turn }`.
+  - P5 `turn` = the actor's role. Violation: `NotYourTurn` (HTTP 409, trading), citing `{ turn }`. Evaluated after P6: a stale version is refused first, so two tabs countering with one version leave the loser `TradeOfferNotOpen` (decision log Impl-1 #35).
   - P6 `version = expectedVersion`. Violation: `TradeOfferNotOpen` (HTTP 409, trading), citing the latest round (a stale tab).
   - P7 `roundCount < 10`. Violation: `TradeRoundLimitReached` (HTTP 409, trading), citing `{ roundCount: 10 }`.
   - P8 The canonical terms (item multiset sorted by `(itemRef, condition, qty)`, plus `cashCop`) differ from the latest round's. Violation: `TradeCounterUnchanged` (HTTP 409, trading), citing `{ round }`.
@@ -868,7 +868,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - I1 Rounds are immutable: `"TradeOfferRound"` has `UPDATE` and `DELETE` revoked, `PK (offerId, round)`. Bound to: AD-TRD-1 rule 4.
   - I2 `1 ≤ roundCount ≤ 10`. Bound to: AD-TRD-1 rule 3; `CHECK ("roundCount" BETWEEN 1 AND 10)`.
   - I3 Only the turn holder changes the terms, and each counter flips the turn exactly once. Bound to: AD-TRD-1 rule 1, AD-SYS-5.
-- **Concurrency / idempotency:** two tabs of the same party countering with the same `expectedVersion` → one round, and the other gets `TradeOfferNotOpen` (stale). A counter racing the proposer's withdraw → exactly one of them applies. A repeated identical counter after success → `NotYourTurn`.
+- **Concurrency / idempotency:** two tabs of the same party countering with the same `expectedVersion` → one round, and the other gets `TradeOfferNotOpen` (stale). A counter racing the proposer's withdraw → exactly one of them applies. A repeated identical counter after success → `TradeOfferNotOpen` with the old version, `NotYourTurn` with the refreshed one.
 - **Time:** `Clock`, once. Open only while `now < expiresAt`.
 - **Latency budget (NFR):** p95 ≤ 500 ms at N = 1 (NFR-TRD-2).
 
@@ -938,6 +938,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 *MSG-2 · E, MEC · FR-MSG-1, FR-MSG-2, FR-MSG-3, FR-TRD-6 · NFR-MSG-1, NFR-MSG-3, NFR-MSG-4. `inventory.contact` (`kind='purchase'`), and the `listings.generateContactMessage` port called by TRD-1 (`kind='trade'`). MEC: long, accented and emoji names; URL-like text; prices from 1,000 to 100,000,000.*
 
 `ContactMessageDTO = { text: string; externalUrl: string; copyText: string; requesterDisplayName: string; decision: Decision }`. `externalUrl` carries the regulated phone, and this DTO is its only carrier.
+
+`TradeSummary = { offeredItems: { itemRef?: CuidId; name?: string; condition: string; qty: number }[]; cashCop: Cop }`. TRD-1 sends `itemRef`s only, because `trading` may not import `catalog`; the contact service names each item through its own `catalog.getEntries`, and an item that carries a `name` is used as is. A summary with no item and no cash, a cash outside 0–100,000,000, an item with neither field or an unknown `itemRef` is `Unexpected`: TRD validates the terms before it stores them (decision log Impl-1 #35).
 
 - **Layer:** Inbound Port and Outbound Port.
 - **Precondition (P)**, first-fail (AD-MSG-1 rule 2):
@@ -1322,7 +1324,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `ListingRanked` | — (stored only) | listings | DSC-1 Q4 and DSC-2: each row's `ranked` explanation, citing `{ distanceKm, priceCop, rankKey }` (FR-DSC-5; the rule of decision log Impl-1 #16) | "Ordenamos esta publicación por distancia cuando eliges una zona, luego por precio y luego por su identificador." | no |
 | `SearchRanked` | — (stored only) | listings | DSC-1 Q4: the response decision when no listing was excluded for its location (FR-DSC-5; the rule of decision log Impl-1 #16) | "Ordenamos los resultados por distancia cuando eliges una zona, luego por precio y luego por identificador." | no |
 | `ListingLocationUnusable` | — (stored only) | listings | DSC-1 Q4: the response decision when listings with no usable location were counted, citing `{ unusableLocation }` (FR-DSC-3). A DecisionCode (list below) that had no template; the rule of decision log Impl-1 #16 | "Algunas publicaciones no tienen una ubicación utilizable; no entran en la búsqueda por zona y las contamos aparte." | no |
-| `InvalidItemRef` | 400 | listings | INV-2 P3; TRD-2 P3 | "La carta {itemRef} no existe o no corresponde al tipo elegido." | no |
+| `InvalidItemRef` | 400 | listings | INV-2 P3; TRD-2 P3; S-FR-TRD-1 | "La carta {itemRef} no existe o no corresponde al tipo elegido." | no |
 | `InvalidPrice` | 400 | listings | INV-2 P4 | "El precio debe estar entre $1.000 y $100.000.000 COP." | no |
 | `InvalidLocation` | 400 | listings | INV-2 P5 | "El punto de encuentro debe estar en Colombia." | no |
 | `EmptyComponentList` | 400 | listings | S-FR-INV-2 | "Agrega al menos una carta al lote." | no |
@@ -1387,14 +1389,22 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `SelfTradeNotAllowed` | 409 | trading | S-FR-TRD-1 | "No puedes ofertar por tu propia publicación." | no |
 | `EmptyTradeOffer` | 400 | trading | TRD-2 P2; S-FR-TRD-1 | "Agrega una carta o un monto a tu oferta." | no |
 | `DuplicateOpenOffer` | 409 | trading | S-FR-TRD-1 | "Ya tienes una oferta abierta por esta publicación." | no |
-| `NotYourTurn` | 409 | trading | TRD-1 P3; TRD-2 P5 | "Es turno de {turn}." | no |
+| `NotYourTurn` | 409 | trading | TRD-1 P3; TRD-2 P5; S-FR-TRD-2w | "Es turno de {turn}." | no |
 | `TradeCounterUnchanged` | 409 | trading | TRD-2 P8 | "Tu contraoferta es igual a la ronda {round}; cambia algo." | no |
 | `TradeRoundLimitReached` | 409 | trading | TRD-2 P7 | "Llegaron a 10 rondas; ahora solo puedes aceptar o rechazar." | no |
-| `TradeOfferNotOpen` | 409 | trading | TRD-1 P2, P4; TRD-2 P4, P6 | "Esta oferta está {status}." | no |
-| `TradeOfferNotVisibleToCaller` | 403 | trading | TRD-1 P1; TRD-2 P1; TRD-3 P1 | "No encontramos esa oferta." | no |
-| `TradeNotAccepted` | 409 | trading | S-FR-TRD-7 | "Esta oferta no está aceptada." | no |
+| `TradeOfferNotOpen` | 409 | trading | TRD-1 P2, P4; TRD-2 P4, P6; S-FR-TRD-2w | "Esta oferta está {status}." | no |
+| `TradeOfferNotVisibleToCaller` | 403 | trading | TRD-1 P1; TRD-2 P1; TRD-3 P1; S-FR-TRD-2w; S-FR-TRD-3; S-FR-TRD-7 | "No encontramos esa oferta." | no |
+| `TradeNotAccepted` | 409 | trading | S-FR-TRD-7; S-FR-TRD-3.handoff (decision log Impl-1 #35) | "Esta oferta no está aceptada." | no |
 | `TradeAlreadyConfirmedByRole` | 409 | trading | S-FR-TRD-7 | "Ya confirmaste el intercambio el {confirmedAt}." | no |
 | `TradeNotCancellable` | 409 | trading | TRD-3 P2 | "Ya hay una confirmación de entrega; el intercambio no se puede cancelar." | no |
+| `TradeOfferMade` | — (stored only) | trading | S-FR-TRD-1 `allowed`: the offer is Open with the turn at the seller, citing `{ offerId, listingId, expiresAt }` (FR-TRD-1; decision log Impl-1 #35) | "Tu oferta quedó abierta por 7 días; ahora le toca al vendedor." | no |
+| `TradeOfferWithdrawn` | — (stored only) | trading | S-FR-TRD-2w `allowed`: the proposer withdrew the offer, citing `{ offerId, status }` (FR-TRD-2; decision log Impl-1 #35) | "Retiraste tu oferta." | no |
+| `TradeOfferAccepted` | — (stored only) | trading | TRD-1 Q4 `allowed`: the offer is Accepted and one unit is reserved, citing `{ offerId, listingId, reservedQty }` (FR-TRD-4; decision log Impl-1 #35) | "Aceptaste la oferta; la carta queda reservada para este intercambio." | no |
+| `TradeCancelled` | — (stored only) | trading | TRD-3 Q4 `allowed`: the trade is Cancelled and its reservation released once, citing `{ offerId, cancelledBy, releasedQty }` (FR-TRD-8; decision log Impl-1 #35) | "Cancelaste el intercambio; la carta vuelve a estar disponible." | no |
+| `TradeCompletionConfirmed` | — (stored only) | trading | S-FR-TRD-7 `allowed`: the party confirmed the exchange, citing `{ offerId, role, completed }`; `completed` is computed (FR-TRD-7; decision log Impl-1 #35) | "Confirmaste el intercambio." | no |
+| `TradeOfferCountered` | — (stored only) | trading | TRD-2 Q4 `allowed`: the counter is recorded and the turn flips, citing `{ offerId, round, turn }` (FR-TRD-2; decision log Impl-1 #35) | "Contraoferta enviada (ronda {round}); ahora le toca a {turn}." | no |
+| `TradeOfferRejected` | — (stored only) | trading | S-FR-TRD-2w `allowed`: the turn holder rejected the offer, citing `{ offerId, status }` (FR-TRD-2; decision log Impl-1 #35) | "Rechazaste la oferta." | no |
+| `TradeOfferShown` | — (stored only) | trading | S-FR-TRD-3 `allowed`: the offer as a party reads it, status derived, citing `{ status, turn, round }` (FR-TRD-3; decision log Impl-1 #35) | "Oferta {status}, ronda {round}; le toca a {turn}." | no |
 | `ConversationNotVisibleToCaller` | 403 | messaging | MSG-1 P3; S-FR-MSG-7 | "No encontramos esa conversación." | no |
 | `BusinessCannotInitiate` | 409 | messaging | MSG-1 P4 | "Las tiendas responden; no pueden iniciar conversaciones." | no |
 | `CollectionNotFound` | 404 | collections | COL-1 P3; COL-3 P3; VAL-1..3 P1 | "No encontramos esa colección." | no |
@@ -1671,15 +1681,15 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *I:* AD-TRD-1 rule 6; partial unique `(listingId, proposerId) WHERE status='Open'`.
   - *Tests:* `[S-FR-TRD-1.h]` an offer opens with the turn at the seller; `[S-FR-TRD-1.f]` a second live offer → `DuplicateOpenOffer`.
 - **S-FR-TRD-2w — `trading.reject` / `trading.withdraw({ offerId, expectedVersion })`** (the FR-TRD-2 actions besides counter; review G-06). Inbound Port.
-  - *P:* reject: the turn holder; withdraw: the proposer; both need `Open`, an unexpired offer and a matching `version`.
+  - *P:* reject: the turn holder; withdraw: the proposer, refused first to anyone else with `NotYourTurn` citing `{ turn: 'proposer' }` (decision log Impl-1 #35); both need `Open`, an unexpired offer and a matching `version`.
   - *Q:* a conditional `Open → Rejected | Withdrawn`, plus a round and an audit row.
   - *Errors:* `NotYourTurn` (HTTP 409, trading), `TradeOfferNotOpen` (HTTP 409, trading), `TradeOfferNotVisibleToCaller` (HTTP 403, trading).
   - *I:* AD-TRD-1 rule 1.
   - *Tests:* `[S-FR-TRD-2w.h]` the proposer withdraws an open offer; `[S-FR-TRD-2w.f]` withdrawing with a stale `version` → `TradeOfferNotOpen`.
 - **S-FR-TRD-3 — `trading.get` / `mine` / `handoff`.** Inbound Port.
   - *P:* a session.
-  - *Q:* the offer and every round, for the proposer or the seller. `status` is derived (expiry). `handoff` regenerates the deterministic MSG-2 text for an `Accepted` offer. Zero writes.
-  - *Errors:* `TradeOfferNotVisibleToCaller` (HTTP 403, trading).
+  - *Q:* the offer and every round, for the proposer or the seller. `status` is derived (expiry). `handoff` regenerates the deterministic MSG-2 text for an `Accepted` offer; any other status is `TradeNotAccepted` (decision log Impl-1 #35). Zero writes.
+  - *Errors:* `TradeOfferNotVisibleToCaller` (HTTP 403, trading), `TradeNotAccepted` (HTTP 409, trading; `handoff` only); `handoff` reads the listing live, so `ListingNotFound` (HTTP 404, listings) and `NotIndividualSellerListing` (HTTP 409, listings) propagate once it is hidden, withdrawn or deactivated after the accept (decision log Impl-1 #35; a snapshot is deferred).
   - *I:* AD-TRD-1 rule 4.
   - *Tests:* `[S-FR-TRD-3.h]` both parties see the same round history; `[S-FR-TRD-3.f]` a third party gets a body identical to an unknown id's.
 - **S-FR-TRD-7 — `trading.confirmCompletion(offerId)`.** Inbound Port.
@@ -1811,7 +1821,7 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
 | S-FR-COM-8.ledger | `commission.admin.ledger` (7.2) | admin | any account's ledger, newest first, filterable by `trigger` | AD-COM-1, FR-COM-8 | `[S-FR-COM-8.ledger.h]` `trigger=buyerClosed` shows only those deductions |
 | S-FR-COM-7.list | `commission.admin.rates` (7.4) | admin | every rate setting plus the rate in force at `now` | AD-COM-2 rule 6 | `[S-FR-COM-7.list.h]` the seed rate of 800 bps is current with no other row |
 | COM-3.last | `commission.admin.lastReconciliation` (7.4) | admin | the latest `ReconciliationRun`, or `null` | AD-COM-1 rule 4 | `[COM-3.last.h]` |
-| S-FR-TRD-3.mine | `trading.mine` (8.1, 8.3) | a session | offers where the actor is the proposer or the seller, status derived at read | AD-TRD-1 rules 4–5 | `[S-FR-TRD-3.mine.h]` an expired `Open` offer reads `Expired` without the job |
+| S-FR-TRD-3.mine | `trading.mine` (8.1, 8.3) | a session | offers where the actor is the proposer or the seller, status derived at read, 20 per page by the immutable `(createdAt DESC, id)` (decision log Impl-1 #35) | AD-TRD-1 rules 4–5 | `[S-FR-TRD-3.mine.h]` an expired `Open` offer reads `Expired` without the job |
 | COL-1.list | `collections.prompts.list` (9.4, 6.2) | a session | the actor's prompts, optionally by status | AD-COL-2 | `[COL-1.list.h]` |
 | S-FR-COL-1.list | `collections.list` (9.1, 9.2, 9.4, 10.1). **Not in Plan-2** | a session | the owner's collections with entry counts, ordered by `nameKey` | AD-COL-1 | `[S-FR-COL-1.list.h]` |
 | REP-1.edit | `reputation.edit` (11.1). A Plan-2 procedure; FR-REP-1 "they can edit it" | `canBuy`; the reviewer's own, visible review | `UPDATE … SET rating, text, "editedAt"=:now WHERE id AND "reviewerId"=:actor AND "hiddenAt" IS NULL`; 0 rows → `ReviewNotFound` (HTTP 404, reviews) (EC-32); one audit row | AD-REP-1 rule 4 | `[REP-1.edit.f]` editing a hidden review → `ReviewNotFound`, text unchanged |

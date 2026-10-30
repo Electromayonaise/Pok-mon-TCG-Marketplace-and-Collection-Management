@@ -1403,8 +1403,8 @@ flowchart LR
   1. Every action runs `UPDATE "TradeOffer" SET … , version = version + 1 WHERE id=:id AND status='Open' AND turn=:actorRole AND version=:v AND "expiresAt" > :now`. `withdraw` omits `turn` and requires the proposer.
   2. On 0 rows, the re-read maps the result:
      - not `Open`, or `expiresAt ≤ now` → `TradeOfferNotOpen`, citing the status (derived `Expired` included);
-     - wrong turn → `NotYourTurn`, citing whose turn it is;
-     - stale `version` with the same status and turn → `TradeOfferNotOpen`, citing the latest round.
+     - stale `version` → `TradeOfferNotOpen`, citing the latest round; checked before the turn, because a stale tab's turn is stale too, so two tabs countering with one version leave the loser `TradeOfferNotOpen` (decision log Impl-1 #35);
+     - wrong turn with the current version → `NotYourTurn`, citing whose turn it is.
   3. `counter` additionally requires `roundCount < 10` (`TradeRoundLimitReached`). It refuses terms equal to the latest round's terms, compared after canonical sort, with `TradeCounterUnchanged` [G-1]. It then appends a round and flips `turn`.
   4. Rounds are immutable. Visibility is `proposerId = actor OR sellerId = actor`. Otherwise `TradeOfferNotVisibleToCaller`, with an identical body for unknown ids.
   5. Expiry is derived: `deriveStatus` returns `Expired` when `status='Open' AND expiresAt ≤ now`. The `daily-morning` job and the hourly tick materialize it with a conditional `Open → Expired`. No reservation exists on an `Open` offer, so materialization only changes the status.
@@ -1424,9 +1424,9 @@ flowchart LR
      3. `listings.getTradeability` in the ambient transaction;
      4. `reserveForTrade(tx, listingId, 1)`;
      5. store `reservationRef` and `acceptedAt`;
-     6. `UPDATE "TradeOffer" SET status='Unfulfillable', "unfulfillableReason"='ListingNoLongerAvailable' WHERE "listingId" = ANY(:exhaustedListingIds) AND status='Open' AND id <> :own`, with one `markedUnfulfillable` round per row;
+     6. `UPDATE "TradeOffer" SET status='Unfulfillable', "unfulfillableReason"='ListingNoLongerAvailable' WHERE "listingId" = ANY(:exhaustedListingIds) AND status='Open' AND "expiresAt" > :now AND id <> :own`, with one `markedUnfulfillable` round per row; an expired sibling keeps reading `Expired` (decision log Impl-1 #35);
      7. enqueue `TradeAccepted`.
-  3. If step 3 returns a refusal (the listing is gone, hidden, deactivated or no longer open to trade) or step 4 raises `InsufficientQuantity`, the transaction rolls back. The command then runs a follow-up transaction: the advisory lock, then `Open → Unfulfillable` with `unfulfillableReason='ListingNoLongerAvailable'` on its own offer. That is a no-op if already marked. It then returns the original error.
+  3. If step 3 returns a refusal (the listing is gone, hidden, deactivated or no longer open to trade) or step 4 raises `InsufficientQuantity`, the transaction rolls back. The command then runs a follow-up transaction: the advisory lock, then `Open → Unfulfillable` with `unfulfillableReason='ListingNoLongerAvailable'` on its own offer while it is live. That is a no-op if already marked or expired. It then returns the original error. Any other error (a deadlock, a lost connection) only rolls back and leaves the offer `Open` (decision log Impl-1 #35).
   4. Because of the seller lock, a losing accept that started after the winner reads `Unfulfillable` in its step 2 and gets `TradeOfferNotOpen`.
   5. After commit, the command calls `listings.generateContactMessage({kind:'trade', listingId, requesterId: proposerId, tradeSummary})` exactly once. Later page views regenerate the same deterministic text through `trading.handoff`.
   6. Individual-seller listings are never purchasable (AD-INV-3 rule 6), so a purchase never exhausts a trade unit. A restock decrement, a deactivation or a moderation hide does not take `trd:seller`. Open offers on the affected listing stay `Open` until an accept attempt fails and marks them (rule 3), or until they expire. The 8.2 page derives "not currently available" from `getTradeability` [ASSUMPTION].

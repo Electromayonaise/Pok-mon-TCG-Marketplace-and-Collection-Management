@@ -14,6 +14,7 @@ export type { InvUseCases } from './application/inv.js';
 export type { DscUseCases } from './application/dsc.js';
 export type { CatalogForListings, IdentityForListings } from './ports/listings.js';
 export { PgContactRepository, PgDscRepository, PgInvRepository } from './infra/pg.js';
+export { requireTradeItems } from './application/inv.v2.js';
 
 export interface ListingsWiring {
   sql: Sql;

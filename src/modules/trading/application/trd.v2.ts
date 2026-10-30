@@ -28,49 +28,369 @@ export interface TrdV2UseCases {
 }
 // </gen-solu2-api>
 
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import type { Citation, Decision } from '../../../shared-kernel/decision.js';
+import { ambientTx } from '../../../shared-kernel/db.js';
+import { DomainError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
+import type { Tx } from '../../../shared-kernel/ports.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import { requireTradeItems } from '../../listings/index.js';
+import {
+  canonicalTerms, decodeOfferCursor, deriveOfferStatus, encodeOfferCursor, isEmptyTerms, MAX_ROUNDS, offerActionRefusal, OFFER_TTL_MS, roleOf, termsIssues,
+  type OfferRole,
+} from '../domain/trd.js';
+import type { OfferViewDTO, TradeTermsDTO } from '../dto/trd.v2.dto.js';
+import type { OfferRow, RoundRow } from '../ports/trd.v2.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('trading');
+
+/** S-FR-TRD-3.mine: the page size. */
+const OFFERS_PAGE = 20;
+
+/** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
+function explained(outcome: Decision['outcome'], code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
+  return { outcome, reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
+}
+
+/** AD-TRD-1 rule 4: a third party and an unknown id get the same body, so the citation names no id. */
+function notVisible(): never {
+  return raise('TradeOfferNotVisibleToCaller', [{ rule: 'AD-TRD-1 rule 4', inputs: { visible: false } }]);
+}
+
+/** FR-TRD-1 (decision log Impl-1 #35, D6): the shape, then emptiness, before anything is stored or handed off. */
+function checkTerms(terms: TradeTermsDTO, rule: 'FR-TRD-1' | 'FR-TRD-2'): void {
+  const issues = termsIssues(terms);
+  if (issues.length > 0) rejectRequest(issues as [RequestIssue, ...RequestIssue[]]);
+  if (isEmptyTerms(terms)) raise('EmptyTradeOffer', [{ rule, inputs: { offeredItems: 0, cashCop: 0 } }]);
+}
+
+/**
+ * TRD-1 P5–P6: the listings refusals that end an accept attempt and mark the own offer Unfulfillable (AD-TRD-2 rule 3).
+ * Any other error (a deadlock, a lost connection, a broken invariant) rolls back and leaves the offer Open for a retry.
+ */
+const LISTINGS_REFUSALS = new Set(['ListingNotOpenToTrade', 'ListingNotFound', 'NotIndividualSellerListing', 'InsufficientQuantity']);
+
+/** TRD-1 Q-fail: a listings refusal (P5, P6) inside the accept transaction, carried out so it rolls back first. */
+class ListingsRefusal extends Error {
+  constructor(override readonly cause: unknown) {
+    super('listings refused the accept');
+  }
+}
+
+/** TRD's use cases (contracts.md §8, §15). */
 export class TrdServiceV2 implements TrdV2UseCases {
   constructor(protected readonly deps: TrdV2Deps) {}
 
-  async acceptOffer(_input: AcceptOfferRequest): Promise<AcceptOfferResponse> {
-    throw new NotImplementedError('trading.acceptOffer');
+  /** P-INV.refs then listings' own `InvalidItemRef` (TRD-2 P3, S-FR-TRD-1). */
+  private async checkItems(terms: TradeTermsDTO, rule: 'FR-TRD-1' | 'FR-TRD-2'): Promise<void> {
+    if (terms.offeredItems.length === 0) return;
+    const refs = await this.deps.listings.resolveItemRefs({ refs: [...new Set(terms.offeredItems.map((i) => i.itemRef))] });
+    requireTradeItems(terms.offeredItems, refs, rule);
   }
 
-  async counterOffer(_input: CounterOfferRequest): Promise<CounterOfferResponse> {
-    throw new NotImplementedError('trading.counterOffer');
+  /** A read on the ambient transaction, or a read-only one of its own (AD-SYS-4 rule 9). */
+  private async reading<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+    const tx = ambientTx();
+    return tx ? fn(tx) : this.deps.transactions.run(fn, { readOnly: true });
   }
 
-  async cancelTrade(_input: CancelTradeRequest): Promise<CancelTradeResponse> {
-    throw new NotImplementedError('trading.cancelTrade');
+  /** The offer as `actorId` may see it, under the seller's lock when `locked`; else the unknown-id refusal. */
+  private async visibleOffer(tx: Tx, offerId: CuidId, actorId: CuidId, locked: boolean): Promise<{ offer: OfferRow; role: OfferRole }> {
+    const first = await this.deps.repo.readOffer(tx, offerId);
+    const role = first === null ? null : roleOf(first, actorId);
+    if (first === null || role === null) return notVisible();
+    if (!locked) return { offer: first, role };
+    await this.deps.repo.lockTradeSeller(tx, first.sellerId);
+    return { offer: (await this.deps.repo.readOffer(tx, offerId))!, role };
   }
 
-  async makeOffer(_input: MakeOfferRequest): Promise<MakeOfferResponse> {
-    throw new NotImplementedError('trading.makeOffer');
+  /** AD-TRD-1 rule 2 (D4 order) on a row read under the seller's lock: the refusal, with zero writes. */
+  private refuseAction(offer: OfferRow, expectedVersion: number, turn: OfferRole | null, at: Date, rule: string): void {
+    const refusal = offerActionRefusal(offer, expectedVersion, turn, at);
+    if (refusal !== null) raise(refusal.code, [{ rule, inputs: { offerId: offer.id, ...refusal.inputs } }]);
   }
 
-  async resolveOffer(_input: ResolveOfferRequest): Promise<ResolveOfferResponse> {
-    throw new NotImplementedError('trading.resolveOffer');
+  private async audit(tx: Tx, actorId: CuidId | null, action: string, offerId: CuidId, decisionCode: string | null, data: Record<string, string | number | boolean | null>, now: IsoInstant): Promise<void> {
+    await this.deps.audit.record(tx, {
+      actorId, actorKind: actorId === null ? 'system' : 'user', module: 'trading', action,
+      aggregateType: 'TradeOffer', aggregateId: offerId, decisionCode, data, at: now,
+    });
   }
 
-  async getOffer(_input: GetOfferRequest): Promise<GetOfferResponse> {
-    throw new NotImplementedError('trading.getOffer');
+  /** The offer and its rounds, status derived at `at` (S-FR-TRD-3, AD-TRD-1 rules 4–5). */
+  private view(offer: OfferRow, rounds: RoundRow[], at: Date): OfferViewDTO {
+    const status = deriveOfferStatus(offer, at);
+    return {
+      offerId: offer.id, listingId: offer.listingId, status, turn: offer.turn, version: offer.version, roundCount: offer.roundCount,
+      expiresAt: offer.expiresAt.toISOString(),
+      rounds: rounds.map((r) => ({ round: r.round, actor: r.actor, action: r.action, terms: r.terms, at: r.createdAt.toISOString() })),
+      decision: explained('allowed', 'TradeOfferShown', [{ rule: 'FR-TRD-3', inputs: { status, turn: offer.turn, round: offer.roundCount } }], at.toISOString()),
+    };
   }
 
-  async getHandoff(_input: GetHandoffRequest): Promise<GetHandoffResponse> {
-    throw new NotImplementedError('trading.getHandoff');
+  /**
+   * S-FR-TRD-1 (AD-TRD-1 rule 6): tradeability, not the seller, the terms and their items, then under `trd:seller` the
+   * proposer's own expired offer on the listing is materialized and the new one inserted with round 1.
+   */
+  async makeOffer(input: MakeOfferRequest): Promise<MakeOfferResponse> {
+    const { repo, transactions, clock, ids, listings } = this.deps;
+    const { listingId, terms, proposerId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    return transactions.run(async (tx) => {
+      const { sellerId } = await listings.getTradeability(tx, { listingId });
+      if (sellerId === proposerId) raise('SelfTradeNotAllowed', [{ rule: 'FR-TRD-1', inputs: { listingId } }]);
+      checkTerms(terms, 'FR-TRD-1');
+      await this.checkItems(terms, 'FR-TRD-1');
+      await repo.lockTradeSeller(tx, sellerId);
+      for (const expired of await repo.expireDue(tx, { listingId, proposerId }, now)) await this.audit(tx, null, 'trading.offer.expired', expired, null, { listingId }, now);
+      const duplicate = (): never => raise('DuplicateOpenOffer', [{ rule: 'FR-TRD-1', inputs: { listingId } }]);
+      if (await repo.hasLiveOffer(tx, listingId, proposerId, now)) duplicate();
+      const offerId = ids.next();
+      const expiresAt = new Date(at.getTime() + OFFER_TTL_MS).toISOString();
+      if (await repo.insertOffer(tx, { id: offerId, listingId, sellerId, proposerId, terms, expiresAt, now }) === 'duplicate') duplicate();
+      await repo.appendRound(tx, { offerId, round: 1, actor: 'proposer', action: 'offer', terms, now });
+      await this.audit(tx, proposerId, 'trading.offer.made', offerId, 'TradeOfferMade', { listingId }, now);
+      return {
+        offerId, status: 'Open' as const, turn: 'seller' as const, version: 0, expiresAt,
+        decision: explained('allowed', 'TradeOfferMade', [{ rule: 'FR-TRD-1', inputs: { offerId, listingId, expiresAt } }], now),
+      };
+    });
   }
 
-  async confirmCompletion(_input: ConfirmCompletionRequest): Promise<ConfirmCompletionResponse> {
-    throw new NotImplementedError('trading.confirmCompletion');
+  /** S-FR-TRD-2w (AD-TRD-1 rule 1): reject by the turn holder, withdraw by the proposer; one conditional update. */
+  async resolveOffer(input: ResolveOfferRequest): Promise<ResolveOfferResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { offerId, expectedVersion, actorId, action } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    const to = action === 'withdraw' ? 'Withdrawn' as const : 'Rejected' as const;
+    return transactions.run(async (tx) => {
+      const { offer, role } = await this.visibleOffer(tx, offerId, actorId, true);
+      // Withdraw is the proposer's at any turn, refused first to anyone else (decision log Impl-1 #35, R4); the seller's
+      // way out is reject on her turn.
+      if (action === 'withdraw' && role !== 'proposer') raise('NotYourTurn', [{ rule: 'FR-TRD-2', inputs: { offerId, turn: 'proposer' } }]);
+      this.refuseAction(offer, expectedVersion, action === 'withdraw' ? null : role, at, 'FR-TRD-2');
+      if (!(await repo.resolveOpenOffer(tx, { offerId, expectedVersion, turn: action === 'reject' ? role : null, to, now }))) {
+        throw new UnexpectedError(`Unexpected: offer ${offerId} changed under the trd:seller lock`);
+      }
+      await repo.appendRound(tx, { offerId, actor: role, action, terms: null, now });
+      const code = action === 'withdraw' ? 'TradeOfferWithdrawn' : 'TradeOfferRejected';
+      await this.audit(tx, actorId, `trading.offer.${action === 'withdraw' ? 'withdrawn' : 'rejected'}`, offerId, code, { version: offer.version + 1 }, now);
+      return { offerId, status: to, decision: explained('allowed', code, [{ rule: 'FR-TRD-2', inputs: { offerId, status: to } }], now) };
+    });
   }
 
-  async expireDueOffers(_input: ExpireDueOffersRequest): Promise<ExpireDueOffersResponse> {
-    throw new NotImplementedError('trading.expireDueOffers');
+  /** S-FR-TRD-3.get: the offer and every round for a party; zero writes. */
+  async getOffer(input: GetOfferRequest): Promise<GetOfferResponse> {
+    const at = this.deps.clock.now();
+    return this.reading(async (tx) => {
+      const { offer } = await this.visibleOffer(tx, input.offerId, input.actorId, false);
+      return this.view(offer, await this.deps.repo.readRounds(tx, [offer.id]), at);
+    });
   }
 
-  async listMyOffers(_input: ListMyOffersRequest): Promise<ListMyOffersResponse> {
-    throw new NotImplementedError('trading.listMyOffers');
+  /** S-FR-TRD-3.mine: the actor's offers by side and derived status, 20 per page, newest first; zero writes. */
+  async listMyOffers(input: ListMyOffersRequest): Promise<ListMyOffersResponse> {
+    const after = input.cursor === null ? null : decodeOfferCursor(input.cursor);
+    if (input.cursor !== null && after === null) rejectRequest([{ field: 'cursor', issue: 'no es un cursor de esta lista' }]);
+    const at = this.deps.clock.now();
+    return this.reading(async (tx) => {
+      const rows = await this.deps.repo.listOffers(tx, { actorId: input.actorId, side: input.side, status: input.status ?? null, after, limit: OFFERS_PAGE + 1, now: at.toISOString() });
+      const page = rows.slice(0, OFFERS_PAGE);
+      const rounds = await this.deps.repo.readRounds(tx, page.map((o) => o.id));
+      const last = page.at(-1);
+      return {
+        offers: page.map((o) => this.view(o, rounds.filter((r) => r.offerId === o.id), at)),
+        nextCursor: rows.length > OFFERS_PAGE && last ? encodeOfferCursor(last.createdAt.toISOString(), last.id) : null,
+      };
+    });
+  }
+
+  /**
+   * TRD-1 (AD-TRD-2): one transaction in lock order — `trd:seller`, the own offer `Open → Accepted`, tradeability and the
+   * reserve in the ambient `tx`, the reservation and the accept round, the siblings on exhausted listings, one
+   * `TradeAccepted`. A listings refusal rolls it back; a follow-up transaction marks the own offer Unfulfillable and the
+   * refusal propagates (Q-fail). After commit, exactly one contact handoff; its failure leaves `handoff: null` (Q2).
+   */
+  async acceptOffer(input: AcceptOfferRequest): Promise<AcceptOfferResponse> {
+    const { repo, transactions, clock, outbox, listings } = this.deps;
+    const { offerId, expectedVersion, sellerId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    let accepted: { offer: OfferRow; unfulfillableOfferIds: CuidId[]; reservationRef: AcceptOfferResponse['reservationRef'] };
+    try {
+      accepted = await transactions.run(async (tx) => {
+        const { offer, role } = await this.visibleOffer(tx, offerId, sellerId, true);
+        this.refuseAction(offer, expectedVersion, 'seller', at, 'FR-TRD-4');
+        if (role !== 'seller') raise('NotYourTurn', [{ rule: 'FR-TRD-4', inputs: { offerId, turn: offer.turn } }]);
+        if (!(await repo.acceptOffer(tx, { offerId, expectedVersion, now }))) throw new UnexpectedError(`Unexpected: offer ${offerId} changed under the trd:seller lock`);
+        let reserved: Awaited<ReturnType<typeof listings.reserveForTrade>>;
+        try {
+          await listings.getTradeability(tx, { listingId: offer.listingId });
+          reserved = await listings.reserveForTrade(tx, { listingId: offer.listingId, qty: 1 });
+        } catch (error) {
+          throw error instanceof DomainError && LISTINGS_REFUSALS.has(error.code) ? new ListingsRefusal(error) : error;
+        }
+        await repo.storeReservation(tx, offerId, reserved.reservationRef);
+        await repo.appendRound(tx, { offerId, actor: 'seller', action: 'accept', terms: null, now });
+        const siblings = await repo.markUnfulfillable(tx, { listingIds: reserved.exhaustedListingIds, exceptOfferId: offerId }, now);
+        for (const sibling of siblings) {
+          await repo.appendRound(tx, { offerId: sibling, actor: 'seller', action: 'markedUnfulfillable', terms: null, now });
+          await this.audit(tx, sellerId, 'trading.offer.unfulfillable', sibling, 'ListingNoLongerAvailable', { acceptedOfferId: offerId }, now);
+        }
+        await outbox.enqueue(tx, 'TradeAccepted', offerId, {
+          tradeOfferId: offerId, listingId: offer.listingId, sellerId: offer.sellerId, proposerId: offer.proposerId, terms: offer.terms, acceptedAt: now,
+        });
+        await this.audit(tx, sellerId, 'trading.offer.accepted', offerId, 'TradeOfferAccepted', { listingId: offer.listingId, unfulfillable: siblings.length }, now);
+        return { offer, unfulfillableOfferIds: siblings, reservationRef: reserved.reservationRef };
+      });
+    } catch (error) {
+      if (!(error instanceof ListingsRefusal)) throw error;
+      // AD-TRD-2 rule 3: the own offer is Unfulfillable (a no-op when no longer live); the refusal propagates even if
+      // this follow-up fails, since the offer then stays Open and the next accept meets the same refusal.
+      const refusal = error.cause as DomainError;
+      await transactions.run(async (tx) => {
+        const offer = await repo.readOffer(tx, offerId);
+        if (offer === null) return;
+        await repo.lockTradeSeller(tx, offer.sellerId);
+        for (const own of await repo.markUnfulfillable(tx, { offerId }, now)) {
+          await repo.appendRound(tx, { offerId: own, actor: 'seller', action: 'markedUnfulfillable', terms: null, now });
+          await this.audit(tx, sellerId, 'trading.offer.unfulfillable', own, 'ListingNoLongerAvailable', { refusedBy: refusal.code }, now);
+        }
+      }).catch(() => undefined);
+      throw refusal;
+    }
+    const { offer, unfulfillableOfferIds, reservationRef } = accepted;
+    return {
+      offerId, status: 'Accepted', reservationRef, unfulfillableOfferIds,
+      handoff: await this.handoffOf(offer).catch(() => null),
+      decision: explained('allowed', 'TradeOfferAccepted', [{ rule: 'FR-TRD-4', inputs: { offerId, listingId: offer.listingId, reservedQty: 1 } }], now),
+    };
+  }
+
+  /** TRD-1 Q2, S-FR-TRD-3.handoff (FR-TRD-6): the proposer's deterministic MSG-2 trade message, from the accepted terms. */
+  private handoffOf(offer: OfferRow): Promise<GetHandoffResponse> {
+    return this.deps.listings.generateContactMessage({
+      kind: 'trade', listingId: offer.listingId, requesterId: offer.proposerId, ipHmac: null,
+      tradeSummary: { offeredItems: offer.terms.offeredItems.map((i) => ({ itemRef: i.itemRef, condition: i.condition, qty: i.qty })), cashCop: offer.terms.cashCop },
+    });
+  }
+
+  /**
+   * TRD-2 (AD-TRD-1 rules 1–3): P1 visibility, P2 the terms, P3 their items, then under `trd:seller` P4–P6 in the D4
+   * order, P7 the round limit and P8 an unchanged counter, before one conditional update and the new round.
+   */
+  async counterOffer(input: CounterOfferRequest): Promise<CounterOfferResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { offerId, terms, expectedVersion, actorId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    return transactions.run(async (tx) => {
+      await this.visibleOffer(tx, offerId, actorId, false);
+      checkTerms(terms, 'FR-TRD-2');
+      await this.checkItems(terms, 'FR-TRD-2');
+      const { offer, role } = await this.visibleOffer(tx, offerId, actorId, true);
+      this.refuseAction(offer, expectedVersion, role, at, 'FR-TRD-2');
+      if (offer.roundCount >= MAX_ROUNDS) raise('TradeRoundLimitReached', [{ rule: 'FR-TRD-2', inputs: { offerId, roundCount: offer.roundCount } }]);
+      if (canonicalTerms(terms) === canonicalTerms(offer.terms)) raise('TradeCounterUnchanged', [{ rule: 'FR-TRD-2', inputs: { offerId, round: offer.roundCount } }]);
+      const next = await repo.counterOffer(tx, { offerId, role, expectedVersion, terms, now });
+      if (next === null) throw new UnexpectedError(`Unexpected: offer ${offerId} changed under the trd:seller lock`);
+      await repo.appendRound(tx, { offerId, round: next.roundCount, actor: role, action: 'counter', terms, now });
+      await this.audit(tx, actorId, 'trading.offer.countered', offerId, 'TradeOfferCountered', { round: next.roundCount, version: next.version }, now);
+      return {
+        offerId, version: next.version, turn: next.turn, roundCount: next.roundCount,
+        decision: explained('allowed', 'TradeOfferCountered', [{ rule: 'FR-TRD-2', inputs: { offerId, round: next.roundCount, turn: next.turn } }], now),
+      };
+    });
+  }
+
+  /**
+   * TRD-3 (AD-TRD-3 rule 3): under `trd:seller`, `Accepted → Cancelled` before either confirmation, then exactly one
+   * release of the stored reservation in the same transaction; 0 rows is `TradeNotCancellable` with zero writes.
+   */
+  async cancelTrade(input: CancelTradeRequest): Promise<CancelTradeResponse> {
+    const { repo, transactions, clock, listings } = this.deps;
+    const { offerId, actorId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    return transactions.run(async (tx) => {
+      const { offer, role } = await this.visibleOffer(tx, offerId, actorId, true);
+      const reservationRef = await repo.cancelAccepted(tx, { offerId, actorId, now });
+      if (reservationRef === null) {
+        return raise('TradeNotCancellable', [{
+          rule: 'FR-TRD-8',
+          inputs: { offerId, status: deriveOfferStatus(offer, at), proposerConfirmedAt: offer.proposerConfirmedAt?.toISOString() ?? null, sellerConfirmedAt: offer.sellerConfirmedAt?.toISOString() ?? null },
+        }]);
+      }
+      const { releasedUnits } = await listings.releaseReservation(tx, { reservationRef });
+      await repo.appendRound(tx, { offerId, actor: role, action: 'cancel', terms: null, now });
+      await this.audit(tx, actorId, 'trading.offer.cancelled', offerId, 'TradeCancelled', { releasedUnits }, now);
+      return {
+        offerId, status: 'Cancelled' as const, cancelledBy: actorId,
+        decision: explained('allowed', 'TradeCancelled', [{ rule: 'FR-TRD-8', inputs: { offerId, cancelledBy: actorId, releasedQty: releasedUnits } }], now),
+      };
+    });
+  }
+
+  /**
+   * S-FR-TRD-3.handoff: for a party to an Accepted offer, the same deterministic call as the accept's (zero trading
+   * writes); any other status is `TradeNotAccepted` (decision log Impl-1 #35, D5).
+   */
+  async getHandoff(input: GetHandoffRequest): Promise<GetHandoffResponse> {
+    const at = this.deps.clock.now();
+    const { offer } = await this.reading((tx) => this.visibleOffer(tx, input.offerId, input.actorId, false));
+    if (offer.status !== 'Accepted') raise('TradeNotAccepted', [{ rule: 'FR-TRD-6', inputs: { offerId: offer.id, status: deriveOfferStatus(offer, at) } }]);
+    return this.handoffOf(offer);
+  }
+
+  /**
+   * S-FR-TRD-7 (AD-TRD-3 rules 1–2): the party's own conditional confirmation under `trd:seller`, so it never interleaves
+   * with a cancel; `completed` is computed from both instants and never stored.
+   */
+  async confirmCompletion(input: ConfirmCompletionRequest): Promise<ConfirmCompletionResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { offerId, actorId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    return transactions.run(async (tx) => {
+      const { offer, role } = await this.visibleOffer(tx, offerId, actorId, true);
+      const confirmed = await repo.confirmCompletion(tx, { offerId, role, now });
+      if (confirmed === null) {
+        if (offer.status !== 'Accepted') return raise('TradeNotAccepted', [{ rule: 'FR-TRD-7', inputs: { offerId, status: deriveOfferStatus(offer, at) } }]);
+        const earlier = role === 'proposer' ? offer.proposerConfirmedAt : offer.sellerConfirmedAt;
+        return raise('TradeAlreadyConfirmedByRole', [{ rule: 'FR-TRD-7', inputs: { offerId, role, confirmedAt: earlier?.toISOString() ?? null } }]);
+      }
+      const completed = confirmed.proposerConfirmedAt !== null && confirmed.sellerConfirmedAt !== null;
+      await this.audit(tx, actorId, 'trading.offer.completionConfirmed', offerId, 'TradeCompletionConfirmed', { role, completed }, now);
+      return {
+        offerId, completed, confirmedAt: now,
+        decision: explained('allowed', 'TradeCompletionConfirmed', [{ rule: 'FR-TRD-7', inputs: { offerId, role, completed } }], now),
+      };
+    });
+  }
+
+  /**
+   * S-FR-TRD-9 (AD-TRD-1 rule 5): per seller with due offers, `trd:seller` and the conditional `Open → Expired`, with a
+   * system audit row each. No reservation changes: an Open offer holds none. The jobs route (tick, crons, single-flight,
+   * `JOBS_SECRET`) that calls it is not built yet; expiry is already correct at every read and command.
+   */
+  async expireDueOffers(input: ExpireDueOffersRequest): Promise<ExpireDueOffersResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const now = clock.now().toISOString();
+    const sellers = await transactions.run((tx) => repo.sellersWithDueOffers(tx, now), { readOnly: true });
+    let expired = 0;
+    for (const sellerId of sellers) {
+      expired += await transactions.run(async (tx) => {
+        await repo.lockTradeSeller(tx, sellerId);
+        const ids = await repo.expireDue(tx, { sellerId }, now);
+        for (const offerId of ids) await this.audit(tx, null, 'trading.offer.expired', offerId, null, { trigger: input.trigger }, now);
+        return ids.length;
+      });
+    }
+    return { expired };
   }
 }

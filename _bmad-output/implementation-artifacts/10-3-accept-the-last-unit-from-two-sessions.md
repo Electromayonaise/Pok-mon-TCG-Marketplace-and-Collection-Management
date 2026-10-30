@@ -1,0 +1,101 @@
+---
+title: 'Story 10.3: Accept the last unit from two sessions'
+type: 'feature'
+created: '2026-10-30'
+status: 'done'
+baseline_commit: '6b3cc16'
+review_loop_iteration: 0
+flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
+context:
+  - '{project-root}/_bmad-output/planning-artifacts/epics.md'
+  - '{project-root}/_bmad-output/planning-artifacts/detailed-design/contracts.md'
+  - '{project-root}/_bmad-output/planning-artifacts/ARCHITECTURE.md'
+---
+
+<frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
+
+## Intent
+
+**Problem:** `TrdServiceV2.acceptOffer` and `getHandoff` throw `NotImplementedError`: the seller cannot accept, and R-08 (P0, two accepts on the last unit) is unproven.
+
+**Approach:** TRD-1 and S-FR-TRD-3.handoff as written in contracts.md §8/§15 and AD-TRD-2: one transaction in lock order, then exactly one post-commit handoff.
+
+## Boundaries & Constraints
+
+**Always:**
+- P1 visibility (the seller only may accept: a proposer gets `NotYourTurn` when it is the seller's turn — the turn rule). Q1 order: `trd:seller` lock → conditional `Open → Accepted` (`turn='seller' AND version AND "expiresAt" > now`; 0 rows → the D4 mapper, citing the derived status) → `getTradeability(tx)` → `reserveForTrade(tx, 1)` → store `reservationRef`, round `accept` → siblings on `exhaustedListingIds` `Open → Unfulfillable` (`ListingNoLongerAvailable`), a `markedUnfulfillable` round each, `roundCount` unchanged → `TradeAccepted` (no delivery row) → audits (`trading.offer.accepted`, one `trading.offer.unfulfillable` per sibling).
+- Q-fail: a P5/P6 refusal rolls back; a follow-up transaction takes the lock and marks the own offer `Unfulfillable` (no-op if not Open), then rethrows.
+- Q2: after commit, one `listings.generateContactMessage({ kind: 'trade', listingId, requesterId: proposerId, tradeSummary, ipHmac: null })`; a throw → `handoff: null`, the accept stands.
+- **D3 (approved, revised 2026-10-30):** `TradeSummaryDTO` items become `{ itemRef?, name?, condition, qty }`. trading sends only `itemRef`s (it may not import `catalog`); listings' contact service names each one through its own `catalog.getEntries`. A summary item with a `name` (the MSG tests) is used as is. Amend contracts.md MSG-2's `TradeSummary`. The first form (an optional `name` on P-CAT.refs) was dropped: `[P-CAT.refs.h]` and `[P-INV.refs.h]` assert the rows with `toEqual`.
+- **D6 (listings side):** the trade path of `generateContactMessage` raises `Unexpected` for an empty summary or a cash that is not a safe integer in 0–100,000,000 (defence in depth); closes the Epic 9 deferral with 10.1's `checkTerms`.
+- **getHandoff:** a party to an `Accepted` offer → the same deterministic call from the stored terms; zero trading writes. **D5 (approved):** a non-`Accepted` offer → `TradeNotAccepted` (409); add it to `trading.handoff`'s errors in `operations.json` and to the §13 sources.
+- Decisions: `TradeOfferAccepted` (stored-only §13), `{ rule: 'FR-TRD-4', inputs: { offerId, listingId, reservedQty: 1 } }`.
+- Wiring: `trading.accept`, `trading.handoff` with the real listings. **NFR-TRD-2:** `[NFR-TRD-2.accept]` in `trd2_latency.test.ts`, p95 ≤ 800 ms, bound to 10.3. `[TRD-1.MEC]` runs 100 repetitions; its runtime is recorded here (TG-7).
+
+**Ask First:** SERIALIZABLE; any bound-test change.
+
+**Never:** a second `TradeAccepted`; a reservation on a non-Accepted offer (CHECK).
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| Accept | seller's turn, stock 1 | Accepted, reservation, 1 event, 1 handoff | N/A |
+| Last unit, two accepts × 100 | race | 1 Accepted, 1 Unfulfillable, stock 0 | `InsufficientQuantity` / `TradeOfferNotOpen` |
+| Handoff throws | after commit | `handoff: null`, stays Accepted | N/A |
+| Stock 0 | — | own offer Unfulfillable | `InsufficientQuantity` |
+
+</frozen-after-approval>
+
+## Code Map
+
+- `src/modules/trading/**` -- accept, follow-up, siblings, handoff summary
+- `src/modules/listings/{dto/contact.v2.dto.ts,application/contact.v2.ts}` (+ tests) -- D3 names, D6 guard
+- `src/server/composition.ts`, `operations.json`, `contracts.md` (§13, MSG-2 TradeSummary), `nfr/trd2_latency.test.ts`, `nfr-evidence.md`
+
+## Tasks & Acceptance
+
+**Execution:**
+- [x] accept + handoff + src tests; D3/D5/D6; wiring; benchmark
+- [x] `sprint-status.yaml` -- 10.3 `done`
+
+**Acceptance Criteria:**
+- Given 10.3 `done`, when `[TRD-1.Q1]`, `[TRD-1.Q3]`, `[TRD-1.F1]`, `[TRD-1.I1]`/`[TRD-1.MEC]`, `[NFR-TRD-2.accept]` run, then they pass; 10.4's `[TRD-1.P2]`–`[TRD-1.P6]` and 10.5's `[S-FR-TRD-9.f]` turn green too (D1, D2).
+
+## Verification
+
+- `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/trd_contracts.test.ts -t "TRD-1"`
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 10 at its close (decision #22).
+- Q1 runs in the contract's order. The schema's `trade_offer_accepted_has_reservation` CHECK refuses an Accepted row without a reservation, so step 2 stores a placeholder `{ listingId, units: [] }` that step 5 replaces in the same transaction; no other transaction ever reads it.
+- A listings refusal at P5/P6 is carried out of the transaction (so it rolls back), then the follow-up transaction takes `trd:seller`, marks the own offer Unfulfillable with a `markedUnfulfillable` round and an audit row (a no-op when it is no longer Open), and the original error propagates.
+- Sibling and own `markedUnfulfillable` rounds are numbered after both the highest round and `roundCount`, so a sibling at 10 rounds gets round 11 and keeps `roundCount` 10.
+- The visibility check runs before the turn: a proposer accepting at the seller's turn gets `NotYourTurn`.
+- **D3 (revised):** `TradeSummaryDTO` items are `{ itemRef?, name?, condition, qty }`; the contact service names `itemRef`s through `catalog.getEntries`. **D6:** it raises `Unexpected` for an empty summary, a cash outside 0–100,000,000 or an unknown item. **D5:** `trading.handoff` on a non-Accepted offer is `TradeNotAccepted` (operations.json, §13).
+- `trading.accept` and `trading.handoff` are wired. §13 gains `TradeOfferAccepted`.
+- **TG-7 runtime** (local Postgres 16, `fsync=off`): `[TRD-1.MEC]` 100 repetitions in 5,954 ms.
+- Measured: `[NFR-TRD-2.accept]` p95 14.3 ms (p50 9.3), with the post-commit handoff.
+
+### Review Findings
+
+Epic 10 close review (2026-10-30, decision #22): Blind Hunter, Edge Case Hunter and Acceptance Auditor over `6b3cc16..0b562b6` (code, contracts and the NFR file), recorded here for the whole epic. Totals: 4 decisions, 11 patches, 2 deferrals, 13 dismissed. Martín resolved the decisions with every recommendation and approved every patch (decision log Impl-1 #35).
+
+- [x] [Review][Decision→Patch] R1 Unfulfillable marks on expired offers — both marks now require `"expiresAt" > now`, so an expired offer keeps reading Expired; TRD-1 Q1 step 6 and Q-fail, AD-TRD-2 rules 2–3 amended
+- [x] [Review][Decision→Defer] R2 The handoff reads the listing live — `ListingNotFound` and `NotIndividualSellerListing` are now declared on `trading.handoff` (operations.json, §15); a snapshot of the handoff is deferred (deferred-work.md)
+- [x] [Review][Decision→Patch] R3 `trading.mine` pages on the immutable `(createdAt DESC, id)`, as `orders.mine` does; §15.12 amended
+- [x] [Review][Decision→Patch] R4 A seller's withdraw is refused first with `NotYourTurn` citing `{ turn: 'proposer' }`, declared on `trading.withdraw` and in §13/§15
+- [x] [Review][Patch] The accept's Q-fail wraps every error, so a deadlock or a lost connection ends the offer for good; wrap only listings' refusals [src/modules/trading/application/trd.v2.ts]
+- [x] [Review][Patch] A failing follow-up transaction replaces the original refusal [src/modules/trading/application/trd.v2.ts]
+- [x] [Review][Patch] `storeReservation` ignores a 0-row update, which would leave the placeholder reservation [src/modules/trading/infra/pg.ts]
+- [x] [Review][Patch] Duplicate `(itemRef, condition)` items pass `termsIssues`, bypassing the 4-copy bound and `TradeCounterUnchanged` [src/modules/trading/domain/trd.ts]
+- [x] [Review][Patch] The trade path of `generateContactMessage` accepts `tradeSummary: null`, and checks the summary after reading the phone [src/modules/listings/application/contact.v2.ts]
+- [x] [Review][Patch] `requireTradeItems` always cites FR-TRD-1, also for a counter [src/modules/listings/application/inv.v2.ts]
+- [x] [Review][Patch] The Q-fail audit row cites `acceptedOfferId` for an accept that never happened [src/modules/trading/application/trd.v2.ts]
+- [x] [Review][Patch] contracts.md: TRD-1 Q1 step 2 does not mention the placeholder reservation; §13 sources omit the new raisers (`InvalidItemRef`, `NotYourTurn`, `TradeOfferNotOpen`, `TradeOfferNotVisibleToCaller`) [contracts.md]
+- [x] [Review][Patch] The `resolvers()` doc comment does not list the trading wiring [src/server/composition.ts]
+- [x] [Review][Patch] No pool-of-1 proof for `makeOffer` and `counterOffer`, whose item check calls listings inside the transaction [src/modules/trading/application/trd.v2.test.ts]
+- [x] [Review][Patch] The round limit 10 is a literal in the counter SQL beside `MAX_ROUNDS` [src/modules/trading/infra/pg.ts]
+- [x] [Review][Defer] The accept swallows a handoff failure with no log (needs a logger port, Epic 7's item) — deferred
+- [x] [Review][Defer] `expireDueOffers` stops at the first failing seller and has no single-flight (the jobs route) — deferred
