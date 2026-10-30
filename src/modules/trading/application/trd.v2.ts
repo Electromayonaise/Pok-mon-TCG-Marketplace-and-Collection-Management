@@ -121,7 +121,7 @@ export class TrdServiceV2 implements TrdV2UseCases {
       offerId: offer.id, listingId: offer.listingId, status, turn: offer.turn, version: offer.version, roundCount: offer.roundCount,
       expiresAt: offer.expiresAt.toISOString(),
       rounds: rounds.map((r) => ({ round: r.round, actor: r.actor, action: r.action, terms: r.terms, at: r.createdAt.toISOString() })),
-      decision: explained('allowed', 'TradeOfferShown', [{ rule: 'FR-TRD-3', inputs: { status, turn: offer.turn, roundCount: offer.roundCount } }], at.toISOString()),
+      decision: explained('allowed', 'TradeOfferShown', [{ rule: 'FR-TRD-3', inputs: { status, turn: offer.turn, round: offer.roundCount } }], at.toISOString()),
     };
   }
 
