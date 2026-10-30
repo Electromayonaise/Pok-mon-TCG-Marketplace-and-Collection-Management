@@ -813,7 +813,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Precondition (P)**, first-fail:
   - P1 Visible to the actor. Violation: `TradeOfferNotVisibleToCaller` (HTTP 403, trading), with an identical body for an unknown id.
   - P2 `status='Open'` and `expiresAt > now`. Violation: `TradeOfferNotOpen` (HTTP 409, trading), citing the derived status.
-  - P3 `turn = 'seller'` and the actor is the seller. Violation: `NotYourTurn` (HTTP 409, trading), citing `{ turn }`.
+  - P3 `turn = 'seller'` and the actor is the seller. Violation: `NotYourTurn` (HTTP 409, trading), citing `{ turn }`. Evaluated after P4: a stale version is refused first, because a stale tab's turn is stale too (decision log Impl-1 #35).
   - P4 `version = expectedVersion`; the value comes from the rendered offer (refinement R-6). Violation: `TradeOfferNotOpen` (HTTP 409, trading), citing the latest round.
   - P5 `listings.getTradeability(listingId)` allows it in the ambient `tx`. Violation: `ListingNotOpenToTrade` (HTTP 409, listings) or `ListingNotFound` (HTTP 404, listings), propagated.
   - P6 `listings.reserveForTrade(tx, listingId, 1)` succeeds. Violation: `InsufficientQuantity` (HTTP 409, listings), propagated.
@@ -854,7 +854,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - P2 The terms are not empty (some items or `cashCop > 0`). Violation: `EmptyTradeOffer` (HTTP 400, trading).
   - P3 Every `itemRef` resolves through `listings.resolveItemRefs` (OQ-6). Violation: `InvalidItemRef` (HTTP 400, listings), propagated.
   - P4 `status='Open'` and `expiresAt > now`. Violation: `TradeOfferNotOpen` (HTTP 409, trading).
-  - P5 `turn` = the actor's role. Violation: `NotYourTurn` (HTTP 409, trading), citing `{ turn }`.
+  - P5 `turn` = the actor's role. Violation: `NotYourTurn` (HTTP 409, trading), citing `{ turn }`. Evaluated after P6: a stale version is refused first, so two tabs countering with one version leave the loser `TradeOfferNotOpen` (decision log Impl-1 #35).
   - P6 `version = expectedVersion`. Violation: `TradeOfferNotOpen` (HTTP 409, trading), citing the latest round (a stale tab).
   - P7 `roundCount < 10`. Violation: `TradeRoundLimitReached` (HTTP 409, trading), citing `{ roundCount: 10 }`.
   - P8 The canonical terms (item multiset sorted by `(itemRef, condition, qty)`, plus `cashCop`) differ from the latest round's. Violation: `TradeCounterUnchanged` (HTTP 409, trading), citing `{ round }`.
@@ -868,7 +868,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - I1 Rounds are immutable: `"TradeOfferRound"` has `UPDATE` and `DELETE` revoked, `PK (offerId, round)`. Bound to: AD-TRD-1 rule 4.
   - I2 `1 ≤ roundCount ≤ 10`. Bound to: AD-TRD-1 rule 3; `CHECK ("roundCount" BETWEEN 1 AND 10)`.
   - I3 Only the turn holder changes the terms, and each counter flips the turn exactly once. Bound to: AD-TRD-1 rule 1, AD-SYS-5.
-- **Concurrency / idempotency:** two tabs of the same party countering with the same `expectedVersion` → one round, and the other gets `TradeOfferNotOpen` (stale). A counter racing the proposer's withdraw → exactly one of them applies. A repeated identical counter after success → `NotYourTurn`.
+- **Concurrency / idempotency:** two tabs of the same party countering with the same `expectedVersion` → one round, and the other gets `TradeOfferNotOpen` (stale). A counter racing the proposer's withdraw → exactly one of them applies. A repeated identical counter after success → `TradeOfferNotOpen` with the old version, `NotYourTurn` with the refreshed one.
 - **Time:** `Clock`, once. Open only while `now < expiresAt`.
 - **Latency budget (NFR):** p95 ≤ 500 ms at N = 1 (NFR-TRD-2).
 
@@ -1397,6 +1397,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `TradeNotCancellable` | 409 | trading | TRD-3 P2 | "Ya hay una confirmación de entrega; el intercambio no se puede cancelar." | no |
 | `TradeOfferMade` | — (stored only) | trading | S-FR-TRD-1 `allowed`: the offer is Open with the turn at the seller, citing `{ offerId, listingId, expiresAt }` (FR-TRD-1; decision log Impl-1 #35) | "Tu oferta quedó abierta hasta el {expiresAt}." | no |
 | `TradeOfferWithdrawn` | — (stored only) | trading | S-FR-TRD-2w `allowed`: the proposer withdrew the offer, citing `{ offerId, status }` (FR-TRD-2; decision log Impl-1 #35) | "Retiraste tu oferta." | no |
+| `TradeOfferCountered` | — (stored only) | trading | TRD-2 Q4 `allowed`: the counter is recorded and the turn flips, citing `{ offerId, round, turn }` (FR-TRD-2; decision log Impl-1 #35) | "Contraoferta enviada (ronda {round}); ahora le toca a {turn}." | no |
 | `TradeOfferRejected` | — (stored only) | trading | S-FR-TRD-2w `allowed`: the turn holder rejected the offer, citing `{ offerId, status }` (FR-TRD-2; decision log Impl-1 #35) | "Rechazaste la oferta." | no |
 | `TradeOfferShown` | — (stored only) | trading | S-FR-TRD-3 `allowed`: the offer as a party reads it, status derived, citing `{ status, turn, roundCount }` (FR-TRD-3; decision log Impl-1 #35) | "Oferta {status}, ronda {roundCount}; le toca a {turn}." | no |
 | `ConversationNotVisibleToCaller` | 403 | messaging | MSG-1 P3; S-FR-MSG-7 | "No encontramos esa conversación." | no |

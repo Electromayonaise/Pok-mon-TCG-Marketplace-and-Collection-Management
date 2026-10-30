@@ -83,6 +83,11 @@ export interface TrdRepository {
   appendRound(tx: Tx, r: { offerId: CuidId; round?: number; actor: OfferRole; action: 'offer' | 'counter' | 'accept' | 'reject' | 'withdraw' | 'markedUnfulfillable' | 'cancel'; terms: TradeTermsDTO | null; now: IsoInstant }): Promise<void>;
   /** S-FR-TRD-2w (AD-TRD-1 rule 1): the conditional `Open → Rejected | Withdrawn`; `turn` null omits the turn predicate. */
   resolveOpenOffer(tx: Tx, c: { offerId: CuidId; expectedVersion: number; turn: OfferRole | null; to: 'Rejected' | 'Withdrawn'; now: IsoInstant }): Promise<boolean>;
+  /**
+   * TRD-2 Q1 (AD-TRD-1 rules 1, 3): `terms`, the other party's turn, `roundCount + 1` and `version + 1`, conditional on
+   * Open, the actor's turn, the version, `expiresAt > now` and `roundCount < 10`; null when no row matched.
+   */
+  counterOffer(tx: Tx, c: { offerId: CuidId; role: OfferRole; expectedVersion: number; terms: TradeTermsDTO; now: IsoInstant }): Promise<{ version: number; turn: OfferRole; roundCount: number } | null>;
   /** S-FR-TRD-3.mine: the actor's offers on a side, optionally by derived status, newest change first. */
   listOffers(tx: Tx, q: { actorId: CuidId; side: 'sent' | 'received' | 'any'; status: OfferStatus | null; after: { updatedAt: IsoInstant; id: CuidId } | null; limit: number; now: IsoInstant }): Promise<OfferRow[]>;
 }

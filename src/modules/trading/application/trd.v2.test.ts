@@ -84,3 +84,18 @@ describe('TrdServiceV2.listMyOffers (S-FR-TRD-3.mine)', () => {
     expect(codeOf(await caught(() => trd.listMyOffers({ actorId: id('julian'), side: 'any', cursor: 'nope' })))).toBe('RequestValidationFailed');
   });
 });
+
+describe('TrdServiceV2.counterOffer (TRD-2) with the real listings', () => {
+  it('the parties alternate rounds; an unknown item is InvalidItemRef before the lock, and nothing changes', async () => {
+    await scene();
+    const { offerId } = await make();
+    const trd = trading();
+    await trd.counterOffer({ offerId, terms: terms({ cashCop: 10_000 }), expectedVersion: 0, actorId: id('valentina') });
+    const ghost = await caught(() => trd.counterOffer({ offerId, terms: terms({ offeredItems: [{ itemRef: id('ghost'), condition: 'NM', qty: 1 }] }), expectedVersion: 1, actorId: id('julian') }));
+    expect(codeOf(ghost)).toBe('InvalidItemRef');
+    expect(await trd.counterOffer({ offerId, terms: terms({ cashCop: 5_000 }), expectedVersion: 1, actorId: id('julian') })).toMatchObject({ version: 2, turn: 'seller', roundCount: 3 });
+    const view = await trd.getOffer({ offerId, actorId: id('valentina') });
+    expect(view.rounds.map((r) => [r.round, r.actor, r.action, r.terms?.cashCop])).toEqual([[1, 'proposer', 'offer', 0], [2, 'seller', 'counter', 10_000], [3, 'proposer', 'counter', 5_000]]);
+    expect(await rows(db, 'audit_events', `action = 'trading.offer.countered'`)).toHaveLength(2);
+  });
+});

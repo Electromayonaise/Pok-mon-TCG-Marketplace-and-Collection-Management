@@ -121,7 +121,7 @@ development_status:
   epic-9-retrospective: optional
   epic-10: in-progress
   10-1-make-read-and-withdraw-a-trade-offer: done
-  10-2-counter-an-offer-turn-by-turn: backlog
+  10-2-counter-an-offer-turn-by-turn: done
   10-3-accept-the-last-unit-from-two-sessions: backlog
   10-4-refuse-stale-out-of-turn-and-duplicate-offer-actions: backlog
   10-5-cancel-complete-and-expire-trades-exactly-once: backlog

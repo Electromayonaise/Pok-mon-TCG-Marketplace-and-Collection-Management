@@ -2,7 +2,7 @@
 title: 'Story 10.2: Counter an offer turn by turn'
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: '6b3cc16'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -53,8 +53,8 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] counter + src tests; contract amendment; benchmark + binding; wiring
-- [ ] `sprint-status.yaml` -- 10.2 `done`
+- [x] counter + src tests; contract amendment; benchmark + binding; wiring
+- [x] `sprint-status.yaml` -- 10.2 `done`
 
 **Acceptance Criteria:**
 - Given 10.2 `done`, when `[TRD-2.Q1]`, `[TRD-2.I3]`, `[NFR-TRD-2.counter]` run, then they pass; 10.4's `[TRD-2.P2]`, `[TRD-2.P5]`–`[TRD-2.P8]` are early greens restored by the 10.4 commit.
@@ -62,3 +62,12 @@ context:
 ## Verification
 
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/trd_contracts.test.ts -t "TRD-2"`
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 10 at its close (decision #22).
+- P1 visibility is read before P2–P3, then the offer is re-read under `trd:seller`; P4–P6 use the shared mapper, P7 and P8 follow, and the conditional update cannot miss under the lock (a miss is `Unexpected`).
+- P8 compares against the offer's `terms` column, which always holds the latest proposal round's terms, and cites `{ round: roundCount }`.
+- **D4 (approved):** the clause numbers stay (the test ids `[TRD-1.P3]`, `[TRD-2.P5]` name the turn), and contracts.md now says the version clause is evaluated first; AD-TRD-1 rule 2 lists stale version before the turn. The concurrency line reads: a repeated counter is `TradeOfferNotOpen` with the old version and `NotYourTurn` with the refreshed one.
+- `trading.counter` is wired. §13 gains `TradeOfferCountered`.
+- Measured: `[NFR-TRD-2.counter]` p95 6.0 ms (p50 3.0), 550 Open offers on three of the seed's trade listings, local Postgres 16.

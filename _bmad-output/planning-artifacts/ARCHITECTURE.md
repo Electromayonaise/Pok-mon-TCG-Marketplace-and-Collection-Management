@@ -1403,8 +1403,8 @@ flowchart LR
   1. Every action runs `UPDATE "TradeOffer" SET … , version = version + 1 WHERE id=:id AND status='Open' AND turn=:actorRole AND version=:v AND "expiresAt" > :now`. `withdraw` omits `turn` and requires the proposer.
   2. On 0 rows, the re-read maps the result:
      - not `Open`, or `expiresAt ≤ now` → `TradeOfferNotOpen`, citing the status (derived `Expired` included);
-     - wrong turn → `NotYourTurn`, citing whose turn it is;
-     - stale `version` with the same status and turn → `TradeOfferNotOpen`, citing the latest round.
+     - stale `version` → `TradeOfferNotOpen`, citing the latest round; checked before the turn, because a stale tab's turn is stale too, so two tabs countering with one version leave the loser `TradeOfferNotOpen` (decision log Impl-1 #35);
+     - wrong turn with the current version → `NotYourTurn`, citing whose turn it is.
   3. `counter` additionally requires `roundCount < 10` (`TradeRoundLimitReached`). It refuses terms equal to the latest round's terms, compared after canonical sort, with `TradeCounterUnchanged` [G-1]. It then appends a round and flips `turn`.
   4. Rounds are immutable. Visibility is `proposerId = actor OR sellerId = actor`. Otherwise `TradeOfferNotVisibleToCaller`, with an identical body for unknown ids.
   5. Expiry is derived: `deriveStatus` returns `Expired` when `status='Open' AND expiresAt ≤ now`. The `daily-morning` job and the hourly tick materialize it with a conditional `Open → Expired`. No reservation exists on an `Open` offer, so materialization only changes the status.

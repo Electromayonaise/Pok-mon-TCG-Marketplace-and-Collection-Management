@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 384 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 385 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -1164,15 +1164,15 @@ Let collectors negotiate card-and-cash trades turn by turn on individual listing
 - **Description:** As Valentina, I want to counter Julián's offer on my turn, so that we can converge on terms.
 - **Contracts:** `TRD-2` counterOffer
 - **Depends on:** Story 10.1
-- **Traceability:** FR-TRD-1, FR-TRD-2 · UI 8.2, 8.4 (dev)
+- **Traceability:** FR-TRD-1, FR-TRD-2 · NFR-TRD-2 · UI 8.2, 8.4 (dev)
 - **Binding invariants:** AD-SYS-5 — Every transition is one conditional UPDATE (`WHERE <from-state>` + loser re-read); AD-TRD-1 — Offer action = one conditional update (`status`, `turn`, `version`, `expiresAt` predicate)
 - **Files:** `src/modules/trading/application/trd.v2.ts` (`TrdServiceV2.counterOffer`), `src/modules/trading/ports/trd.v2.ts` (`TrdRepository`), `src/modules/trading/domain/trd.ts`, `src/modules/trading/infra/pg.ts`
 - **Schema/DTO:** tables `"TradeOffer"`, `"TradeOfferRound"`; DTOs `CounterOfferRequest` → `CounterOfferResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/trd_contracts.test.ts` › `[TRD-2.Q1]`, `[TRD-2.I3]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/trd_contracts.test.ts` › `[TRD-2.Q1]`, `[TRD-2.I3]`; `_bmad-output/test-artifacts/nfr/trd2_latency.test.ts` › `[NFR-TRD-2.counter]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Julián's Open offer, with the turn at the seller. **When:** Valentina counters with 30,000 COP. **Then:** the turn flips, round 2 is recorded and the version advances.
   - **Scenario (failure) — Given:** two tabs of Valentina counter with the same version. **When:** both submit. **Then:** one round, and one `TradeOfferNotOpen`.
-- **DoD:** the shared DoD, plus: the 2 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 10.3: Accept the last unit from two sessions
 
@@ -1188,7 +1188,7 @@ Let collectors negotiate card-and-cash trades turn by turn on individual listing
 - **Gherkin:**
   - **Scenario (happy) — Given:** Julián's offer on Valentina's listing. **When:** she accepts. **Then:** Accepted with a reservation, one accept round, one `TradeAccepted` with no delivery row, and one contact handoff for Julián.
   - **Scenario (failure) — Given:** two offers for the last unit accepted from two sessions, 100 times; the handoff fails after commit. **When:** both accepts run. **Then:** one Accepted and one Unfulfillable, stock 0, one event and one handoff; siblings on the exhausted listing become Unfulfillable; the accept stands with `handoff: null`.
-- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7); NFR-TRD-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7).
 
 ### Story 10.4: Refuse stale, out-of-turn and duplicate offer actions
 
@@ -1204,7 +1204,7 @@ Let collectors negotiate card-and-cash trades turn by turn on individual listing
 - **Gherkin:**
   - **Scenario (happy) — Given:** an Open offer at Valentina's turn and the current version. **When:** she accepts. **Then:** it is accepted: the contrast case.
   - **Scenario (failure) — Given:** the offer expired; it is not her turn; the version is stale; no unit is left; a counter is empty, unchanged or would be round 11; the same proposer opens a second live offer; a third party reads the offer. **When:** the action runs. **Then:** `TradeOfferNotOpen` citing the derived status or the latest round; `NotYourTurn`; `InsufficientQuantity` with the own offer Unfulfillable; `EmptyTradeOffer`, `TradeCounterUnchanged`, `TradeRoundLimitReached`; `DuplicateOpenOffer`; a body identical to an unknown id.
-- **DoD:** the shared DoD, plus: the 12 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-TRD-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 12 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 10.5: Cancel, complete and expire trades exactly once
 

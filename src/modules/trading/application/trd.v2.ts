@@ -39,7 +39,7 @@ import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import { requireTradeItems } from '../../listings/index.js';
 import {
-  decodeOfferCursor, deriveOfferStatus, encodeOfferCursor, isEmptyTerms, offerActionRefusal, OFFER_TTL_MS, roleOf, termsIssues,
+  canonicalTerms, decodeOfferCursor, deriveOfferStatus, encodeOfferCursor, isEmptyTerms, MAX_ROUNDS, offerActionRefusal, OFFER_TTL_MS, roleOf, termsIssues,
   type OfferRole,
 } from '../domain/trd.js';
 import type { OfferViewDTO, TradeTermsDTO } from '../dto/trd.v2.dto.js';
@@ -200,8 +200,32 @@ export class TrdServiceV2 implements TrdV2UseCases {
     throw new NotImplementedError('trading.acceptOffer');
   }
 
-  async counterOffer(_input: CounterOfferRequest): Promise<CounterOfferResponse> {
-    throw new NotImplementedError('trading.counterOffer');
+  /**
+   * TRD-2 (AD-TRD-1 rules 1–3): P1 visibility, P2 the terms, P3 their items, then under `trd:seller` P4–P6 in the D4
+   * order, P7 the round limit and P8 an unchanged counter, before one conditional update and the new round.
+   */
+  async counterOffer(input: CounterOfferRequest): Promise<CounterOfferResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { offerId, terms, expectedVersion, actorId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    return transactions.run(async (tx) => {
+      await this.visibleOffer(tx, offerId, actorId, false);
+      checkTerms(terms, 'FR-TRD-2');
+      await this.checkItems(terms);
+      const { offer, role } = await this.visibleOffer(tx, offerId, actorId, true);
+      this.refuseAction(offer, expectedVersion, role, at, 'FR-TRD-2');
+      if (offer.roundCount >= MAX_ROUNDS) raise('TradeRoundLimitReached', [{ rule: 'FR-TRD-2', inputs: { offerId, roundCount: offer.roundCount } }]);
+      if (canonicalTerms(terms) === canonicalTerms(offer.terms)) raise('TradeCounterUnchanged', [{ rule: 'FR-TRD-2', inputs: { offerId, round: offer.roundCount } }]);
+      const next = await repo.counterOffer(tx, { offerId, role, expectedVersion, terms, now });
+      if (next === null) throw new UnexpectedError(`Unexpected: offer ${offerId} changed under the trd:seller lock`);
+      await repo.appendRound(tx, { offerId, round: next.roundCount, actor: role, action: 'counter', terms, now });
+      await this.audit(tx, actorId, 'trading.offer.countered', offerId, 'TradeOfferCountered', { round: next.roundCount, version: next.version }, now);
+      return {
+        offerId, version: next.version, turn: next.turn, roundCount: next.roundCount,
+        decision: explained('allowed', 'TradeOfferCountered', [{ rule: 'FR-TRD-2', inputs: { offerId, round: next.roundCount, turn: next.turn } }], now),
+      };
+    });
   }
 
   async cancelTrade(_input: CancelTradeRequest): Promise<CancelTradeResponse> {

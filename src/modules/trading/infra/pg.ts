@@ -116,6 +116,17 @@ export class PgTrdRepository implements TrdRepository {
     return rowCount === 1;
   }
 
+  async counterOffer(tx: Tx, c: { offerId: CuidId; role: OfferRole; expectedVersion: number; terms: TradeTermsDTO; now: IsoInstant }): Promise<{ version: number; turn: OfferRole; roundCount: number } | null> {
+    const { rows } = await tx.query<{ version: number; turn: OfferRole; roundCount: number }>(
+      `UPDATE "TradeOffer" SET terms = $5, turn = CASE WHEN $2 = 'seller' THEN 'proposer' ELSE 'seller' END, "roundCount" = "roundCount" + 1,
+              "updatedAt" = $4, version = version + 1
+        WHERE id = $1 AND status = 'Open' AND turn = $2 AND version = $3 AND "expiresAt" > $4 AND "roundCount" < 10
+        RETURNING version, turn, "roundCount"`,
+      [c.offerId, c.role, c.expectedVersion, c.now, JSON.stringify(c.terms)],
+    );
+    return rows[0] ?? null;
+  }
+
   async listOffers(tx: Tx, q: { actorId: CuidId; side: 'sent' | 'received' | 'any'; status: OfferStatus | null; after: { updatedAt: IsoInstant; id: CuidId } | null; limit: number; now: IsoInstant }): Promise<OfferRow[]> {
     const mine = q.side === 'sent' ? `"proposerId" = $1` : q.side === 'received' ? `"sellerId" = $1` : `("proposerId" = $1 OR "sellerId" = $1)`;
     const keyset = q.after ? `AND ("updatedAt" < $5 OR ("updatedAt" = $5 AND id COLLATE "C" < $6))` : '';
