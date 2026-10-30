@@ -30,9 +30,25 @@ export interface ValV2Deps {
 }
 // </gen-solu2-api>
 
+import type { Tx } from '../../../shared-kernel/ports.js';
+import type { CuidId, IsoDate } from '../../../shared-kernel/types.js';
+
+/** One `"CollectionEntry"` as VAL reads it (AD-VAL-1 rule 1). */
+export interface ValuationEntryRow {
+  entryId: CuidId;
+  cardKind: 'catalog' | 'external';
+  catalogEntryId: CuidId | null;
+  qty: number;
+  acquiredAt: IsoDate;
+}
+
 /**
- * Repository port of VAL (review A-4): the only way its application service reads or writes
- * its own tables (AD-8). Each story adds the methods its contract's SQL needs, typed with
- * `Tx` where the contract joins a transaction; `infra/pg.ts` implements them. Empty until then.
+ * Repository port of VAL (review A-4). VAL owns no tables: it only reads COL's, in a
+ * `REPEATABLE READ READ ONLY` snapshot (Solu-1 GAP-2), so no method locks a row.
  */
-export interface ValRepository {}
+export interface ValRepository {
+  /** VAL-1/2/3 P1: whether the owner holds the collection, read without a lock (a read-only transaction refuses `FOR SHARE`). */
+  ownsCollectionForRead(tx: Tx, collectionId: CuidId, ownerId: CuidId): Promise<boolean>;
+  /** VAL-1 Q1, VAL-2 Q1, VAL-3 Q1: the collection's current entries, by `("manualPosition", id)`. */
+  readValuationEntries(tx: Tx, collectionId: CuidId): Promise<ValuationEntryRow[]>;
+}

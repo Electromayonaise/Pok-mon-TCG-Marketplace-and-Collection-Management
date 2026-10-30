@@ -1122,10 +1122,10 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Layer:** Inbound Port.
 - **Precondition (P):**
   - P1 Owned collection. Violation: `CollectionNotFound` (HTTP 404, collections).
-  - P2 `period ∈ {7, 30, 90, 365}`. Violation: `InvalidValuationPeriod` (HTTP 400, collections), citing `{ period }`.
+  - P2 `period ∈ {7, 30, 90, 365}`. Violation: `InvalidValuationPeriod` (HTTP 400, collections), citing `{ period }`. Over HTTP the procedure's parser types `period` as that enum, so a request is refused there as `RequestValidationFailed` before P1 (§0.3); `InvalidValuationPeriod` answers an internal caller (decision log Impl-1 #37, R2).
 - **Postcondition (Q):**
   - Q1 `start = now − period × 86,400 s`. `V(t)` values the **current** entries with `acquiredAt ≤ Bogotá date of t`, priced by `getReferencePricesAsOf(ids, t)`. Both `V(start)` and `V(now)` are read in one `REPEATABLE READ READ ONLY` transaction.
-  - Q2 `changeCop = V(now) − V(start)`. When `V(start) > 0`: `changePercentHundredths = roundHalfAwayFromZero((V(now) − V(start)) × 10000, V(start))` in BigInt (AD-VAL-2 rule 3). `marketChangePercentHundredths` is the same formula over the entries with `acquiredAt ≤ start` (A-46).
+  - Q2 `changeCop = V(now) − V(start)`. When `V(start) > 0`: `changePercentHundredths = roundHalfAwayFromZero((V(now) − V(start)) × 10000, V(start))` in BigInt (AD-VAL-2 rule 3). `marketChangePercentHundredths` is the same formula over the entries with `acquiredAt ≤ start` that had a price at `start`, like for like: a card first priced after `start` is not market movement (A-46; decision log Impl-1 #37, R1).
   - Q3 Zero writes. No audit.
   - Q4 Explanation:
     - `V(start) = 0` → `changePercentHundredths = null` with `ValuationNoBaseline`, citing `{ rule: 'FR-VAL-2', inputs: { valueAtStartCop: 0, changeCop } }`; the UI shows `changeCop` and "Nuevo en este periodo";
@@ -1153,7 +1153,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - P2 `days` is an integer in 1–365. Violation: `RequestValidationFailed` (HTTP 400, owner shared-kernel).
 - **Postcondition (Q):**
   - Q1 Daily points from `max(earliest acquiredAt, today − days + 1)` to today, as Bogotá calendar days: at most 365 points and exactly one per day.
-  - Q2 One `catalog.getPriceHistory(ids, from, to)` per 500 distinct ids. The pure `series` carries each price forward day by day and marks a point `stale` when its price is older than 36 h at that day's end. It never interpolates. A priced entry steps in on its `acquiredAt` date.
+  - Q2 One `catalog.getPriceHistory(ids, from, to)` per 500 distinct ids, with `from` = the Bogotá start (05:00 UTC) of `today − days + 1` and `to = now`, so VAL never asks for more than 365 Bogotá days (decision log Impl-1 #37, D3). The pure `series` carries each price forward day by day and marks a point `stale` when a price it sums is older than 36 h at that day's end (`now` for today; decision log Impl-1 #37, D4). It never interpolates. A priced entry steps in on its `acquiredAt` date.
   - Q3 Zero writes. No audit.
   - Q4 Explanation:
     - no priced entry → `points: []`, with a decision citing `{ rule: 'FR-VAL-4', inputs: { pricedEntries: 0 } }`;
@@ -1422,6 +1422,11 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `CollectionEntryAdded` | — (stored only) | collections | COL-3 Q4 `allowed`: one Manual entry is added, citing `{ entryId, source, createdGeneral }` (FR-COL-2; decision log Impl-1 #36) | "Agregaste la carta a tu colección." | no |
 | `PromptAccepted` | — (stored only) | collections | COL-1 Q4 `allowed`: the prompt is Accepted and one entry per line (split at 999 copies) is added, citing `{ promptId, orderId, entryCount }` (FR-COL-7; decision log Impl-1 #36) | "Agregamos tu compra a la colección. Entradas nuevas: {entryCount}." | no |
 | `PromptDismissed` | — (stored only) | collections | COL-1.dismiss `allowed`: the prompt is Dismissed with no entry, citing `{ promptId, orderId }` (FR-COL-7; decision log Impl-1 #36) | "Descartaste la sugerencia." | no |
+| `CollectionValued` | — (stored only) | collections | VAL-1 Q4 `allowed`: the collection is valued from the latest reference prices, citing `{ valuedCount, notValuedCount, staleCount, conversionDriftBoundCop }` (FR-VAL-1; decision log Impl-1 #37) | "Sumamos el valor de tus cartas con sus precios de referencia más recientes." | no |
+| `ValuationNoBaseline` | — (stored only) | collections | VAL-2 Q4: `V(start) = 0`, so both percentages are null, citing `{ valueAtStartCop: 0, changeCop }` (FR-VAL-2, NFR-VAL-1). A DecisionCode that had no template; the rule of decision log Impl-1 #16 (decision log Impl-1 #37) | "Tus cartas actuales no tenían valor al inicio del periodo; te mostramos solo el cambio en pesos." | no |
+| `ValuationTrendComputed` | — (stored only) | collections | VAL-2 Q4 `allowed`: a baseline exists, citing `{ period, valueAtStartCop, valueNowCop }` (FR-VAL-2; decision log Impl-1 #37) | "Comparamos lo que valían tus cartas actuales al inicio del periodo con lo que valen hoy." | no |
+| `ValuationHistoryShown` | — (stored only) | collections | VAL-3 Q4 `allowed`: the series has a point per day, citing `{ pricedEntries, points }` (FR-VAL-4; decision log Impl-1 #37) | "Cada punto es lo que valían ese día tus cartas actuales, con el último precio guardado." | no |
+| `ValuationHistoryEmpty` | — (stored only) | collections | VAL-3 Q4: no entry has a reference price, so the series is empty, citing `{ pricedEntries: 0 }` (FR-VAL-4; decision log Impl-1 #37) | "Ninguna carta de esta colección tiene precio de referencia todavía, así que no hay historial." | no |
 | `InvalidValuationPeriod` | 400 | collections | VAL-2 P2 | "El periodo debe ser 7, 30, 90 o 365 días." | no |
 | `TargetNotFound` | 404 | reviews | REP-1 P2, P3; S-FR-REP-7 | "No encontramos ese vendedor." | no |
 | `NotVerifiedPurchaser` | 409 | reviews | REP-1 P4 | "Podrás reseñar esta tienda cuando confirmes que recibiste tu pedido; pagar no es suficiente ({latestState})." | no |

@@ -8,6 +8,7 @@ import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import { GENERAL_COLLECTION, type PromptStatus } from '../domain/col.js';
 import type { CollectionRow, ColRepository, NewEntry, PromptRow } from '../ports/col.v2.js';
 import type { ICollectionRepository, IPromptRepository } from '../ports/collections.js';
+import type { ValRepository, ValuationEntryRow } from '../ports/val.v2.js';
 
 export class PgCollectionRepository implements ICollectionRepository {
   constructor(protected readonly sql: Sql) {}
@@ -174,6 +175,23 @@ export class PgColRepository implements ColRepository {
     const { rows } = await tx.query<PromptRow>(
       `SELECT ${PROMPT_COLUMNS} FROM "PostPurchasePrompt" WHERE "buyerId" = $1 AND ($2::text IS NULL OR status = $2) ORDER BY "createdAt" DESC, id DESC`,
       [buyerId, status],
+    );
+    return rows;
+  }
+}
+
+/** VAL's reads of COL's tables (AD-VAL-1 rule 1); VAL owns none and writes nothing (contracts.md §11). */
+export class PgValRepository implements ValRepository {
+  async ownsCollectionForRead(tx: Tx, collectionId: CuidId, ownerId: CuidId): Promise<boolean> {
+    const { rowCount } = await tx.query(`SELECT 1 FROM "Collection" WHERE id = $1 AND "ownerId" = $2`, [collectionId, ownerId]);
+    return rowCount === 1;
+  }
+
+  async readValuationEntries(tx: Tx, collectionId: CuidId): Promise<ValuationEntryRow[]> {
+    const { rows } = await tx.query<ValuationEntryRow>(
+      `SELECT id AS "entryId", "cardKind", "catalogEntryId", qty, to_char("acquiredAt", 'YYYY-MM-DD') AS "acquiredAt"
+       FROM "CollectionEntry" WHERE "collectionId" = $1 ORDER BY "manualPosition", id`,
+      [collectionId],
     );
     return rows;
   }

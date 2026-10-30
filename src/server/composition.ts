@@ -3,7 +3,7 @@
 // from app/ (AD-SYS-6) and the session reader from Better Auth, so a test binds both.
 import type pg from 'pg';
 import { CatServiceV2, PgCatRepository } from '../modules/catalog/index.js';
-import { ColServiceV2, PgColRepository } from '../modules/collections/index.js';
+import { ColServiceV2, PgColRepository, PgValRepository, ValServiceV2 } from '../modules/collections/index.js';
 import { ComServiceV2, PgComRepository } from '../modules/commission/index.js';
 import { ContactServiceV2, DscServiceV2, InvServiceV2, PgContactRepository, PgDscRepository, PgInvRepository } from '../modules/listings/index.js';
 import { MsgServiceV2, PgMsgRepository } from '../modules/messaging/index.js';
@@ -139,9 +139,9 @@ export interface AppDeps {
  * The procedures whose contracts the done stories implement: IDN-1.ingress (Story 2.1),
  * IDN-3 (Story 2.5), S-SYS.replay (Story 1.3), S-SYS.tick, .deliveries, .health
  * (Story 1.5), VER-2 (Story 3.1), VER-1 (Story 3.2), VER-3 and S-FR-VER-5.audit (Story 3.4) and
- * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), CAT-3 and S-FR-CAT-8.fetch (Story 4.4), S-FR-CAT-1 (Story 4.5), INV-2 (Story 5.1), S-FR-INV-2, -9 and -10 (Story 5.6), DSC-1 (Story 6.2), DSC-2 (Story 6.3), ORD-1 and S-FR-ORD-2 (Story 7.1), ORD-2, -3 and -4 (Story 7.2), S-FR-ORD-6, -7, -9 and -10 (Story 7.5; S-FR-ORD-8 has no jobs route yet), S-FR-COM-2 and -9 (Story 8.1, with the commission subscriber, which runs COM-1 for Story 8.2), COM-2, COM-2.reject and COM-2.queue (Story 8.3), MSG-1 (Story 9.2), MSG-2 (Story 9.3), and TRD's ten: S-FR-TRD-1, -2w and -3.get/.mine (Story 10.1), TRD-2 (Story 10.2), TRD-1 and S-FR-TRD-3.handoff (Story 10.3), TRD-3 and S-FR-TRD-7 (Story 10.5; S-FR-TRD-9 has no jobs route yet), S-FR-COL-1 and its list (Story 11.1), COL-3 (Story 11.2), and COL-1, COL-1.dismiss and COL-1.list (Story 11.3, with the collections subscriber, which runs COL-2). Every other procedure stays NotImplemented until its story wires it.
+ * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), CAT-3 and S-FR-CAT-8.fetch (Story 4.4), S-FR-CAT-1 (Story 4.5), INV-2 (Story 5.1), S-FR-INV-2, -9 and -10 (Story 5.6), DSC-1 (Story 6.2), DSC-2 (Story 6.3), ORD-1 and S-FR-ORD-2 (Story 7.1), ORD-2, -3 and -4 (Story 7.2), S-FR-ORD-6, -7, -9 and -10 (Story 7.5; S-FR-ORD-8 has no jobs route yet), S-FR-COM-2 and -9 (Story 8.1, with the commission subscriber, which runs COM-1 for Story 8.2), COM-2, COM-2.reject and COM-2.queue (Story 8.3), MSG-1 (Story 9.2), MSG-2 (Story 9.3), and TRD's ten: S-FR-TRD-1, -2w and -3.get/.mine (Story 10.1), TRD-2 (Story 10.2), TRD-1 and S-FR-TRD-3.handoff (Story 10.3), TRD-3 and S-FR-TRD-7 (Story 10.5; S-FR-TRD-9 has no jobs route yet), S-FR-COL-1 and its list (Story 11.1), COL-3 (Story 11.2), and COL-1, COL-1.dismiss and COL-1.list (Story 11.3, with the collections subscriber, which runs COL-2), VAL-1 (Story 12.1), and VAL-2 and VAL-3 (Story 12.2). Every other procedure stays NotImplemented until its story wires it.
  */
-function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2; inv: InvServiceV2; dsc: DscServiceV2; ord: OrdServiceV2; com: ComServiceV2; msg: MsgServiceV2; contact: ContactServiceV2; trd: TrdServiceV2; col: ColServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
+function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2; inv: InvServiceV2; dsc: DscServiceV2; ord: OrdServiceV2; com: ComServiceV2; msg: MsgServiceV2; contact: ContactServiceV2; trd: TrdServiceV2; col: ColServiceV2; val: ValServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
   return {
     'access.completeIndividualProfile': (input, userId) => s.idn.completeIndividualProfile({ ...input, userId }),
     'access.traceCapabilities': (input, adminId) => s.idn.traceCapabilities({ ...input, adminId }),
@@ -219,6 +219,9 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
     'collections.prompts.accept': ({ promptId, collectionId }, actorId) => s.col.acceptPrompt({ promptId, collectionId, actorId }),
     'collections.prompts.dismiss': ({ promptId }, actorId) => s.col.dismissPrompt({ promptId, actorId }),
     'collections.prompts.list': ({ status }, buyerId) => s.col.listPrompts({ buyerId, ...(status ? { status } : {}) }),
+    'valuation.current': ({ collectionId }, actorId) => s.val.valueCollection({ collectionId, actorId }),
+    'valuation.trend': ({ collectionId, period }, actorId) => s.val.valuationTrend({ collectionId, period, actorId }),
+    'valuation.history': ({ collectionId, days }, actorId) => s.val.valuationHistory({ collectionId, days, actorId }),
     'admin.events.replay': (input, adminId) => s.adminEvents.replayEventDelivery({ ...input, adminId }),
     'admin.jobs.tickHealth': (_input, adminId) => s.adminEvents.getTickHealth({ adminId }),
     'admin.events.deliveries': (input, adminId) => s.adminEvents.listDeliveries({ ...input, adminId }),
@@ -234,7 +237,7 @@ export function compose({
   const outbox = new PgOutboxV2(ids, clock);
   const audit = new PgAuditLog(ids, clock);
   // The one repository object every service receives (R-14).
-  const repo = oneRepository(new PgAdminEventsRepository(), new PgIdnRepository(), new PgVerRepository(), new PgLegalIdentityRepository(), new PgCatRepository(), new PgInvRepository(), new PgDscRepository(), new PgContactRepository(), new PgOrdRepository(), new PgComRepository(), new PgMsgRepository(), new PgTrdRepository(), new PgColRepository());
+  const repo = oneRepository(new PgAdminEventsRepository(), new PgIdnRepository(), new PgVerRepository(), new PgLegalIdentityRepository(), new PgCatRepository(), new PgInvRepository(), new PgDscRepository(), new PgContactRepository(), new PgOrdRepository(), new PgComRepository(), new PgMsgRepository(), new PgTrdRepository(), new PgColRepository(), new PgValRepository());
   const idn = new IdnServiceV2({ repo, transactions, clock, ids, outbox, audit });
   const ver = new VerServiceV2({ repo, transactions, clock, ids, outbox, audit, storage, scanner });
   const cat = new CatServiceV2({ repo, transactions, clock, ids, outbox, audit, feed, fx });
@@ -268,11 +271,12 @@ export function compose({
     },
   });
   const col = new ColServiceV2({ repo, transactions, clock, ids, outbox, audit, catalog: cat, listings: inv });
+  const val = new ValServiceV2({ repo, transactions, clock, ids, outbox, audit, catalog: cat });
   const dispatcher = new OutboxDispatcherV2({ transactions, clock }, { collections: collectionsHandler(col), listings: listingsHandler(inv), commission: commissionHandler(com), ...handlers });
   const adminEvents = new AdminEventsServiceV2({ repo, transactions, clock, ids, outbox, audit, dispatcher });
   return {
     identity: new IdentityGateV2({ sessions, repo, transactions, idn }),
     ipHmac: ipHmacKey ? requestIpHmac(ipHmacKey) : () => null,
-    router: buildAppRouter(resolvers({ idn, ver, cat, inv, dsc, ord, com, msg, contact, trd, col, adminEvents })),
+    router: buildAppRouter(resolvers({ idn, ver, cat, inv, dsc, ord, com, msg, contact, trd, col, val, adminEvents })),
   };
 }

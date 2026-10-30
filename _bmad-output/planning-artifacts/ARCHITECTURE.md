@@ -1672,7 +1672,7 @@ flowchart LR
 | Procedure | Builder | Codes |
 | --- | --- | --- |
 | `valuation.current({collectionId})` | `authedProcedure` | `CollectionNotFound` |
-| `valuation.trend({collectionId, period})` | `authedProcedure` | `CollectionNotFound`, `InvalidValuationPeriod` |
+| `valuation.trend({collectionId, period})` | `authedProcedure` | `CollectionNotFound`, `InvalidValuationPeriod` (internal callers; the parser refuses a bad period as `RequestValidationFailed`, decision log Impl-1 #37) |
 | `valuation.history({collectionId, days ≤ 365})` | `authedProcedure` | `CollectionNotFound`, `RequestValidationFailed` |
 | `dev.valuation.explain` (10.3) | `devProcedure` | — |
 
@@ -1721,7 +1721,7 @@ flowchart LR
   1. `period ∈ {7, 30, 90, 365}`, otherwise `InvalidValuationPeriod`.
   2. `V(t)` values the current entries as of `t`.
   3. `changePercent = round_half_up((V(now) − V(start)) × 10000 / V(start)) / 100`, computed by the shared BigInt helper `roundHalfAwayFromZero(num, den)`. BigInt division truncates toward zero, so the helper rounds the magnitude and restores the sign; tests cover ±0.5 at both signs. When `V(start) = 0`, it is `null` with `ValuationNoBaseline`.
-  4. `marketChangePercent` applies the same formula to entries whose `acquiredAt ≤ start` [ASSUMPTION A-46].
+  4. `marketChangePercent` applies the same formula to entries whose `acquiredAt ≤ start` and that had a price at `start`, like for like [ASSUMPTION A-46; decision log Impl-1 #37].
   5. The history makes one `getPriceHistory` call per 500 ids. The pure `series` carries each price forward day by day, marked `stale` after the freshness threshold, and never interpolates. At most 365 points.
   6. Every label reads "What your current cards were worth" (A-54).
 - **Trade-off:** past values change when entries are edited. That is documented in the label, and it avoids snapshot storage.

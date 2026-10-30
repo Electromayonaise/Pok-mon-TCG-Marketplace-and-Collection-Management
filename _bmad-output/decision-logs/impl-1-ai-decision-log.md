@@ -881,3 +881,58 @@
   - The four Epic 11 story files.
   - `sprint-status.yaml` (11.4 out of `impl2_scope`; `epic-11: done`).
 - **Decided by:** Martín.
+
+### 37. Epic 12 is built whole, VAL bounds its own history window, its close review makes the market change like for like, and the epic is signed (Governance)
+
+- **Phase:** 3 (Epic 12 planning at `49b09cc`, then the close review over `49b09cc..a539a53`).
+- **Persona/Skill:** `bmad-quick-dev`, epic-batched (#22), then `bmad-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor).
+- **Prompt (summary):** Two rounds.
+  - **The specs.** Martín approved the five Epic 12 specs (12.1–12.5) together. With them came five choices:
+    - **D1, scope of 12.4 and 12.5.** Both are in `impl2_scope`, but their 5 bound tests check clauses that 12.1 and 12.2 must build:
+      - `[VAL-1.P1]` and `[VAL-3.P1]` are VAL-1's and VAL-3's own ownership precondition, and `[VAL-2.P2]` is VAL-2's own period check (AD-VAL-2 rule 1);
+      - `[VAL-3.Q4]` is VAL-3's own Q4, and `[VAL-2.I3]` is VAL-2 Q2's rounding, which `[VAL-2.Q1]` already needs.
+    - **D2, §13 codes.** Four VAL responses carry a `decision` with no §13 code, and the DecisionCode `ValuationNoBaseline` has no template.
+    - **D3, Epic 4's deferrals.** `getPriceHistory` bounds its ids but not its window; `getFxRate` raises `Unexpected` with no stored TRM.
+    - **D4, minor choices:** P1 before P2; the ownership read without `FOR SHARE` inside the `READ ONLY` snapshot; a new `PgValRepository` joined to the one repository (R-14); today's staleness judged at `now`.
+    - **D5, the NFR-VAL-2 benchmarks.** Which story binds which benchmark; Story 12.3 owns no operation.
+  - **The close review.** It left 2 decisions, 7 patches, 2 deferrals and 15 dismissed findings. The decisions:
+    - **R1:** the market change's current side valued every entry acquired by the start, including cards that had no price at the start, so a newly priced card read as market movement (A-46).
+    - **R2:** the generated parser types `period` as 7 | 30 | 90 | 365, so over HTTP a bad period is `RequestValidationFailed` before P1 (§0.3), while VAL-2 P2 and the §6.11 router table name `InvalidValuationPeriod`.
+- **AI output (summary):** The agent recommended:
+  - **(recommended)** D1: build 12.4 and 12.5 as proof-only stories committed after 12.3, as 7.3, 7.4, 8.4, 9.4, 9.5, 10.4 and 11.4 were (#32–#36). They leave `impl2_scope` and do not count toward the 43. The alternatives were a gate exception, or postponing the epic.
+  - **(recommended)** D2: four stored-only rows (`CollectionValued`, `ValuationTrendComputed`, `ValuationHistoryShown`, `ValuationHistoryEmpty`) and a template for `ValuationNoBaseline` (the rule of #16). The alternative was one generic code.
+  - **(recommended)** D3: VAL-3 asks from the Bogotá start of `today − days + 1` to `now`, at most 365 days, which closes the `getPriceHistory` deferral. The `getFxRate` deferral stays open, owned by the jobs route, because VAL never calls it (an FX-derived observation already carries its COP). VAL needs no tick. The alternative also capped P-CAT.history's window in the catalog.
+  - **(recommended)** D4 as listed.
+  - **(recommended)** D5: `[NFR-VAL-2.current]` bound to 12.1, `[NFR-VAL-2.trend]` and `[NFR-VAL-2.history]` bound to 12.2, in a new `val2_latency.test.ts`; 12.3 records their figures and binds none. The alternative gave 12.3 a concurrent benchmark.
+  - **(recommended)** R1: like for like. The market change counts only the entries acquired by the start that had a price at the start; `changePercentHundredths` is unchanged. The alternative was the literal reading of VAL-2 Q2.
+  - **(recommended)** R2: follow §0.3, as IDN P3's `track` does. The parser keeps the enum, and VAL-2 P2 and §6.11 now say `InvalidValuationPeriod` answers an internal caller. The alternative was loosening `operations.json` to an integer.
+  - Apply all 7 patches.
+- **Human decision:** ACCEPT every recommendation, and sign the Epic 12 gate (#5).
+- **Reason:** `done` keeps meaning what the bound tests prove, and the gate needs no exception. No bound test changes. VAL writes nothing and never reads listing prices (FR-VAL-5), and every request reads one snapshot.
+- **Also decided (the patches):**
+  - `acquiredAt` is read with `to_char(…, 'YYYY-MM-DD')`, so the date comparisons never depend on DateStyle.
+  - In `series`, a past day holds the observations before the next day's 05:00 UTC start, so an observation at exactly 05:00 UTC belongs to its own day.
+  - Of two observations at one instant, `series` counts the first by `(source, id)`, as VAL-1's as-of read does.
+  - Both percentages go through `assertSafeInteger`.
+  - `chunks` refuses a size below 1.
+  - `[NFR-VAL-2.history]` dates the 500-entry collection a year back, so it measures the full 365 points.
+  - The HTTP history test asserts the carried-forward, stale price.
+- **Also in this epic:**
+  - `valuation.current`, `valuation.trend` and `valuation.history` are wired. `PgValRepository` joins the one repository (R-14).
+  - `[VAL-1.MEC]` runs in 410–455 ms and `[VAL-2.I1]` in 83–125 ms (local Postgres 16, three runs). A fast-check property over 1,000 random collections proves the exact sum and the drift bound.
+  - NFR-VAL-2 p95, local Postgres 16: current value 74 ms; current value plus the 30-day trend 281 ms; 365-point history 262 ms.
+  - The two deferrals: VAL's own 36 h staleness constant in `series` (owned by the next catalog contract revision), and the trend and history windows starting differently (owned by the valuation pages, UI 10.1 and 10.2).
+- **Environment note:** Docker did not run in this session. A `postgresql-16` cluster on port 55432 (`max_connections=200`, `fsync=off`, `full_page_writes=off`) ran `npm run test:ci`. The agent read the script's own exit code (`TESTCI_EXIT`) before each push. A first run failed (exit 1) on a stale traceability matrix and was not pushed. The six story commits were pushed after a run with exit 0 at `a539a53`.
+- **Artifact changed:**
+  - `src/modules/collections/**` (`domain/val.ts`, `ports/val.v2.ts`, `infra/pg.ts`, `application/val.v2.ts`, and their tests).
+  - `src/server/composition.ts` (+ test).
+  - `src/shared-kernel/messages.generated.ts`.
+  - `test-support/solu2/fixtures.ts`.
+  - `_bmad-output/test-artifacts/nfr/val2_latency.test.ts` and `nfr-evidence.md`.
+  - `_bmad-output/planning-artifacts/detailed-design/contracts.md`: VAL-2 P2 and Q2, VAL-3 Q2, and §13 (five rows).
+  - `_bmad-output/planning-artifacts/ARCHITECTURE.md` (AD-VAL-2 rule 4, the §6.11 router table).
+  - `epics.source.mjs` and `epics.md` (the three benchmark ids), and `traceability-matrix.md`.
+  - `deferred-work.md`.
+  - The five Epic 12 story files.
+  - `sprint-status.yaml` (12.4 and 12.5 out of `impl2_scope`; `epic-12: done`).
+- **Decided by:** Martín.

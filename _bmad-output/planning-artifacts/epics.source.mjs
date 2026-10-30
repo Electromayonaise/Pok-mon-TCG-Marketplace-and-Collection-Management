@@ -560,14 +560,14 @@ export default {
         {
           title: 'Value a collection exactly', kind: 'Core',
           as: 'As Valentina, I want my collection\'s value summed exactly from the latest reference prices, with unvalued entries explained, so that I can trust the total.',
-          ops: ['VAL-1'], tests: ['VAL-1.Q1', 'VAL-1.I1', 'VAL-1.I2'], depends: ['11.2', '4.5', '4.4'],
+          ops: ['VAL-1'], tests: ['VAL-1.Q1', 'VAL-1.I1', 'VAL-1.I2', 'NFR-VAL-2.current'], depends: ['11.2', '4.5', '4.4'],
           happy: ['entries priced at 45,000 × 2 and 9,999 × 1, one unpriced and one external.', 'Valentina values the collection.', 'total 99,999, valued count 2, stale count 1, and the unpriced and external entries listed with their codes; 90 entries of 999 × 99,999,999 sum exactly in BigInt.'],
           failure: ['600 distinct cards, read in two price chunks of at most 500.', 'the valuation runs.', 'both chunks are read as of the same instant.'],
         },
         {
           title: 'Show the valuation trend and daily history', kind: 'Core',
           as: 'As Valentina, I want the 30-day trend and a daily value series, so that I see how my collection moved.',
-          ops: ['VAL-2', 'VAL-3'], tests: ['VAL-2.Q1', 'VAL-3.Q1', 'VAL-3.I2'], depends: ['12.1'],
+          ops: ['VAL-2', 'VAL-3'], tests: ['VAL-2.Q1', 'VAL-3.Q1', 'VAL-3.I2', 'NFR-VAL-2.trend', 'NFR-VAL-2.history'], depends: ['12.1'],
           happy: ['a card worth 40,000 thirty days ago and 45,000 now.', 'Valentina reads the trend and the history.', '+12.50 % with the market change and the "current cards" label; one point per Bogotá day, stepping up by a new card\'s value on its acquisition date.'],
           failure: ['a day with no new observation.', 'the history is computed.', 'the last price is carried forward and marked stale after 36 h, never interpolated.'],
         },

@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 386 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 389 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -1336,11 +1336,11 @@ Value collections exactly in COP from reference prices read as of one instant. S
 - **Binding invariants:** AD-VAL-1 — Valuation is a pure BigInt function (Pure function; brand types); also cited by its clauses: AD-SYS-7
 - **Files:** `src/modules/collections/application/val.v2.ts` (`ValServiceV2.valueCollection`), `src/modules/collections/ports/val.v2.ts` (`ValRepository`), `src/modules/collections/domain/val.ts`, `src/modules/collections/infra/pg.ts`
 - **Schema/DTO:** DTOs `ValueCollectionRequest` → `ValueCollectionResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/val_contracts.test.ts` › `[VAL-1.Q1]`, `[VAL-1.I1]`, `[VAL-1.I2]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/val_contracts.test.ts` › `[VAL-1.Q1]`, `[VAL-1.I1]`, `[VAL-1.I2]`; `_bmad-output/test-artifacts/nfr/val2_latency.test.ts` › `[NFR-VAL-2.current]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** entries priced at 45,000 × 2 and 9,999 × 1, one unpriced and one external. **When:** Valentina values the collection. **Then:** total 99,999, valued count 2, stale count 1, and the unpriced and external entries listed with their codes; 90 entries of 999 × 99,999,999 sum exactly in BigInt.
   - **Scenario (failure) — Given:** 600 distinct cards, read in two price chunks of at most 500. **When:** the valuation runs. **Then:** both chunks are read as of the same instant.
-- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-VAL-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 12.2: Show the valuation trend and daily history
 
@@ -1352,11 +1352,11 @@ Value collections exactly in COP from reference prices read as of one instant. S
 - **Binding invariants:** also cited by its clauses: AD-CAT-2, AD-SYS-7, AD-VAL-2
 - **Files:** `src/modules/collections/application/val.v2.ts` (`ValServiceV2.valuationTrend`, `ValServiceV2.valuationHistory`), `src/modules/collections/ports/val.v2.ts` (`ValRepository`), `src/modules/collections/domain/val.ts`, `src/modules/collections/infra/pg.ts`
 - **Schema/DTO:** DTOs `ValuationTrendRequest` → `ValuationTrendResponse`, `ValuationHistoryRequest` → `ValuationHistoryResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/val_contracts.test.ts` › `[VAL-2.Q1]`, `[VAL-3.Q1]`, `[VAL-3.I2]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/val_contracts.test.ts` › `[VAL-2.Q1]`, `[VAL-3.Q1]`, `[VAL-3.I2]`; `_bmad-output/test-artifacts/nfr/val2_latency.test.ts` › `[NFR-VAL-2.trend]`, `[NFR-VAL-2.history]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a card worth 40,000 thirty days ago and 45,000 now. **When:** Valentina reads the trend and the history. **Then:** +12.50 % with the market change and the "current cards" label; one point per Bogotá day, stepping up by a new card's value on its acquisition date.
   - **Scenario (failure) — Given:** a day with no new observation. **When:** the history is computed. **Then:** the last price is carried forward and marked stale after 36 h, never interpolated.
-- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-VAL-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 12.3: Value 500 mixed entries with zero drift and a zero baseline
 
@@ -1372,7 +1372,7 @@ Value collections exactly in COP from reference prices read as of one instant. S
 - **Gherkin:**
   - **Scenario (happy) — Given:** 500 entries mixing native and FX-derived prices. **When:** five valuations run concurrently. **Then:** each total equals the BigInt reference sum exactly, and the drift bound is ⌊Σ qty(fx) / 2⌋.
   - **Scenario (failure) — Given:** an empty collection, an all-unpriced one, and one whose cards were all acquired inside the period. **When:** the trend is read. **Then:** the change percentage is null with `ValuationNoBaseline`, never NaN or Infinity.
-- **DoD:** the shared DoD, plus: the 2 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7); NFR-VAL-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 2 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7).
 
 ### Story 12.4: Refuse foreign collections and invalid periods
 
@@ -1388,7 +1388,7 @@ Value collections exactly in COP from reference prices read as of one instant. S
 - **Gherkin:**
   - **Scenario (happy) — Given:** Valentina's own collection and a 30-day period. **When:** she reads its value and trend. **Then:** both are returned: the contrast case.
   - **Scenario (failure) — Given:** Julián reads Valentina's collection, or Valentina asks for a 14-day period. **When:** the read runs. **Then:** `CollectionNotFound` (404) for value and history, and `InvalidValuationPeriod` (400).
-- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-VAL-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 12.5: Explain empty series and rounding edges
 
@@ -1404,7 +1404,7 @@ Value collections exactly in COP from reference prices read as of one instant. S
 - **Gherkin:**
   - **Scenario (happy) — Given:** 3 → 4 over the period. **When:** the trend is read. **Then:** +33.33 %, rounded half away from zero.
   - **Scenario (failure) — Given:** 30,000 → 29,999, and a collection with no priced entry. **When:** the trend and the history are read. **Then:** exactly 0, never −0, and an empty series explained under FR-VAL-4.
-- **DoD:** the shared DoD, plus: the 2 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-VAL-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 2 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ## Epic 13: Seller reputation and moderation (REP)
 
