@@ -154,6 +154,34 @@ export class PgTrdRepository implements TrdRepository {
     return rows.map((r) => r.id).sort();
   }
 
+  async cancelAccepted(tx: Tx, c: { offerId: CuidId; actorId: CuidId; now: IsoInstant }): Promise<ReservationRefDTO | null> {
+    const { rows } = await tx.query<{ reservationRef: ReservationRefDTO }>(
+      `UPDATE "TradeOffer" SET status = 'Cancelled', "cancelledBy" = $2, "cancelledAt" = $3, "updatedAt" = $3, version = version + 1
+        WHERE id = $1 AND status = 'Accepted' AND "proposerConfirmedAt" IS NULL AND "sellerConfirmedAt" IS NULL
+        RETURNING "reservationRef"`,
+      [c.offerId, c.actorId, c.now],
+    );
+    return rows[0]?.reservationRef ?? null;
+  }
+
+  async confirmCompletion(tx: Tx, c: { offerId: CuidId; role: OfferRole; now: IsoInstant }): Promise<{ proposerConfirmedAt: Date | null; sellerConfirmedAt: Date | null } | null> {
+    const column = c.role === 'proposer' ? '"proposerConfirmedAt"' : '"sellerConfirmedAt"';
+    const { rows } = await tx.query<{ proposerConfirmedAt: Date | null; sellerConfirmedAt: Date | null }>(
+      `UPDATE "TradeOffer" SET ${column} = $2, "updatedAt" = $2 WHERE id = $1 AND status = 'Accepted' AND ${column} IS NULL
+        RETURNING "proposerConfirmedAt", "sellerConfirmedAt"`,
+      [c.offerId, c.now],
+    );
+    return rows[0] ?? null;
+  }
+
+  async sellersWithDueOffers(tx: Tx, now: IsoInstant): Promise<CuidId[]> {
+    const { rows } = await tx.query<{ sellerId: CuidId }>(
+      `SELECT DISTINCT "sellerId" FROM "TradeOffer" WHERE status = 'Open' AND "expiresAt" <= $1 ORDER BY "sellerId"`,
+      [now],
+    );
+    return rows.map((r) => r.sellerId);
+  }
+
   async listOffers(tx: Tx, q: { actorId: CuidId; side: 'sent' | 'received' | 'any'; status: OfferStatus | null; after: { updatedAt: IsoInstant; id: CuidId } | null; limit: number; now: IsoInstant }): Promise<OfferRow[]> {
     const mine = q.side === 'sent' ? `"proposerId" = $1` : q.side === 'received' ? `"sellerId" = $1` : `("proposerId" = $1 OR "sellerId" = $1)`;
     const keyset = q.after ? `AND ("updatedAt" < $5 OR ("updatedAt" = $5 AND id COLLATE "C" < $6))` : '';

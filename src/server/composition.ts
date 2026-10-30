@@ -201,6 +201,8 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
     'trading.counter': ({ offerId, terms, expectedVersion }, actorId) => s.trd.counterOffer({ offerId, terms, expectedVersion, actorId }),
     'trading.accept': ({ offerId, expectedVersion }, sellerId) => s.trd.acceptOffer({ offerId, expectedVersion, sellerId }),
     'trading.handoff': ({ offerId }, actorId) => s.trd.getHandoff({ offerId, actorId }),
+    'trading.cancel': ({ offerId }, actorId) => s.trd.cancelTrade({ offerId, actorId }),
+    'trading.confirmCompletion': ({ offerId }, actorId) => s.trd.confirmCompletion({ offerId, actorId }),
     'trading.reject': ({ offerId, expectedVersion }, actorId) => s.trd.resolveOffer({ offerId, expectedVersion, actorId, action: 'reject' }),
     'trading.withdraw': ({ offerId, expectedVersion }, actorId) => s.trd.resolveOffer({ offerId, expectedVersion, actorId, action: 'withdraw' }),
     'trading.get': ({ offerId }, actorId) => s.trd.getOffer({ offerId, actorId }),

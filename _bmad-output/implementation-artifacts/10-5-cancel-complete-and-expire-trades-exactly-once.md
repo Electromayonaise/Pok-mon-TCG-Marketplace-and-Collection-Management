@@ -2,7 +2,7 @@
 title: 'Story 10.5: Cancel, complete and expire trades exactly once'
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: '6b3cc16'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -39,7 +39,16 @@ Alternatives: rebind `[S-FR-TRD-9.f]` to 10.3 in `epics.source.mjs` and leave 10
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] cancel, confirm, expiry + src tests; wiring; `sprint-status.yaml` 10.5 `done`, out of `impl2_scope`
+- [x] cancel, confirm, expiry + src tests; wiring; `sprint-status.yaml` 10.5 `done`, out of `impl2_scope`
 
 **Acceptance Criteria:**
 - Given 10.5 `done`, when `[TRD-3.Q1]`, `[TRD-3.P1]`, `[TRD-3.P2]`, `[TRD-3.I1]`, `[S-FR-TRD-7.h]`, `[S-FR-TRD-7.f]`, `[S-FR-TRD-9.h]`, `[S-FR-TRD-9.f]` run, then they pass.
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 10 at its close (decision #22).
+- **D2 (approved):** built whole; it leaves `impl2_scope` and counts as a story brought forward.
+- `confirmCompletion` also takes `trd:seller` (AD-TRD-2 rule 1 lists every trade mutation), so a cancel and a confirmation never interleave; `TradeNotAccepted` cites the derived status, `TradeAlreadyConfirmedByRole` the role's original instant. Confirmation does not advance `version`.
+- `TradeNotCancellable` cites `{ status, proposerConfirmedAt, sellerConfirmedAt }` from the row read under the lock.
+- `expireDueOffers` lists the sellers with due offers in a read-only transaction, then one transaction per seller under its lock; each expired offer gets a `system` audit row carrying the trigger. No jobs route calls it yet (deferred-work.md, with the Story 4.1/4.4/7.5 jobs-route item).
+- `trading.cancel` and `trading.confirmCompletion` are wired, so all ten `trading.*` procedures are; the "rest stays unwired" HTTP case now uses `messaging.inbox` (Story 9.6). §13 gains `TradeCancelled` and `TradeCompletionConfirmed`.

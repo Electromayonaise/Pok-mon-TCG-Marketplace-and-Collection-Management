@@ -100,6 +100,15 @@ export interface TrdRepository {
    * offers on the given listings, or of one offer; `roundCount` unchanged. Returns the ids marked, sorted.
    */
   markUnfulfillable(tx: Tx, scope: { listingIds: CuidId[]; exceptOfferId: CuidId } | { offerId: CuidId }, now: IsoInstant): Promise<CuidId[]>;
+  /**
+   * TRD-3 Q1 (AD-TRD-3 rule 3): `Accepted → Cancelled` before either confirmation, with who cancelled and `version + 1`;
+   * the stored reservation, or null when no row matched.
+   */
+  cancelAccepted(tx: Tx, c: { offerId: CuidId; actorId: CuidId; now: IsoInstant }): Promise<ReservationRefDTO | null>;
+  /** S-FR-TRD-7 (AD-TRD-3 rule 1): the role's confirmation on an Accepted offer that lacks it; both instants, or null. */
+  confirmCompletion(tx: Tx, c: { offerId: CuidId; role: OfferRole; now: IsoInstant }): Promise<{ proposerConfirmedAt: Date | null; sellerConfirmedAt: Date | null } | null>;
+  /** S-FR-TRD-9: the sellers with an Open offer past `expiresAt`. */
+  sellersWithDueOffers(tx: Tx, now: IsoInstant): Promise<CuidId[]>;
   /** S-FR-TRD-3.mine: the actor's offers on a side, optionally by derived status, newest change first. */
   listOffers(tx: Tx, q: { actorId: CuidId; side: 'sent' | 'received' | 'any'; status: OfferStatus | null; after: { updatedAt: IsoInstant; id: CuidId } | null; limit: number; now: IsoInstant }): Promise<OfferRow[]>;
 }

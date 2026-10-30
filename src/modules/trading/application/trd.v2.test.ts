@@ -137,3 +137,32 @@ describe('TrdServiceV2.acceptOffer and getHandoff (TRD-1, S-FR-TRD-3.handoff) wi
     expect((await rows<{ quantity: number }>(db, 'InventoryUnit'))[0]?.quantity).toBe(1);
   });
 });
+
+describe('TrdServiceV2.cancelTrade, confirmCompletion and expireDueOffers (TRD-3, S-FR-TRD-7, S-FR-TRD-9) with the real listings', () => {
+  it('a cancel releases the real unit once, with a cancel round; confirming a cancelled trade is TradeNotAccepted', async () => {
+    await scene();
+    const { offerId } = await make();
+    const trd = trading();
+    await trd.acceptOffer({ offerId, expectedVersion: 0, sellerId: id('valentina') });
+    expect((await rows<{ quantity: number }>(db, 'InventoryUnit'))[0]?.quantity).toBe(0);
+    expect(await trd.cancelTrade({ offerId, actorId: id('valentina') })).toMatchObject({ status: 'Cancelled', cancelledBy: id('valentina'), decision: { citations: [{ inputs: { releasedQty: 1 } }] } });
+    expect((await rows<{ quantity: number }>(db, 'InventoryUnit'))[0]?.quantity).toBe(1);
+    expect((await rows(db, 'TradeOfferRound', `"offerId" = $1`, [offerId])).map((r) => r.action)).toEqual(['offer', 'accept', 'cancel']);
+    const again = await caught(() => trd.cancelTrade({ offerId, actorId: id('julian') }));
+    expect([codeOf(again), citedInputs(again)]).toEqual(['TradeNotCancellable', { offerId, status: 'Cancelled', proposerConfirmedAt: null, sellerConfirmedAt: null }]);
+    expect(codeOf(await caught(() => trd.confirmCompletion({ offerId, actorId: id('julian') })))).toBe('TradeNotAccepted');
+    expect(codeOf(await caught(() => trd.confirmCompletion({ offerId, actorId: id('camila') })))).toBe('TradeOfferNotVisibleToCaller');
+    expect((await rows<{ quantity: number }>(db, 'InventoryUnit'))[0]?.quantity).toBe(1);
+  });
+
+  it('the expiry job materializes each seller\'s due offers under its lock, with a system audit row each, and leaves live ones Open', async () => {
+    await scene();
+    await individualSeller(db, id('andrea'));
+    await tradeOffer(db, { id: id('due1'), listingId: id('lv'), sellerId: id('valentina'), proposerId: id('julian'), expiresAt: at(-HOUR) });
+    await tradeOffer(db, { id: id('due2'), listingId: id('la'), sellerId: id('andrea'), proposerId: id('julian'), expiresAt: at(0) });
+    await tradeOffer(db, { id: id('live'), listingId: id('lv'), sellerId: id('valentina'), proposerId: id('camila') });
+    expect(await trading().expireDueOffers({ trigger: 'daily-morning' })).toEqual({ expired: 2 });
+    expect((await rows(db, 'TradeOffer')).map((o) => [o.id, o.status]).sort()).toEqual([[id('due1'), 'Expired'], [id('due2'), 'Expired'], [id('live'), 'Open']].sort());
+    expect((await rows(db, 'audit_events', `action = 'trading.offer.expired'`)).map((r) => r.actorKind)).toEqual(['system', 'system']);
+  });
+});

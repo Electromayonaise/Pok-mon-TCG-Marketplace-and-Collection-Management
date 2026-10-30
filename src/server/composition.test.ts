@@ -673,7 +673,7 @@ describe('the commission account and top-ups over HTTP (S-FR-COM-1, -2, -9, COM-
 describe('the rest of the registry stays unwired', () => {
   it('a procedure no done story implements is still Unexpected 500 behind a real session', async () => {
     await user(db, { id: id('camila') });
-    const { status, json } = await post('trading.cancel', { offerId: id('ghost') }, await signIn(id('camila')));
+    const { status, json } = await get('messaging.inbox', { cursor: null }, await signIn(id('camila')));
     expect([status, json.error?.code]).toEqual([500, 'Unexpected']);
   });
 });
@@ -747,5 +747,9 @@ describe('trading over HTTP (S-FR-TRD-1, S-FR-TRD-2w, S-FR-TRD-3; Story 10.1)', 
     const handoff = await get('trading.handoff', { offerId }, julian);
     expect(handoff.json.result?.data.text).toBe((accepted.json.result?.data.handoff as { text: string }).text);
     expect(await rows(db, 'OutboxEvent', `type = 'TradeAccepted'`)).toHaveLength(1);
+    const confirmed = await post('trading.confirmCompletion', { offerId }, julian);
+    expect(confirmed.json.result?.data).toMatchObject({ completed: false });
+    const cancel = await post('trading.cancel', { offerId }, julian);
+    expect([cancel.status, cancel.json.error?.code]).toEqual([409, 'TradeNotCancellable']);
   });
 });

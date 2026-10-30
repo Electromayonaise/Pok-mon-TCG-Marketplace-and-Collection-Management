@@ -30,7 +30,7 @@ export interface TrdV2UseCases {
 
 import type { Citation, Decision } from '../../../shared-kernel/decision.js';
 import { ambientTx } from '../../../shared-kernel/db.js';
-import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import type { Tx } from '../../../shared-kernel/ports.js';
@@ -299,8 +299,32 @@ export class TrdServiceV2 implements TrdV2UseCases {
     });
   }
 
-  async cancelTrade(_input: CancelTradeRequest): Promise<CancelTradeResponse> {
-    throw new NotImplementedError('trading.cancelTrade');
+  /**
+   * TRD-3 (AD-TRD-3 rule 3): under `trd:seller`, `Accepted → Cancelled` before either confirmation, then exactly one
+   * release of the stored reservation in the same transaction; 0 rows is `TradeNotCancellable` with zero writes.
+   */
+  async cancelTrade(input: CancelTradeRequest): Promise<CancelTradeResponse> {
+    const { repo, transactions, clock, listings } = this.deps;
+    const { offerId, actorId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    return transactions.run(async (tx) => {
+      const { offer, role } = await this.visibleOffer(tx, offerId, actorId, true);
+      const reservationRef = await repo.cancelAccepted(tx, { offerId, actorId, now });
+      if (reservationRef === null) {
+        return raise('TradeNotCancellable', [{
+          rule: 'FR-TRD-8',
+          inputs: { offerId, status: deriveOfferStatus(offer, at), proposerConfirmedAt: offer.proposerConfirmedAt?.toISOString() ?? null, sellerConfirmedAt: offer.sellerConfirmedAt?.toISOString() ?? null },
+        }]);
+      }
+      const { releasedUnits } = await listings.releaseReservation(tx, { reservationRef });
+      await repo.appendRound(tx, { offerId, actor: role, action: 'cancel', terms: null, now });
+      await this.audit(tx, actorId, 'trading.offer.cancelled', offerId, 'TradeCancelled', { releasedUnits }, now);
+      return {
+        offerId, status: 'Cancelled' as const, cancelledBy: actorId,
+        decision: explained('allowed', 'TradeCancelled', [{ rule: 'FR-TRD-8', inputs: { offerId, cancelledBy: actorId, releasedQty: releasedUnits } }], now),
+      };
+    });
   }
 
   /**
@@ -314,11 +338,50 @@ export class TrdServiceV2 implements TrdV2UseCases {
     return this.handoffOf(offer);
   }
 
-  async confirmCompletion(_input: ConfirmCompletionRequest): Promise<ConfirmCompletionResponse> {
-    throw new NotImplementedError('trading.confirmCompletion');
+  /**
+   * S-FR-TRD-7 (AD-TRD-3 rules 1–2): the party's own conditional confirmation under `trd:seller`, so it never interleaves
+   * with a cancel; `completed` is computed from both instants and never stored.
+   */
+  async confirmCompletion(input: ConfirmCompletionRequest): Promise<ConfirmCompletionResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { offerId, actorId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    return transactions.run(async (tx) => {
+      const { offer, role } = await this.visibleOffer(tx, offerId, actorId, true);
+      const confirmed = await repo.confirmCompletion(tx, { offerId, role, now });
+      if (confirmed === null) {
+        if (offer.status !== 'Accepted') return raise('TradeNotAccepted', [{ rule: 'FR-TRD-7', inputs: { offerId, status: deriveOfferStatus(offer, at) } }]);
+        const earlier = role === 'proposer' ? offer.proposerConfirmedAt : offer.sellerConfirmedAt;
+        return raise('TradeAlreadyConfirmedByRole', [{ rule: 'FR-TRD-7', inputs: { offerId, role, confirmedAt: earlier?.toISOString() ?? null } }]);
+      }
+      const completed = confirmed.proposerConfirmedAt !== null && confirmed.sellerConfirmedAt !== null;
+      await this.audit(tx, actorId, 'trading.offer.completionConfirmed', offerId, 'TradeCompletionConfirmed', { role, completed }, now);
+      return {
+        offerId, completed, confirmedAt: now,
+        decision: explained('allowed', 'TradeCompletionConfirmed', [{ rule: 'FR-TRD-7', inputs: { offerId, role, completed } }], now),
+      };
+    });
   }
 
-  async expireDueOffers(_input: ExpireDueOffersRequest): Promise<ExpireDueOffersResponse> {
-    throw new NotImplementedError('trading.expireDueOffers');
+  /**
+   * S-FR-TRD-9 (AD-TRD-1 rule 5): per seller with due offers, `trd:seller` and the conditional `Open → Expired`, with a
+   * system audit row each. No reservation changes: an Open offer holds none. The jobs route (tick, crons, single-flight,
+   * `JOBS_SECRET`) that calls it is not built yet; expiry is already correct at every read and command.
+   */
+  async expireDueOffers(input: ExpireDueOffersRequest): Promise<ExpireDueOffersResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const now = clock.now().toISOString();
+    const sellers = await transactions.run((tx) => repo.sellersWithDueOffers(tx, now), { readOnly: true });
+    let expired = 0;
+    for (const sellerId of sellers) {
+      expired += await transactions.run(async (tx) => {
+        await repo.lockTradeSeller(tx, sellerId);
+        const ids = await repo.expireDue(tx, { sellerId }, now);
+        for (const offerId of ids) await this.audit(tx, null, 'trading.offer.expired', offerId, null, { trigger: input.trigger }, now);
+        return ids.length;
+      });
+    }
+    return { expired };
   }
 }
