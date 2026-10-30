@@ -98,13 +98,13 @@
 | FR-TRD-3 | Visibility (CAP-25) | S-FR-TRD-3, S-FR-TRD-3.mine | AD-TRD-1 | 3 — `S-FR-TRD-3.f`, `S-FR-TRD-3.h`, `S-FR-TRD-3.mine.h` | 10.1 (backlog), 10.3 (backlog), 10.4 (backlog) | red |
 | FR-TRD-4 | Accept and reserve (CAP-25) | TRD-1 | AD-TRD-2, AD-6, AD-TRD-3 | 9 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +6 | 10.3 (backlog), 10.4 (backlog) | red |
 | FR-TRD-5 | Competing offers become unfulfillable (CAP-25) | TRD-1 | AD-TRD-2, AD-6, AD-TRD-3 | 9 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +6 | 10.3 (backlog), 10.4 (backlog) | red |
-| FR-TRD-6 | Contact handoff reuses the listings service (CAP-25, CAP-6) | TRD-1, MSG-2 | AD-TRD-2, AD-6, AD-TRD-3, AD-MSG-1 | 16 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +13 | 9.3 (done), 9.5 (backlog), 10.3 (backlog), 10.4 (backlog) | red |
+| FR-TRD-6 | Contact handoff reuses the listings service (CAP-25, CAP-6) | TRD-1, MSG-2 | AD-TRD-2, AD-6, AD-TRD-3, AD-MSG-1 | 16 — `TRD-1.F1`, `TRD-1.I1`, `TRD-1.MEC` +13 | 9.3 (done), 9.5 (done), 10.3 (backlog), 10.4 (backlog) | red |
 | FR-TRD-7 | Mutual completion (computed) (CAP-26) | S-FR-TRD-7 | AD-TRD-3 | 2 — `S-FR-TRD-7.f`, `S-FR-TRD-7.h` | 10.5 (backlog) | red |
 | FR-TRD-8 | Cancel an accepted trade before confirmation (CAP-26) | TRD-3 | AD-TRD-3, AD-INV-2 | 4 — `TRD-3.I1`, `TRD-3.P1`, `TRD-3.P2` +1 | 10.5 (backlog) | red |
 | FR-TRD-9 | Expire open offers (CAP-25) | S-FR-TRD-9 | AD-TRD-1, AD-SYS-6 | 2 — `S-FR-TRD-9.f`, `S-FR-TRD-9.h` | 10.5 (backlog) | red |
-| FR-MSG-1 | Generate an external contact message (listings service) (CAP-6, CAP-25) | MSG-2 | AD-MSG-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (done), 9.5 (backlog) | red |
-| FR-MSG-2 | Deterministic rendering and edge-safe encoding (CAP-6) | MSG-2 | AD-MSG-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (done), 9.5 (backlog) | red |
-| FR-MSG-3 | Protect sellers' phone numbers (CAP-6) | MSG-2 | AD-MSG-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (done), 9.5 (backlog) | red |
+| FR-MSG-1 | Generate an external contact message (listings service) (CAP-6, CAP-25) | MSG-2 | AD-MSG-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (done), 9.5 (done) | red |
+| FR-MSG-2 | Deterministic rendering and edge-safe encoding (CAP-6) | MSG-2 | AD-MSG-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (done), 9.5 (done) | red |
+| FR-MSG-3 | Protect sellers' phone numbers (CAP-6) | MSG-2 | AD-MSG-1, AD-SYS-6, AD-SYS-8 | 7 — `MSG-2.I1`, `MSG-2.MEC`, `MSG-2.P2` +4 | 9.3 (done), 9.5 (done) | red |
 | FR-MSG-4 | In-app messaging eligibility (CAP-18) | MSG-3 | AD-IDN-1, AD-MSG-2 | 3 — `MSG-3.MEC`, `MSG-3.Q1`, `MSG-3.QF1` | 9.1 (done) | red |
 | FR-MSG-5 | Send a message (CAP-18) | MSG-1 | AD-SYS-8, AD-MSG-2, AD-MSG-3 | 7 — `MSG-1.I3`, `MSG-1.P3`, `MSG-1.P4` +4 | 9.2 (done), 9.4 (done) | red |
 | FR-MSG-6 | Verification changes between compose and send (CAP-18) | MSG-1, MSG-3 | AD-SYS-8, AD-MSG-2, AD-MSG-3, AD-IDN-1 | 10 — `MSG-1.I3`, `MSG-1.P3`, `MSG-1.P4` +7 | 9.1 (done), 9.2 (done), 9.4 (done) | red |

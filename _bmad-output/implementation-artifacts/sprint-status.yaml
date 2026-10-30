@@ -116,7 +116,7 @@ development_status:
   9-2-send-messages-while-verification-changes: done
   9-3-generate-the-contact-handoff-for-every-product-name: done
   9-4-refuse-outsiders-and-businesses-that-initiate: done
-  9-5-refuse-hidden-or-business-listings-and-rate-limit-contact: backlog
+  9-5-refuse-hidden-or-business-listings-and-rate-limit-contact: done
   9-6-read-the-inbox-mark-threads-read-and-mute: backlog
   epic-9-retrospective: optional
   epic-10: backlog
@@ -183,7 +183,6 @@ impl2_scope:
   - 2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins
   - 8-5-reconcile-ledgers-and-report-never-repair-discrepancies
   - 8-6-set-commission-rates-and-read-the-ledger
-  - 9-5-refuse-hidden-or-business-listings-and-rate-limit-contact
   - 9-6-read-the-inbox-mark-threads-read-and-mute
   - 10-4-refuse-stale-out-of-turn-and-duplicate-offer-actions
   - 10-5-cancel-complete-and-expire-trades-exactly-once
