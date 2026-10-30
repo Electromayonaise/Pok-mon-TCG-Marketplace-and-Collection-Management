@@ -123,7 +123,7 @@ development_status:
   10-1-make-read-and-withdraw-a-trade-offer: done
   10-2-counter-an-offer-turn-by-turn: done
   10-3-accept-the-last-unit-from-two-sessions: done
-  10-4-refuse-stale-out-of-turn-and-duplicate-offer-actions: backlog
+  10-4-refuse-stale-out-of-turn-and-duplicate-offer-actions: done
   10-5-cancel-complete-and-expire-trades-exactly-once: backlog
   epic-10-retrospective: optional
   epic-11: backlog
@@ -178,13 +178,14 @@ impl1_delivery:
 # 8.1–8.3 turn its tests green (S-FR-COM-2 P2/P3 and S-FR-COM-9's business check are 8.1's, COM-2's 0-row re-read is 8.3's,
 # and COM-1 P3 is 8.2's account update); it is done and has left this list (decision log Impl-1 #33). 9-4 and 9-5 are built with the whole of Epic 9, because Stories
 # 9.2 and 9.3 turn their tests green (MSG-1 P3–P5 are 9.2's, and [MSG-3.MEC] needs P5; MSG-2 P2–P3 are 9.3's, and its
-# [MSG-2.R1] needs the P4 limiter); they are done and have left this list (decision log Impl-1 #34).
+# [MSG-2.R1] needs the P4 limiter); they are done and have left this list (decision log Impl-1 #34). 10-4 is built with the whole of Epic 10, because Stories
+# 10.1–10.3 turn its tests green (TRD-1's and TRD-2's re-read and first-fail chains, S-FR-TRD-1's unique index, the withdraw
+# re-read and the visibility rule); it is done and has left this list (decision log Impl-1 #35).
 impl2_scope:
   - 2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins
   - 8-5-reconcile-ledgers-and-report-never-repair-discrepancies
   - 8-6-set-commission-rates-and-read-the-ledger
   - 9-6-read-the-inbox-mark-threads-read-and-mute
-  - 10-4-refuse-stale-out-of-turn-and-duplicate-offer-actions
   - 10-5-cancel-complete-and-expire-trades-exactly-once
   - 11-4-refuse-foreign-resolved-and-invalid-collection-actions
   - 11-5-use-the-binder-add-external-cards-move-entries-and-wishlist-cards

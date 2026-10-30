@@ -2,7 +2,7 @@
 title: 'Story 10.4: Refuse stale, out-of-turn and duplicate offer actions'
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: '6b3cc16'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -33,7 +33,12 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] run the 12 tests on the 10.3 tree; fix any gap; `sprint-status.yaml` 10.4 `done`, out of `impl2_scope`
+- [x] run the 12 tests on the 10.3 tree; fix any gap; `sprint-status.yaml` 10.4 `done`, out of `impl2_scope`
 
 **Acceptance Criteria:**
 - Given 10.4 `done`, when its 12 tests run, then they pass and `gate:atdd-red:impl1` is green.
+
+## Implementation Notes
+
+- The 12 tests passed on the 10.3 tree with no fix: each was already an early green of 10.1 (`[S-FR-TRD-1.f]`, `[S-FR-TRD-2w.f]`, `[S-FR-TRD-3.f]`), 10.2 (`[TRD-2.P2]`, `[TRD-2.P5]`–`[TRD-2.P8]`) or 10.3 (`[TRD-1.P2]`–`[TRD-1.P6]`).
+- `[NFR-TRD-2.counter]` (10.2) and `[NFR-TRD-2.accept]` (10.3) satisfy this story's NFR-TRD-2 DoD line.
