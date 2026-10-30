@@ -1521,7 +1521,7 @@ flowchart LR
      2. the listing exists and is visible (hidden, withdrawn or deactivated → `ListingNotFound`);
      3. individual-seller listing (`NotIndividualSellerListing`);
      4. rate limits.
-  3. Rate limiting is a transaction that takes `msg:contact:req:<requesterId>` then `msg:contact:ip:<ipHmac>`, always in that fixed order (the exception allowed by AD-SYS-4 rule 5: no other transaction takes both namespaces, so no cycle can form), counts rows with `counted` in the rolling windows, and inserts one row.
+  3. Rate limiting is a transaction that takes `msg:contact:req:<requesterId>` then `msg:contact:ip:<ipHmac>`, always in that fixed order (the exception allowed by AD-SYS-4 rule 5: no other transaction takes both namespaces, so no cycle can form), counts rows with `counted` in the rolling windows `(now − w, now]` (a row stamped `now` counts, and the oldest stops counting at the cited retry time; decision log Impl-1 #34), and inserts one row.
      - The limits are 30 per hour per requester, 10 per requester per seller per day, and 60 per IP per hour. A breach raises `ContactRateLimited`, citing the retry time: the oldest counted row plus the window.
      - A repeat for the same `(requesterId, listingId)` within 60 min inserts `counted=false` and is not refused [EC-36].
      - `kind='trade'` calls skip the limiter entirely [EC-37].

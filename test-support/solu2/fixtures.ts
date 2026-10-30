@@ -11,7 +11,7 @@ import type { TestDb } from '../db.js';
 import { id, SequentialIds } from '../ids.js';
 import { PgCatRepository } from '../../src/modules/catalog/index.js';
 import { PgIdnRepository, PgLegalIdentityRepository, PgVerRepository } from '../../src/modules/identity/index.js';
-import { PgDscRepository, PgInvRepository } from '../../src/modules/listings/index.js';
+import { PgContactRepository, PgDscRepository, PgInvRepository } from '../../src/modules/listings/index.js';
 import { PgOrdRepository } from '../../src/modules/orders/index.js';
 import { PgComRepository } from '../../src/modules/commission/index.js';
 import { PgMsgRepository } from '../../src/modules/messaging/index.js';
@@ -210,7 +210,7 @@ export function wiring(db: TestDb, idPrefix = 'n') {
      * The one repository object every service receives (R-14): each story binds the Postgres
      * adapter of the methods it declares; ports still empty accept it unchanged.
      */
-    repo: oneRepository(new PgAdminEventsRepository(), new PgIdnRepository(), new PgVerRepository(), new PgLegalIdentityRepository(), new PgCatRepository(), new PgInvRepository(), new PgDscRepository(), new PgOrdRepository(), new PgComRepository(), new PgMsgRepository()),
+    repo: oneRepository(new PgAdminEventsRepository(), new PgIdnRepository(), new PgVerRepository(), new PgLegalIdentityRepository(), new PgCatRepository(), new PgInvRepository(), new PgDscRepository(), new PgContactRepository(), new PgOrdRepository(), new PgComRepository(), new PgMsgRepository()),
   };
 }
 

@@ -3,7 +3,7 @@
 // VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
 // (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2), the seller's inventory (S-FR-INV-2, -9, -10), the discovery reads (DSC-1, DSC-2),
 // the order, its comprobante, its three facts and its supporting reads (ORD-1 to ORD-4, S-FR-ORD-2, -6, -7, -10), the business's
-// commission account, its deductions and its top-ups (S-FR-COM-1 and COM-1 through a replay, S-FR-COM-2, -9), the in-app send (MSG-1) and S-SYS.replay,
+// commission account, its deductions and its top-ups (S-FR-COM-1 and COM-1 through a replay, S-FR-COM-2, -9), the in-app send (MSG-1), the contact handoff (MSG-2) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -14,7 +14,7 @@ import { VirtualClock } from '../../test-support/clock.js';
 import { useTestDatabase } from '../../test-support/db.js';
 import { PG } from '../../test-support/env.js';
 import { FixtureFeedSource, FixtureFxRateSource, InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
-import { admin, at, business, catalogEntry, commissionAccount, DAY, feedRun, HOUR, id, individualSeller, ins, listing, observation, order, purchasableListing, rejectionReason, rows, T0, topUp, user } from '../../test-support/solu2/fixtures.js';
+import { admin, at, business, catalogEntry, commissionAccount, DAY, feedRun, HOUR, id, individualSeller, ins, listing, observation, order, purchasableListing, rejectionReason, rows, T0, topUp, unit, user } from '../../test-support/solu2/fixtures.js';
 import { createAuth } from './auth.js';
 import { compose } from './composition.js';
 import { betterAuthSessions } from './sessions.js';
@@ -22,6 +22,7 @@ import { serveTrpc } from './trpc/init.js';
 
 const db = useTestDatabase();
 const SECRET = 'composition-test-secret-0123456789abcdef';
+const IP_KEY = 'composition-test-ip-hmac-key-0123456789';
 const clock = new VirtualClock();
 const storage = new InMemoryObjectStorage(clock);
 const feed = new FixtureFeedSource({
@@ -34,7 +35,7 @@ beforeAll(() => {
   const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000' });
   const ok = async () => undefined;
   app = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { commission: ok, collections: ok }, storage, scanner: new SimulatedScanner(), feed,
-    fx: new FixtureFxRateSource([{ valor: '4130.00', validFrom: '2026-10-01', validTo: '2026-10-01' }]) });
+    fx: new FixtureFxRateSource([{ valor: '4130.00', validFrom: '2026-10-01', validTo: '2026-10-01' }]), ipHmacKey: IP_KEY });
 });
 
 /** A live `"Session"` row and the cookie Better Auth signs for it (HMAC-SHA256 of the token). */
@@ -48,9 +49,9 @@ async function signIn(userId: string): Promise<string> {
 const cookieFor = (token: string, secret: string) =>
   `better-auth.session_token=${encodeURIComponent(`${token}.${createHmac('sha256', secret).update(token).digest('base64')}`)}`;
 
-async function post(path: string, input: unknown, cookie?: string) {
-  const headers: Record<string, string> = { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) };
-  const res = await serveTrpc(new Request(`http://localhost/api/trpc/${path}`, { method: 'POST', headers, body: JSON.stringify(input) }), app.router, clock, { identity: app.identity });
+async function post(path: string, input: unknown, cookie?: string, extra: Record<string, string> = {}) {
+  const headers: Record<string, string> = { 'content-type': 'application/json', ...(cookie ? { cookie } : {}), ...extra };
+  const res = await serveTrpc(new Request(`http://localhost/api/trpc/${path}`, { method: 'POST', headers, body: JSON.stringify(input) }), app.router, clock, { identity: app.identity, ipHmac: app.ipHmac });
   return { status: res.status, json: (await res.json()) as { result?: { data: Record<string, unknown> }; error?: Record<string, unknown> } };
 }
 
@@ -691,5 +692,21 @@ describe('messaging.send over HTTP (MSG-1; Story 9.2)', () => {
     const start = await post('messaging.send', { target: { recipientId: id('camila') }, body: 'Promo', clientMessageId: 'cm-2' }, shop);
     expect([start.status, start.json.error?.code]).toEqual([409, 'BusinessCannotInitiate']);
     expect(await rows(db, 'Message')).toHaveLength(2);
+  });
+});
+
+describe('inventory.contact over HTTP (MSG-2; Story 9.3)', () => {
+  it('a buyer gets the handoff through the real identity and catalog; the log row stores the IP only as its HMAC under IP_HMAC_KEY', async () => {
+    await user(db, { id: id('camila') });
+    await individualSeller(db, id('valentina'));
+    await catalogEntry(db, id('char'));
+    await unit(db, { id: id('uval'), sellerId: id('valentina'), catalogEntryId: id('char'), quantity: 1 });
+    await listing(db, { id: id('lv'), sellerId: id('valentina'), unitId: id('uval'), sellerKind: 'individual', priceCop: 45_000 });
+    const res = await post('inventory.contact', { listingId: id('lv') }, await signIn(id('camila')), { 'x-forwarded-for': '203.0.113.7, 10.0.0.1' });
+    expect(res.status).toBe(200);
+    expect(res.json.result?.data).toMatchObject({ decision: { reasonCode: 'ContactMessageGenerated' } });
+    expect(String(res.json.result?.data.externalUrl)).toMatch(/^https:\/\/wa\.me\/573001234567\?text=/);
+    expect(await rows(db, 'ContactRequestLog')).toMatchObject([{ counted: true, ipHmac: createHmac('sha256', IP_KEY).update('203.0.113.7').digest('hex') }]);
+    expect(JSON.stringify(await rows(db, 'ContactRequestLog'))).not.toContain('203.0.113.7');
   });
 });

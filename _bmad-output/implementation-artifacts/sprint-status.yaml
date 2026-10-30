@@ -114,7 +114,7 @@ development_status:
   epic-9: in-progress
   9-1-answer-messaging-eligibility-from-current-verification: done
   9-2-send-messages-while-verification-changes: done
-  9-3-generate-the-contact-handoff-for-every-product-name: backlog
+  9-3-generate-the-contact-handoff-for-every-product-name: done
   9-4-refuse-outsiders-and-businesses-that-initiate: done
   9-5-refuse-hidden-or-business-listings-and-rate-limit-contact: backlog
   9-6-read-the-inbox-mark-threads-read-and-mute: backlog

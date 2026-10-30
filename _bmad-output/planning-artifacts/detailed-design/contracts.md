@@ -945,9 +945,9 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - P2 The listing is visible: not hidden, withdrawn or deactivated. Violation: `ListingNotFound` (HTTP 404, listings).
   - P3 An individual-seller listing. Violation: `NotIndividualSellerListing` (HTTP 409, listings).
   - P4 `kind='purchase'` only. Under `pg_advisory_xact_lock(msg:contact:req:<requesterId>)`, then `msg:contact:ip:<ipHmac>` in that fixed order, the counted rows are below:
-    - 30 per requester in `[now − 1 h, now)`;
-    - 10 per requester and seller in `[now − 24 h, now)`;
-    - 60 per IP in `[now − 1 h, now)`.
+    - 30 per requester in `(now − 1 h, now]`;
+    - 10 per requester and seller in `(now − 24 h, now]`;
+    - 60 per IP in `(now − 1 h, now]`.
 
     Violation: `ContactRateLimited` (HTTP 429, listings), citing `{ retryAt }` = the oldest counted row + its window.
 - **Postcondition (Q):**
@@ -967,7 +967,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - I3 The platform makes 0 outbound requests to the messaging app. Bound to: AD-MSG-1 rule 5, AD-SYS-6 rule 3 (NFR-MSG-3).
   - I4 The phone appears only in `externalUrl`. Bound to: AD-SYS-8 rules 3–4.
 - **Concurrency / idempotency:** 50 concurrent requests by one requester → exactly 30 allowed in the hour and 20 `ContactRateLimited` (S-6). The fixed lock order means 0 deadlocks.
-- **Time:** `Clock`, once. The windows are half-open `[now − w, now)`.
+- **Time:** `Clock`, once. The windows are half-open `(now − w, now]`: a row stamped `now` counts, and the oldest row stops counting exactly at `retryAt` (decision log Impl-1 #34).
 - **Latency budget (NFR):** p95 ≤ 200 ms at N = 1 (NFR-MSG-1).
 
 ### Operation: `requireMessagingEligibility(businessId: CuidId): Promise<{ status: 'Approved' | 'Pending'; verified: boolean; decision: Decision }>`
@@ -1375,6 +1375,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `MessagingEligible` | — (stored only) | identity | MSG-3 Q1 `allowed`: the business is `Approved`, citing `{ businessId, status }` (FR-IDN-6; decision log Impl-1 #34) | "Esta tienda está verificada; puedes escribirle." | no |
 | `RecipientNotYetVerified` | — (stored only) | messaging | MSG-3 Q1 and MSG-1 Q4 `allowedWithNotice`: a `Pending` business. A DecisionCode (list below) that had no template (FR-MSG-4; decision log Impl-1 #34) | "Esta tienda aún no ha sido verificada por TEZG." | no |
 | `MessageSent` | — (stored only) | messaging | MSG-1 Q4 `allowed`: the message is stored for an `Approved` business, citing `{ recipientStatus }` (FR-MSG-4; decision log Impl-1 #34) | "Mensaje enviado." | no |
+| `ContactMessageGenerated` | — (stored only) | listings | MSG-2 Q4 `allowed`: the handoff is composed, citing `{ truncated, truncationSteps, urlLength }` (FR-MSG-2; decision log Impl-1 #34) | "Tu mensaje está listo; ábrelo en WhatsApp o cópialo." | no |
 | `TopUpAmountInvalid` | 400 | commission | S-FR-COM-2 | "La recarga debe estar entre $20.000 y $10.000.000 COP." | no |
 | `TopUpNotPending` | 409 | commission | COM-2 P3 | "Esta recarga ya fue {status} por {decidedBy} el {decidedAt}." | no |
 | `TopUpNotVisibleToCaller` | 403 | commission | S-FR-COM-2 | "No encontramos esa recarga." | no |

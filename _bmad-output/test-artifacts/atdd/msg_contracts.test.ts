@@ -171,7 +171,13 @@ describe('MSG-2 — generateContactMessage (contracts.md §9)', () => {
   });
 
   it('[MSG-2.R1] 50 concurrent requests from one requester: exactly 30 allowed in the hour (S-6)', async () => {
-    for (let i = 0; i < 50; i++) await valentinaListing(45_000, id(`lr${i}`));
+    // Five sellers with 10 listings each, so the 10-per-seller-per-day limit never binds before the 30-per-hour one (decision log Impl-1 #34).
+    await valentinaListing();
+    for (let s = 0; s < 5; s++) {
+      await user(db, { id: id(`vend${s}`), sellerTrack: 'individual' });
+      await unit(db, { id: id(`uvend${s}`), sellerId: id(`vend${s}`), catalogEntryId: id('char'), quantity: 1 });
+      for (let j = 0; j < 10; j++) await listing(db, { id: id(`lr${s * 10 + j}`), sellerId: id(`vend${s}`), unitId: id(`uvend${s}`), sellerKind: 'individual', priceCop: 45_000 });
+    }
     const outcome = await race(50, (i) => contact(id(`lr${i}`)));
     expect(outcome.rejected.map(codeOf).filter((c) => c !== 'ContactRateLimited')).toEqual([]);
     expect(outcome.fulfilled).toHaveLength(30);

@@ -33,6 +33,7 @@ services:
       DATABASE_URL: postgresql://tezg:tezg@postgres:5432/tezg_dev
       BETTER_AUTH_SECRET: local-compose-secret-not-for-any-deployed-environment
       BETTER_AUTH_URL: http://localhost:3000
+      IP_HMAC_KEY: local-compose-ip-hmac-key-not-for-any-deployed-environment
     ports:
       - "3000:3000"
     healthcheck:
