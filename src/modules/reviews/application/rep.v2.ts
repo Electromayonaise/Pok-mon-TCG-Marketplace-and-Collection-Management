@@ -26,26 +26,222 @@ export interface RepV2UseCases {
 }
 // </gen-solu2-api>
 
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import type { Citation, Decision, DecisionOutcome } from '../../../shared-kernel/decision.js';
+import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest } from '../../../shared-kernel/request.js';
+import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
+import type { Tx } from '../../../shared-kernel/ports.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import { requireAdmin } from '../../identity/index.js';
+import { averageTenths, purchaseVerifiedFor, reviewableKind } from '../domain/rep.js';
+import type { ReviewSnapshot } from '../ports/rep.v2.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('reviews');
+
+/** The schema's `text` CHECK (REP-1 input: 0–1000). */
+const MAX_TEXT = 1000;
+/** REP-3 P1: at most 500 sellers per read. */
+const MAX_SELLERS = 500;
+/** The moderation log's `note` CHECK. */
+const MAX_NOTE = 500;
+
+/** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
+function explained(outcome: DecisionOutcome, code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
+  return { outcome, reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
+}
+
+/**
+ * REP-1 P2–P3 (AD-REP-1 rule 1): a self-review, a user who is no seller and an unknown id share one body, so a
+ * refusal never tells them apart.
+ */
+function targetNotFound(): never {
+  return raise('TargetNotFound', [{ rule: 'AD-REP-1 rule 1', inputs: { reviewable: false } }]);
+}
+
+/** A review's text: 0–1000 characters with no NUL (contracts.md §0.3, decision log Impl-1 #38). */
+function checkText(text: string): void {
+  const why = textIssue(text, 0, MAX_TEXT);
+  if (why !== null) rejectRequest([{ field: 'text', issue: why === 'nul' ? NUL_ISSUE : 'debe tener como máximo 1.000 caracteres' }]);
+}
+
+/** A count above 2^53 − 1 cannot reach the DTO's number exactly (review E-20). */
+function assertSafeCount(count: bigint): number {
+  if (count > BigInt(Number.MAX_SAFE_INTEGER)) throw new UnexpectedError('reviews.getAggregates: a count beyond the safe integers');
+  return Number(count);
+}
+
+/** REP-2 P2 (ADD-§9.2, `review_log_other_has_note`): Other needs a 10–500 character note, any other reason a null or 0–500 one (#38). */
+function checkNote(reasonCode: string, note: string | null): void {
+  const min = reasonCode === 'Other' ? 10 : 0;
+  if (note === null && min === 0) return;
+  const why = note === null ? 'length' : textIssue(note, min, MAX_NOTE);
+  if (why !== null) rejectRequest([{ field: 'note', issue: why === 'nul' ? NUL_ISSUE : min > 0 ? 'con el motivo Otro, escribe entre 10 y 500 caracteres' : 'debe tener como máximo 500 caracteres' }]);
+}
+
+/** REP's use cases (contracts.md §12, §15.12). No REP command publishes an event (REP-1 Q3, REP-2 Q3). */
 export class RepServiceV2 implements RepV2UseCases {
   constructor(protected readonly deps: RepV2Deps) {}
 
-  async writeReview(_input: WriteReviewRequest): Promise<WriteReviewResponse> {
-    throw new NotImplementedError('reviews.writeReview');
+  /**
+   * REP-1 P2–P4 (AD-REP-1 rules 1–2): the target's kind, and for a business the closed-purchase fact. P2 runs before any
+   * read. The neighbours are read before the write: order facts are write-once, so the verdict cannot go stale.
+   */
+  private async verdict(reviewerId: CuidId, targetUserId: CuidId): Promise<{ targetKind: 'business' | 'individual'; closed: boolean; latestState: string | null }> {
+    if (reviewerId === targetUserId) targetNotFound();
+    const targetKind = reviewableKind(await this.deps.identity.getReviewTarget({ userId: targetUserId }));
+    if (targetKind === null) return targetNotFound();
+    if (targetKind === 'individual') return { targetKind, closed: true, latestState: null };
+    const { closed, latestState } = await this.deps.orders.hasClosedPurchase({ buyerId: reviewerId, businessId: targetUserId });
+    return { targetKind, closed, latestState };
   }
 
-  async hideReview(_input: HideReviewRequest): Promise<HideReviewResponse> {
-    throw new NotImplementedError('reviews.hideReview');
+  /** REP-1 (AD-REP-1): P2–P4, then the insert and its audit row in one transaction; P5 is the unique index. */
+  async writeReview(input: WriteReviewRequest): Promise<WriteReviewResponse> {
+    const { reviewerId, targetUserId, rating, text } = input;
+    checkText(text);
+    const { targetKind, closed, latestState } = await this.verdict(reviewerId, targetUserId);
+    if (!closed) raise('NotVerifiedPurchaser', [{ rule: 'FR-REP-1', inputs: { latestState } }]);
+    const purchaseVerified = purchaseVerifiedFor(targetKind);
+    const { repo, transactions, clock, ids, audit } = this.deps;
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      const reviewId = ids.next();
+      if (await repo.insertReview(tx, { id: reviewId, reviewerId, targetUserId, targetKind, purchaseVerified, rating, text, now }) === 'duplicate') {
+        // The existing review's id, as REP-1.check cites it, so the client can open the edit (close review).
+        const existing = await repo.readReviewOfPair(tx, reviewerId, targetUserId);
+        raise('DuplicateReview', [{ rule: 'AD-REP-1 rule 3', inputs: { reviewId: existing?.reviewId ?? null } }]);
+      }
+      await audit.record(tx, {
+        actorId: reviewerId, actorKind: 'user', module: 'reviews', action: 'reviews.review.written',
+        aggregateType: 'Review', aggregateId: reviewId, decisionCode: null, data: { targetUserId, targetKind, purchaseVerified, rating }, at: now,
+      });
+      const rule = targetKind === 'business' ? 'FR-REP-1' : 'FR-REP-2';
+      return { reviewId, targetKind, purchaseVerified, decision: explained('allowed', 'ReviewWritten', [{ rule, inputs: { targetKind, purchaseVerified } }], now) };
+    });
   }
 
-  async unhideReview(_input: UnhideReviewRequest): Promise<UnhideReviewResponse> {
-    throw new NotImplementedError('reviews.unhideReview');
+  /** REP-1.edit (AD-REP-1 rule 4, EC-32): the conditional update; a hidden, foreign or unknown review is `ReviewNotFound`. */
+  async editReview(input: EditReviewRequest): Promise<EditReviewResponse> {
+    const { reviewerId, reviewId, rating, text } = input;
+    checkText(text);
+    const { repo, transactions, clock, audit } = this.deps;
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      if (!await repo.editVisibleReview(tx, { reviewId, reviewerId, rating, text, now })) raise('ReviewNotFound', [{ rule: 'AD-REP-1 rule 4', inputs: { reviewId } }]);
+      await audit.record(tx, {
+        actorId: reviewerId, actorKind: 'user', module: 'reviews', action: 'reviews.review.edited',
+        aggregateType: 'Review', aggregateId: reviewId, decisionCode: null, data: { rating }, at: now,
+      });
+      return { reviewId, editedAt: now, decision: explained('allowed', 'ReviewEdited', [{ rule: 'FR-REP-1', inputs: { reviewId } }], now) };
+    });
   }
 
-  async getAggregates(_input: GetAggregatesRequest): Promise<GetAggregatesResponse> {
-    throw new NotImplementedError('reviews.getAggregates');
+  /** REP-1.check: P2–P3 refuse as REP-1 does; P4 and P5 become `eligible = false`, first-fail. Zero writes. */
+  async getReviewEligibility(input: GetReviewEligibilityRequest): Promise<GetReviewEligibilityResponse> {
+    const { reviewerId, targetUserId } = input;
+    const { targetKind, closed, latestState } = await this.verdict(reviewerId, targetUserId);
+    const now = this.deps.clock.now().toISOString();
+    const existingReview = await this.deps.transactions.run((tx) => this.deps.repo.readReviewOfPair(tx, reviewerId, targetUserId), { readOnly: true });
+    const purchaseVerified = purchaseVerifiedFor(targetKind);
+    let decision: Decision;
+    if (!closed) decision = explained('rejected', 'NotVerifiedPurchaser', [{ rule: 'FR-REP-1', inputs: { latestState } }], now);
+    else if (existingReview?.hidden) decision = explained('rejected', 'ReviewHiddenByModeration', [{ rule: 'AD-REP-1 rule 4', inputs: { reviewId: existingReview.reviewId } }], now);
+    else if (existingReview !== null) decision = explained('rejected', 'DuplicateReview', [{ rule: 'AD-REP-1 rule 3', inputs: { reviewId: existingReview.reviewId } }], now);
+    else decision = explained('allowed', 'ReviewEligible', [{ rule: targetKind === 'business' ? 'FR-REP-1' : 'FR-REP-2', inputs: { targetKind, purchaseVerified } }], now);
+    return { eligible: decision.outcome === 'allowed', existingReview, decision };
+  }
+
+  /** REP-2 (AD-REP-3 rule 1): the conditional hide, its snapshot log row and the admin audit row, in one transaction. */
+  async hideReview(input: HideReviewRequest): Promise<HideReviewResponse> {
+    return this.moderate(input, 'hide');
+  }
+
+  /** REP-2.unhide (AD-REP-3 rule 2): the mirror image, from hidden to visible. */
+  async unhideReview(input: UnhideReviewRequest): Promise<UnhideReviewResponse> {
+    return this.moderate(input, 'unhide');
+  }
+
+  /**
+   * REP-2 P2–P3 and Q1–Q4 for both directions. On 0 rows the review is re-read: an unknown id is `ReviewNotFound`, and
+   * a review already in the target state is an explained no-op with zero writes (I2). Two racing admins: the loser's
+   * update waits on the winner's row lock, then matches 0 rows.
+   */
+  private async moderate(input: HideReviewRequest, action: 'hide' | 'unhide'): Promise<HideReviewResponse> {
+    const { reviewId, reasonCode, note, adminId } = input;
+    checkNote(reasonCode, note);
+    const { repo, transactions, clock } = this.deps;
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      // P1 is the admin builder's; repeated first for in-process callers (AD-16), as VER and COM do.
+      await requireAdmin(repo, tx, adminId);
+      const snapshot = action === 'hide'
+        ? await repo.hideVisibleReview(tx, { reviewId, reasonCode, adminId, now })
+        : await repo.unhideHiddenReview(tx, { reviewId, now });
+      if (snapshot === null) {
+        // The re-read locks the row, so a moderation that committed between the update and this read is seen, and
+        // one that changed the state back makes this action apply after all (decision log Impl-1 #38, close review).
+        const state = await repo.readReviewHide(tx, reviewId);
+        if (state === null) return raise('ReviewNotFound', [{ rule: 'FR-REP-4', inputs: { reviewId } }]);
+        if ((state.hiddenAt === null) === (action === 'hide')) return this.moderateLocked(tx, input, action, now);
+        return action === 'hide'
+          ? { decision: explained('allowedWithNotice', 'ReviewAlreadyHidden', [{ rule: 'FR-REP-4', inputs: { hiddenAt: state.hiddenAt, hiddenBy: state.hiddenBy } }], now) }
+          : { decision: explained('allowedWithNotice', 'ReviewNotHidden', [{ rule: 'FR-REP-4', inputs: { reviewId } }], now) };
+      }
+      return this.applied(tx, input, action, snapshot, now);
+    });
+  }
+
+  /** The state the locked re-read found lets the action apply: run the conditional update again, under the row lock. */
+  private async moderateLocked(tx: Tx, input: HideReviewRequest, action: 'hide' | 'unhide', now: IsoInstant): Promise<HideReviewResponse> {
+    const { reviewId, reasonCode, adminId } = input;
+    const snapshot = action === 'hide'
+      ? await this.deps.repo.hideVisibleReview(tx, { reviewId, reasonCode, adminId, now })
+      : await this.deps.repo.unhideHiddenReview(tx, { reviewId, now });
+    if (snapshot === null) throw new UnexpectedError('reviews.moderate: the locked review changed state');
+    return this.applied(tx, input, action, snapshot, now);
+  }
+
+  /** REP-2 Q2–Q4: the log row with its snapshots, the admin audit row and the decision (I2: one per real change). */
+  private async applied(tx: Tx, input: HideReviewRequest, action: 'hide' | 'unhide', snapshot: ReviewSnapshot, now: IsoInstant): Promise<HideReviewResponse> {
+    const { reviewId, reasonCode, note, adminId } = input;
+    const { repo, ids, audit } = this.deps;
+    const logId = ids.next();
+    await repo.insertReviewModerationLog(tx, { id: logId, reviewId, action, reasonCode, note, adminId, snapshot, now });
+    await audit.record(tx, {
+      actorId: adminId, actorKind: 'admin', module: 'reviews', action: action === 'hide' ? 'reviews.review.hidden' : 'reviews.review.unhidden',
+      aggregateType: 'Review', aggregateId: reviewId, decisionCode: null, data: { reasonCode, logId }, at: now,
+    });
+    return action === 'hide'
+      ? { decision: explained('hidden', 'ReviewHidden', [{ rule: 'FR-REP-4', inputs: { reviewId, reasonCode } }], now) }
+      : { decision: explained('allowed', 'ReviewUnhidden', [{ rule: 'FR-REP-4', inputs: { reviewId, reasonCode } }], now) };
+  }
+
+  /**
+   * REP-3 (AD-REP-2 rule 1): one statement over the visible reviews, so a hide racing a post is either wholly in or
+   * wholly out of the read. One element per input id, in input order. Zero writes; the clock is read for `occurredAt`.
+   */
+  async getAggregates(input: GetAggregatesRequest): Promise<GetAggregatesResponse> {
+    const { sellerIds } = input;
+    if (sellerIds.length < 1 || sellerIds.length > MAX_SELLERS) rejectRequest([{ field: 'sellerIds', issue: 'indica entre 1 y 500 vendedores' }]);
+    if (new Set(sellerIds).size !== sellerIds.length) rejectRequest([{ field: 'sellerIds', issue: 'no debe repetir un vendedor' }]);
+    const now = this.deps.clock.now().toISOString();
+    const totals = await this.deps.transactions.run((tx) => this.deps.repo.visibleReviewTotals(tx, sellerIds), { readOnly: true });
+    const bySeller = new Map(totals.map((t) => [t.sellerId, t]));
+    return {
+      aggregates: sellerIds.map((sellerId) => {
+        const t = bySeller.get(sellerId);
+        const tenths = t === undefined ? null : averageTenths(t.sum, t.count);
+        if (t === undefined || tenths === null) {
+          return { sellerId, averageTenths: null, count: 0, decision: explained('allowed', 'SellerNotYetReviewed', [{ rule: 'FR-REP-3', inputs: { count: 0 } }], now) };
+        }
+        const count = assertSafeCount(t.count);
+        const averageTenthsValue = Number(tenths);
+        return { sellerId, averageTenths: averageTenthsValue, count, decision: explained('allowed', 'SellerRated', [{ rule: 'FR-REP-3', inputs: { count, averageTenths: averageTenthsValue } }], now) };
+      }),
+    };
   }
 
   async searchReviews(_input: SearchReviewsRequest): Promise<SearchReviewsResponse> {
@@ -58,13 +254,5 @@ export class RepServiceV2 implements RepV2UseCases {
 
   async getProfile(_input: GetProfileRequest): Promise<GetProfileResponse> {
     throw new NotImplementedError('reviews.getProfile');
-  }
-
-  async editReview(_input: EditReviewRequest): Promise<EditReviewResponse> {
-    throw new NotImplementedError('reviews.editReview');
-  }
-
-  async getReviewEligibility(_input: GetReviewEligibilityRequest): Promise<GetReviewEligibilityResponse> {
-    throw new NotImplementedError('reviews.getReviewEligibility');
   }
 }

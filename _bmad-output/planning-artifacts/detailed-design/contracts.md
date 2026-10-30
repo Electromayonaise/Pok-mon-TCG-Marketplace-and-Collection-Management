@@ -95,6 +95,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 - **Typed errors.** A typed error is written `Code` (HTTP *n*, owner *module*). The status is the tRPC 11 status of the code's AD-SYS-1 family: UNAUTHORIZED 401, FORBIDDEN 403, NOT_FOUND 404, BAD_REQUEST 400, CONFLICT 409, TOO_MANY_REQUESTS 429. `'Unexpected'` is HTTP 500 and is never a registry code. A request tRPC itself refuses before any procedure runs (unknown path, wrong method, batching, malformed JSON, unsupported content type, oversize body) is `RequestValidationFailed` (HTTP 400) on the field `la solicitud` (Impl-1 decision #10). A code raised by a non-owner is propagated unchanged (AD-11).
 - **Shape validation precedes every contract.** The procedure's zod schema refuses a wrong type, length, enum or format as `RequestValidationFailed` (HTTP 400, owner shared-kernel), with `issues: { field, issue }[]`, before the body runs (AD-SYS-1 rule 7). Preconditions that state types are therefore guaranteed by the parser. An internal caller that bypasses the parser and violates one gets `'Unexpected'`.
+- **Free text (decision log Impl-1 #38).** A free-text field a service stores (names, references, reasons, notes, message and review bodies) is refused as `RequestValidationFailed` when it holds U+0000, which Postgres TEXT cannot store, and its minimum length is counted after trimming, so a text of only spaces never meets a minimum ≥ 1. The maximum is counted as written, in code points, as the `char_length` CHECKs do, and the value is stored as written. The kernel's `textIssue` (`shared-kernel/text.ts`) is the one check.
 - **Error body (R-9, review G-03).** Every refusal returns `{ error: ErrorBody }` with `ErrorBody = { code, httpStatus, decision: ExplanationDTO, issues? }`. `ExplanationDTO` is the AD-SYS-1 `Decision`, with `occurredAt` in ISO-8601. For `*NotVisibleToCaller` and `*NotFound` codes, two bodies differ only in `occurredAt` (S-2).
 - **Explanation (Q4; review G-16).** Every `Decision`, whether on a refusal or on a successful result, has `citations.length ≥ 1`. `citations[0].rule` matches `^(AD|FR|NFR)-[A-Z0-9-]+( rule \d+)?$`, and `citations[0].inputs` holds the observed values that decided the outcome, never a regulated value (AD-SYS-8 rule 4). A decision about an order has `citations[0].inputs.orderId` (AD-SYS-1 rule 4). The Phase 3 fixture `explain_assert` checks exactly this.
 - **Events (R-1, review G-01).** "Enqueues `E{…}`" means `outbox.enqueue(tx, …)` in the same transaction. The row's envelope is `{ eventId = OutboxEvent.id, type, occurredAt = the transaction's Instant, schemaVersion = 1, payload }`, the payload is exactly ADD-§5, and one `pending` `EventDelivery` is written per registered subscriber (AD-SYS-2 rules 1 and 3).
@@ -1206,7 +1207,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 - **Layer:** Inbound Port.
 - **Precondition (P):**
-  - P1 The caller is an admin. Violation: `AdminOnly` (HTTP 403, identity).
+  - P1 The caller is an admin. Violation: `AdminOnly` (HTTP 403, identity). The procedure builder checks it, and the service repeats it first inside its transaction for in-process callers (AD-16; decision log Impl-1 #38, R1).
   - P2 `note` has 10–500 characters when `reasonCode = 'Other'`; otherwise it is null or 0–500. Violation: `RequestValidationFailed` (HTTP 400, owner shared-kernel).
   - P3 The review exists. Violation: `ReviewNotFound` (HTTP 404, reviews).
 - **Postcondition (Q):**
@@ -1214,7 +1215,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - Q2 On 1 row: one `"ReviewModerationLog" { reviewId, action: 'hide', reasonCode, note, adminId, ratingSnapshot, textSnapshot, createdAt: now }`. Returns `HideReviewResponse = { decision: { outcome: 'hidden', … } }`.
   - Q3 Audit: `audit('reviews.review.hidden', Review:id)`, `actorKind='admin'`. No event.
   - Q4 The decision cites `{ rule: 'FR-REP-4', inputs: { reviewId, reasonCode } }`.
-  - Q-fail On 0 rows, already hidden → an explained no-op: `Decision { outcome: 'allowedWithNotice', citations: [{ rule: 'FR-REP-4', inputs: { hiddenAt, hiddenBy } }] }`, with zero writes. An unknown id → `ReviewNotFound`.
+  - Q-fail On 0 rows the row is re-read `FOR UPDATE`; when a racing moderation made the review visible again, Q1 runs again under the lock (decision log Impl-1 #38). Already hidden → an explained no-op: `Decision { outcome: 'allowedWithNotice', citations: [{ rule: 'FR-REP-4', inputs: { hiddenAt, hiddenBy } }] }`, with zero writes. An unknown id → `ReviewNotFound`.
 - **Invariant (I):**
   - I1 A `"Review"` is never deleted: `DELETE` is revoked from the application role. Bound to: AD-12, AD-REP-2 rule 3.
   - I2 Each `NULL → non-null` change of `"hiddenAt"` writes exactly one log row with snapshots, and a no-op writes none. Bound to: AD-REP-3 rule 1.
@@ -1429,9 +1430,19 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `ValuationHistoryEmpty` | — (stored only) | collections | VAL-3 Q4: no entry has a reference price, so the series is empty, citing `{ pricedEntries: 0 }` (FR-VAL-4; decision log Impl-1 #37) | "Ninguna carta de esta colección tiene precio de referencia todavía, así que no hay historial." | no |
 | `InvalidValuationPeriod` | 400 | collections | VAL-2 P2 | "El periodo debe ser 7, 30, 90 o 365 días." | no |
 | `TargetNotFound` | 404 | reviews | REP-1 P2, P3; S-FR-REP-7 | "No encontramos ese vendedor." | no |
-| `NotVerifiedPurchaser` | 409 | reviews | REP-1 P4 | "Podrás reseñar esta tienda cuando confirmes que recibiste tu pedido; pagar no es suficiente ({latestState})." | no |
+| `NotVerifiedPurchaser` | 409 | reviews | REP-1 P4; REP-1.check (the `eligible = false` decision). `latestState` stays cited, not interpolated, so the text never shows a status token (AD-SYS-1 rule 6; decision log Impl-1 #38) | "Podrás reseñar esta tienda cuando confirmes que recibiste tu pedido; pagar no es suficiente." | no |
 | `DuplicateReview` | 409 | reviews | REP-1 P5 | "Ya reseñaste a este vendedor; puedes editar tu reseña." | no |
 | `ReviewNotFound` | 404 | reviews | REP-2 P3; S-FR-REP-6 | "No encontramos esa reseña." | no |
+| `ReviewWritten` | — (stored only) | reviews | REP-1 Q4 `allowed`: the review is stored, citing `{ targetKind, purchaseVerified }` (FR-REP-1, FR-REP-2; decision log Impl-1 #38) | "Publicamos tu reseña; cuenta en la calificación desde ya." | no |
+| `ReviewEdited` | — (stored only) | reviews | REP-1.edit `allowed`: the reviewer's visible review is changed, citing `{ reviewId }` (FR-REP-1; decision log Impl-1 #38) | "Actualizamos tu reseña." | no |
+| `ReviewEligible` | — (stored only) | reviews | REP-1.check `allowed`: the target can be reviewed, citing `{ targetKind, purchaseVerified }` (FR-REP-1, FR-REP-2; decision log Impl-1 #38) | "Puedes reseñar a este vendedor." | no |
+| `ReviewHidden` | — (stored only) | reviews | REP-2 Q4 `hidden`: the review leaves every read and its snapshot is logged, citing `{ reviewId, reasonCode }` (FR-REP-4; decision log Impl-1 #38). The reason is cited, not interpolated | "Ocultaste la reseña; su contenido quedó en el registro de moderación." | no |
+| `ReviewAlreadyHidden` | — (stored only) | reviews | REP-2 Q-fail `allowedWithNotice`: the review was already hidden, citing `{ hiddenAt, hiddenBy }`, with zero writes (FR-REP-4, AD-REP-3 rule 1; decision log Impl-1 #38) | "Esta reseña ya estaba oculta desde el {hiddenAt}; no se registró otra acción." | no |
+| `ReviewUnhidden` | — (stored only) | reviews | REP-2.unhide `allowed`: the review is visible again and the unhide is logged, citing `{ reviewId, reasonCode }` (FR-REP-4; decision log Impl-1 #38) | "Volviste a mostrar la reseña; la acción quedó en el registro de moderación." | no |
+| `ReviewNotHidden` | — (stored only) | reviews | REP-2.unhide `allowedWithNotice`: the review was visible, citing `{ reviewId }`, with zero writes (FR-REP-4, AD-REP-3 rule 2; decision log Impl-1 #38) | "Esta reseña no estaba oculta; no se registró ninguna acción." | no |
+| `ReviewHiddenByModeration` | — (stored only) | reviews | REP-1.check `rejected`: the reviewer's review of this target is hidden, so it can be neither edited (EC-32) nor written again (P5), citing `{ reviewId }` (AD-REP-1 rule 4; decision log Impl-1 #38, close review) | "Un administrador ocultó tu reseña de este vendedor; no puedes editarla ni publicar otra." | no |
+| `SellerRated` | — (stored only) | reviews | REP-3 Q4 `allowed`: the seller has visible reviews, citing `{ count, averageTenths }` (FR-REP-3; decision log Impl-1 #38) | "Calificación promedio; reseñas visibles: {count}." | no |
+| `SellerNotYetReviewed` | — (stored only) | reviews | REP-3 Q4: no visible review, so `averageTenths` is null, citing `{ count: 0 }` (FR-REP-3; decision log Impl-1 #38). The UI renders "Aún sin reseñas", never 0.0 | "Aún sin reseñas." | no |
 | `'Unexpected'` | 500 | — | An invariant breach or an internal caller bypassing the parser | "Algo falló de nuestro lado; no se aplicó ningún cambio." | yes |
 
 **DecisionCodes** (non-error outcomes, ADD-§3.2) used by these contracts:

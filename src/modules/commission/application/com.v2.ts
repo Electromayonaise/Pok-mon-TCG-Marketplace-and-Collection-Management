@@ -46,6 +46,7 @@ import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest } from '../../../shared-kernel/request.js';
+import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import { isAdmin, requireAdmin, requireBusinessAccount } from '../../identity/index.js';
 import {
@@ -245,10 +246,8 @@ export class ComServiceV2 implements ComV2UseCases {
     return transactions.run(async (tx) => {
       // P1 first (AD-16), then the reason's CHECK, repeated for in-process callers.
       await requireAdmin(repo, tx, adminId);
-      const length = [...reason].length;
-      if (length < MIN_REJECTION_REASON || length > MAX_REJECTION_REASON) {
-        rejectRequest([{ field: 'reason', issue: `debe tener entre ${MIN_REJECTION_REASON} y ${MAX_REJECTION_REASON} caracteres` }]);
-      }
+      const why = textIssue(reason, MIN_REJECTION_REASON, MAX_REJECTION_REASON);
+      if (why !== null) rejectRequest([{ field: 'reason', issue: why === 'nul' ? NUL_ISSUE : `debe tener entre ${MIN_REJECTION_REASON} y ${MAX_REJECTION_REASON} caracteres` }]);
       const now = clock.now().toISOString();
       if ((await repo.decideTopUp(tx, { id: topUpRequestId, decision: 'Rejected', adminId, reason, now })) === null) return this.refuseDecision(tx, topUpRequestId, adminId);
       await repo.insertTopUpDecisionLog(tx, { id: ids.next(), topUpRequestId, adminId, decision: 'Rejected', now });
@@ -320,10 +319,8 @@ export class ComServiceV2 implements ComV2UseCases {
     await this.requireBusiness(businessId, 'FR-COM-2');
     if ((await this.reading((tx) => repo.readAccount(tx, businessId))) === null) this.notOpen();
     if (!isValidTopUpAmount(amountCop)) raise('TopUpAmountInvalid', [{ rule: 'FR-COM-2', inputs: { amountCop } }]);
-    const length = [...transferReference].length;
-    if (length < MIN_REFERENCE || length > MAX_REFERENCE) {
-      rejectRequest([{ field: 'transferReference', issue: `debe tener entre ${MIN_REFERENCE} y ${MAX_REFERENCE} caracteres` }]);
-    }
+    const why = textIssue(transferReference, MIN_REFERENCE, MAX_REFERENCE);
+    if (why !== null) rejectRequest([{ field: 'transferReference', issue: why === 'nul' ? NUL_ISSUE : `debe tener entre ${MIN_REFERENCE} y ${MAX_REFERENCE} caracteres` }]);
     const key = await this.promoteProof(businessId, uploadKey);
     // Clock, once, after the scan: a slow scan must not commit a row older than queue pages already read.
     const now = clock.now().toISOString();

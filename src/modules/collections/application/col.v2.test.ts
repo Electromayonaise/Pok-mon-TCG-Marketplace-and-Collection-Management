@@ -39,6 +39,18 @@ describe('addEntry with no target (COL-3 Q1, AD-COL-1 rules 1–2)', () => {
   });
 });
 
+describe('collection names (S-FR-COL-1, decision log Impl-1 #38)', () => {
+  it('a name of spaces or with a NUL is RequestValidationFailed on create and rename, and nothing changes', async () => {
+    await user(db, { id: id('valentina') });
+    await collection(db, { id: id('cv'), ownerId: id('valentina'), name: 'Keep' });
+    for (const name of ['   ', 'Ke\u0000ep']) {
+      expect(codeOf(await caught(() => col().createCollection({ ownerId: id('valentina'), name })))).toBe('RequestValidationFailed');
+      expect(codeOf(await caught(() => col().renameCollection({ ownerId: id('valentina'), collectionId: id('cv'), name })))).toBe('RequestValidationFailed');
+    }
+    expect((await rows<{ name: string }>(db, 'Collection')).map((c) => c.name)).toEqual(['Keep']);
+  });
+});
+
 describe('rename and delete (S-FR-COL-1)', () => {
   it('a foreign id is CollectionNotFound and stays unchanged; a taken name on rename is CollectionNameTaken', async () => {
     await user(db, { id: id('valentina') });

@@ -54,6 +54,7 @@ import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest } from '../../../shared-kernel/request.js';
+import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import {
   availability, conditionFitsKind, createdState, decodeListingCursor, detailState, encodeListingCursor, isValidLocation, isValidPrice, ownerCheck, pausedAtInsert, purchasable,
@@ -83,6 +84,12 @@ const projectionOf = (row: { paused: boolean } | null): ProjectionState => (row 
 
 /** INV-2: `description` is at most 1,000 code points, as the schema's `char_length` CHECK counts them. */
 const MAX_DESCRIPTION = 1_000;
+
+/** INV-2 `description`: at most 1,000 code points and no NUL (contracts.md §0.3, decision log Impl-1 #38). */
+function checkDescription(description: string): void {
+  const why = textIssue(description, 0, MAX_DESCRIPTION);
+  if (why !== null) rejectRequest([{ field: 'description', issue: why === 'nul' ? NUL_ISSUE : `debe tener como máximo ${MAX_DESCRIPTION} caracteres` }]);
+}
 
 /** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
 function explained(outcome: Decision['outcome'], code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
@@ -313,7 +320,8 @@ export class InvServiceV2 implements InvV2UseCases {
     if (components.length === 0) raise('EmptyComponentList', [{ rule: 'FR-INV-2', inputs: { components: 0 } }]);
     if (components.length > MAX_COMPONENTS) rejectRequest([{ field: 'components', issue: `debe tener como máximo ${MAX_COMPONENTS} cartas` }]);
     const title = input.title;
-    if ([...title].length < 1 || [...title].length > 120) rejectRequest([{ field: 'title', issue: 'debe tener entre 1 y 120 caracteres' }]);
+    const titleIssue = textIssue(title, 1, 120);
+    if (titleIssue !== null) rejectRequest([{ field: 'title', issue: titleIssue === 'nul' ? NUL_ISSUE : 'debe tener entre 1 y 120 caracteres' }]);
     for (const c of components) {
       if (!Number.isInteger(c.perBundleQty) || c.perBundleQty < 1 || c.perBundleQty > 4) rejectRequest([{ field: 'components.perBundleQty', issue: 'debe ser un entero entre 1 y 4' }]);
       if (!Number.isInteger(c.quantity) || c.quantity < 1 || c.quantity > 999) rejectRequest([{ field: 'components.quantity', issue: 'debe ser un entero entre 1 y 999' }]);
@@ -328,7 +336,7 @@ export class InvServiceV2 implements InvV2UseCases {
       if (!conditionFitsKind(c.condition, kind)) raise('InvalidItemRef', [{ rule: 'FR-INV-1', inputs: { itemRef: c.itemRef, kind, condition: c.condition } }]);
     }
     this.checkPriceAndLocation(input.priceCop, location);
-    if ([...input.description].length > MAX_DESCRIPTION) rejectRequest([{ field: 'description', issue: `debe tener como máximo ${MAX_DESCRIPTION} caracteres` }]);
+    checkDescription(input.description);
     const ordered = [...components].sort((a, b) => (a.itemRef === b.itemRef ? (a.condition < b.condition ? -1 : 1) : a.itemRef < b.itemRef ? -1 : 1));
     return transactions.run(async (tx) => {
       if (listingKind === 'business') await repo.lockSellerProjection(tx, input.sellerId);
@@ -390,7 +398,7 @@ export class InvServiceV2 implements InvV2UseCases {
     if (changes.priceCop === undefined && changes.description === undefined && changes.openToTrade === undefined) rejectRequest([{ field: 'changes', issue: 'no trae ningún cambio' }]);
     if (changes.openToTrade && listing.sellerKindAtCreation === 'business') raise('OpenToTradeNotAllowed', [{ rule: 'AD-4', inputs: { listingKind: 'business', openToTrade: true } }]);
     if (changes.priceCop !== undefined && !isValidPrice(changes.priceCop)) raise('InvalidPrice', [{ rule: 'FR-INV-1', inputs: { priceCop: changes.priceCop } }]);
-    if (changes.description !== undefined && [...changes.description].length > MAX_DESCRIPTION) rejectRequest([{ field: 'description', issue: `debe tener como máximo ${MAX_DESCRIPTION} caracteres` }]);
+    if (changes.description !== undefined) checkDescription(changes.description);
     return transactions.run(async (tx) => {
       const now = clock.now().toISOString();
       const version = await repo.updateListingFields(tx, input.listingId, input.expectedVersion, changes, now);
@@ -523,7 +531,7 @@ export class InvServiceV2 implements InvV2UseCases {
     }
     this.checkPriceAndLocation(input.priceCop, location);
     if (!Number.isInteger(input.quantity) || input.quantity < 1 || input.quantity > 999) rejectRequest([{ field: 'quantity', issue: 'debe ser un entero entre 1 y 999' }]);
-    if ([...input.description].length > MAX_DESCRIPTION) rejectRequest([{ field: 'description', issue: `debe tener como máximo ${MAX_DESCRIPTION} caracteres` }]);
+    checkDescription(input.description);
   }
 
   /** INV-2 P4 and P5, shared with bundles and edits; `location` is the one `locationOf` chose. */

@@ -936,3 +936,70 @@
   - The five Epic 12 story files.
   - `sprint-status.yaml` (12.4 and 12.5 out of `impl2_scope`; `epic-12: done`).
 - **Decided by:** Martín.
+
+### 38. Epic 13 closes the Impl-1 cut, free text is checked once in the kernel, 13.6's own-clause tests move to 13.2 and 13.3, and the epic is signed (Governance)
+
+- **Phase:** 3 (Epic 13 planning at `98b47ad`, then the close review over `98b47ad..7cce159`).
+- **Persona/Skill:** `bmad-quick-dev`, epic-batched (#22), then `bmad-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor).
+- **Prompt (summary):** Three rounds.
+  - **The specs.** Martín approved the four Epic 13 specs (13.1–13.4) together, with five choices:
+    - **D1–D2, scope of 13.4 and 13.6.** Both are in `impl2_scope`.
+      - 13.4's 5 bound tests are clauses 13.1 must build: REP-1 P2, P3, P5, the edit's `hiddenAt IS NULL` and the eligibility read's P3.
+      - 13.6 has 6 tests. Three of them are 13.2's and 13.3's own clauses: `[REP-2.P2]`, `[REP-2.P3]`, `[REP-3.P1]`. The other three need Story 13.5's operations: `[S-FR-REP-5.f]`, `[S-FR-REP-6.f]`, `[S-FR-REP-7.f]`.
+    - **D3, NFR-REP-2.** Its PRD metric is the profile read, which is 13.5's `getProfile`, but the DoDs of 13.2 and 13.3 asked for its benchmark.
+    - **D4, the trim item.** A NUL passed the length checks and failed in Postgres as 500, and a text of spaces met a minimum. This was open in Epics 3, 8, 9 and 11 and applied to the review text too.
+    - **D5, §13 codes.** Nine REP decisions had no §13 code.
+    - **D6, minor choices:** no new neighbour port (identity's `getReviewTarget` and orders' `hasClosedPurchase` already exist); P3 is an individual seller or a verified business; one `TargetNotFound` body for a self-review, a non-seller and an unknown id; the neighbours read before the write transaction; a new `PgRepRepository` joined to the one repository (R-14); `getAggregates` reads the clock for `occurredAt` only.
+  - **During implementation.** `NotVerifiedPurchaser`'s §13 template interpolated `{latestState}`, so the eligibility decision's text carried `PaymentConfirmed`, which AD-SYS-1 rule 6 forbids (`[REP-1.check.h]`).
+  - **The close review.** It left 3 decisions, 8 patches, 3 deferrals and 11 dismissed findings. The decisions:
+    - **R1:** hide and unhide relied on the admin builder alone, so an in-process caller wrote `hiddenBy` and an `actorKind: 'admin'` audit row for any id.
+    - **R2:** the eligibility of a pair whose review is hidden said "puedes editar tu reseña", while the edit is refused (EC-32).
+    - **R3:** §0.3's new free-text rule reads for every module, but the check reached only VER, COM, MSG, COL and REP.
+- **AI output (summary):** The agent recommended:
+  - **(recommended)** D1: 13.4 as a proof-only story committed right after 13.1 (#23), as 12.4 and 12.5 were (#37). It leaves `impl2_scope` and does not count toward the 43.
+  - **(recommended)** D2: move the three 13.6 tests that are 13.2's and 13.3's own clauses to those stories, in `epics.source.mjs`. 13.6 keeps the three 13.5 tests and stays in `impl2_scope` with 13.5, which is not built early. The alternatives were building 13.5 and 13.6 whole, or a gate exception.
+  - **(recommended)** D3: `[NFR-REP-2.nextRead]` bound to 13.2 and `[NFR-REP-2.aggregates]` bound to 13.3, in a new `rep2_latency.test.ts`. The profile read stays with 13.5. The alternatives were a benchmark in 13.3 only, or none.
+  - D4: the agent recommended that REP close only its own texts. **Martín chose the cross-cutting close instead**, and then the helper's semantics:
+    - the kernel's `textIssue` (`shared-kernel/text.ts`) refuses U+0000 and counts each field's minimum after trim;
+    - values are stored as written;
+    - it lands in its own commit before 13.1, applied to VER, COM, MSG and COL, and REP uses it from 13.1;
+    - contracts.md §0.3 states the rule.
+  - **(recommended)** D5: nine stored-only §13 rows. The alternative was one generic code.
+  - **(recommended)** D6 as listed.
+  - **(recommended)** the template: drop `{latestState}` from `NotVerifiedPurchaser`'s text and keep it cited. The alternatives were translating the status in the kernel renderer, or a new es-CO input.
+  - **(recommended)** R1: `requireAdmin` first inside the transaction (AD-16), as VER and COM do. P1 in contracts.md says so.
+  - **(recommended)** R2: a new stored-only code, `ReviewHiddenByModeration`.
+  - **(recommended)** R3: extend the check to INV (bundle `title`, `description`) and IDN (`displayName`, the meeting `city`). The alternative was narrowing §0.3.
+  - Apply all 8 patches.
+- **Human decision:** ACCEPT every recommendation except D4, where Martín chose the cross-cutting close (NUL plus the minimum after trim, in its own commit). Sign the Epic 13 gate (#5). This closes the Impl-1 cut: all 43 stories are done.
+- **Reason:** `done` keeps meaning what the bound tests prove. D2 changes which story binds three tests, not the tests themselves, so the gate needs no exception and Story 13.5 stays in Impl-2. One kernel check closes the 500 of five epics' deferrals at once.
+- **Also decided (the patches):**
+  - A duplicate write cites the existing `reviewId`, as REP-1.check does.
+  - A hide or unhide that meets 0 rows re-reads the row `FOR UPDATE`. When a racing moderation changed the state back, the action applies under the lock, so the no-op never cites a null `hiddenAt` (REP-2 Q-fail amended).
+  - VER's `bankName` and `externalPresenceUrl` refuse a NUL.
+  - `[NFR-REP-2.nextRead]` measures 500 reads after a hide, as D3 says.
+  - `SellerRated` reads "Calificación promedio; reseñas visibles: {count}.", with no wrong plural.
+  - Story 13.5 also proves REP-3, so its Traceability names NFR-REP-2 and its DoD carries the profile benchmark.
+  - The message-catalog test allows `hiddenAt` and `count`.
+  - `PgRepRepository` is exported after the imports.
+- **Also in this epic:**
+  - `reputation.write`, `.edit`, `.eligibility`, `.admin.hide` and `.admin.unhide` are wired. REP-3 has no procedure, since it is the RSC's port. `PgRepRepository` joins the one repository (R-14).
+  - TG-7 (local Postgres 16, three runs): `[REP-1.MEC]` 100/100 refusals in 146–161 ms; `[REP-3.MEC]` 100 hide-versus-post races in 446–502 ms. A fast-check property over 1,000 rating sets proves `averageTenths` is the exact half-up rounding.
+  - NFR-REP-2 p95 (local Postgres 16, n = 500): the next read after a hide 0.7 ms; 500 sellers' aggregates 1.8 ms. NFR-REP-1, NFR-REP-3, and NFR-SYS-8 and -10 (`[REP-2.Q1]`, `[REP-3.MEC]`) are now green.
+  - Four deferrals closed: Epic 3's untrimmed names, Epic 8's reference and reasons, Epic 9's body, and Epic 11's name of spaces (its `nameKey` item stays open, because names are stored as written). Three new deferrals: the verdict read before the write (AD-REP-1 trade-off); invisible characters after `trim()`; the raw ISO instant in `ReviewAlreadyHidden`.
+- **Environment note:** Docker did not run in this session. A `postgresql-16` cluster on port 55432 (`max_connections=200`, `fsync=off`, `full_page_writes=off`) ran `npm run test:ci`, and it was started again after each worker restart. The agent read the script's own exit code (`TESTCI_EXIT`) before pushing. The first run, after 13.3, exited 1 on the message-catalog test (the new placeholders). The second, after the review patches, exited 1 on `[SYS-AD8]`, because a REP src test updated `"Order"`; the test now inserts a second, closed order through the fixture. Neither was pushed. Everything was pushed after a run with exit 0.
+- **Artifact changed:**
+  - `src/shared-kernel/text.ts` (+ test).
+  - `src/modules/reviews/**`.
+  - The text checks in `identity` (VER, IDN), `commission`, `messaging`, `collections` and `listings` (+ tests).
+  - `src/server/composition.ts` (+ test).
+  - `src/shared-kernel/messages.generated.ts` and `messages.test.ts`.
+  - `test-support/solu2/fixtures.ts`.
+  - `_bmad-output/test-artifacts/nfr/rep2_latency.test.ts` and `nfr-evidence.md`.
+  - `contracts.md`: §0.3, REP-2 P1 and Q-fail, and §13 (eleven rows, one template).
+  - `epics.source.mjs` and `epics.md` (D2, the benchmark ids, 13.5's REP-3), and `traceability-matrix.md`.
+  - `deferred-work.md`.
+  - The four Epic 13 story files.
+  - `sprint-status.yaml` (13.4 out of `impl2_scope`; `epic-13: done`).
+- **Decided by:** Martín.
+

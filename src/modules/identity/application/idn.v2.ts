@@ -38,6 +38,8 @@ import type { Decision } from '../../../shared-kernel/decision.js';
 import { UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
+import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import { AUTH_THROTTLE_LIMITS, claimRefusal, deriveCapabilities, throttleRefusal, type AuthThrottleLimit, type CapabilityFacts, type CapabilityValue, type DerivedCapabilities } from '../domain/idn.js';
 
@@ -57,6 +59,14 @@ export class IdnServiceV2 implements IdnV2UseCases {
    * The regulated phone goes only into the profile row (AD-SYS-8); the audit row carries the track.
    */
   async completeIndividualProfile(input: CompleteIndividualProfileRequest): Promise<CompleteIndividualProfileResponse> {
+    // The stored free text (contracts.md §0.3, decision log Impl-1 #38): no NUL, and the minimum counted after trim.
+    const issues: RequestIssue[] = [];
+    const nameIssue = textIssue(input.displayName, 2, 400);
+    if (nameIssue !== null) issues.push({ field: 'displayName', issue: nameIssue === 'nul' ? NUL_ISSUE : 'debe tener entre 2 y 40 caracteres' });
+    const cityIssue = textIssue(input.defaultMeetingPoint.city, 2, 60);
+    if (cityIssue !== null) issues.push({ field: 'defaultMeetingPoint.city', issue: cityIssue === 'nul' ? NUL_ISSUE : 'debe tener entre 2 y 60 caracteres' });
+    const [first, ...rest] = issues;
+    if (first) rejectRequest([first, ...rest]);
     const { repo, transactions, clock } = this.deps;
     return transactions.run(async (tx) => {
       const now = clock.now().toISOString();

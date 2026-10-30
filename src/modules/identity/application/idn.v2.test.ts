@@ -188,3 +188,16 @@ describe('IdnServiceV2.getContactCard / getDisplayNames', () => {
     ]);
   });
 });
+
+describe('completeIndividualProfile — free text (contracts.md §0.3, decision log Impl-1 #38)', () => {
+  it('a display name of spaces and a city with a NUL are one RequestValidationFailed, and no track is claimed', async () => {
+    await user(db, { id: id('valentina') });
+    const error = await caught(() => idn().completeIndividualProfile({
+      userId: id('valentina'), displayName: '   ', contactPhone: '+573001234567', phoneSharingConsent: true, phoneSharingConsentVersion: 'phone-v1',
+      defaultMeetingPoint: { lat: 4.711, lng: -74.0721, city: 'Bogo\u0000tá' },
+    }));
+    expect(codeOf(error)).toBe('RequestValidationFailed');
+    expect((error as { citations: { inputs: { field: string } }[] }).citations.map((c) => c.inputs.field)).toEqual(['displayName', 'defaultMeetingPoint.city']);
+    expect(await rows(db, 'User', `"sellerTrack" IS NOT NULL`)).toEqual([]);
+  });
+});

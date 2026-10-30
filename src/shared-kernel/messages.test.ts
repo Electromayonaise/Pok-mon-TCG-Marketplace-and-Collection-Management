@@ -20,8 +20,8 @@ describe('es-CO message catalog (contracts.md §13, AD-SYS-1 rule 6)', () => {
   it('a placeholder is only ever an id, an instant, a number, a field name or an enum value, never free text (decision log Impl-1 #11)', () => {
     const allowed = new Set([
       ...['orderId', 'itemRef', 'catalogEntryId', 'decidedBy', 'openOrderIds'], // ids
-      ...['acquiredAt', 'at', 'confirmedAt', 'decidedAt', 'effectiveFrom', 'lastTickStartedAt', 'reapplyNotBefore', 'resolvedAt', 'retryAt', 'startedAt', 'submittedAt', 'today'], // instants
-      ...['available', 'entriesRemoved', 'entryCount', 'platformPurchaseEntriesRemoved', 'requested', 'round', 'threshold'], // numbers
+      ...['acquiredAt', 'at', 'confirmedAt', 'decidedAt', 'effectiveFrom', 'hiddenAt', 'lastTickStartedAt', 'reapplyNotBefore', 'resolvedAt', 'retryAt', 'startedAt', 'submittedAt', 'today'], // instants
+      ...['available', 'count', 'entriesRemoved', 'entryCount', 'platformPurchaseEntriesRemoved', 'requested', 'round', 'threshold'], // numbers
       ...['field', 'fields', 'issue'], // input keys, and the parser's own es-CO copy
       ...['cause', 'status', 'latestApplicationStatus', 'latestState', 'reasonCode', 'turn'], // enum values
     ]);

@@ -40,7 +40,7 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 - An ambiguous COMMIT outcome (the connection drops after COMMIT is sent) makes the submit delete promoted documents that a committed row may reference. Needs the production storage adapter and a reconciliation sweep.
 - The scanner's sanitized output is stored without the magic-byte check running again. Belongs with the production scanner item.
 - The 5 MB document size is checked after the whole object is read into memory. The upload ticket will cap the size at upload time.
-- Length checks run on untrimmed input, so whitespace-only names pass the 2-character minimum. The contracts do not say whether to trim; decide it with the UI form.
+- ~~Length checks run on untrimmed input, so whitespace-only names pass the 2-character minimum. The contracts do not say whether to trim; decide it with the UI form.~~ Resolved before Epic 13 (decision log Impl-1 #38): the kernel's `textIssue` counts the minimum after trim and refuses a NUL, in VER's names, city, holder name, reason text and decision note.
 - `bankName` has no length bound in the contract, zod or the schema. Add one with a contract change.
 - The rejection reason's `textEsCo` is never shown to the business, and the status copy shows the reason code and a raw ISO date. Presentation belongs to the verification UI story.
 - A non-admin can flood `"LegalIdentityAccessLog"` with denied rows. Needs the throttle tables (NFR-SYS-14). Epic 9 does not close it: Story 9.5's limiter counts `"ContactRequestLog"` only, which is the contact handoff's own table, not a general throttle. Owner: Story 2.4's Impl-2 completion, which wires `"AuthThrottleEvent"` and the sign-in hook (decision log Impl-1 #34).
@@ -106,7 +106,7 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 ## Deferred from: code review of Epic 8 (8.1–8.4) (2026-10-30)
 
 - One quarantined proof can back two top-up requests: two concurrent `requestTopUp` calls with one `uploadKey` both promote it, and a failed best-effort delete of the quarantine copy lets it be used again. Martín deferred it (decision log Impl-1 #33): a single-use upload ticket closes it at the source, and until then an admin sees both requests, with one transfer reference, before crediting. Owner: Epic 3's upload-ticket item (with the production storage).
-- Whitespace-only or NUL-bearing `transferReference` and rejection reasons pass the length checks (a NUL then fails in Postgres as 500). Same as Epic 3's trim item; decide it with the top-up and queue forms (UI 7.1, 7.3).
+- ~~Whitespace-only or NUL-bearing `transferReference` and rejection reasons pass the length checks (a NUL then fails in Postgres as 500). Same as Epic 3's trim item; decide it with the top-up and queue forms (UI 7.1, 7.3).~~ Resolved before Epic 13 (decision log Impl-1 #38): `textIssue` refuses both, and counts the minimum after trim.
 - The top-up proof is read whole before the 5 MiB check, and an ambiguous COMMIT deletes a promoted proof that a committed row may point to. Same as Epic 3's upload-ticket and production-storage items.
 
 ## Deferred from: spec of Epic 9 (9.1–9.5) (2026-10-30)
@@ -116,7 +116,7 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 
 ## Deferred from: code review of Epic 9 (9.1–9.5) (2026-10-30)
 
-- A message body that is whitespace only passes `normalizeBody`, and one with a NUL passes it and then fails in Postgres (22021) as 500. Same as Epic 3's and Epic 8's trim items; decide it with the composer (UI 12.2, 12.3).
+- ~~A message body that is whitespace only passes `normalizeBody`, and one with a NUL passes it and then fails in Postgres (22021) as 500. Same as Epic 3's and Epic 8's trim items; decide it with the composer (UI 12.2, 12.3).~~ Resolved before Epic 13 (decision log Impl-1 #38): `textIssue` refuses both before any read.
 - `messaging.send`'s zod input bounds `body` at 2,000 UTF-16 units before NFC, while MSG-1 P2, `normalizeBody` and the `char_length` CHECK count 2,000 code points after NFC, so a body of 1,001 or more astral characters is refused at the router. The bound comes from `operations.json` (`maxLength`); fix it there with a contract change. Owner: the next contract revision.
 - ~~The trade path of `generateContactMessage` accepts an empty offer (no items and no cash renders "Ofrezco .") and calls `BigInt` on `tradeSummary.cashCop` unchecked. Only `kind='purchase'` is wired; TRD-1 is the trade caller. Owner: Epic 10 (Story 10.1's TRD-1 validates the terms before it calls the handoff).~~ Resolved by Epic 10 (decision log Impl-1 #35, D6): trading checks the terms before it stores them, and the contact service raises `Unexpected` for a null or empty summary, a cash outside 0–100,000,000 or an unknown item, before it reads the phone.
 - `NotBusinessAccount` on the messaging path renders the raw `{status}` token (`none`, `Rejected`) inside Spanish text, the repo-wide convention noted in Epic 7. The composer's copy (UI 12.3) should map it.
@@ -141,7 +141,7 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 ## Deferred from: code review of Epic 11 (11.1–11.4) (2026-10-30)
 
 - COL-2 Q4 says a prompt's rendering cites `{ rule: 'FR-COL-7', inputs: { orderId, lineCount } }`, but `PromptRowDTO` has no decision field, so `collections.prompts.list` returns none. Martín deferred the DTO change (decision log Impl-1 #36, R2); each row already carries `orderId` and `lineCount`. Owner: the prompt page story (UI 6.2, 9.4).
-- Collection names are not trimmed: a whitespace-only name passes, and "Keep " and "Keep" get different `nameKey`s. Same as Epic 3's, 8's and 9's trim items; decide it with the collection forms (UI 9.1, 9.4).
+- ~~Collection names are not trimmed: a whitespace-only name passes~~ (resolved before Epic 13, decision log Impl-1 #38: `textIssue` refuses a name of spaces or with a NUL). Still open: "Keep " and "Keep" get different `nameKey`s, because a name is stored as written (#38). Owner: the collection forms (UI 9.1, 9.4).
 - `PromptAlreadyResolved` renders the raw status token (`Accepted`, `Dismissed`) and an ISO instant inside Spanish text, the repo-wide convention noted in Epic 7. The prompt pages' copy (UI 6.2, 9.4) should map it.
 
 ## Deferred from: spec of Epic 12 (12.1–12.5) (2026-10-30)
@@ -153,4 +153,16 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 
 - VAL's history judges a point stale with its own 36 h constant (`FRESHNESS_MS` in `domain/val.ts`), while VAL-1 takes the catalog's `stale` flag from `getReferencePricesAsOf`. The two agree today (36 h, strictly older), but a change to the catalog's threshold would make the current value and the history disagree. VAL may not import the catalog's domain (AD-1); a fix needs the catalog to expose its threshold through a port or on `getPriceHistory`. Owner: the next catalog contract revision.
 - The trend's start is `now − period × 86,400 s` (VAL-2 Q1) while the history's first day starts at 05:00 UTC (VAL-3 Q2), so "30 days" covers slightly different windows on the two pages. Both follow their contracts; align them with the valuation pages' copy (UI 10.1, 10.2).
+
+## Deferred from: spec of Epic 13 (13.1–13.4) (2026-10-30)
+
+- Stories 13.5 (listing hide and its log, review search and log, the profile: `S-FR-REP-5`, `S-FR-REP-6.listing`, `.search`, `.log`, `S-FR-REP-7`) and 13.6 (their three refusals, `[S-FR-REP-5.f]`, `[S-FR-REP-6.f]`, `[S-FR-REP-7.f]`) stay in `impl2_scope`; their five procedures stay unwired and their 7 tests red for NotImplemented. 13.6's `[REP-2.P2]`, `[REP-2.P3]` and `[REP-3.P1]` moved to Stories 13.2 and 13.3 (decision log Impl-1 #38, D2). Owner: Epic 13's Impl-2 completion.
+- NFR-REP-2's profile read (the aggregate plus the first page of 20 in one `REPEATABLE READ` transaction, p95 ≤ 300 ms) has no benchmark yet: Story 13.5's DoD carries it. Epic 13 measured the next read after a hide and the aggregates read (decision log Impl-1 #38, D3). Owner: Story 13.5.
+- REP needs no jobs route: nothing in REP expires or is scheduled, so nothing joins the jobs-route item of Stories 4.1, 4.4, 7.5 and 10.5.
+
+## Deferred from: code review of Epic 13 (13.1–13.4) (2026-10-30)
+
+- REP-1 reads the target and the closed-purchase fact before its write transaction (AD-REP-1 trade-off), so a business that loses `Approved` between that read and the insert still gets the review, verified. Order facts are write-once; a business decision in that window is rare. Owner: Epic 13's Impl-2 completion, if a decision path ever needs it.
+- The kernel's `textIssue` counts the minimum after `String.prototype.trim()`, so a text of only invisible characters (U+200B, U+3164, U+2800) passes it, and a lone surrogate is not refused (the driver replaces it with U+FFFD). Owner: the next contract revision of §0.3, with the forms.
+- `ReviewAlreadyHidden` renders a raw ISO instant inside Spanish text, the repo-wide convention noted in Epic 7. The moderation page's copy (UI 11.3) should format it.
 

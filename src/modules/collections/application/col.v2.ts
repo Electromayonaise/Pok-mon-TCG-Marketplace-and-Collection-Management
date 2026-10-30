@@ -51,6 +51,7 @@ import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
+import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import { bogotaDate, COLLECTION_LIMIT, entryQuantities, isAfterToday, isCalendarDate, isIsoInstant } from '../domain/col.js';
 import type { PromptRow } from '../ports/col.v2.js';
@@ -67,10 +68,10 @@ function collectionNotFound(rule: string): never {
   return raise('CollectionNotFound', [{ rule, inputs: { owned: false } }]);
 }
 
-/** S-FR-COL-1: 1–60 characters (the parser's bound, re-checked for internal callers). */
+/** S-FR-COL-1: 1–60 characters, not all spaces and with no NUL (the parser's bound, re-checked for internal callers; #38). */
 function checkName(name: string): void {
-  const length = [...name].length;
-  if (length < 1 || length > 60) rejectRequest([{ field: 'name', issue: 'debe tener entre 1 y 60 caracteres' }]);
+  const why = textIssue(name, 1, 60);
+  if (why !== null) rejectRequest([{ field: 'name', issue: why === 'nul' ? NUL_ISSUE : 'debe tener entre 1 y 60 caracteres' }]);
 }
 
 const isInteger = (v: unknown, min: number, max: number): boolean => Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max;
