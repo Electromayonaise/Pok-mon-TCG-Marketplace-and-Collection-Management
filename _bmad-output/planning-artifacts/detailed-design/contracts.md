@@ -1018,6 +1018,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
     - `"acquiredAt"` = the Bogotá date of `"buyerItemReceivedConfirmedAt"`;
     - `"acquiredPriceCop" = line.unitPriceCop ?? NULL`;
     - `"manualPosition"` = max + 1, + 2, …
+    - a line over 999 copies becomes entries of at most 999 each, in order, so the `qty` CHECK holds (decision log Impl-1 #36, R1).
 
     Returns the entry ids.
   - Q3 Audit: `audit('collections.prompt.accepted', PostPurchasePrompt:id)`. No event. `orders` tables are never read.
@@ -1039,7 +1040,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Layer:** Inbound Port (subscriber).
 - **Precondition (P):**
   - P1 `tx` holds this subscriber's `"EventDelivery"` row. Violation: `'Unexpected'`.
-  - P2 The payload has `orderId`, `buyerId`, `lines` (≥ 1) and a non-null `buyerItemReceivedConfirmedAt`. Violation: `'Unexpected'`, and the delivery becomes `failed`.
+  - P2 The payload has `orderId`, `buyerId`, `lines` (≥ 1) and a non-null `buyerItemReceivedConfirmedAt`. Violation: `'Unexpected'`, and the delivery becomes `failed`. Each line has an `itemRef` and a positive integer `qty`, with no upper bound (a bundle component is `perBundleQty × qty`); `unitPriceCop` is absent, null or 0–100,000,000; the close fact is an ISO 8601 UTC instant (decision log Impl-1 #36).
 - **Postcondition (Q):**
   - Q1 `INSERT "PostPurchasePrompt" (id, "orderId", "buyerId", lines, "buyerItemReceivedConfirmedAt", status 'Pending', "createdAt", "updatedAt") ON CONFLICT ("orderId") DO NOTHING RETURNING id`. It returns `{ created: true, promptId }` on insert, and otherwise selects the existing id and returns `{ created: false, promptId }`.
   - Q2 The prompt keeps the payload's lines and close fact. It never reads `"Order"` (AD-9).
@@ -1066,7 +1067,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - P3 With a `collectionId`: the collection is owned by `ownerId`. Violation: `CollectionNotFound` (HTTP 404, collections), with an identical body for a foreign id.
   - P4 `catalog.getEntries([catalogEntryId])` reports it present. Violation: `InvalidCatalogEntry` (HTTP 400, collections), citing the id.
 - **Postcondition (Q):**
-  - Q1 Under `pg_advisory_xact_lock(col:owner:<ownerId>)`, with `collectionId = null` and an owner with 0 collections: `INSERT "Collection" (name 'General') ON CONFLICT ("ownerId", "nameKey") DO NOTHING`, then select it (`createdGeneral = true` on insert; AD-COL-1 rule 2). With `null` and ≥ 1 collection, it targets the owner's "General", creating it the same way if absent.
+  - Q1 Under `pg_advisory_xact_lock(col:owner:<ownerId>)`, with `collectionId = null` and an owner with 0 collections: `INSERT "Collection" (name 'General') ON CONFLICT ("ownerId", "nameKey") DO NOTHING`, then select it (`createdGeneral = true` on insert; AD-COL-1 rule 2). With `null` and ≥ 1 collection, it targets the owner's "General", creating it the same way if absent. An owner at 50 collections with no "General" is refused with `CollectionLimitReached` (HTTP 409, collections), citing `{ limit, count }`, so "General" is never the 51st (AD-COL-1 rule 1; decision log Impl-1 #36, D5).
   - Q2 `INSERT "CollectionEntry" { "cardKind": 'catalog', "catalogEntryId", source: 'Manual', "orderId": NULL, qty, "acquiredAt", "acquiredPriceCop", "manualPosition": max + 1, "createdAt", "updatedAt" }`.
   - Q3 Audit: `audit('collections.entry.added', CollectionEntry:id)`. No event, and no `"CatalogEntry"` write (NFR-COL-3).
   - Q4 The decision cites `{ rule: 'FR-COL-2', inputs: { entryId, source: 'Manual', createdGeneral } }`.
@@ -1409,13 +1410,18 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `BusinessCannotInitiate` | 409 | messaging | MSG-1 P4 | "Las tiendas responden; no pueden iniciar conversaciones." | no |
 | `CollectionNotFound` | 404 | collections | COL-1 P3; COL-3 P3; VAL-1..3 P1 | "No encontramos esa colección." | no |
 | `CollectionNameTaken` | 409 | collections | S-FR-COL-1 | "Ya tienes una colección con ese nombre." | no |
-| `CollectionLimitReached` | 409 | collections | S-FR-COL-1 | "Llegaste al máximo de 50 colecciones." | no |
+| `CollectionLimitReached` | 409 | collections | S-FR-COL-1; COL-3 Q1 (decision log Impl-1 #36) | "Llegaste al máximo de 50 colecciones." | no |
 | `CollectionEntryNotFound` | 404 | collections | S-FR-COL-4 | "No encontramos esa carta en tu colección." | no |
 | `InvalidExternalLink` | 400 | collections | S-FR-COL-3 | "Revisa el enlace: {field} no es válido." | no |
 | `InvalidCatalogEntry` | 400 | collections | COL-3 P4; S-FR-COL-6 | "La carta {catalogEntryId} no está en el catálogo." | no |
 | `InvalidAcquiredDate` † | 400 | collections | COL-3 P2 (C-GAP-2) | "La fecha {acquiredAt} es posterior a hoy ({today})." | no |
 | `PromptAlreadyResolved` | 409 | collections | COL-1 P2 | "Esta sugerencia ya fue {status} el {resolvedAt}." | no |
 | `PromptNotFound` | 404 | collections | COL-1 P1 | "No encontramos esa sugerencia." | no |
+| `CollectionCreated` | — (stored only) | collections | S-FR-COL-1.create `allowed`: the collection is created, citing `{ collectionId, count }` (FR-COL-1; decision log Impl-1 #36) | "Creaste la colección." | no |
+| `CollectionDeleted` | — (stored only) | collections | S-FR-COL-1.delete `allowed`: the collection and its entries are removed, citing `{ entriesRemoved, platformPurchaseEntriesRemoved }` (FR-COL-1, review G-15; decision log Impl-1 #36) | "Borraste la colección. Entradas quitadas: {entriesRemoved}; de compras: {platformPurchaseEntriesRemoved}." | no |
+| `CollectionEntryAdded` | — (stored only) | collections | COL-3 Q4 `allowed`: one Manual entry is added, citing `{ entryId, source, createdGeneral }` (FR-COL-2; decision log Impl-1 #36) | "Agregaste la carta a tu colección." | no |
+| `PromptAccepted` | — (stored only) | collections | COL-1 Q4 `allowed`: the prompt is Accepted and one entry per line (split at 999 copies) is added, citing `{ promptId, orderId, entryCount }` (FR-COL-7; decision log Impl-1 #36) | "Agregamos tu compra a la colección. Entradas nuevas: {entryCount}." | no |
+| `PromptDismissed` | — (stored only) | collections | COL-1.dismiss `allowed`: the prompt is Dismissed with no entry, citing `{ promptId, orderId }` (FR-COL-7; decision log Impl-1 #36) | "Descartaste la sugerencia." | no |
 | `InvalidValuationPeriod` | 400 | collections | VAL-2 P2 | "El periodo debe ser 7, 30, 90 o 365 días." | no |
 | `TargetNotFound` | 404 | reviews | REP-1 P2, P3; S-FR-REP-7 | "No encontramos ese vendedor." | no |
 | `NotVerifiedPurchaser` | 409 | reviews | REP-1 P4 | "Podrás reseñar esta tienda cuando confirmes que recibiste tu pedido; pagar no es suficiente ({latestState})." | no |

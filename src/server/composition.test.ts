@@ -753,3 +753,65 @@ describe('trading over HTTP (S-FR-TRD-1, S-FR-TRD-2w, S-FR-TRD-3; Story 10.1)', 
     expect([cancel.status, cancel.json.error?.code]).toEqual([409, 'TradeNotCancellable']);
   });
 });
+
+describe('collections over HTTP (S-FR-COL-1, COL-3, COL-1, COL-2; Stories 11.1–11.3)', () => {
+  it('an owner creates, lists, renames and deletes collections; a taken name is CollectionNameTaken 409 and a foreign id is CollectionNotFound 404 (Story 11.1)', async () => {
+    await user(db, { id: id('valentina') });
+    await user(db, { id: id('julian') });
+    const valentina = await signIn(id('valentina'));
+    const keep = await post('collections.create', { name: 'Keep' }, valentina);
+    expect(keep.status).toBe(200);
+    const collectionId = keep.json.result?.data.collectionId as string;
+    expect((await post('collections.create', { name: 'For trade' }, valentina)).status).toBe(200);
+    const taken = await post('collections.create', { name: 'keep' }, valentina);
+    expect([taken.status, taken.json.error?.code]).toEqual([409, 'CollectionNameTaken']);
+    expect((await get('collections.list', {}, valentina)).json.result?.data).toEqual({
+      collections: [{ collectionId: expect.any(String), name: 'For trade', entryCount: 0 }, { collectionId, name: 'Keep', entryCount: 0 }],
+    });
+    expect((await post('collections.rename', { collectionId, name: 'Guardadas' }, valentina)).status).toBe(200);
+    const foreign = await post('collections.delete', { collectionId, confirm: true }, await signIn(id('julian')));
+    expect([foreign.status, foreign.json.error?.code]).toEqual([404, 'CollectionNotFound']);
+    const deleted = await post('collections.delete', { collectionId, confirm: true }, valentina);
+    expect(deleted.json.result?.data).toMatchObject({ entriesRemoved: 0, platformPurchaseEntriesRemoved: 0 });
+    expect(await rows(db, 'Collection', 'id = $1', [collectionId])).toHaveLength(0);
+  });
+
+  it('the first add of a catalog card creates "General" through the real catalog; an unknown card is InvalidCatalogEntry 400 (Story 11.2)', async () => {
+    await user(db, { id: id('valentina') });
+    await catalogEntry(db, id('char'));
+    const valentina = await signIn(id('valentina'));
+    const added = await post('collections.addEntry', { collectionId: null, catalogEntryId: id('char'), qty: 2, acquiredAt: '2026-09-15', acquiredPriceCop: 40_000 }, valentina);
+    expect(added.json.result?.data).toMatchObject({ createdGeneral: true });
+    expect(await rows(db, 'Collection')).toMatchObject([{ ownerId: id('valentina'), name: 'General' }]);
+    const unknown = await post('collections.addEntry', { collectionId: null, catalogEntryId: id('ghost'), qty: 1, acquiredAt: '2026-09-15', acquiredPriceCop: null }, valentina);
+    expect([unknown.status, unknown.json.error?.code]).toEqual([400, 'InvalidCatalogEntry']);
+    expect(await rows(db, 'CollectionEntry')).toMatchObject([{ source: 'Manual', qty: 2, manualPosition: 0 }]);
+  });
+
+  it('a replayed OrderClosed creates one prompt through the real collections handler; the buyer lists it and accepts it into a collection (Story 11.3)', async () => {
+    await admin(db);
+    await user(db, { id: id('camila') });
+    const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000' });
+    const real = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { commission: async () => undefined } });
+    const payload = {
+      orderId: id('o1'), buyerId: id('camila'), businessId: id('andres'), totalCop: 45_000, lines: [{ itemRef: id('char'), title: 'Charizard ex', qty: 1, unitPriceCop: 45_000 }],
+      sellerReceivedConfirmedAt: null, buyerItemReceivedConfirmedAt: '2026-10-01T03:30:00.000Z',
+    };
+    await ins(db, 'OutboxEvent', { id: id('ev1'), type: 'OrderClosed', aggregateId: id('o1'), schemaVersion: 1, payload: JSON.stringify(payload) }, 'created');
+    await ins(db, 'EventDelivery', { eventId: id('ev1'), subscriber: 'collections', status: 'failed', attempts: 3, lastErrorCode: 'DeliveryAttemptsExhausted', firstFailedAt: at(-DAY), lastFailedAt: at(-DAY) });
+    const replay = await serveTrpc(new Request('http://localhost/api/trpc/admin.events.replay', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie: await signIn(id('admin')) }, body: JSON.stringify({ eventId: id('ev1'), subscriber: 'collections' }),
+    }), real.router, clock, { identity: real.identity });
+    expect(((await replay.json()) as { result?: { data: { status: string } } }).result?.data.status).toBe('delivered');
+    const camila = await signIn(id('camila'));
+    const listed = await get('collections.prompts.list', { status: 'Pending' }, camila);
+    const prompts = listed.json.result?.data.prompts as { promptId: string; orderId: string; lineCount: number }[];
+    expect(prompts).toMatchObject([{ orderId: id('o1'), lineCount: 1 }]);
+    const collectionId = (await post('collections.create', { name: 'Compras' }, camila)).json.result?.data.collectionId;
+    const accepted = await post('collections.prompts.accept', { promptId: prompts[0]!.promptId, collectionId }, camila);
+    expect(accepted.json.result?.data).toMatchObject({ status: 'Accepted', entryIds: [expect.any(String)] });
+    const again = await post('collections.prompts.dismiss', { promptId: prompts[0]!.promptId }, camila);
+    expect([again.status, again.json.error?.code]).toEqual([409, 'PromptAlreadyResolved']);
+    expect(await rows(db, 'CollectionEntry')).toMatchObject([{ source: 'PlatformPurchase', orderId: id('o1'), acquiredPriceCop: '45000' }]);
+  });
+});

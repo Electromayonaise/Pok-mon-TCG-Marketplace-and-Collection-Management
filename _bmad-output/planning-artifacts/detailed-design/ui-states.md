@@ -449,8 +449,8 @@ Operations: `S-FR-COL-1.list`, `COL-3`, `S-FR-COL-3`, `S-FR-CAT-1`
 | Loading | client | transport or interaction; no server DTO |
 | Empty — no collection yet | data | `ListCollectionsResponse`, `AddEntryResponse`, `AddExternalEntryResponse`, `BrowseCatalogResponse` |
 | Default | data | `ListCollectionsResponse`, `AddEntryResponse`, `AddExternalEntryResponse`, `BrowseCatalogResponse` |
-| Field errors | refusal | `ErrorBody` (`NotAuthenticated`, `RequestValidationFailed`, `InvalidAcquiredDate`, `CollectionNotFound`, `InvalidCatalogEntry`, `InvalidExternalLink`) |
-| Collection gone | refusal | `ErrorBody` (`NotAuthenticated`, `RequestValidationFailed`, `InvalidAcquiredDate`, `CollectionNotFound`, `InvalidCatalogEntry`, `InvalidExternalLink`) |
+| Field errors | refusal | `ErrorBody` (`NotAuthenticated`, `RequestValidationFailed`, `InvalidAcquiredDate`, `CollectionNotFound`, `InvalidCatalogEntry`, `CollectionLimitReached`, `InvalidExternalLink`) |
+| Collection gone | refusal | `ErrorBody` (`NotAuthenticated`, `RequestValidationFailed`, `InvalidAcquiredDate`, `CollectionNotFound`, `InvalidCatalogEntry`, `CollectionLimitReached`, `InvalidExternalLink`) |
 | Error — network | client | transport or interaction; no server DTO |
 
 ## 9.3 Wishlist

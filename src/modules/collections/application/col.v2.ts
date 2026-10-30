@@ -43,40 +43,225 @@ export interface ColV2UseCases {
 }
 // </gen-solu2-api>
 
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import type { Citation, Decision } from '../../../shared-kernel/decision.js';
+import { ambientTx } from '../../../shared-kernel/db.js';
+import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import type { OrderClosedLineV1 } from '../../../shared-kernel/events.js';
+import { renderMessage } from '../../../shared-kernel/messages.js';
+import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
+import { raiserFor } from '../../../shared-kernel/raise.js';
+import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
+import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import { bogotaDate, COLLECTION_LIMIT, entryQuantities, isAfterToday, isCalendarDate, isIsoInstant } from '../domain/col.js';
+import type { PromptRow } from '../ports/col.v2.js';
 
-/** Every method throws NotImplementedError until its story is done (red for the right reason). */
+const raise = raiserFor('collections');
+
+/** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
+function explained(code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
+  return { outcome: 'allowed', reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
+}
+
+/** COL-1 P3, COL-3 P3, S-FR-COL-1: a foreign and an unknown id get the same body, so the citation names no id. */
+function collectionNotFound(rule: string): never {
+  return raise('CollectionNotFound', [{ rule, inputs: { owned: false } }]);
+}
+
+/** S-FR-COL-1: 1–60 characters (the parser's bound, re-checked for internal callers). */
+function checkName(name: string): void {
+  const length = [...name].length;
+  if (length < 1 || length > 60) rejectRequest([{ field: 'name', issue: 'debe tener entre 1 y 60 caracteres' }]);
+}
+
+const isInteger = (v: unknown, min: number, max: number): boolean => Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max;
+
+/** COL-2 P2: the payload the prompt is built from; a broken one fails the delivery (AD-SYS-2 rule 4). */
+function checkClosedPayload(input: OnOrderClosedRequest): void {
+  const linesOk = Array.isArray(input.lines) && input.lines.length >= 1 && input.lines.every((l: OrderClosedLineV1) =>
+    typeof l.itemRef === 'string' && l.itemRef.length > 0 && Number.isSafeInteger(l.qty) && l.qty >= 1 && (l.unitPriceCop == null || isInteger(l.unitPriceCop, 0, 100_000_000)));
+  const closedAt = input.buyerItemReceivedConfirmedAt;
+  if (!input.orderId || !input.buyerId || !linesOk || typeof closedAt !== 'string' || !isIsoInstant(closedAt)) {
+    throw new UnexpectedError(`collections.onOrderClosed: incomplete OrderClosed payload for order ${String(input.orderId)}`);
+  }
+}
+
+/** COL's use cases (contracts.md §10, §15); the binder, external entries, moves and the wishlist throw NotImplementedError until Story 11.5. */
 export class ColServiceV2 implements ColV2UseCases {
   constructor(protected readonly deps: ColV2Deps) {}
 
-  async acceptPrompt(_input: AcceptPromptRequest): Promise<AcceptPromptResponse> {
-    throw new NotImplementedError('collections.acceptPrompt');
+  /** A read on the ambient transaction, or a read-only one of its own (AD-SYS-4 rule 9). */
+  private async reading<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+    const tx = ambientTx();
+    return tx ? fn(tx) : this.deps.transactions.run(fn, { readOnly: true });
   }
 
-  async dismissPrompt(_input: DismissPromptRequest): Promise<DismissPromptResponse> {
-    throw new NotImplementedError('collections.dismissPrompt');
+  private async audit(tx: Tx, actorId: CuidId | null, action: string, aggregate: { type: string; id: CuidId }, decisionCode: string | null, data: Record<string, string | number | boolean | null>, now: IsoInstant): Promise<void> {
+    await this.deps.audit.record(tx, {
+      actorId, actorKind: actorId === null ? 'system' : 'user', module: 'collections', action,
+      aggregateType: aggregate.type, aggregateId: aggregate.id, decisionCode, data, at: now,
+    });
   }
 
-  async onOrderClosed(_tx: Tx, _input: OnOrderClosedRequest): Promise<OnOrderClosedResponse> {
-    throw new NotImplementedError('collections.onOrderClosed');
+  /** COL-1 Q-fail (AD-COL-2 rule 3): the re-read after 0 rows, with zero writes; a foreign prompt reads as an unknown one. */
+  private async refusePrompt(tx: Tx, promptId: CuidId, buyerId: CuidId): Promise<never> {
+    const prompt = await this.deps.repo.readPrompt(tx, promptId);
+    if (prompt === null || prompt.buyerId !== buyerId) return raise('PromptNotFound', [{ rule: 'FR-COL-7', inputs: { found: false } }]);
+    if (prompt.status !== 'Pending') {
+      return raise('PromptAlreadyResolved', [{ rule: 'AD-COL-2 rule 3', inputs: { status: prompt.status, resolvedAt: prompt.resolvedAt?.toISOString() ?? null } }]);
+    }
+    throw new UnexpectedError(`collections: prompt ${promptId} is Pending but its conditional update matched no row`);
   }
 
-  async addEntry(_input: AddEntryRequest): Promise<AddEntryResponse> {
-    throw new NotImplementedError('collections.addEntry');
+  /**
+   * COL-1 (AD-COL-2 rule 2): `col:owner` first (Q1), the conditional `Pending → Accepted`, then P3 on the target
+   * collection `FOR SHARE`; a missing one rolls the accept back, so the prompt stays Pending (review G-15). One
+   * PlatformPurchase entry per stored line, dated by the stored close fact in Bogotá. Never reads `orders` (AD-8, AD-9).
+   */
+  async acceptPrompt(input: AcceptPromptRequest): Promise<AcceptPromptResponse> {
+    const { repo, transactions, clock, ids } = this.deps;
+    const { promptId, collectionId, actorId } = input;
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      await repo.lockCollectionOwner(tx, actorId);
+      const prompt = await repo.resolvePrompt(tx, { promptId, buyerId: actorId, to: 'Accepted', collectionId, now });
+      if (prompt === null) return this.refusePrompt(tx, promptId, actorId);
+      if (!await repo.ownsCollection(tx, collectionId, actorId)) return collectionNotFound('COL-1 P3');
+      const acquiredAt = bogotaDate(prompt.buyerItemReceivedConfirmedAt);
+      // R1 (decision log Impl-1 #36): a line over 999 copies (a bundle component) becomes entries of at most 999 each.
+      const entries = prompt.lines.flatMap((line) => entryQuantities(line.qty).map((qty) => ({
+        id: ids.next(), catalogEntryId: line.itemRef, source: 'PlatformPurchase' as const, orderId: prompt.orderId,
+        qty, acquiredAt, acquiredPriceCop: line.unitPriceCop ?? null,
+      })));
+      await repo.insertCollectionEntries(tx, collectionId, entries, now);
+      await this.audit(tx, actorId, 'collections.prompt.accepted', { type: 'PostPurchasePrompt', id: promptId }, 'PromptAccepted', { orderId: prompt.orderId, collectionId, entryCount: entries.length }, now);
+      return {
+        promptId, status: 'Accepted' as const, entryIds: entries.map((e) => e.id),
+        decision: explained('PromptAccepted', [{ rule: 'FR-COL-7', inputs: { promptId, orderId: prompt.orderId, entryCount: entries.length } }], now),
+      };
+    });
   }
 
-  async createCollection(_input: CreateCollectionRequest): Promise<CreateCollectionResponse> {
-    throw new NotImplementedError('collections.createCollection');
+  /** COL-1.dismiss (AD-COL-2 rule 4): the same conditional update to Dismissed; it assigns no position, so it takes no lock. */
+  async dismissPrompt(input: DismissPromptRequest): Promise<DismissPromptResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { promptId, actorId } = input;
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      const prompt = await repo.resolvePrompt(tx, { promptId, buyerId: actorId, to: 'Dismissed', collectionId: null, now });
+      if (prompt === null) return this.refusePrompt(tx, promptId, actorId);
+      await this.audit(tx, actorId, 'collections.prompt.dismissed', { type: 'PostPurchasePrompt', id: promptId }, 'PromptDismissed', { orderId: prompt.orderId }, now);
+      return { promptId, status: 'Dismissed' as const, decision: explained('PromptDismissed', [{ rule: 'FR-COL-7', inputs: { promptId, orderId: prompt.orderId } }], now) };
+    });
   }
 
-  async renameCollection(_input: RenameCollectionRequest): Promise<CollectionChangeResponse> {
-    throw new NotImplementedError('collections.renameCollection');
+  /**
+   * COL-2 (AD-COL-2 rule 1): in the delivery's transaction, one Pending prompt per `orderId` from the payload alone
+   * (AD-9); a redelivery returns the existing id. Audit on insert only.
+   */
+  async onOrderClosed(tx: Tx, input: OnOrderClosedRequest): Promise<OnOrderClosedResponse> {
+    checkClosedPayload(input);
+    const { repo, clock, ids } = this.deps;
+    const now = clock.now().toISOString();
+    const result = await repo.insertPrompt(tx, {
+      id: ids.next(), orderId: input.orderId, buyerId: input.buyerId, lines: input.lines,
+      buyerItemReceivedConfirmedAt: input.buyerItemReceivedConfirmedAt, now,
+    });
+    if (result.created) {
+      await this.audit(tx, null, 'collections.prompt.created', { type: 'PostPurchasePrompt', id: result.promptId }, null, { orderId: input.orderId, lineCount: input.lines.length }, now);
+    }
+    return result;
   }
 
-  async deleteCollection(_input: DeleteCollectionRequest): Promise<DeleteCollectionResponse> {
-    throw new NotImplementedError('collections.deleteCollection');
+  /**
+   * COL-3 (AD-COL-1 rules 2–3): P1–P4 first-fail, then under `col:owner` the target (the owner's collection, or
+   * "General", created on first use) and one Manual entry at the end of the binder. A refusal writes nothing.
+   */
+  async addEntry(input: AddEntryRequest): Promise<AddEntryResponse> {
+    const { repo, transactions, clock, ids, catalog } = this.deps;
+    const { ownerId, collectionId, catalogEntryId, qty, acquiredAt, acquiredPriceCop } = input;
+    const issues: RequestIssue[] = [];
+    if (!isInteger(qty, 1, 999)) issues.push({ field: 'qty', issue: 'debe ser un entero entre 1 y 999' });
+    if (!isCalendarDate(acquiredAt)) issues.push({ field: 'acquiredAt', issue: 'debe ser una fecha AAAA-MM-DD' });
+    if (acquiredPriceCop !== null && !isInteger(acquiredPriceCop, 0, 100_000_000)) issues.push({ field: 'acquiredPriceCop', issue: 'debe ser un entero entre 0 y 100.000.000' });
+    if (issues.length > 0) return rejectRequest(issues as [RequestIssue, ...RequestIssue[]]);
+    const at = clock.now();
+    const now = at.toISOString();
+    if (isAfterToday(acquiredAt, at)) return raise('InvalidAcquiredDate', [{ rule: 'FR-COL-2', inputs: { acquiredAt, today: bogotaDate(at) } }]);
+    return transactions.run(async (tx) => {
+      await repo.lockCollectionOwner(tx, ownerId);
+      if (collectionId !== null && !await repo.ownsCollection(tx, collectionId, ownerId)) return collectionNotFound('COL-3 P3');
+      const { missing } = await catalog.getEntries({ catalogEntryIds: [catalogEntryId] });
+      if (missing.includes(catalogEntryId)) return raise('InvalidCatalogEntry', [{ rule: 'AD-COL-1 rule 3', inputs: { catalogEntryId } }]);
+      let target = collectionId;
+      let createdGeneral = false;
+      if (target === null) {
+        target = await repo.findGeneralCollection(tx, ownerId);
+        if (target === null) {
+          // D5 (decision log Impl-1 #36): "General" may not be the 51st collection (AD-COL-1 rule 1).
+          const count = await repo.countCollections(tx, ownerId);
+          if (count >= COLLECTION_LIMIT) return raise('CollectionLimitReached', [{ rule: 'AD-COL-1 rule 1', inputs: { limit: COLLECTION_LIMIT, count } }]);
+          ({ collectionId: target, created: createdGeneral } = await repo.ensureGeneralCollection(tx, { id: ids.next(), ownerId, now }));
+        }
+      }
+      const entryId = ids.next();
+      await repo.insertCollectionEntries(tx, target, [{ id: entryId, catalogEntryId, source: 'Manual', orderId: null, qty, acquiredAt, acquiredPriceCop }], now);
+      await this.audit(tx, ownerId, 'collections.entry.added', { type: 'CollectionEntry', id: entryId }, 'CollectionEntryAdded', { collectionId: target, catalogEntryId, createdGeneral }, now);
+      return {
+        entryId, collectionId: target, createdGeneral,
+        decision: explained('CollectionEntryAdded', [{ rule: 'FR-COL-2', inputs: { entryId, source: 'Manual', createdGeneral } }], now),
+      };
+    });
   }
 
+  /** S-FR-COL-1.create (AD-COL-1 rule 1): under `col:owner`, the count, then the insert; `nameKey` refuses a taken name. */
+  async createCollection(input: CreateCollectionRequest): Promise<CreateCollectionResponse> {
+    const { repo, transactions, clock, ids } = this.deps;
+    const { ownerId, name } = input;
+    checkName(name);
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      await repo.lockCollectionOwner(tx, ownerId);
+      const count = await repo.countCollections(tx, ownerId);
+      if (count >= COLLECTION_LIMIT) return raise('CollectionLimitReached', [{ rule: 'AD-COL-1 rule 1', inputs: { limit: COLLECTION_LIMIT, count } }]);
+      const collectionId = ids.next();
+      if (await repo.insertCollection(tx, { id: collectionId, ownerId, name, now }) === 'taken') {
+        return raise('CollectionNameTaken', [{ rule: 'AD-COL-1 rule 1', inputs: { name } }]);
+      }
+      await this.audit(tx, ownerId, 'collections.collection.created', { type: 'Collection', id: collectionId }, 'CollectionCreated', { count: count + 1 }, now);
+      return { collectionId, name, decision: explained('CollectionCreated', [{ rule: 'FR-COL-1', inputs: { collectionId, count: count + 1 } }], now) };
+    });
+  }
+
+  /** S-FR-COL-1.rename: under `col:owner`, the owner's collection only; `nameKey` refuses a taken name. */
+  async renameCollection(input: RenameCollectionRequest): Promise<CollectionChangeResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { ownerId, collectionId, name } = input;
+    checkName(name);
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      await repo.lockCollectionOwner(tx, ownerId);
+      const outcome = await repo.renameCollection(tx, { collectionId, ownerId, name, now });
+      if (outcome === 'missing') return collectionNotFound('FR-COL-1');
+      if (outcome === 'taken') return raise('CollectionNameTaken', [{ rule: 'AD-COL-1 rule 1', inputs: { name } }]);
+      await this.audit(tx, ownerId, 'collections.collection.renamed', { type: 'Collection', id: collectionId }, null, {}, now);
+      return { collectionId, updatedAt: now };
+    });
+  }
+
+  /** S-FR-COL-1.delete (review G-15): under `col:owner`, the owner's collection and its entries, citing what it removed. */
+  async deleteCollection(input: DeleteCollectionRequest): Promise<DeleteCollectionResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { ownerId, collectionId } = input;
+    if (input.confirm !== true) return rejectRequest([{ field: 'confirm', issue: 'confirma el borrado' }]);
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      await repo.lockCollectionOwner(tx, ownerId);
+      const removed = await repo.deleteCollection(tx, { collectionId, ownerId });
+      if (removed === null) return collectionNotFound('FR-COL-1');
+      await this.audit(tx, ownerId, 'collections.collection.deleted', { type: 'Collection', id: collectionId }, 'CollectionDeleted', removed, now);
+      return { ...removed, decision: explained('CollectionDeleted', [{ rule: 'FR-COL-1', inputs: removed }], now) };
+    });
+  }
   async addExternalEntry(_input: AddExternalEntryRequest): Promise<AddExternalEntryResponse> {
     throw new NotImplementedError('collections.addExternalEntry');
   }
@@ -109,11 +294,18 @@ export class ColServiceV2 implements ColV2UseCases {
     throw new NotImplementedError('collections.listWishlist');
   }
 
-  async listPrompts(_input: ListPromptsRequest): Promise<ListPromptsResponse> {
-    throw new NotImplementedError('collections.listPrompts');
+  /** COL-1.list (§15.12): the buyer's prompts, optionally by status, newest first; no page (decision log Impl-1 #36, D4). Zero writes. */
+  async listPrompts(input: ListPromptsRequest): Promise<ListPromptsResponse> {
+    const prompts = await this.reading((tx) => this.deps.repo.readPrompts(tx, input.buyerId, input.status ?? null));
+    return { prompts: prompts.map(promptRow) };
   }
 
-  async listCollections(_input: ListCollectionsRequest): Promise<ListCollectionsResponse> {
-    throw new NotImplementedError('collections.listCollections');
+  /** S-FR-COL-1.list (§15.12): the owner's collections with their entry counts, by name. Zero writes. */
+  async listCollections(input: ListCollectionsRequest): Promise<ListCollectionsResponse> {
+    return { collections: await this.reading((tx) => this.deps.repo.readCollections(tx, input.ownerId)) };
   }
+}
+
+function promptRow(p: PromptRow): ListPromptsResponse['prompts'][number] {
+  return { promptId: p.id, orderId: p.orderId, lineCount: p.lines.length, status: p.status, acceptedIntoCollectionId: p.acceptedIntoCollectionId, createdAt: p.createdAt.toISOString() };
 }
