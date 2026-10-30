@@ -2,7 +2,7 @@
 title: 'Story 11.3: Turn a closed order into one prompt and one entry set'
 type: 'feature'
 created: '2026-10-30'
-status: 'draft'
+status: 'done'
 baseline_commit: 'cfba71b'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -56,7 +56,16 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] service + subscriber + wiring; `sprint-status.yaml` 11.3 `done`; `gen:trace:solu2`; the MEC runtime recorded below (TG-7)
+- [x] service + subscriber + wiring; `sprint-status.yaml` 11.3 `done`; `gen:trace:solu2`; the MEC runtime recorded below (TG-7)
 
 **Acceptance Criteria:**
 - Given 11.3 `done`, when `[COL-2.Q1]`, `[COL-2.I1]`, `[COL-2.I2]`, `[COL-1.Q1]`, `[COL-1.MEC]`, `[COL-1.dismiss.h]`, `[COL-1.list.h]` run, then they pass; 11.4's `[COL-1.P1]`–`[COL-1.P3]`, `[COL-1.dismiss.f]` are early greens restored by the 11.4 commit (D1, #23).
+
+## Implementation Notes
+
+- MEC (TG-7): `[COL-1.MEC]` runs its 100 repetitions against Postgres 16 with real connections in 1,191–1,310 ms (two runs, local cluster, `fsync=off`).
+- The lines' `itemRef` is the catalog entry id (ORD-1's snapshot); a line with no `unitPriceCop` (a bundle component) gets a null price.
+- `PromptNotFound` cites `{ found: false }` with no id; `PromptAlreadyResolved` cites `{ status, resolvedAt }` under AD-COL-2 rule 3.
+- COL-2 P2 rejects a payload without lines, a line without `itemRef` or with a qty outside 1–999, or no close fact, as `Unexpected`: the delivery is recorded `failed`.
+- `collectionsHandler(col)` replaces `UNWIRED_HANDLERS`; any type but `OrderClosed` is `Unexpected` (D3).
+- Wired: `collections.prompts.accept`, `.dismiss`, `.list`.

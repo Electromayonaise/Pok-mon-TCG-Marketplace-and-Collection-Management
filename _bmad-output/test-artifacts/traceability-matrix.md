@@ -116,7 +116,7 @@
 | FR-COL-4 | Move and copy between collections (CAP-11) | S-FR-COL-4 | AD-COL-1 | 2 — `S-FR-COL-4.f`, `S-FR-COL-4.h` | 11.5 (backlog), 11.6 (backlog) | red |
 | FR-COL-5 | Binder layout, sorting and completion (CAP-10) | S-FR-COL-5 | AD-COL-1 | 2 — `S-FR-COL-5.f`, `S-FR-COL-5.h` | 11.5 (backlog), 11.6 (backlog) | red |
 | FR-COL-6 | Wishlist, separate from collections (CAP-13, CAP-14) | S-FR-COL-6 | AD-1, AD-7 | 2 — `S-FR-COL-6.f`, `S-FR-COL-6.h` | 11.5 (backlog), 11.6 (backlog) | red |
-| FR-COL-7 | Exactly one post-purchase prompt per closed order (CAP-27) | COL-1, COL-2, COL-1.list | AD-COL-2, AD-SYS-5, AD-COL-1, AD-SYS-2 | 11 — `COL-1.MEC`, `COL-1.P1`, `COL-1.P2` +8 | 11.3 (backlog), 11.4 (backlog) | red |
+| FR-COL-7 | Exactly one post-purchase prompt per closed order (CAP-27) | COL-1, COL-2, COL-1.list | AD-COL-2, AD-SYS-5, AD-COL-1, AD-SYS-2 | 11 — `COL-1.MEC`, `COL-1.P1`, `COL-1.P2` +8 | 11.3 (done), 11.4 (backlog) | red |
 | FR-VAL-1 | Current value in integer COP (CAP-9) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (backlog), 12.3 (backlog), 12.4 (backlog) | red |
 | FR-VAL-2 | Period trend with a defined zero baseline (CAP-9, CAP-3) | VAL-2 | AD-VAL-2, AD-SYS-7 | 4 — `VAL-2.I1`, `VAL-2.I3`, `VAL-2.P2` +1 | 12.2 (backlog), 12.3 (backlog), 12.4 (backlog), 12.5 (backlog) | red |
 | FR-VAL-3 | Unpriced and stale items (CAP-9, CAP-12) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (backlog), 12.3 (backlog), 12.4 (backlog) | red |
@@ -205,7 +205,7 @@
 | AD-6 | `InventoryUnit` is the sole quantity owner | `CHECK (quantity >= 0)`; conditional decrement | `INV-1.I1`, `INV-1.MEC` | 5.2 (done) | red |
 | AD-7 | Catalog, listing and binder records are independent | Upsert `SET` list without `id`/`kind`; tagged-union CHECKs | `CAT-2.I3`, `COL-3.I2` | 4.2 (done), 11.2 (done) | red |
 | AD-8 | Table ownership | No module writes another's tables; static scan of `infra/` SQL; shared-kernel owns only infra tables (+ `audit_events`, R-2) | `SYS-AD8`, `S-FR-COL-3.h` | 1.4 (done), 11.5 (backlog) | green + red |
-| AD-9 | Snapshot payloads | Payload = ADD-§5 exactly; subscribers read only the payload | `SYS-AD9`, `COL-2.I2` | 1.3 (done), 11.3 (backlog) | green + red |
+| AD-9 | Snapshot payloads | Payload = ADD-§5 exactly; subscribers read only the payload | `SYS-AD9`, `COL-2.I2` | 1.3 (done), 11.3 (done) | green + red |
 | AD-10 | Post-commit, in-process dispatch with an outbox | `outbox.enqueue(tx)` + sweeper | `SYS-2.R6` | 1.3 (done) | red |
 | AD-11 | One owner per error code | Registry `owner`; `raise` checks the caller module | `SYS-1.R2` | 1.1 (done) | red |
 | AD-12 | Hide, never delete | `DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate | `REP-2.I1`, `DSC-1.I2` | 6.2 (done), 13.2 (backlog) | red |
@@ -251,7 +251,7 @@
 | AD-MSG-2 | One conversation per pair; idempotent send | Unique keys; `lastSeq` allocation | `MSG-1.I3` | 9.2 (done) | red |
 | AD-MSG-3 | Read state monotonic | `WHERE "lastReadSeq" < :seq` | `S-FR-MSG-7.f` | 9.6 (backlog) | red |
 | AD-COL-1 | Tagged-union entries; collections capped under an owner lock | CHECKs; `col:owner` lock | `COL-3.I2`, `S-FR-COL-1.f` | 11.1 (done), 11.2 (done) | red |
-| AD-COL-2 | One prompt per closed order; entries once | `UNIQUE orderId`; `WHERE status='Pending'` | `COL-1.MEC` | 11.3 (backlog) | red |
+| AD-COL-2 | One prompt per closed order; entries once | `UNIQUE orderId`; `WHERE status='Pending'` | `COL-1.MEC` | 11.3 (done) | red |
 | AD-VAL-1 | Valuation is a pure BigInt function | Pure function; brand types | `VAL-1.I1`, `VAL-1.MEC` | 12.1 (backlog), 12.3 (backlog) | red |
 | AD-VAL-2 | Trend and history recomputed, no zero division | `roundHalfAwayFromZero`; null baseline | `VAL-2.I1` | 12.3 (backlog) | red |
 | AD-REP-1 | Business reviews purchase-verified; one per pair | `review_business_iff_verified`; unique pair | `REP-1.I1` | 13.1 (backlog) | red |
@@ -272,7 +272,7 @@
 | R-07 Two orders at one instant against one order's balance, plus a dupli… | P0 | COM | Integration (race, repeat) | `COM-1.MEC`, `COM-1.MEC2` | 8.2 (done) | red |
 | R-08 Two offers for the last unit are accepted from two tabs, and both h… | P0 | TRD | Integration (race, 100 ×) | `TRD-1.MEC` | 10.3 (done) | red |
 | R-09 Long, accented or emoji product names break the contact message; th… | P0 | MSG | Integration (boundary, race) | `MSG-2.MEC`, `MSG-3.MEC` | 9.2 (done), 9.3 (done) | red |
-| R-10 `OrderClosed` is delivered twice and the prompt accepted twice, dup… | P0 | COL | Integration (repeat, race) | `COL-1.MEC` | 11.3 (backlog) | red |
+| R-10 `OrderClosed` is delivered twice and the prompt accepted twice, dup… | P0 | COL | Integration (repeat, race) | `COL-1.MEC` | 11.3 (done) | red |
 | R-11 Valuation divides by a zero baseline or drifts over 500 entries (MEC) | P0 | VAL | Integration + pure | `VAL-1.MEC`, `VAL-2.I1`, `VAL-2.I3` | 12.3 (backlog), 12.5 (backlog) | red |
 | R-12 A paid-but-not-closed review is accepted; a hide racing a new revie… | P0 | REP | Integration (race, 100 ×) | `REP-1.MEC`, `REP-3.MEC` | 13.3 (backlog) | red |
 | R-13 A regulated value (phone, legal identity, document or comprobante k… | P0 | SYS | Integration + NFR scan | `SYS-8.R4`, `SYS-8.R4.error`, `NFR-SYS-8.canary` | 1.2 (done) | red |
