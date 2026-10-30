@@ -64,7 +64,7 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 | NFR-SYS-11 | Accessibility | WCAG 2.2 AA on R and D surfaces | axe-core + a keyboard walk on the built pages | — | Deferred — launch |
 | NFR-SYS-12 | Compliance | No account without a recorded consent and its version | `User.signupConsentAt` / `signupConsentVersion` NOT NULL; the seed proves every account carries both | `[SEED.profile]` | Green — gate |
 | NFR-SYS-13 | Maintainability | Every code has one owner and a full error body; every cited code exists | Code-citation gate; owner-checked raiser; formatter over the registry | `[SYS-1.R2]`, `[SYS-1.R6]`; `gate:codes:solu2` | Green — ATDD |
-| NFR-SYS-14 | Security (abuse) | Throttles at the OQ-11 values: sign-in, contact handoff | Burst tests against the throttle tables | `[S-FR-IDN-7.f]`, `[MSG-2.R1]` | Green — ATDD (`[S-FR-IDN-7.f]` counts only, since no sign-in records a failure yet, decision log Impl-1 #26, and `[MSG-2.R1]` with Story 9.5) |
+| NFR-SYS-14 | Security (abuse) | Throttles at the OQ-11 values: sign-in, contact handoff | Burst tests against the throttle tables | `[S-FR-IDN-7.f]`, `[MSG-2.R1]` | Green — ATDD (`[S-FR-IDN-7.f]` counts only, since no sign-in records a failure yet, decision log Impl-1 #26, and `[MSG-2.R1]` with Story 9.3) |
 
 ## Modules
 
@@ -91,7 +91,7 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 | NFR-ORD-1 | Reliability (MEC) | Out-of-order and duplicate confirmations safe, 100 repetitions | Confirmation sequences and races | `[ORD-3.MEC]`, `[ORD-4.MEC]`, `[ORD-2.MEC]` | Green — ATDD |
 | NFR-ORD-2 | Performance | `createOrder` incl. reservation p95 ≤ 800 ms; comprobante upload ≤ 10 s at 10 Mbps | PRD §7 protocol on composed services over the §3 seed | `[NFR-ORD-2.p95]` | Green — benchmark (creation); Deferred — launch (the upload's transfer time needs the production storage) |
 | NFR-ORD-3 | Security / scope | 0 funds-held states or gateway calls | Schema check; network guard | `[ORD-1.I4]`, `[SYS-6.R4]` | Green — gate (`[SYS-6.R4]`); Green — ATDD (`[ORD-1.I4]`) |
-| NFR-ORD-4 | Usability | A paid order unconfirmed for 7 days shows the waiting state and the support contact | UI-state gate (page states backed by the order view); support-contact read | `[S-FR-ORD-10.h]`; `gate:ui:solu2` | Green — ATDD (the support contact and the 7-day notice, `OrderAwaitingBusiness`, and the page copy belongs to UI 6.2) |
+| NFR-ORD-4 | Usability | A paid order unconfirmed for 7 days shows the waiting state and the support contact | UI-state gate (page states backed by the order view); support-contact read; the page copy belongs to UI 6.2 | `[S-FR-ORD-10.h]`; `gate:ui:solu2` | Green — ATDD (the support contact and the 7-day notice, `OrderAwaitingBusiness`) |
 | NFR-COM-1 | Reliability (MEC) | 100 repetitions: each order charged once, Exhausted published once | Two orders at one instant plus a duplicate event | `[COM-1.MEC]`, `[COM-1.MEC2]` | Green — ATDD |
 | NFR-COM-2 | Correctness | Reconciliation difference 0 pesos over 10,000 operations, 20 % duplicates | Reconcile over the ledger; seq-gap detection | `[COM-3.Q1]`, `[COM-3.I1]` | Red — ATDD |
 | NFR-COM-3 | Performance | Deduction handler p95 ≤ 200 ms; top-up confirmation ≤ 800 ms | PRD §7 protocol on the §3 seed, the real identity | `[NFR-COM-3.deduction]` (Story 8.2), `[NFR-COM-3.topUp]` (Story 8.3) | Green — benchmark |
@@ -100,7 +100,7 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 | NFR-TRD-2 | Performance | Accept p95 ≤ 800 ms; other actions ≤ 500 ms | PRD §7 protocol | `[NFR-TRD-2.counter]` (Story 10.2), `[NFR-TRD-2.accept]` (Story 10.3) | Green — benchmark |
 | NFR-TRD-3 | Reliability | Trade vs purchase on a shared unit never oversells | Mixed race | `[INV-1.I3]`, `[TRD-1.I1]` | Green — ATDD |
 | NFR-MSG-1 | Performance / determinism | Generation p95 ≤ 200 ms; 1 distinct output per input over 1,000 runs | Repeated generation; PRD §7 protocol on the §3 seed | `[MSG-2.I1]`, `[NFR-MSG-1.contact]` (Story 9.3) | Green — ATDD (determinism); Green — benchmark (latency) |
-| NFR-MSG-2 | Performance | Send p95 ≤ 500 ms; visible to the recipient ≤ 35 s at p95 (30 s polling) | PRD §7 protocol; polling interval in the client | `[MSG-1.R1]`, `[NFR-MSG-2.send]` (Story 9.2) | Green — ATDD (ordering); Green — benchmark (send, and the 35 s visibility is the client's 30 s polling, UI 12.2) |
+| NFR-MSG-2 | Performance | Send p95 ≤ 500 ms; visible to the recipient ≤ 35 s at p95 (30 s polling) | PRD §7 protocol; polling interval in the client (the 35 s visibility is the client's 30 s polling, UI 12.2, not measured here) | `[MSG-1.R1]`, `[NFR-MSG-2.send]` (Story 9.2) | Green — ATDD (ordering); Green — benchmark (send) |
 | NFR-MSG-3 | Security / scope | 0 outbound calls to messaging services | Network guard | `[SYS-6.R4]` | Green — gate |
 | NFR-MSG-4 | Correctness (MEC) | Every fixture name renders (ñ, accents, emoji, 500 chars, URL-like) | Contact-message generation over the fixture names; state change between compose and send | `[MSG-2.MEC]`, `[MSG-3.MEC]` | Green — ATDD |
 | NFR-COL-1 | Reliability (MEC) | 100 repetitions: one prompt, one entry set | Duplicate `OrderClosed` and double accept | `[COL-1.MEC]`, `[COL-2.I1]` | Green — ATDD (`[COL-1.MEC]` and `[COL-2.I1]` with Story 11.3) |
@@ -123,10 +123,10 @@ Refreshed as a whole at the Impl-1 close (2026-10-30, decision log Impl-1 #39), 
 | Green — benchmark (wholly or in part) | 14 (NFR-SYS-2, -6, -9, NFR-VER-3, NFR-CAT-1, NFR-INV-4, NFR-DSC-1, NFR-COM-3, NFR-TRD-2, NFR-VAL-2; NFR-ORD-2, NFR-MSG-1, -2 and NFR-REP-2 in part) |
 | Green — gate (wholly or in part) | 8 (NFR-SYS-3, -4, -12, NFR-IDN-3, NFR-MSG-3; NFR-ORD-3, NFR-COL-3 and NFR-REP-3 in part) |
 | Red — ATDD (wholly or in part) | 3, all Impl-2 scope: NFR-COM-2 (Story 8.5), and in part NFR-COL-3 (`[S-FR-COL-3.h]`, Story 11.5) and NFR-REP-2 (`[S-FR-REP-7.h]`, Story 13.5) |
-| Planned — story DoD (wholly or in part) | 3: NFR-IDN-1 and NFR-COL-2, which no story in `epics.md` names in its Traceability (`impl1-final-trace.md` §4). `deferred-work.md` gives them an owner: Epic 2's Impl-2 completion and Story 11.5 (decision log Impl-1 #39). In part NFR-REP-2 (the profile benchmark, Story 13.5) |
+| Planned — story DoD (wholly or in part) | 3: NFR-IDN-1 and NFR-COL-2, which no story in `epics.md` names in its Traceability (`impl1-final-trace.md` §4). `deferred-work.md` gives them an owner: the Impl-2 test hardening and Story 11.5 (decision log Impl-1 #39). In part NFR-REP-2 (the profile benchmark, Story 13.5) |
 | Deferred — launch | 3: NFR-SYS-11 (WCAG audit), and the transfer times of NFR-VER-4 and NFR-ORD-2 on a shaped 10 Mbps link |
 
-Rows marked "in part" are counted under each of their statuses, so the summary adds up to more than 56. No NFR is left without a named artifact or an owner phase. Each status cell is one or more `Status (detail)` parts separated by semicolons, with no semicolon inside a detail, because `gen-solu2-trace.mjs` counts the parts.
+Rows marked "in part" are counted under each of their statuses, so the summary adds up to more than 56. No NFR is left without a named artifact or an owner phase. The *Measured* table keeps each benchmark's figures from its own epic; the close's run is in `walkthrough-impl1.md` §17. Each status cell is one or more `Status (detail)` parts separated by semicolons, with no semicolon inside a detail, because `gen-solu2-trace.mjs` counts the parts.
 
 ## Measured
 

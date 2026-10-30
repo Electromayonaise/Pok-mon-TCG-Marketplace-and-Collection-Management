@@ -1028,15 +1028,40 @@
   - **(recommended)** D6: rewrite the README's status and "What Impl-1 delivers", and fix what the check finds.
   - **(recommended)** D7: both README paths, the Quick start and the development setup.
   - **(recommended)** D8: one commit per deliverable, then the close review's.
-  - **(recommended)** the two NFRs: record their owners in `deferred-work.md` only (NFR-COL-2 with Story 11.5, NFR-IDN-1 with Epic 2's Impl-2 completion), without touching the certified backlog. The alternatives were binding them in `epics.source.mjs`, or adding an NFR-IDN-1 benchmark now.
+  - **(recommended)** the two NFRs: record their owners in `deferred-work.md` only (NFR-COL-2 with Story 11.5, NFR-IDN-1 with Epic 2's Impl-2 completion; R3 below changed the latter), without touching the certified backlog. The alternatives were binding them in `epics.source.mjs`, or adding an NFR-IDN-1 benchmark now.
   - **(recommended)** `AGENTS.md`: ignore it in `.gitignore`. The alternatives were documenting it only, or committing it as the file itself suggests.
-- **Human decision:** ACCEPT every recommendation.
+- **Human decision:** ACCEPT every recommendation, including the four close-review decisions below.
 - **Reason:** The close adds no behaviour, so it changes only documents, the trace and one ignore rule. Keeping the artifacts where the reorganization put them, and saying so in the map, is cheaper and clearer than a second copy. The per-story trace from a real run is what §6.2 asks the trace to prove; the design matrix stays generated as it was.
 - **Also decided (from the work):**
   - **The trace** reads one run of `949c219`: 43 / 43 Impl-1 stories `done` with every bound test passing (at least 2 each), the 19 pulled-forward stories passing, P0 15 / 15 and P1 5 / 5 risks covered, 0 skipped, and the 7 reserved stories' 28 tests red for `NotImplementedError`. Gate: **PASS**.
   - **The test review** over 80 files and 873 `it` blocks: 95 / 100 (A), Approve with Comments: 3 MEDIUM (two lock-wait tests that sleep 200 ms, a watchdog copied into seven files) and 4 LOW. Report only; the findings are in `deferred-work.md`.
   - **The README check.** The development setup and `npm test` passed as written (exit 0). The Quick start failed in this container on its environment: Docker Hub answered 429 for the Node base image, and with that image from `mirror.gcr.io`, `npm ci` inside the build could not reach the registry through the container's TLS proxy. With the proxy and its CA passed to the build stage through a temporary Dockerfile outside the repository, the image built and `docker compose up -d --wait --no-build` brought both services up `healthy`, with both probes green. The README now mentions the proxy case.
   - **No bug was found** in a done story, so nothing needed Martín's options on a fix.
+- **The close review** (`bmad-code-review`, three subagents in fresh contexts, over `949c219..e990535`) raised about 40 findings. After deduplication: 4 decisions, 20 patches, 1 deferral (folded into the existing trace item) and 4 dismissed. Martín decided, each as the agent recommended:
+  - **R1, the Quick start in the self-assessment.** It claimed the clean clone worked with the README alone, while the check's Quick start failed on the container's network, and the README's proxy advice could not be followed with the Dockerfile. The self-assessment now says what passed and how, and the README names the symptom and points to the development setup, with no Dockerfile change. The alternatives were a build secret for a CA in the Dockerfile, or dropping the note.
+  - **R2, the tag.** The README says the close *will be* the tag `impl1-done`, set on `main` after the merge. The alternative was not naming it yet.
+  - **R3, NFR-IDN-1's owner.** It changes from Epic 2's Impl-2 completion, which is about sign-in, to the Impl-2 test hardening: a benchmark of `getCapabilities` and `getSellerKinds` with the shared harness. The alternatives were keeping it, or leaving it to the Impl-2 plan.
+  - **R4, owners the agent had written without a decision.** Martín confirmed all four: the jobs route goes to Impl-2 planning, before Epic 8's completion needs it; the image build behind a proxy to the launch checklist; the design matrix's "red" column to the Impl-2 close's trace; the VAL benchmarks' run time to whoever owns CI.
+  - **The patches:**
+    - `[MSG-2.R1]` is Story 9.3's, not 9.5's.
+    - The 35 s visibility (NFR-MSG-2) and the page copy (NFR-ORD-4) move to the Measurement column, so no green status claims them.
+    - Epic 1 has nine tagged proposals, not ten.
+    - 108 tRPC procedures, not 111, and the three job routes answer 404 because they have no handler.
+    - The walkthrough's Contents list numbers its sections.
+    - The pull-forward reason is stated per story, with Story 2.4 still listed under `impl2_scope`.
+    - The proof-only list is complete.
+    - Epics 1–3 have no PR.
+    - The two runs behind the numbers are named, and §17 is called an excerpt.
+    - §18 adds the matrix item, the CI item and the proxy failure.
+    - The trace explains the 61st AD row and adds NFR-COL-3 to its gaps.
+    - The test review's VAL seconds are exact (313.1), and its summary admits the weak lock-wait tests.
+    - The commit-listing command reads `origin/main` up to `f549b79`.
+    - The Windows clone flag is noted.
+  - **Dismissed:**
+    - the delivery date of 2026-10-26, the date every earlier document uses;
+    - the generated matrix being left out of the review diff, by design;
+    - the AI decision log staying in `_bmad-output/`, under the same rule as D1;
+    - the measured figures in `nfr-evidence.md`, which are each epic's own record (the close's run is in walkthrough §17).
 - **Environment note:** Docker ran in this session (the daemon was started by hand). The working copy's `npm run test:ci` ran on a local `postgresql-16` cluster on port 55432 (`max_connections=200`), and the agent read its exit code (`TESTCI_EXIT=0`) before each push. The worker restarted twice; the cluster was started again each time.
 - **Artifact changed:**
   - `_bmad-output/test-artifacts/impl1-final-trace.md` and `impl1-test-review.md` (new).

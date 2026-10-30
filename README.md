@@ -67,7 +67,7 @@ Compose builds the service, starts PostgreSQL 16, applies the migrations and ser
 
 On Windows, clone with `git clone -c core.longpaths=true …`, because some paths under `.agents/skills/` exceed 260 characters.
 
-The image build downloads the base images from Docker Hub and the npm packages from the registry. Behind a proxy that re-signs TLS, `npm ci` inside the build fails ("Exit handler never called"); build with the proxy and its CA available to the build stage, or use the development setup below, which needs only the PostgreSQL image.
+The image build downloads the base images from Docker Hub and the npm packages from the registry. Behind a proxy that re-signs TLS, `npm ci` inside the build fails ("Exit handler never called"), because the build stage does not trust the proxy's certificate. The Dockerfile has no setting for that case; use the development setup below instead, with your proxy's CA configured for Node and npm on the host.
 
 ## Development setup
 
@@ -116,7 +116,7 @@ Windows (WinNAT/Hyper-V) can reserve a port range that includes 55432. `npm run 
 
 Impl-1 is closed: all 43 stories of its cut are `done`, together with 19 stories pulled forward from Impl-2 (62 of the project's 69). The 7 stories reserved for Impl-2 (8.5, 8.6, 9.6, 11.5, 11.6, 13.5, 13.6) keep their ATDD tests red for the right reason (`NotImplementedError`). The final trace's gate is PASS: every Impl-1 story's bound tests pass, at least two per story, and every P0 risk is covered.
 
-> The first graded delivery (the foundation and three Identity stories, decision log #22) is the tag [`impl1-entrega`](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/tree/impl1-entrega). The close of Impl-1 is the tag `impl1-done`.
+> The first graded delivery (the foundation and three Identity stories, decision log #22) is the tag [`impl1-entrega`](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/tree/impl1-entrega). The close of Impl-1 will be the tag `impl1-done`, set on `main` once the close is merged.
 
 | Epic | What it guarantees |
 |---|---|
@@ -134,7 +134,7 @@ Impl-1 is closed: all 43 stories of its cut are `done`, together with 19 stories
 | 12 VAL | A collection is valued exactly in COP, with a null (never NaN) change on a zero baseline |
 | 13 REP | Only closed purchases review businesses, and a hide racing a new review never skews the aggregate |
 
-**Over HTTP**, 84 of the 111 procedures are wired behind a Better Auth session (or public, where the contract says so). A request without a session gets `NotAuthenticated` (401), and a non-admin on an admin procedure `AdminOnly` (403). The other 27 belong to the reserved stories or to the jobs route and answer `Unexpected` (500) until they are built. Sign-up and sign-in are not configured yet (Story 2.4's Impl-2 completion), and the production storage, malware scanner, catalog feed and TRM adapters are not chosen yet: [`walkthrough-impl1.md`](_bmad-output/implementation-artifacts/walkthrough-impl1.md) §18 lists every known limit with its owner.
+**Over HTTP**, 84 of the 111 procedures are wired behind a Better Auth session (or public, where the contract says so). A request without a session gets `NotAuthenticated` (401), and a non-admin on an admin procedure `AdminOnly` (403). Of the other 27, the 24 tRPC procedures of the reserved stories answer `Unexpected` (500) until they are built, and the 3 job routes (`jobs/trm-fetch`, `jobs/expiry-materialize`, `jobs/commission-reconcile`) have no route handler yet, so they answer 404. Sign-up and sign-in are not configured yet (Story 2.4's Impl-2 completion), and the production storage, malware scanner, catalog feed and TRM adapters are not chosen yet: [`walkthrough-impl1.md`](_bmad-output/implementation-artifacts/walkthrough-impl1.md) §18 lists every known limit with its owner.
 
 The walkthrough covers each story's goal, procedures, database changes, blast radius and test evidence, together with the suite and gate output. Each story's full record is in `_bmad-output/implementation-artifacts/`.
 

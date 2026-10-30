@@ -4,17 +4,17 @@ This walkthrough closes Impl-1 (`853449c:docs/impl-1/task-statement.md` §5 Phas
 
 It replaces the walkthrough of the delivery of 2026-10-26, which covered six stories (decision log Impl-1 #22). That version is tag `impl1-entrega` (`853449c`). The task statement asks for this file at `docs/impl-1/walkthrough-impl1.md`; it stays here because `_bmad-output/` holds every BMAD artifact since the reorganization, and `docs/impl-1/README.md` maps each §6.1 deliverable to its path (decision log Impl-1 #39).
 
-**Where the numbers come from.** Every count below is read from `sprint-status.yaml`, `epics.md` and one real run of the suite in this session, on the code of `949c219` (the merge of PR #11). The per-story test results are in [`impl1-final-trace.md`](../test-artifacts/impl1-final-trace.md), and the test-quality review in [`impl1-test-review.md`](../test-artifacts/impl1-test-review.md).
+**Where the numbers come from.** Every count below is read from `sprint-status.yaml`, `epics.md` and two real runs of the suite in this session, both on the code of `949c219` (the merge of PR #11): the working copy's `npm run test:ci` on a local PostgreSQL 16, whose JSON results the final trace and the test review read, and `npm test` in a fresh clone against the Compose PostgreSQL, whose output §17 shows. Both gave the same counts; their durations differ. The per-story test results are in [`impl1-final-trace.md`](../test-artifacts/impl1-final-trace.md), and the test-quality review in [`impl1-test-review.md`](../test-artifacts/impl1-test-review.md).
 
 ## Contents
 
-1. [Scope and ceremony](#1-scope-and-ceremony)
-2. [Architecture and directory layout](#2-architecture-and-directory-layout)
-3. Epics 1–13, one section each, with a card per story (§3–§15)
-16. [AI governance](#16-ai-governance)
-17. [Test evidence and gate output](#17-test-evidence-and-gate-output)
-18. [Known limits](#18-known-limits)
-19. [How to reproduce](#19-how-to-reproduce)
+- §1 [Scope and ceremony](#1-scope-and-ceremony)
+- §2 [Architecture and directory layout](#2-architecture-and-directory-layout)
+- §3–§15 Epics 1–13, one section each, with a card per story
+- §16 [AI governance](#16-ai-governance)
+- §17 [Test evidence and gate output](#17-test-evidence-and-gate-output)
+- §18 [Known limits](#18-known-limits)
+- §19 [How to reproduce](#19-how-to-reproduce)
 
 ## 1. Scope and ceremony
 
@@ -43,14 +43,14 @@ It replaces the walkthrough of the delivery of 2026-10-26, which covered six sto
 | 12 | Collection valuation and trends (VAL) | 12.1, 12.2, 12.3 | 12.4, 12.5 | — |
 | 13 | Seller reputation and moderation (REP) | 13.1, 13.2, 13.3 | 13.4 | 13.5, 13.6 |
 
-**Why stories were pulled forward.** Each pulled-forward story is a Failure-state or Supporting story whose bound tests the epic's Core and MEC stories turn green on their own: its checks are the same clauses, run in the same transaction. Building the Core story without them would have meant a red test of a done clause, so Martín moved each one out of `impl2_scope` at its epic's spec approval (decision log Impl-1 #26–#38; the reason for each is in the comment above `impl2_scope` in `sprint-status.yaml`). None of the seven reserved stories was touched.
+**Why stories were pulled forward.** Martín moved each pulled-forward story out of `impl2_scope` at its epic's spec approval (decision log Impl-1 #26–#38; the comment above `impl2_scope` in `sprint-status.yaml` gives each reason). For most of them the epic's Core and MEC stories turn their bound tests green: their checks are clauses of the same operations, run in the same transaction, and 15 of them changed no code (their cards read "Code: none"). Four carry code of their own: 3.4 (the legal-identity guard and audit), 5.5 (the listing state driven by events), 10.5 (cancel, completion and expiry), and 2.4, which was built from its own spec as the `canBuy` check and the throttle count only. Story 2.4 counts as `done`, but it also stays listed under `impl2_scope`, because its sign-in, sign-up and throttle hook complete it in Impl-2 (#26, §18). None of the seven reserved stories was touched.
 
 **The ceremony as run.**
 
 - **Stories 1.1–1.3** ran the Full Ceremony (`task-statement.md` §3): `bmad-create-story` against the DoR checklist, test-first `bmad-dev-story` against the bound ATDD tests, a fresh-context `bmad-code-review`, and every finding fixed or triaged in the story file.
 - **Stories 2.1–2.3** ran the compact ceremony of the delivery cut (decision #22): a short story file, test-first development, a fresh-context review subagent, High and Medium findings triaged.
-- **Everything after the delivery** ran the epic-batched flow of decision #22: the agent drafts one spec per story (`bmad-quick-dev`, the ATDD tests as the spec) and Martín approves the epic's specs together, with each scope and contract choice put to him as a menu; the stories are built test-first, one commit each; one `bmad-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor) runs over the whole epic; Martín triages its findings and signs the epic gate (#5). Each epic is one PR (#2–#11 for Epics 4–13).
-- **Proof-only stories** (2.2, 12.4, 12.5 and 13.4) are committed right after the story they prove (decision #23).
+- **Everything after the delivery** ran the epic-batched flow of decision #22: the agent drafts one spec per story (`bmad-quick-dev`, the ATDD tests as the spec) and Martín approves the epic's specs together, with each scope and contract choice put to him as a menu; the stories are built test-first, one commit each; one `bmad-code-review` (Blind Hunter, Edge Case Hunter, Acceptance Auditor) runs over the whole epic; Martín triages its findings and signs the epic gate (#5). Epics 1–3 were committed on `main`; Epics 4–13 are one PR each (#2–#11).
+- **Proof-only stories** are committed right after the story they prove (decision #23): 2.2, which adds test support only, and the 15 pulled-forward stories whose cards read "Code: none" (3.3, 4.3, 5.3, 5.4, 6.4, 7.3, 7.4, 8.4, 9.4, 9.5, 10.4, 11.4, 12.4, 12.5, 13.4).
 - **Before every push** the agent ran `npm run test:ci` and pushed only on exit code 0.
 
 **Status progression.** Each story is committed once, when it is `done`, so the history of `sprint-status.yaml` shows `backlog → done` per story commit. The steps in between (`ready-for-dev → in-progress → review → done`) are recorded in each story file: the Change Log and Dev Agent Record for Epics 1–2, and the spec's `status` field and Review Findings for the epic-batched stories. Stories 1.1–1.3 passed through `review` in `sprint-status.yaml` itself, as the Full Ceremony requires.
@@ -64,7 +64,7 @@ TEZG is a modular monolith in hexagonal style (Plan-2 `ARCHITECTURE.md`, the Sol
   - `app/api/auth/[...all]/route.ts` mounts Better Auth, which reads the session cookie behind every `authed` and `admin` procedure.
   - `app/api/health/live` and `app/api/health/ready` are the liveness and readiness probes.
   - The Next.js 16 App Router app has no pages; the front end is its own phase after Impl-2 (decision #3).
-- **Procedures.** `openapi.yaml` declares 111 ingress procedures (108 tRPC procedures and 3 job routes). 84 are wired to their services; the other 27 belong to the reserved stories (24) or to the jobs route, which no story builds yet (3: `jobs/trm-fetch`, `jobs/expiry-materialize`, `jobs/commission-reconcile`). An unwired procedure answers `Unexpected` (500) from a `NotImplementedError`, never a silent success.
+- **Procedures.** `openapi.yaml` declares 111 ingress procedures (108 tRPC procedures and 3 job routes). 84 are wired to their services; the other 27 belong to the reserved stories (24) or to the jobs route, which no story builds yet (3: `jobs/trm-fetch`, `jobs/expiry-materialize`, `jobs/commission-reconcile`). An unwired tRPC procedure answers `Unexpected` (500) from a `NotImplementedError`, never a silent success; the three job routes have no route handler under `app/` yet, so they answer 404.
 - **Modules.** Each module folder under `src/modules/<module>/` has the same five layers:
 
   | Layer | Contents |
@@ -112,10 +112,10 @@ TEZG is a modular monolith in hexagonal style (Plan-2 `ARCHITECTURE.md`, the Sol
 ## 3. Epic 1: Walking skeleton: errors, audit, outbox and determinism
 
 - **Epic entry:** `epics.md` line 353. Stories 1.1–1.3 ran the Full Ceremony (`bmad-create-story`, test-first `bmad-dev-story`, a fresh-context `bmad-code-review`); 1.4 and 1.5 ran the epic-batched flow of decision #22.
-- **Decision log:** #5–#21 (the scaffold, the foundation and its ten `[CORRECTED]`/`[IMPROVED]` proposals). **Close review:** `af97624` (fix(epic-1)), committed on `main` before the PR flow; the delivery of 2026-10-26 is tag `impl1-entrega` (`853449c`).
+- **Decision log:** #5–#21 (the scaffold, the foundation and its nine `[CORRECTED]`/`[IMPROVED]` proposals). **Close review:** `af97624` (fix(epic-1)), committed on `main` before the PR flow; the delivery of 2026-10-26 is tag `impl1-entrega` (`853449c`).
 - **Impl-2 stories still reserved:** none.
 
-The walking skeleton every other story stands on: one refusal shape for all 111 tRPC procedures, an append-only audit trail with redaction at every egress, a transactional outbox that delivers each committed event once in effect, a determinism layer (clock and id ports, the network guard, module-boundary and table-ownership scanners) and the admin health reads. The scaffold commit `3187e01` brought the Next.js 16 + tRPC 11 service, the migration runner over the Solu-2 DDL, the health probes, the isolated lint toolchain and the CI gate.
+The walking skeleton every other story stands on: one refusal shape for all 108 tRPC procedures, an append-only audit trail with redaction at every egress, a transactional outbox that delivers each committed event once in effect, a determinism layer (clock and id ports, the network guard, module-boundary and table-ownership scanners) and the admin health reads. The scaffold commit `3187e01` brought the Next.js 16 + tRPC 11 service, the migration runner over the Solu-2 DDL, the health probes, the isolated lint toolchain and the CI gate.
 
 ### Story 1.1: Refuse every request with one typed, explained error body
 
@@ -860,7 +860,7 @@ The full record is [`_bmad-output/decision-logs/impl-1-ai-decision-log.md`](../d
 
 ## 17. Test evidence and gate output
 
-The output below is from one run of `npm test` in a fresh clone of `main` at `949c219`, on 2026-10-30, against the Compose PostgreSQL 16 (the README check, §19). It exited 0 (`NPMTEST_EXIT=0`). The working copy's own `npm run test:ci` gave the same counts before each push of this close. Absolute paths are shortened to the repository root; nothing else is edited.
+The output below is from one run of `npm test` in a fresh clone of `main` at `949c219`, on 2026-10-30, against the Compose PostgreSQL 16 (the README check, recorded in `docs/impl-1/README.md`). It exited 0 (`NPMTEST_EXIT=0`). The working copy's own `npm run test:ci` gave the same counts before each push of this close. The block below is an excerpt: absolute paths are shortened to the repository root, and long listings are cut where marked with "...".
 
 **Summary.**
 
@@ -997,10 +997,10 @@ Every open item of [`deferred-work.md`](deferred-work.md), grouped by its owner.
 | **The 7 reserved stories:** 8.5 (reconcile ledgers), 8.6 (rates and the admin ledger), 9.6 (inbox, read marks, mute), 11.5 (binder, external cards, move and copy, wishlist), 11.6 (their refusals), 13.5 (profiles, moderation logs, listing hide), 13.6 (their refusals). Their 28 ATDD tests stay red for `NotImplementedError` and their 24 procedures stay unwired. `completionPercent` (AD-COL-1 rule 5) is still a stub | `deferred-work.md`, Epics 8, 9, 11 and 13 |
 | **Story 2.4's completion:** sign-up and sign-in are not configured, so nothing writes `"AuthThrottleEvent"` yet; the throttle hardening (per-account lockout, the `ipHmac` and null rules, millisecond instants) and the flood of denied rows in `"LegalIdentityAccessLog"` go with it (decision #26) | Stories 2.4, Epic 3 review |
 | **The jobs route:** no story builds `jobs/trm-fetch` (Story 4.4), the catalog's `daily-night` run (4.1), `jobs/expiry-materialize` (`expireDueOrders`, 7.5), `expireDueOffers` (10.5) or `jobs/commission-reconcile` (8.5), nor `JOBS_SECRET`, the single-flight locks (`job:trm-fetch`, `job:expiry-materialize`, `job:commission-reconcile`), the logger port that isolates a failing order or seller, or the admin's `actorId` on `catalog.fx.retry`. Expiry is still correct at every read and command (AD-ORD-2 rule 8, AD-TRD-1 rule 5). The Impl-2 plan must give it a story | Stories 4.1, 4.4, 7.5, 10.5, Epics 4, 7, 10 reviews |
-| **NFR benchmarks without one yet:** NFR-REP-2's profile read (Story 13.5's DoD), NFR-COL-2's binder and wishlist (Story 11.5), and NFR-IDN-1's capability reads (Epic 2's Impl-2 completion; no story names it, decision #39). NFR-COL-2 stays "Planned — story DoD" | `nfr-evidence.md`, `impl1-final-trace.md` §4 |
+| **NFR benchmarks without one yet:** NFR-REP-2's profile read (Story 13.5's DoD), NFR-COL-2's binder and wishlist (Story 11.5), and NFR-IDN-1's capability reads (no story names it; Impl-2 test hardening, decision #39). NFR-COL-2 and NFR-IDN-1 stay "Planned — story DoD" | `nfr-evidence.md`, `impl1-final-trace.md` §4 |
 | **`getAvailabilitySummary`:** the area filter's batch `getSellerKinds` port and AD-INV-3 rule 2's parity test (Story 11.5, its only consumer) | Epic 5 spec and review |
 | **Race windows accepted at review:** an application decision for a business with no listings is not serialized with a listing creation (Epic 5's follow-up); REP-1 reads the target before its write transaction (Epic 13's follow-up) | Epics 5 and 13 reviews |
-| **Test hardening** from the test review: two lock-wait tests that sleep 200 ms, the watchdog copied into seven files, four long files, three lint warnings, shared state in `composition.test.ts` | `impl1-test-review.md` |
+| **Test hardening** (Impl-2), from the test review and the close: NFR-IDN-1's benchmark, and two lock-wait tests that sleep 200 ms, the watchdog copied into seven files, four long files, three lint warnings, shared state in `composition.test.ts` | `impl1-test-review.md` |
 
 ### Owner: the launch checklist (production adapters and settings)
 
@@ -1011,7 +1011,7 @@ Every open item of [`deferred-work.md`](deferred-work.md), grouped by its owner.
 | **`IP_HMAC_KEY`** (≥ 32 bytes) must be set in production; `loadConfig()` refuses to start without it. So must `BETTER_AUTH_SECRET` | Epic 9 spec (decision #34) |
 | **The support contact** must be set by an admin before `orders.supportContact.get` stops answering 500 | Epic 7 spec (decision #32) |
 | **NFRs measured only on a deployed system:** NFR-SYS-11 (WCAG 2.2 AA), and the upload transfer times of NFR-VER-4 and NFR-ORD-2 on a 10 Mbps link | `nfr-evidence.md` |
-| **The Docker image build** needs the `node:22.12.0-bookworm-slim` base image from Docker Hub (§19, the README check) | This walkthrough |
+| **The Docker image build** needs Docker Hub (the `node:22.12.0-bookworm-slim` base image) and the npm registry from inside the build stage. Behind a TLS-re-signing proxy `npm ci` fails ("Exit handler never called"), and the Dockerfile has no setting for a proxy CA; the README says so | `deferred-work.md`, the README check in `docs/impl-1/README.md` |
 
 ### Owner: the UI phase (after Impl-2, decision #3)
 
@@ -1025,13 +1025,21 @@ Every open item of [`deferred-work.md`](deferred-work.md), grouped by its owner.
 
 `messaging.send`'s 2,000-unit bound counts UTF-16 before NFC (MSG-1 counts code points after NFC); `catalog.browse` has no page cap and no filter-length bound; `bankName` has no length bound; §0.3's free-text check passes invisible characters and lone surrogates; VAL's 36 h staleness constant duplicates the catalog's. Each is in `deferred-work.md` with its epic.
 
+### Owner: whoever owns CI
+
+The three VAL benchmarks take about 313 of the suite's 675 test-seconds (143.3 s, 114.4 s and 55.4 s); decide whether `solu2-nfr` runs on every push (`impl1-test-review.md` LOW-4).
+
+### Owner: the Impl-2 close's trace
+
+`traceability-matrix.md` still shows each test's Solu-2 design state ("red") beside its done story; the implementation result is in `impl1-final-trace.md`, and the generator was left unchanged (#39). The generator also still splits a status cell on every semicolon, so `nfr-evidence.md` keeps its details free of them by convention.
+
 ### Static-analysis limits (Story 1.4)
 
 `regulated-select` and `legal-identity-confined` read the repository's literal SQL style, so concatenated or interpolated table names escape them; `error-owner` misses an aliased `raiserFor`. The DB-backed fitness tests remain the proof. No such code exists today.
 
 ## 19. How to reproduce
 
-**From a clean clone** (the README check of this close, run on 2026-10-30 in a fresh `git clone` of `main` at `949c219`):
+**From a clean clone** (the README check of this close, run on 2026-10-30 in a fresh `git clone` of `main` at `949c219`; on Windows, clone with `git clone -c core.longpaths=true …`, as the README says):
 
 ```bash
 git clone https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management.git tezg

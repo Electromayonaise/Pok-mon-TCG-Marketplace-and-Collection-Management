@@ -10,7 +10,7 @@
 
 **Score: 95 / 100 (A). Recommendation: Approve with Comments.**
 
-0 CRITICAL, 0 HIGH, 3 MEDIUM and 4 LOW findings, plus one 5-point bonus (deduction ledger: 100 − 3 × 2 − 4 × 1 + 5 = 95). None of the findings makes a test pass when its behaviour is broken in a way the suite would otherwise catch, and none blocks the Impl-1 close. Each has an owner in `deferred-work.md`.
+0 CRITICAL, 0 HIGH, 3 MEDIUM and 4 LOW findings, plus one 5-point bonus (deduction ledger: 100 − 3 × 2 − 4 × 1 + 5 = 95). Two findings (MEDIUM-1 and MEDIUM-2) are tests that can pass without proving the lock they assert. They can only be weakly green, never falsely red, and they are not bound tests of any story. None blocks the Impl-1 close. Each has an owner in `deferred-work.md`.
 
 ### Key Strengths
 
@@ -25,7 +25,7 @@
 
 - Two lock-wait tests wait 200 ms of real time and then assert that a statement is still blocked.
 - One watchdog helper is copied into seven files.
-- The three VAL benchmarks take 313 of the suite's 675 test-seconds.
+- The three VAL benchmarks take about 313 of the suite's 675 test-seconds.
 
 ## Quality Criteria Assessment
 
@@ -87,7 +87,7 @@ None.
 
 ### LOW-4. The VAL benchmarks dominate the run time
 
-`[NFR-VAL-2.history]` 143 s, `[NFR-VAL-2.trend]` 114 s and `[NFR-VAL-2.current]` 55 s: 313 of 675 test-seconds. The PRD §7 protocol fixes 50 warm-up and 500 measured calls, so the count stays. A nightly job could run `solu2-nfr` instead of every push; decide it with the CI owner.
+`[NFR-VAL-2.history]` 143.3 s, `[NFR-VAL-2.trend]` 114.4 s and `[NFR-VAL-2.current]` 55.4 s: 313.1 of 675 test-seconds. The PRD §7 protocol fixes 50 warm-up and 500 measured calls, so the count stays. A nightly job could run `solu2-nfr` instead of every push; decide it with the CI owner.
 
 ## Best Practices Found
 

@@ -7,8 +7,8 @@
 - **Scope**: Impl-1 covers the walking skeleton plus the Core and MEC stories of all 12 modules, and the prerequisites they depend on: 43 of the 69 stories (decision log #2). The other 26 belong to Impl-2, and the front end is a phase after it (#3).
 - **Result**: all 43 Impl-1 stories are `done`, and 19 stories of `impl2_scope` were pulled forward with their epics because the Core and MEC stories turn their tests green (#26–#38): 62 of 69. The 7 reserved stories (8.5, 8.6, 9.6, 11.5, 11.6, 13.5, 13.6) are untouched, and their 28 ATDD tests stay red for `NotImplementedError`. All 13 epic gates are signed.
 - **Scaffold**: a Next.js 16 + tRPC 11 service with no pages, PostgreSQL 16 via Docker Compose, and a migration runner over the Solu-2 schema, which no story had to change. Prisma is generated from the DDL and backs Better Auth only. Also health probes, an isolated lint toolchain, a dependency gate and the Impl-1 CI gate. 84 of the 111 procedures are wired.
-- **Ceremony**: 1.1–1.3 ran the Full Ceremony; the delivery cut of 2026-10-26 (1.1–1.3, 2.1–2.3, tag `impl1-entrega`) ran the compact ceremony after them (#22); every later epic ran the epic-batched flow: spec approval by menu, test-first stories, one three-layer code review per epic and Martín's signed gate (#5). Epics 4–13 are PRs #2–#11.
-- **Close (Phase 4)**: the final trace (gate PASS), the test review (95/100, A), the walkthrough of the 43 stories, this deliverable map, the README check from a clean clone and decision log #39.
+- **Ceremony**: 1.1–1.3 ran the Full Ceremony and 2.1–2.3 the compact ceremony; together they are the delivery cut of 2026-10-26 (tag `impl1-entrega`, #22). Every later story ran the epic-batched flow: spec approval by menu, test-first stories, one three-layer code review per epic and Martín's signed gate (#5). Epics 1–3 were committed on `main`; Epics 4–13 are PRs #2–#11.
+- **Close (Phase 4)**: the final trace (gate PASS), the test review (95/100, A), the walkthrough of the 43 stories, this deliverable map, the README check from a clean clone and decision log #39. The tag `impl1-done` is set on `main` after this close is merged.
 
 ## Deliverable map (task statement §6.1)
 
@@ -21,7 +21,7 @@ The task statement is at `853449c:docs/impl-1/task-statement.md`. Its paths pred
 | 3 | `sprint-status.yaml` | [`_bmad-output/implementation-artifacts/sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml) | 62 `done`, 7 `backlog` |
 | 4 | `walkthrough-impl1.md`: architecture and layout; per story the goal, procedures, database changes and test evidence; the suite and gate output | [`_bmad-output/implementation-artifacts/walkthrough-impl1.md`](../../_bmad-output/implementation-artifacts/walkthrough-impl1.md) (asked for at `docs/impl-1/`) | All 43 stories plus the 19 pulled forward |
 | 5 | AI decision log: ≥ 6 interactions, ≥ 2 corrections | [`_bmad-output/decision-logs/impl-1-ai-decision-log.md`](../../_bmad-output/decision-logs/impl-1-ai-decision-log.md) (asked for at `docs/impl-1/ai-log/`) | 39 entries; 12 tagged proposals (10 `[CORRECTED]`, 2 `[IMPROVED]`) |
-| 6 | Scaffold infrastructure and README | [`docker-compose.yml`](../../docker-compose.yml), [`Dockerfile`](../../Dockerfile), [`.env.example`](../../.env.example), `package.json` and `gate:deps`, [`README.md`](../../README.md) | Checked from a clean clone (below) |
+| 6 | Scaffold infrastructure and README | [`docker-compose.yml`](../../docker-compose.yml), [`Dockerfile`](../../Dockerfile), [`.env.example`](../../.env.example), `package.json` and `gate:deps`, [`README.md`](../../README.md) | Checked from a clean clone (below): the development setup passes as written; the Quick start passed only once the build stage could reach the registries |
 
 Supporting artifacts: the 62 story files in [`_bmad-output/implementation-artifacts/`](../../_bmad-output/implementation-artifacts/), [`deferred-work.md`](../../_bmad-output/implementation-artifacts/deferred-work.md) (every open item with its owner), the test review [`impl1-test-review.md`](../../_bmad-output/test-artifacts/impl1-test-review.md), [`nfr-evidence.md`](../../_bmad-output/test-artifacts/nfr-evidence.md) and the generated [`traceability-matrix.md`](../../_bmad-output/test-artifacts/traceability-matrix.md).
 
@@ -29,9 +29,9 @@ Supporting artifacts: the 62 story files in [`_bmad-output/implementation-artifa
 
 | Item | Evidence |
 |---|---|
-| Execution | A clean clone works with only the README (below); `docker compose up` gives both health probes green; one command, `npm test`, runs the suite |
+| Execution | From a clean clone, the README's development setup and `npm test` pass as written, and one command, `npm test`, runs the suite. The Quick start's `docker compose up` failed in the check's container because the image build could not reach Docker Hub and the npm registry; with the proxy and its CA given to the build stage (a temporary Dockerfile outside the repository), both services came up `healthy` with both health probes green (below) |
 | Scaffold integrity | `gate:purity`: 13 domain files, 0 problems; `[SYS-AD1]`, `[SYS-6.R1]`, `[SYS-6.R4]` green |
-| Stories implemented | 43 / 43 `done`, each with its domain, repository adapter and procedures (walkthrough §3–§15) |
+| Stories implemented | 43 / 43 `done`, each with its domain logic and repository adapter, and with tRPC procedures wherever its contract exposes one; 9 stories implement in-process ports or proofs only (walkthrough §3–§15, "Procedures") |
 | Contract compliance | `gate:api:solu2` (111 ingress procedures against `openapi.yaml` and `contracts.md`), `gate:codes:solu2`, `gate:ids:solu2` |
 | Test coverage | ≥ 2 bound tests per story, all passing (`impl1-final-trace.md` §1) |
 | Error handling | Every refusal is `{ error: ErrorBody }` with its code and status (Story 1.1, `[SYS-1.R6]`); no stack trace reaches the client |
@@ -60,7 +60,7 @@ The README was followed to the letter in a fresh `git clone` of `main` at `949c2
 
 [`walkthrough-impl1.md`](../../_bmad-output/implementation-artifacts/walkthrough-impl1.md) §18 lists every open item by owner. In short:
 
-- **Impl-2:** the 7 reserved stories; Story 2.4's sign-in, sign-up and throttle hook; the jobs route (`trm-fetch`, order and offer expiry, `commission-reconcile`, `JOBS_SECRET`, single-flight), which no story in `epics.md` builds yet; the NFR-IDN-1, NFR-COL-2 and NFR-REP-2 profile benchmarks; the test-review hardening.
+- **Impl-2:** the 7 reserved stories; Story 2.4's sign-in, sign-up and throttle hook; the jobs route (`trm-fetch`, order and offer expiry, `commission-reconcile`, `JOBS_SECRET`, single-flight), which no story in `epics.md` builds yet; the NFR-COL-2 and NFR-REP-2 profile benchmarks (Stories 11.5 and 13.5); the test-review hardening, which also owns NFR-IDN-1's benchmark.
 - **Launch checklist:** the production object storage, malware scanner and upload ticket; the production catalog feed and TRM readers; `IP_HMAC_KEY` and `BETTER_AUTH_SECRET`; the support contact; WCAG and transfer-time NFRs.
 - **UI phase:** raw status tokens and ISO instants inside es-CO texts, and the DTO decision fields the pages need.
 
@@ -85,7 +85,8 @@ The README was followed to the letter in a fresh `git clone` of `main` at `949c2
 Impl-1 has 96 non-merge commits on `main` from `4ee99d5` (2026-10-24, the sprint plan) to `f549b79` (2026-10-30, the Epic 13 close), plus this close. List them with:
 
 ```bash
-git log --no-merges --format='%h %ad %s' --date=short 4ee99d5^..main
+git fetch origin main
+git log --no-merges --format='%h %ad %s' --date=short 4ee99d5^..f549b79
 ```
 
 | Epic | Close commit | Pull request |

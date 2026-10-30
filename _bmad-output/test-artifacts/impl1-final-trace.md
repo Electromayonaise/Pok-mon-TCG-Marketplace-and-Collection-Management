@@ -15,7 +15,7 @@
 | P0 risks covered by a passing test of a done story | 100 % | 15 / 15 (100 %) | MET |
 | P1 risks covered | ≥ 90 % | 5 / 5 (100 %) | MET |
 | FRs with a passing test of a done story | informative (the rest is Impl-2) | 85 / 96 (88.5 %) | — |
-| Binding ADs with a passing test of a done story | informative | 60 / 60 (100 %) | — |
+| Binding ADs with a passing test of a done story | informative | 60 / 60 (100 %); the matrix's 61st AD row, "AD-SYS-2 rule 10 as refined by R-2", is counted under AD-SYS-2 | — |
 | Skipped, focused or todo tests | 0 | 0 | MET |
 | Reserved Impl-2 stories red for the right reason | reported apart | 7 stories, 28 tests, 28 failing on `NotImplementedError` | reported apart |
 
@@ -177,9 +177,9 @@ None of these blocks the gate: each is outside the Impl-1 cut or a documentation
 
 1. **FRs without a passing test of a done story (11).** Each is owned only by a reserved Impl-2 story: FR-COM-8 (8.5, 8.6); FR-COM-7 (8.6); FR-MSG-7 (9.6); FR-MSG-8 (9.6); FR-COL-3 (11.5, 11.6); FR-COL-4 (11.5, 11.6); FR-COL-5 (11.5, 11.6); FR-COL-6 (11.5, 11.6); FR-REP-5 (13.5, 13.6); FR-REP-6 (13.5, 13.6); FR-REP-7 (13.5, 13.6).
 2. **Binding ADs without a passing test of a done story (0).** None.
-3. **Two NFRs have no owning story.** NFR-IDN-1 (capability reads of 500 ids, p95 ≤ 50 ms) and NFR-COL-2 (binder page and wishlist latency) are "Planned — story DoD" in `nfr-evidence.md`, but no story in `epics.md` names them in its Traceability, so no DoD carries their benchmark. NFR-COL-2 measures Story 11.5's binder and wishlist (Impl-2); NFR-IDN-1 measures `getCapabilities` and `getSellerKinds`, which Stories 2.3 and 2.5 built. Martín kept the backlog as certified and gave both an owner in `deferred-work.md` (decision log Impl-1 #39): NFR-COL-2 goes with Story 11.5, and NFR-IDN-1 with Epic 2's Impl-2 completion (Story 2.4's sign-in).
+3. **Two NFRs have no owning story.** NFR-IDN-1 (capability reads of 500 ids, p95 ≤ 50 ms) and NFR-COL-2 (binder page and wishlist latency) are "Planned — story DoD" in `nfr-evidence.md`, but no story in `epics.md` names them in its Traceability, so no DoD carries their benchmark. NFR-COL-2 measures Story 11.5's binder and wishlist (Impl-2); NFR-IDN-1 measures `getCapabilities` and `getSellerKinds`, which Stories 2.3 and 2.5 built. Martín kept the backlog as certified and gave both an owner in `deferred-work.md` (decision log Impl-1 #39): NFR-COL-2 goes with Story 11.5, and NFR-IDN-1's benchmark with the Impl-2 test hardening.
 4. **The design trace still reads "red".** `traceability-matrix.md` §2, §4 and §5 give each test's Solu-2 design state (red until its story is built), next to the story and its status. This report holds the implementation result. The generator was left unchanged (decision log Impl-1 #39).
-5. **NFR-REP-2's profile read** (Story 13.5) and **NFR-COM-2** (Story 8.5) stay red with their Impl-2 stories.
+5. **NFR-REP-2's profile read** (Story 13.5), **NFR-COM-2** (Story 8.5) and **NFR-COL-3**'s `[S-FR-COL-3.h]` (Story 11.5) stay red with their Impl-2 stories.
 
 ## 5. How to reproduce
 

@@ -149,7 +149,7 @@
 | NFR-SYS-11 | Accessibility | — | — | 0 | Deferred — launch |
 | NFR-SYS-12 | Platform personal-data consent | — | — | 0 | Green — gate |
 | NFR-SYS-13 | Error-code integrity | — | `SYS-1.R2`, `SYS-1.R6` | 2 | Green — ATDD |
-| NFR-SYS-14 | Abuse baseline | — | `S-FR-IDN-7.f`, `MSG-2.R1` | 2 | Green — ATDD (`[S-FR-IDN-7.f]` counts only, since no sign-in records a failure yet, decision log Impl-1 #26, and `[MSG-2.R1]` with Story 9.5) |
+| NFR-SYS-14 | Abuse baseline | — | `S-FR-IDN-7.f`, `MSG-2.R1` | 2 | Green — ATDD (`[S-FR-IDN-7.f]` counts only, since no sign-in records a failure yet, decision log Impl-1 #26, and `[MSG-2.R1]` with Story 9.3) |
 | NFR-IDN-2 | (mandatory edge case): | IDN-1 | `IDN-1.MEC`, `IDN-1.I1` | 7 | Green — ATDD |
 | NFR-VER-1 | (mandatory edge case): | VER-1 | `VER-1.MEC` | 7 | Green — ATDD |
 | NFR-INV-1 | (Annex scenario 3): | INV-1 | `INV-1.I1` | 9 | Green — ATDD |
@@ -177,14 +177,14 @@
 | NFR-DSC-3 | ordering is deterministic | DSC-1 | `DSC-1.R1` | 7 | Green — ATDD |
 | NFR-ORD-2 | order creation (including the reservation) responds in p95 ≤ 800 ms | ORD-1 | `NFR-ORD-2.p95` | 7 | Green — benchmark (creation); Deferred — launch (the upload's transfer time needs the production storage) |
 | NFR-ORD-3 | 0 funds-held states or payment-gateway calls | — | `ORD-1.I4`, `SYS-6.R4` | 2 | Green — gate (`[SYS-6.R4]`); Green — ATDD (`[ORD-1.I4]`) |
-| NFR-ORD-4 | the stalled-order gap is documented in UI copy | — | `S-FR-ORD-10.h` | 1 | Green — ATDD (the support contact and the 7-day notice, `OrderAwaitingBusiness`, and the page copy belongs to UI 6.2) |
+| NFR-ORD-4 | the stalled-order gap is documented in UI copy | — | `S-FR-ORD-10.h` | 1 | Green — ATDD (the support contact and the 7-day notice, `OrderAwaitingBusiness`) |
 | NFR-COM-2 | reconciliation is exact over a randomised sequence of 10,000 top-ups and deducti | COM-1, COM-3 | `COM-3.Q1`, `COM-3.I1` | 14 | Red — ATDD |
 | NFR-COM-3 | the deduction handler runs in p95 ≤ 200 ms | COM-1, COM-2 | `NFR-COM-3.deduction`, `NFR-COM-3.topUp` | 18 | Green — benchmark |
 | NFR-COM-4 | 0 floating-point operations on COP in the commission code path | COM-1 | `COM-1.I3` | 8 | Green — ATDD |
 | NFR-TRD-2 | accept responds in p95 ≤ 800 ms and other actions in p95 ≤ 500 ms. | TRD-1 | `NFR-TRD-2.counter`, `NFR-TRD-2.accept` | 11 | Green — benchmark |
 | NFR-TRD-3 | a trade-versus-purchase race on a shared unit never oversells (NFR-INV-2). | TRD-1 | `INV-1.I3`, `TRD-1.I1` | 10 | Green — ATDD |
 | NFR-MSG-1 | contact-message generation takes p95 ≤ 200 ms | MSG-2 | `MSG-2.I1`, `NFR-MSG-1.contact` | 8 | Green — ATDD (determinism); Green — benchmark (latency) |
-| NFR-MSG-2 | in-app freshness through polling | MSG-1 | `MSG-1.R1`, `NFR-MSG-2.send` | 8 | Green — ATDD (ordering); Green — benchmark (send, and the 35 s visibility is the client's 30 s polling, UI 12.2) |
+| NFR-MSG-2 | in-app freshness through polling | MSG-1 | `MSG-1.R1`, `NFR-MSG-2.send` | 8 | Green — ATDD (ordering); Green — benchmark (send) |
 | NFR-MSG-3 | 0 outbound calls to external messaging services (NFR-SYS-3 guard). | MSG-2 | `SYS-6.R4` | 8 | Green — gate |
 | NFR-COL-2 | a binder page render (sorted | — | — | 0 | Planned — story DoD |
 | NFR-COL-3 | there are 0 CatalogEntry writes from collections | — | `SYS-AD8`, `S-FR-COL-3.h` | 2 | Green — gate (`[SYS-AD8]`); Red — ATDD (`[S-FR-COL-3.h]`, Story 11.5 in Impl-2) |
