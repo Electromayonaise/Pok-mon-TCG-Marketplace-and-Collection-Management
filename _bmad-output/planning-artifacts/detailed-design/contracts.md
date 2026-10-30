@@ -939,6 +939,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 
 `ContactMessageDTO = { text: string; externalUrl: string; copyText: string; requesterDisplayName: string; decision: Decision }`. `externalUrl` carries the regulated phone, and this DTO is its only carrier.
 
+`TradeSummary = { offeredItems: { itemRef?: CuidId; name?: string; condition: string; qty: number }[]; cashCop: Cop }`. TRD-1 sends `itemRef`s only, because `trading` may not import `catalog`; the contact service names each item through its own `catalog.getEntries`, and an item that carries a `name` is used as is. A summary with no item and no cash, a cash outside 0–100,000,000, an item with neither field or an unknown `itemRef` is `Unexpected`: TRD validates the terms before it stores them (decision log Impl-1 #35).
+
 - **Layer:** Inbound Port and Outbound Port.
 - **Precondition (P)**, first-fail (AD-MSG-1 rule 2):
   - P1 `canBuy` for the requester. Violation: `EmailNotVerified` (HTTP 403, identity).
@@ -1392,11 +1394,12 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `TradeRoundLimitReached` | 409 | trading | TRD-2 P7 | "Llegaron a 10 rondas; ahora solo puedes aceptar o rechazar." | no |
 | `TradeOfferNotOpen` | 409 | trading | TRD-1 P2, P4; TRD-2 P4, P6 | "Esta oferta está {status}." | no |
 | `TradeOfferNotVisibleToCaller` | 403 | trading | TRD-1 P1; TRD-2 P1; TRD-3 P1 | "No encontramos esa oferta." | no |
-| `TradeNotAccepted` | 409 | trading | S-FR-TRD-7 | "Esta oferta no está aceptada." | no |
+| `TradeNotAccepted` | 409 | trading | S-FR-TRD-7; S-FR-TRD-3.handoff (decision log Impl-1 #35) | "Esta oferta no está aceptada." | no |
 | `TradeAlreadyConfirmedByRole` | 409 | trading | S-FR-TRD-7 | "Ya confirmaste el intercambio el {confirmedAt}." | no |
 | `TradeNotCancellable` | 409 | trading | TRD-3 P2 | "Ya hay una confirmación de entrega; el intercambio no se puede cancelar." | no |
 | `TradeOfferMade` | — (stored only) | trading | S-FR-TRD-1 `allowed`: the offer is Open with the turn at the seller, citing `{ offerId, listingId, expiresAt }` (FR-TRD-1; decision log Impl-1 #35) | "Tu oferta quedó abierta hasta el {expiresAt}." | no |
 | `TradeOfferWithdrawn` | — (stored only) | trading | S-FR-TRD-2w `allowed`: the proposer withdrew the offer, citing `{ offerId, status }` (FR-TRD-2; decision log Impl-1 #35) | "Retiraste tu oferta." | no |
+| `TradeOfferAccepted` | — (stored only) | trading | TRD-1 Q4 `allowed`: the offer is Accepted and one unit is reserved, citing `{ offerId, listingId, reservedQty }` (FR-TRD-4; decision log Impl-1 #35) | "Aceptaste la oferta; la carta queda reservada para este intercambio." | no |
 | `TradeOfferCountered` | — (stored only) | trading | TRD-2 Q4 `allowed`: the counter is recorded and the turn flips, citing `{ offerId, round, turn }` (FR-TRD-2; decision log Impl-1 #35) | "Contraoferta enviada (ronda {round}); ahora le toca a {turn}." | no |
 | `TradeOfferRejected` | — (stored only) | trading | S-FR-TRD-2w `allowed`: the turn holder rejected the offer, citing `{ offerId, status }` (FR-TRD-2; decision log Impl-1 #35) | "Rechazaste la oferta." | no |
 | `TradeOfferShown` | — (stored only) | trading | S-FR-TRD-3 `allowed`: the offer as a party reads it, status derived, citing `{ status, turn, roundCount }` (FR-TRD-3; decision log Impl-1 #35) | "Oferta {status}, ronda {roundCount}; le toca a {turn}." | no |
@@ -1683,8 +1686,8 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *Tests:* `[S-FR-TRD-2w.h]` the proposer withdraws an open offer; `[S-FR-TRD-2w.f]` withdrawing with a stale `version` → `TradeOfferNotOpen`.
 - **S-FR-TRD-3 — `trading.get` / `mine` / `handoff`.** Inbound Port.
   - *P:* a session.
-  - *Q:* the offer and every round, for the proposer or the seller. `status` is derived (expiry). `handoff` regenerates the deterministic MSG-2 text for an `Accepted` offer. Zero writes.
-  - *Errors:* `TradeOfferNotVisibleToCaller` (HTTP 403, trading).
+  - *Q:* the offer and every round, for the proposer or the seller. `status` is derived (expiry). `handoff` regenerates the deterministic MSG-2 text for an `Accepted` offer; any other status is `TradeNotAccepted` (decision log Impl-1 #35). Zero writes.
+  - *Errors:* `TradeOfferNotVisibleToCaller` (HTTP 403, trading), `TradeNotAccepted` (HTTP 409, trading; `handoff` only).
   - *I:* AD-TRD-1 rule 4.
   - *Tests:* `[S-FR-TRD-3.h]` both parties see the same round history; `[S-FR-TRD-3.f]` a third party gets a body identical to an unknown id's.
 - **S-FR-TRD-7 — `trading.confirmCompletion(offerId)`.** Inbound Port.

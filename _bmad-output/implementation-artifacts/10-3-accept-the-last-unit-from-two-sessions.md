@@ -2,7 +2,7 @@
 title: 'Story 10.3: Accept the last unit from two sessions'
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
 baseline_commit: '6b3cc16'
 review_loop_iteration: 0
 flow: 'epic-batched (decision log Impl-1 #22): bmad-quick-dev, ATDD tests as the spec, one code review per epic'
@@ -56,8 +56,8 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] accept + handoff + src tests; D3/D5/D6; wiring; benchmark
-- [ ] `sprint-status.yaml` -- 10.3 `done`
+- [x] accept + handoff + src tests; D3/D5/D6; wiring; benchmark
+- [x] `sprint-status.yaml` -- 10.3 `done`
 
 **Acceptance Criteria:**
 - Given 10.3 `done`, when `[TRD-1.Q1]`, `[TRD-1.Q3]`, `[TRD-1.F1]`, `[TRD-1.I1]`/`[TRD-1.MEC]`, `[NFR-TRD-2.accept]` run, then they pass; 10.4's `[TRD-1.P2]`–`[TRD-1.P6]` and 10.5's `[S-FR-TRD-9.f]` turn green too (D1, D2).
@@ -65,3 +65,15 @@ context:
 ## Verification
 
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/trd_contracts.test.ts -t "TRD-1"`
+
+## Implementation Notes
+
+- Code review is batched with the rest of Epic 10 at its close (decision #22).
+- Q1 runs in the contract's order. The schema's `trade_offer_accepted_has_reservation` CHECK refuses an Accepted row without a reservation, so step 2 stores a placeholder `{ listingId, units: [] }` that step 5 replaces in the same transaction; no other transaction ever reads it.
+- A listings refusal at P5/P6 is carried out of the transaction (so it rolls back), then the follow-up transaction takes `trd:seller`, marks the own offer Unfulfillable with a `markedUnfulfillable` round and an audit row (a no-op when it is no longer Open), and the original error propagates.
+- Sibling and own `markedUnfulfillable` rounds are numbered after both the highest round and `roundCount`, so a sibling at 10 rounds gets round 11 and keeps `roundCount` 10.
+- The visibility check runs before the turn: a proposer accepting at the seller's turn gets `NotYourTurn`.
+- **D3 (revised):** `TradeSummaryDTO` items are `{ itemRef?, name?, condition, qty }`; the contact service names `itemRef`s through `catalog.getEntries`. **D6:** it raises `Unexpected` for an empty summary, a cash outside 0–100,000,000 or an unknown item. **D5:** `trading.handoff` on a non-Accepted offer is `TradeNotAccepted` (operations.json, §13).
+- `trading.accept` and `trading.handoff` are wired. §13 gains `TradeOfferAccepted`.
+- **TG-7 runtime** (local Postgres 16, `fsync=off`): `[TRD-1.MEC]` 100 repetitions in 5,954 ms.
+- Measured: `[NFR-TRD-2.accept]` p95 14.3 ms (p50 9.3), with the post-commit handoff.

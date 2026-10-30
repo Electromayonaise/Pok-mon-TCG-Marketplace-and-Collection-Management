@@ -5,6 +5,7 @@ import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { OfferRole, OfferStatus } from '../domain/trd.js';
+import type { ReservationRefDTO } from '../../listings/index.js';
 import type { TradeTermsDTO } from '../dto/trd.v2.dto.js';
 import type { ITradeOfferRepository } from '../ports/trd.js';
 import type { OfferRow, RoundRow, TrdRepository } from '../ports/trd.v2.js';
@@ -125,6 +126,32 @@ export class PgTrdRepository implements TrdRepository {
       [c.offerId, c.role, c.expectedVersion, c.now, JSON.stringify(c.terms)],
     );
     return rows[0] ?? null;
+  }
+
+  async acceptOffer(tx: Tx, c: { offerId: CuidId; expectedVersion: number; now: IsoInstant }): Promise<boolean> {
+    const { rowCount } = await tx.query(
+      `UPDATE "TradeOffer" SET status = 'Accepted', "acceptedAt" = $3, "updatedAt" = $3, version = version + 1,
+              "reservationRef" = jsonb_build_object('listingId', "listingId", 'units', '[]'::jsonb)
+        WHERE id = $1 AND status = 'Open' AND turn = 'seller' AND version = $2 AND "expiresAt" > $3`,
+      [c.offerId, c.expectedVersion, c.now],
+    );
+    return rowCount === 1;
+  }
+
+  async storeReservation(tx: Tx, offerId: CuidId, reservationRef: ReservationRefDTO): Promise<void> {
+    await tx.query(`UPDATE "TradeOffer" SET "reservationRef" = $2 WHERE id = $1 AND status = 'Accepted'`, [offerId, JSON.stringify(reservationRef)]);
+  }
+
+  async markUnfulfillable(tx: Tx, scope: { listingIds: CuidId[]; exceptOfferId: CuidId } | { offerId: CuidId }, now: IsoInstant): Promise<CuidId[]> {
+    const [where, params] = 'offerId' in scope
+      ? [`id = $2`, [scope.offerId]]
+      : [`"listingId" = ANY($2::text[]) AND id <> $3`, [scope.listingIds, scope.exceptOfferId]];
+    const { rows } = await tx.query<{ id: CuidId }>(
+      `UPDATE "TradeOffer" SET status = 'Unfulfillable', "unfulfillableReason" = 'ListingNoLongerAvailable', "updatedAt" = $1, version = version + 1
+        WHERE ${where} AND status = 'Open' RETURNING id`,
+      [now, ...params],
+    );
+    return rows.map((r) => r.id).sort();
   }
 
   async listOffers(tx: Tx, q: { actorId: CuidId; side: 'sent' | 'received' | 'any'; status: OfferStatus | null; after: { updatedAt: IsoInstant; id: CuidId } | null; limit: number; now: IsoInstant }): Promise<OfferRow[]> {

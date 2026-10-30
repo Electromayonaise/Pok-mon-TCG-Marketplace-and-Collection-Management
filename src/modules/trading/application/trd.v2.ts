@@ -67,6 +67,13 @@ function checkTerms(terms: TradeTermsDTO, rule: 'FR-TRD-1' | 'FR-TRD-2'): void {
   if (isEmptyTerms(terms)) raise('EmptyTradeOffer', [{ rule, inputs: { offeredItems: 0, cashCop: 0 } }]);
 }
 
+/** TRD-1 Q-fail: a listings refusal (P5, P6) inside the accept transaction, carried out so it rolls back first. */
+class ListingsRefusal extends Error {
+  constructor(override readonly cause: unknown) {
+    super('listings refused the accept');
+  }
+}
+
 /** TRD's use cases (contracts.md §8, §15). */
 export class TrdServiceV2 implements TrdV2UseCases {
   constructor(protected readonly deps: TrdV2Deps) {}
@@ -196,8 +203,72 @@ export class TrdServiceV2 implements TrdV2UseCases {
     });
   }
 
-  async acceptOffer(_input: AcceptOfferRequest): Promise<AcceptOfferResponse> {
-    throw new NotImplementedError('trading.acceptOffer');
+  /**
+   * TRD-1 (AD-TRD-2): one transaction in lock order — `trd:seller`, the own offer `Open → Accepted`, tradeability and the
+   * reserve in the ambient `tx`, the reservation and the accept round, the siblings on exhausted listings, one
+   * `TradeAccepted`. A listings refusal rolls it back; a follow-up transaction marks the own offer Unfulfillable and the
+   * refusal propagates (Q-fail). After commit, exactly one contact handoff; its failure leaves `handoff: null` (Q2).
+   */
+  async acceptOffer(input: AcceptOfferRequest): Promise<AcceptOfferResponse> {
+    const { repo, transactions, clock, outbox, listings } = this.deps;
+    const { offerId, expectedVersion, sellerId } = input;
+    const at = clock.now();
+    const now = at.toISOString();
+    let accepted: { offer: OfferRow; unfulfillableOfferIds: CuidId[]; reservationRef: AcceptOfferResponse['reservationRef'] };
+    try {
+      accepted = await transactions.run(async (tx) => {
+        const { offer, role } = await this.visibleOffer(tx, offerId, sellerId, true);
+        this.refuseAction(offer, expectedVersion, 'seller', at, 'FR-TRD-4');
+        if (role !== 'seller') raise('NotYourTurn', [{ rule: 'FR-TRD-4', inputs: { offerId, turn: offer.turn } }]);
+        if (!(await repo.acceptOffer(tx, { offerId, expectedVersion, now }))) throw new UnexpectedError(`Unexpected: offer ${offerId} changed under the trd:seller lock`);
+        let reserved: Awaited<ReturnType<typeof listings.reserveForTrade>>;
+        try {
+          await listings.getTradeability(tx, { listingId: offer.listingId });
+          reserved = await listings.reserveForTrade(tx, { listingId: offer.listingId, qty: 1 });
+        } catch (error) {
+          throw new ListingsRefusal(error);
+        }
+        await repo.storeReservation(tx, offerId, reserved.reservationRef);
+        await repo.appendRound(tx, { offerId, actor: 'seller', action: 'accept', terms: null, now });
+        const siblings = await repo.markUnfulfillable(tx, { listingIds: reserved.exhaustedListingIds, exceptOfferId: offerId }, now);
+        for (const sibling of siblings) {
+          await repo.appendRound(tx, { offerId: sibling, actor: 'seller', action: 'markedUnfulfillable', terms: null, now });
+          await this.audit(tx, sellerId, 'trading.offer.unfulfillable', sibling, 'ListingNoLongerAvailable', { acceptedOfferId: offerId }, now);
+        }
+        await outbox.enqueue(tx, 'TradeAccepted', offerId, {
+          tradeOfferId: offerId, listingId: offer.listingId, sellerId: offer.sellerId, proposerId: offer.proposerId, terms: offer.terms, acceptedAt: now,
+        });
+        await this.audit(tx, sellerId, 'trading.offer.accepted', offerId, 'TradeOfferAccepted', { listingId: offer.listingId, unfulfillable: siblings.length }, now);
+        return { offer, unfulfillableOfferIds: siblings, reservationRef: reserved.reservationRef };
+      });
+    } catch (error) {
+      if (!(error instanceof ListingsRefusal)) throw error;
+      // AD-TRD-2 rule 3: the own offer is Unfulfillable (a no-op when already marked); the refusal propagates.
+      await transactions.run(async (tx) => {
+        const offer = await repo.readOffer(tx, offerId);
+        if (offer === null) return;
+        await repo.lockTradeSeller(tx, offer.sellerId);
+        for (const own of await repo.markUnfulfillable(tx, { offerId }, now)) {
+          await repo.appendRound(tx, { offerId: own, actor: 'seller', action: 'markedUnfulfillable', terms: null, now });
+          await this.audit(tx, sellerId, 'trading.offer.unfulfillable', own, 'ListingNoLongerAvailable', { acceptedOfferId: offerId }, now);
+        }
+      });
+      throw error.cause;
+    }
+    const { offer, unfulfillableOfferIds, reservationRef } = accepted;
+    return {
+      offerId, status: 'Accepted', reservationRef, unfulfillableOfferIds,
+      handoff: await this.handoffOf(offer).catch(() => null),
+      decision: explained('allowed', 'TradeOfferAccepted', [{ rule: 'FR-TRD-4', inputs: { offerId, listingId: offer.listingId, reservedQty: 1 } }], now),
+    };
+  }
+
+  /** TRD-1 Q2, S-FR-TRD-3.handoff (FR-TRD-6): the proposer's deterministic MSG-2 trade message, from the accepted terms. */
+  private handoffOf(offer: OfferRow): Promise<GetHandoffResponse> {
+    return this.deps.listings.generateContactMessage({
+      kind: 'trade', listingId: offer.listingId, requesterId: offer.proposerId, ipHmac: null,
+      tradeSummary: { offeredItems: offer.terms.offeredItems.map((i) => ({ itemRef: i.itemRef, condition: i.condition, qty: i.qty })), cashCop: offer.terms.cashCop },
+    });
   }
 
   /**
@@ -232,8 +303,15 @@ export class TrdServiceV2 implements TrdV2UseCases {
     throw new NotImplementedError('trading.cancelTrade');
   }
 
-  async getHandoff(_input: GetHandoffRequest): Promise<GetHandoffResponse> {
-    throw new NotImplementedError('trading.getHandoff');
+  /**
+   * S-FR-TRD-3.handoff: for a party to an Accepted offer, the same deterministic call as the accept's (zero trading
+   * writes); any other status is `TradeNotAccepted` (decision log Impl-1 #35, D5).
+   */
+  async getHandoff(input: GetHandoffRequest): Promise<GetHandoffResponse> {
+    const at = this.deps.clock.now();
+    const { offer } = await this.reading((tx) => this.visibleOffer(tx, input.offerId, input.actorId, false));
+    if (offer.status !== 'Accepted') raise('TradeNotAccepted', [{ rule: 'FR-TRD-6', inputs: { offerId: offer.id, status: deriveOfferStatus(offer, at) } }]);
+    return this.handoffOf(offer);
   }
 
   async confirmCompletion(_input: ConfirmCompletionRequest): Promise<ConfirmCompletionResponse> {

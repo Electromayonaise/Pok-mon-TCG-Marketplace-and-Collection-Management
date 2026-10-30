@@ -1,19 +1,22 @@
 // TrdServiceV2 against Postgres with the real listings neighbour: the edges the ATDD tests leave out — the S-FR-TRD-1
 // refusals with zero writes, the proposer's own expired offer materialized before a new one, reject and withdraw by
 // the wrong party, and the paged "my trades" list.
+import pg from 'pg';
 import { describe, expect, it } from 'vitest';
-import { useTestDatabase } from '../../../../test-support/db.js';
+import { PgTransactionRunner, useTestDatabase } from '../../../../test-support/db.js';
+import { PG } from '../../../../test-support/env.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
 import { caught, citedInputs } from '../../../../test-support/errors.js';
 import { at, catalogEntry, HOUR, id, individualSeller, listing, rows, tradeOffer, unit, user, wiring } from '../../../../test-support/solu2/fixtures.js';
 import { realTradeListings } from '../../../../test-support/solu2/services.js';
+import type { TransactionRunner } from '../../../shared-kernel/ports.js';
 import type { TradeTermsDTO } from '../dto/trd.v2.dto.js';
 import { TrdServiceV2 } from './trd.v2.js';
 
 const db = useTestDatabase();
 
-function trading() {
-  const w = wiring(db);
+function trading(transactions: TransactionRunner = db.transactions) {
+  const w = { ...wiring(db), transactions };
   return new TrdServiceV2({ ...w, listings: realTradeListings(w) });
 }
 async function scene(openToTrade = true): Promise<void> {
@@ -97,5 +100,40 @@ describe('TrdServiceV2.counterOffer (TRD-2) with the real listings', () => {
     const view = await trd.getOffer({ offerId, actorId: id('valentina') });
     expect(view.rounds.map((r) => [r.round, r.actor, r.action, r.terms?.cashCop])).toEqual([[1, 'proposer', 'offer', 0], [2, 'seller', 'counter', 10_000], [3, 'proposer', 'counter', 5_000]]);
     expect(await rows(db, 'audit_events', `action = 'trading.offer.countered'`)).toHaveLength(2);
+  });
+});
+
+describe('TrdServiceV2.acceptOffer and getHandoff (TRD-1, S-FR-TRD-3.handoff) with the real listings', () => {
+  it('runs on a pool of 1, names the offered card in the handoff, and the handoff page regenerates the same text', async () => {
+    await scene();
+    await catalogEntry(db, id('pika'), { name: 'Pikachu ex' });
+    const { offerId } = await make({ terms: terms({ offeredItems: [{ itemRef: id('pika'), condition: 'LP', qty: 1 }], cashCop: 20_000 }) });
+    expect(codeOf(await caught(() => trading().getHandoff({ offerId, actorId: id('julian') })))).toBe('TradeNotAccepted');
+    expect(codeOf(await caught(() => trading().acceptOffer({ offerId, expectedVersion: 0, sellerId: id('julian') })))).toBe('NotYourTurn');
+    const pool = new pg.Pool({ ...PG, database: (db.pool.options as { database: string }).database, max: 1 });
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const deadlock = new Promise<never>((_, reject) => { watchdog = setTimeout(() => reject(new Error('deadlock: a second connection was requested')), 3_000); });
+      const result = await Promise.race([trading(new PgTransactionRunner(pool)).acceptOffer({ offerId, expectedVersion: 0, sellerId: id('valentina') }), deadlock]);
+      expect(result).toMatchObject({ status: 'Accepted', reservationRef: { listingId: id('lv'), units: [{ inventoryUnitId: id('uv'), qty: 1 }] }, decision: { reasonCode: 'TradeOfferAccepted' } });
+      expect(result.handoff?.text).toContain('1× Pikachu ex (LP)');
+      expect((await trading().getHandoff({ offerId, actorId: id('valentina') })).text).toBe(result.handoff?.text);
+    } finally {
+      clearTimeout(watchdog);
+      await pool.end();
+    }
+    expect((await rows(db, 'TradeOffer', 'id = $1', [offerId]))[0]).toMatchObject({ status: 'Accepted', version: 1 });
+    expect((await rows<{ quantity: number }>(db, 'InventoryUnit'))[0]?.quantity).toBe(0);
+  });
+
+  it('a listing closed to trade after the offer leaves the offer Unfulfillable, with no reservation, event or accept round (AD-TRD-2 rule 3)', async () => {
+    await scene();
+    const { offerId } = await make();
+    await db.query(`UPDATE "Listing" SET "openToTrade" = false`);
+    expect(codeOf(await caught(() => trading().acceptOffer({ offerId, expectedVersion: 0, sellerId: id('valentina') })))).toBe('ListingNotOpenToTrade');
+    expect((await rows(db, 'TradeOffer'))[0]).toMatchObject({ status: 'Unfulfillable', reservationRef: null });
+    expect((await rows(db, 'TradeOfferRound', `"offerId" = $1`, [offerId])).map((r) => r.action)).toEqual(['offer', 'markedUnfulfillable']);
+    expect(await rows(db, 'OutboxEvent')).toHaveLength(0);
+    expect((await rows<{ quantity: number }>(db, 'InventoryUnit'))[0]?.quantity).toBe(1);
   });
 });

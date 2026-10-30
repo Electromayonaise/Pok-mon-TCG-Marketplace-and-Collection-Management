@@ -16,6 +16,7 @@ import { renderMessage } from '../../../shared-kernel/messages.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import type { IsoInstant } from '../../../shared-kernel/types.js';
 import { composeContactMessage } from '../domain/contact.js';
+import type { TradeSummaryDTO } from '../dto/contact.v2.dto.js';
 import type { ContactWindows } from '../ports/contact.v2.js';
 
 const raise = raiserFor('listings');
@@ -28,6 +29,9 @@ const LIMITS = [
 ] as const satisfies readonly { window: Exclude<keyof ContactWindows, 'repeat'>; limit: number; ms: number; rule: string }[];
 
 const IP_HMAC = /^[0-9a-f]{64}$/;
+
+/** FR-TRD-1: the most cash a trade carries. */
+const MAX_TRADE_CASH_COP = 100_000_000;
 
 /** MSG-2: the WhatsApp contact handoff, hosted in listings (contracts.md §9, AD-4). */
 export class ContactServiceV2 implements ContactV2UseCases {
@@ -68,13 +72,34 @@ export class ContactServiceV2 implements ContactV2UseCases {
       const { names } = await identity.getDisplayNames({ userIds: [requesterId] });
       const message = composeContactMessage({
         kind, sellerName: card.displayName, phoneE164: card.contactPhoneE164, productName, condition: listing.unit?.condition ?? null, priceCop: listing.priceCop,
-        trade: kind === 'trade' && tradeSummary !== null ? { offeredItems: tradeSummary.offeredItems, cashCop: BigInt(tradeSummary.cashCop) } : null,
+        trade: kind === 'trade' && tradeSummary !== null ? await this.tradeTerms(tradeSummary) : null,
       });
       return {
         text: message.text, externalUrl: message.externalUrl, copyText: message.copyText,
         requesterDisplayName: names[0]?.displayName ?? '', decision: decisionOf(message.truncationSteps, message.externalUrl.length, now),
       };
     });
+  }
+
+  /**
+   * The trade path's terms (decision log Impl-1 #35, D3 and D6): each item named through catalog unless it carries a
+   * name. TRD-1 validated the terms before storing them, so an empty summary, a cash outside 0–100,000,000 or an
+   * unknown item is a broken caller.
+   */
+  private async tradeTerms(summary: TradeSummaryDTO): Promise<{ offeredItems: { name: string; condition: string; qty: number }[]; cashCop: bigint }> {
+    const { offeredItems, cashCop } = summary;
+    if (!Number.isSafeInteger(cashCop) || cashCop < 0 || cashCop > MAX_TRADE_CASH_COP) throw new UnexpectedError(`Unexpected: trade cash ${String(cashCop)} is outside 0–100,000,000`);
+    if (offeredItems.length === 0 && cashCop === 0) throw new UnexpectedError('Unexpected: an empty trade summary');
+    const refs = [...new Set(offeredItems.flatMap((i) => (i.name === undefined && i.itemRef !== undefined ? [i.itemRef] : [])))];
+    const names = new Map(refs.length === 0 ? [] : (await this.deps.catalog.getEntries({ catalogEntryIds: refs })).entries.map((e) => [e.catalogEntryId, e.name]));
+    return {
+      cashCop: BigInt(cashCop),
+      offeredItems: offeredItems.map(({ itemRef, name, condition, qty }) => {
+        const resolved = name ?? (itemRef === undefined ? undefined : names.get(itemRef));
+        if (resolved === undefined) throw new UnexpectedError(`Unexpected: trade item ${itemRef ?? '(no ref)'} has no name in the catalog`);
+        return { name: resolved, condition, qty };
+      }),
+    };
   }
 
   private async entryName(catalogEntryId: string): Promise<string> {

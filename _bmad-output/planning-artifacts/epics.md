@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 385 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 386 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -1184,11 +1184,11 @@ Let collectors negotiate card-and-cash trades turn by turn on individual listing
 - **Binding invariants:** AD-4 — Trading is a one-way flow off `listings` (`CHECK (sellerKindAtCreation='individual' OR NOT openToTrade)`; `getTradeability` / `reserveForTrade` ports); AD-TRD-2 — Accept serialized per seller (`trd:seller` advisory lock); also cited by its clauses: AD-6, AD-TRD-1, AD-TRD-3
 - **Files:** `src/modules/trading/application/trd.v2.ts` (`TrdServiceV2.acceptOffer`, `TrdServiceV2.getHandoff`), `src/modules/trading/ports/trd.v2.ts` (`TrdRepository`), `src/modules/trading/domain/trd.ts`, `src/modules/trading/infra/pg.ts`
 - **Schema/DTO:** tables `"TradeOffer"`; DTOs `AcceptOfferRequest` → `AcceptOfferResponse`, `GetHandoffRequest` → `GetHandoffResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/trd_contracts.test.ts` › `[TRD-1.Q1]`, `[TRD-1.Q3]`, `[TRD-1.F1]`, `[TRD-1.I1]`, `[TRD-1.MEC]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/trd_contracts.test.ts` › `[TRD-1.Q1]`, `[TRD-1.Q3]`, `[TRD-1.F1]`, `[TRD-1.I1]`, `[TRD-1.MEC]`; `_bmad-output/test-artifacts/nfr/trd2_latency.test.ts` › `[NFR-TRD-2.accept]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Julián's offer on Valentina's listing. **When:** she accepts. **Then:** Accepted with a reservation, one accept round, one `TradeAccepted` with no delivery row, and one contact handoff for Julián.
   - **Scenario (failure) — Given:** two offers for the last unit accepted from two sessions, 100 times; the handoff fails after commit. **When:** both accepts run. **Then:** one Accepted and one Unfulfillable, stock 0, one event and one handoff; siblings on the exhausted listing become Unfulfillable; the accept stands with `handoff: null`.
-- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7).
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7).
 
 ### Story 10.4: Refuse stale, out-of-turn and duplicate offer actions
 

@@ -199,6 +199,8 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
     'messaging.send': ({ target, body, clientMessageId }, senderId) => s.msg.sendMessage({ target, body, clientMessageId, senderId }),
     'trading.offer': ({ listingId, terms }, proposerId) => s.trd.makeOffer({ listingId, terms, proposerId }),
     'trading.counter': ({ offerId, terms, expectedVersion }, actorId) => s.trd.counterOffer({ offerId, terms, expectedVersion, actorId }),
+    'trading.accept': ({ offerId, expectedVersion }, sellerId) => s.trd.acceptOffer({ offerId, expectedVersion, sellerId }),
+    'trading.handoff': ({ offerId }, actorId) => s.trd.getHandoff({ offerId, actorId }),
     'trading.reject': ({ offerId, expectedVersion }, actorId) => s.trd.resolveOffer({ offerId, expectedVersion, actorId, action: 'reject' }),
     'trading.withdraw': ({ offerId, expectedVersion }, actorId) => s.trd.resolveOffer({ offerId, expectedVersion, actorId, action: 'withdraw' }),
     'trading.get': ({ offerId }, actorId) => s.trd.getOffer({ offerId, actorId }),

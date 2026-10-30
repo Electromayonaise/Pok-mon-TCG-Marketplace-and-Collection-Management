@@ -63,6 +63,17 @@ describe('ContactServiceV2.generateContactMessage (MSG-2)', () => {
     expect(await rows(db, 'ContactRequestLog')).toHaveLength(30);
   });
 
+  it('a trade summary of itemRefs is named through catalog; an empty or out-of-range summary is Unexpected (decision log Impl-1 #35)', async () => {
+    await seed();
+    await catalogEntry(db, id('pika'), { name: 'Pikachu ex' });
+    const trade = (tradeSummary: Parameters<ContactServiceV2['generateContactMessage']>[0]['tradeSummary']) =>
+      contactService().generateContactMessage({ kind: 'trade', listingId: lid(), requesterId: id('camila'), tradeSummary, ipHmac: null });
+    expect((await trade({ offeredItems: [{ itemRef: id('pika'), condition: 'NM', qty: 2 }], cashCop: 20_000 })).text).toContain('2× Pikachu ex (NM)');
+    expect(codeOf(await caught(() => trade({ offeredItems: [], cashCop: 0 })))).toBe('Unexpected');
+    expect(codeOf(await caught(() => trade({ offeredItems: [], cashCop: 100_000_001 })))).toBe('Unexpected');
+    expect(codeOf(await caught(() => trade({ offeredItems: [{ itemRef: id('ghost'), condition: 'NM', qty: 1 }], cashCop: 0 })))).toBe('Unexpected');
+  });
+
   it('a repeat for the same listing within 60 min is logged uncounted and never refused, even past the hourly limit (EC-36)', async () => {
     await seed();
     for (let k = 0; k < 29; k++) await log({ n: `r${k}`, listingId: id(`o${k}`), sellerId: id(`x${k}`), createdAt: at(-30 * 60_000) });

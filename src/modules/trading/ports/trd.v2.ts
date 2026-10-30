@@ -88,6 +88,18 @@ export interface TrdRepository {
    * Open, the actor's turn, the version, `expiresAt > now` and `roundCount < 10`; null when no row matched.
    */
   counterOffer(tx: Tx, c: { offerId: CuidId; role: OfferRole; expectedVersion: number; terms: TradeTermsDTO; now: IsoInstant }): Promise<{ version: number; turn: OfferRole; roundCount: number } | null>;
+  /**
+   * TRD-1 Q1 step 2 (AD-TRD-1 rule 1): `Open → Accepted` at the seller's turn and version, unexpired. The schema requires
+   * an Accepted offer to hold a reservation, so a placeholder `{ listingId, units: [] }` stands until step 5 stores it.
+   */
+  acceptOffer(tx: Tx, c: { offerId: CuidId; expectedVersion: number; now: IsoInstant }): Promise<boolean>;
+  /** TRD-1 Q1 step 5: the reservation the accept took. */
+  storeReservation(tx: Tx, offerId: CuidId, reservationRef: ReservationRefDTO): Promise<void>;
+  /**
+   * TRD-1 Q1 step 6 and Q-fail (AD-TRD-2 rules 2–3): `Open → Unfulfillable` (`ListingNoLongerAvailable`) of the Open
+   * offers on the given listings, or of one offer; `roundCount` unchanged. Returns the ids marked, sorted.
+   */
+  markUnfulfillable(tx: Tx, scope: { listingIds: CuidId[]; exceptOfferId: CuidId } | { offerId: CuidId }, now: IsoInstant): Promise<CuidId[]>;
   /** S-FR-TRD-3.mine: the actor's offers on a side, optionally by derived status, newest change first. */
   listOffers(tx: Tx, q: { actorId: CuidId; side: 'sent' | 'received' | 'any'; status: OfferStatus | null; after: { updatedAt: IsoInstant; id: CuidId } | null; limit: number; now: IsoInstant }): Promise<OfferRow[]>;
 }

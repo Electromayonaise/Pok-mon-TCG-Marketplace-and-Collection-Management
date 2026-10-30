@@ -732,4 +732,20 @@ describe('trading over HTTP (S-FR-TRD-1, S-FR-TRD-2w, S-FR-TRD-3; Story 10.1)', 
     const self = await post('trading.offer', { listingId: id('lv'), terms: offerTerms }, await signIn(id('valentina')));
     expect([self.status, self.json.error?.code]).toEqual([409, 'SelfTradeNotAllowed']);
   });
+
+  it('the seller accepts over HTTP: the last unit is reserved and the proposer gets the wa.me handoff (TRD-1; Story 10.3)', async () => {
+    await individualSeller(db, id('valentina'));
+    await user(db, { id: id('julian') });
+    await catalogEntry(db, id('char'));
+    await unit(db, { id: id('uv'), sellerId: id('valentina'), catalogEntryId: id('char'), quantity: 1 });
+    await listing(db, { id: id('lv'), sellerId: id('valentina'), unitId: id('uv'), sellerKind: 'individual', openToTrade: true });
+    const julian = await signIn(id('julian'));
+    const made = await post('trading.offer', { listingId: id('lv'), terms: { offeredItems: [], cashCop: 20_000, requestedQty: 1 } }, julian);
+    const offerId = made.json.result!.data.offerId as string;
+    const accepted = await post('trading.accept', { offerId, expectedVersion: 0 }, await signIn(id('valentina')));
+    expect([accepted.status, accepted.json.result?.data]).toEqual([200, expect.objectContaining({ status: 'Accepted', handoff: expect.objectContaining({ externalUrl: expect.stringMatching(/^https:\/\/wa\.me\/573001234567\?text=/) }) })]);
+    const handoff = await get('trading.handoff', { offerId }, julian);
+    expect(handoff.json.result?.data.text).toBe((accepted.json.result?.data.handoff as { text: string }).text);
+    expect(await rows(db, 'OutboxEvent', `type = 'TradeAccepted'`)).toHaveLength(1);
+  });
 });

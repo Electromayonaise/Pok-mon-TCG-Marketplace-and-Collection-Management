@@ -54,4 +54,22 @@ describe('NFR-TRD-2 — trade offer latency (PRD §7)', () => {
     }));
     expect(result.p95).toBeLessThanOrEqual(500);
   }, 300_000);
+
+  it('[NFR-TRD-2.accept] 500 measured accepts on the §3 seed: p95 ≤ 800 ms', async () => {
+    await seedMarketplace(db);
+    const listings = (await tradeListings()).slice(0, 3);
+    // Given: 550 Open offers at the seller's turn, one per (listing, buyer); each accept reserves one unit, so the
+    // three listings' units hold 550 copies.
+    await db.query(`UPDATE "InventoryUnit" SET quantity = 999 WHERE id IN (SELECT "inventoryUnitId" FROM "Listing" WHERE id = ANY($1::text[]))`, [listings.map((l) => l.id)]);
+    for (let k = 0; k < 550; k++) {
+      const l = listings[Math.floor(k / 200)]!;
+      await tradeOffer(db, { id: `bench${String(k).padStart(19, '0')}`, listingId: l.id, sellerId: l.sellerId, proposerId: buyerId(k % 200) });
+    }
+    const trd = trading();
+    const result = await measure('nfr-trd-2-accept', async (k) => {
+      const accepted = await trd.acceptOffer({ offerId: `bench${String(k).padStart(19, '0')}`, expectedVersion: 0, sellerId: listings[Math.floor(k / 200)]!.sellerId });
+      if (accepted.handoff === null) throw new Error('the handoff failed');
+    });
+    expect(result.p95).toBeLessThanOrEqual(800);
+  }, 300_000);
 });

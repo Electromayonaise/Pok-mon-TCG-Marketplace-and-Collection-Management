@@ -6999,6 +6999,26 @@ paths:
                               - "TradeOfferNotVisibleToCaller"
                           httpStatus:
                             const: 403
+        "409":
+          description: "Refusal: TradeNotAccepted."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "TradeNotAccepted"
+                          httpStatus:
+                            const: 409
         "500":
           "$ref": "#/components/responses/Unexpected"
       parameters:
