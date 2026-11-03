@@ -1,7 +1,7 @@
 // Dependency gate (Impl-1 statement §4.2–4.3): every manifest entry is pinned to an exact version
 // and is on the approved list below, and `npm audit --omit=dev` finds nothing high or critical.
 // The list is the Solu-2 Stack Decisions (_bmad-output/planning-artifacts/ARCHITECTURE-v2-delta.md, "SD-n") plus the
-// Impl-1 decision log (_bmad-output/decision-logs/impl-1-ai-decision-log.md, "#n"); adding a package means a
+// Impl-1 and Impl-2 decision logs (_bmad-output/decision-logs/impl-1-ai-decision-log.md "#n", impl-2-ai-decision-log.md "Impl-2 #n"); adding a package means a
 // log entry first, then a line here.
 //
 // Usage: node scripts/check-deps.mjs   exit 1 on any finding
@@ -28,6 +28,8 @@ const APPROVED = {
     '@prisma/adapter-pg': '#6 (Better Auth over the pg pool), #8',
     vitest: 'SD-5 (Vitest 5.0.5)',
     'fast-check': 'SD-5 (fast-check 4.10.2)',
+    '@vitest/coverage-v8': 'Impl-2 #3 (branch coverage of the domain cores, the peer of vitest 5.0.5)',
+    '@playwright/test': 'Impl-2 #3 (Flow E: browser E2E with Page Objects and traces)',
   },
   'tools/lint': {
     eslint: '#7',

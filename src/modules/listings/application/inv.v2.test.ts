@@ -1,8 +1,6 @@
 // INV against Postgres with the real neighbours: the edges the ATDD tests leave out.
-import pg from 'pg';
 import { describe, expect, it } from 'vitest';
 import { PgTransactionRunner, useTestDatabase } from '../../../../test-support/db.js';
-import { PG } from '../../../../test-support/env.js';
 import { caught, citedInputs } from '../../../../test-support/errors.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
 import { business, catalogEntry, commissionState, fake, id, individualSeller, listing, purchasableListing, rows, T0, unit, user, wiring } from '../../../../test-support/solu2/fixtures.js';
@@ -12,6 +10,8 @@ import type { CatalogFeedSource, FxRateSource } from '../../../shared-kernel/ext
 import type { TransactionRunner } from '../../../shared-kernel/ports.js';
 import type { CatalogForInv, IdentityForInv } from '../ports/inv.v2.js';
 import { InvServiceV2 } from './inv.v2.js';
+import { untilBlockedOnLock } from '../../../../test-support/locks.js';
+import { singleConnectionPool } from '../../../../test-support/single-connection.js';
 
 const db = useTestDatabase();
 
@@ -27,17 +27,14 @@ describe('reserveForPurchase with the real neighbours (INV-1, AD-SYS-4 rule 9)',
   it('runs inside a transaction on a pool of 1: identity and catalog read on the ambient connection', async () => {
     await andres(1);
     await listing(db, { id: id('lchar2'), sellerId: id('andres'), unitId: id('uchar'), priceCop: 48_000 });
-    const pool = new pg.Pool({ ...PG, database: (db.pool.options as { database: string }).database, max: 1 });
-    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    const pool = singleConnectionPool(db);
     try {
       const transactions = new PgTransactionRunner(pool);
       const inv = inventory(transactions);
-      const deadlock = new Promise<never>((_, reject) => { watchdog = setTimeout(() => reject(new Error('deadlock: a second connection was requested')), 3_000); });
-      const result = await Promise.race([transactions.run((tx) => inv.reserveForPurchase(tx, { listingId: id('lchar'), qty: 1, buyerId: id('camila') })), deadlock]);
+      const result = await transactions.run((tx) => inv.reserveForPurchase(tx, { listingId: id('lchar'), qty: 1, buyerId: id('camila') }));
       expect(result.snapshot).toEqual({ title: `Carta ${id('char').slice(0, 6)}`, itemRef: id('char'), condition: 'NM', unitPriceCop: 45_000, components: null });
       expect(result.exhaustedListingIds).toEqual([id('lchar'), id('lchar2')].sort());
     } finally {
-      clearTimeout(watchdog);
       await pool.end();
     }
   });
@@ -290,7 +287,8 @@ describe('Epic 8: the seller advisory lock (AD-SYS-4 rule 4, decision log Impl-1
     const creation = inv.createListing({ itemRef: id('char'), condition: 'NM', priceCop: 45_000, quantity: 1, location: null, description: '', openToTrade: false, sellerId: id('andres') })
       .then((r) => { created = true; return r; });
     try {
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      // Postgres reports the creation waiting on the seller's advisory lock: the block is proven, not timed.
+      await untilBlockedOnLock(db, "hashtextextended('listings:seller:'");
       expect(created).toBe(false);
     } finally {
       // Released on a failed assertion too, so the subscriber's transaction never outlives the test.

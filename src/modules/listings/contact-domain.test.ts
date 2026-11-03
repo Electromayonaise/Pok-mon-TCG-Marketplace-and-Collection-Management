@@ -53,7 +53,10 @@ describe('composeContactMessage (MSG-2 Q1)', () => {
     expect(m.text).toMatch(/1× Ñ+… \(NM\)/u);
     expect(m.truncationSteps).toContain('offeredItems');
     for (const item of offeredItems) expect(m.copyText).toContain(`${item.qty}× ${item.name} (${item.condition})`);
-    if (m.truncationSteps.includes('collapsedItems')) expect(m.text).toMatch(/\+\d+ más/);
+    // Decision log Impl-2 #9: this input fits without collapsing (the collapse has its own test below);
+    // the former conditional assertion never ran.
+    expect(m.truncationSteps).toEqual(['offeredItems']);
+    expect(m.text).not.toMatch(/\+\d+ más/);
   });
 
   it('equal inputs give byte-identical outputs (AD-MSG-1 rule 4)', () => {
@@ -74,5 +77,31 @@ describe('composeContactMessage (MSG-2 Q1)', () => {
     expect(m.text).toContain('$45.000 COP');
     expect(m.text).toContain('(NM)');
     expect(m.copyText).toContain('ñ'.repeat(400));
+  });
+
+  // Flow C backfill (decision log Impl-2 #8): the two truncation steps no earlier test forced.
+  it('collapsedItems: 10 offered items that cannot fit even at 20 graphemes collapse into "+N más", keeping the first item, the cash and the price', () => {
+    const family = '👨‍👩‍👧‍👦';
+    const offeredItems = Array.from({ length: 10 }, (_, k) => ({ name: `${family.repeat(30)}${k}`, condition: 'NM', qty: 1 }));
+    const m = composeContactMessage(purchase({ kind: 'trade', trade: { offeredItems, cashCop: 20_000n } }));
+    expect(m.truncationSteps).toEqual(['offeredItems', 'collapsedItems']);
+    expect(m.externalUrl.length).toBeLessThanOrEqual(MAX_URL_LENGTH);
+    expect(m.text).toMatch(/1× (?:👨‍👩‍👧‍👦){20}… \(NM\), \+\d+ más y \$20\.000 COP/u);
+    expect(m.text).toContain('$45.000 COP');
+    expect(decoded(m.externalUrl)).toBe(m.text);
+  });
+
+  it('overflow with an offered item: the seller, product and item names shrink together below 20 until the URL fits; quantities and conditions stay', () => {
+    const family = '👨‍👩‍👧‍👦';
+    const m = composeContactMessage(purchase({
+      kind: 'trade', sellerName: family.repeat(40), productName: family.repeat(40),
+      trade: { offeredItems: [{ name: family.repeat(40), condition: 'LP', qty: 3 }], cashCop: 0n },
+    }));
+    expect(m.truncationSteps).toEqual(['productName', 'offeredItems', 'overflow']);
+    expect(m.externalUrl.length).toBeLessThanOrEqual(MAX_URL_LENGTH);
+    expect(m.text).toContain('3× ');
+    expect(m.text).toContain('(LP)');
+    expect(m.text).toContain('$45.000 COP');
+    expect(m.copyText).toContain(family.repeat(40));
   });
 });

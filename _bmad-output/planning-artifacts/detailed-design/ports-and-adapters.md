@@ -108,7 +108,7 @@ In every row, *file* is relative to `src/modules/<host>/`. Each **Driving Adapte
 |---|---|---|---|
 | Router `trading` (8 procedures); job `expiry-materialize` (offers) | **Driving Adapter** | `server/trpc/` | AD-TRD-1 |
 | `TrdV2UseCases` (9) | **Inbound Port** | `application/trd.v2.ts` | contracts §8 |
-| `deriveOfferStatus`, `turnVerdict` (existing); `canonicalTerms` for G-1 (new, TRD-2 story) | **Core Domain** | `domain/trd.ts` | AD-TRD-1 rules 3, 5 |
+| `deriveOfferStatus`, `offerActionRefusal` (which replaced `turnVerdict`, removed as dead code by decision log Impl-2 #8); `canonicalTerms` for G-1 (new, TRD-2 story) | **Core Domain** | `domain/trd.ts` | AD-TRD-1 rules 3, 5 |
 | `ListingsForTrd` (P-INV.trade, P-INV.tradeability, S-FR-INV-5, P-INV.refs, MSG-2) | **Outbound Port** | `ports/trd.v2.ts` | AD-1 (`trading → listings` only; OQ-6) |
 | `PgTradeRepository` | **Driven Adapter** (Database) | `infra/pg.ts` | AD-TRD-2 lock order |
 

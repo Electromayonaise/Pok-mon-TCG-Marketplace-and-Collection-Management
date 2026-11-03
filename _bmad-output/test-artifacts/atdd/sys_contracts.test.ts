@@ -3,7 +3,6 @@
 // functions of the same ADs (import graph, table ownership, payload registry, wall-clock scan,
 // socket guard, grants) hold already and run green in _bmad-output/test-artifacts/fitness/.
 import fs from 'node:fs';
-import pg from 'pg';
 import { describe, expect, it } from 'vitest';
 import { DOMAIN_ERRORS, HTTP_STATUS, type DomainErrorCode } from '../../../src/shared-kernel/codes.js';
 import { DomainError } from '../../../src/shared-kernel/errors.js';
@@ -17,10 +16,10 @@ import { toErrorBody } from '../../../src/server/trpc/errors.js';
 import { describeProceduresV2 } from '../../../src/server/trpc/router.v2.js';
 import { IdnServiceV2 } from '../../../src/modules/identity/index.js';
 import { PgTransactionRunner, useTestDatabase } from '../../../test-support/db.js';
-import { PG } from '../../../test-support/env.js';
 import { caught, httpOf } from '../../../test-support/errors.js';
 import { codeOf } from '../../../test-support/concurrency.js';
 import { admin, at, DAY, explainAssert, HOUR, id, ins, rows, T0, user, wiring } from '../../../test-support/solu2/fixtures.js';
+import { singleConnectionPool } from '../../../test-support/single-connection.js';
 
 const db = useTestDatabase();
 const cite = [{ rule: 'AD-SYS-1', inputs: { probe: 1 } }] as [{ rule: string; inputs: { probe: number } }];
@@ -135,17 +134,14 @@ describe('SYS-2.R6 — dispatch (AD-SYS-2 rules 1, 5, 6; AD-10)', () => {
 
 describe('SYS-4.R9 — getSellerVerification (AD-SYS-4 rule 9)', () => {
   it('[SYS-4.R9] a neighbour query inside an open transaction completes with a pool of 1 (no second connection)', async () => {
-    const pool = new pg.Pool({ ...PG, database: (db.pool.options as { database: string }).database, max: 1 });
-    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    const pool = singleConnectionPool(db);
     try {
       const w = { ...wiring(db), transactions: new PgTransactionRunner(pool) };
       await user(db, { id: id('julian') });
       const idn = new IdnServiceV2(w);
-      const deadlock = new Promise<never>((_, reject) => { watchdog = setTimeout(() => reject(new Error('deadlock: a second connection was requested')), 3_000); });
-      const result = await Promise.race([w.transactions.run(() => idn.getSellerVerification({ sellerId: id('julian') })), deadlock]);
+      const result = await w.transactions.run(() => idn.getSellerVerification({ sellerId: id('julian') }));
       expect(result).toEqual({ status: 'none' });
     } finally {
-      clearTimeout(watchdog);
       await pool.end();
     }
   });

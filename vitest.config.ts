@@ -5,6 +5,16 @@ import { defineConfig } from 'vitest/config';
 // per run. The Solu-1 projects were retired with the Solu-1 artifacts (git 853449c).
 export default defineConfig({
   test: {
+    // Impl-2 statement §5: ≥ 90 % branch coverage on the core domain logic, per file, so no weak
+    // core hides behind the total (decision log Impl-2 #8). `npm run test:unit` measures it from the
+    // impl1-unit project, which holds the pure domain tests and the colocated integration tests.
+    coverage: {
+      provider: 'v8',
+      include: ['src/modules/*/domain/**/*.ts'],
+      reporter: ['text', 'json-summary'],
+      reportsDirectory: '.coverage',
+      thresholds: { perFile: true, branches: 90 },
+    },
     projects: [
       // Solu-2 (_bmad-output/test-artifacts/): the detailed-design schema, with the NFR-SYS-3 network guard.
       {

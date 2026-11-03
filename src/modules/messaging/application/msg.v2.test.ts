@@ -1,10 +1,8 @@
 // MsgServiceV2.sendMessage (MSG-1) against Postgres with the real identity: the edges the ATDD tests leave out —
 // the P2 refusals, the business's reply, the read-only thread of a Rejected business, the audit row without the
 // body, a retry after the business was approved, and the send on a pool of 1 (AD-SYS-4 rule 9).
-import pg from 'pg';
 import { describe, expect, it } from 'vitest';
 import { PgTransactionRunner, useTestDatabase } from '../../../../test-support/db.js';
-import { PG } from '../../../../test-support/env.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
 import { caught, citedInputs } from '../../../../test-support/errors.js';
 import { admin, business, conversation, id, rejectionReason, rows, user, wiring } from '../../../../test-support/solu2/fixtures.js';
@@ -12,6 +10,7 @@ import { IdnServiceV2, VerServiceV2 } from '../../identity/index.js';
 import type { TransactionRunner } from '../../../shared-kernel/ports.js';
 import type { SendMessageRequest } from '../dto/msg.v2.dto.js';
 import { MsgServiceV2 } from './msg.v2.js';
+import { singleConnectionPool } from '../../../../test-support/single-connection.js';
 
 const db = useTestDatabase();
 
@@ -109,13 +108,10 @@ describe('MsgServiceV2.sendMessage (MSG-1)', () => {
   it('runs on a pool of 1: the eligibility read joins the send\'s connection', async () => {
     await user(db, { id: id('camila') });
     await business(db, id('andres'), 'Approved');
-    const pool = new pg.Pool({ ...PG, database: (db.pool.options as { database: string }).database, max: 1 });
-    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    const pool = singleConnectionPool(db);
     try {
-      const deadlock = new Promise<never>((_, reject) => { watchdog = setTimeout(() => reject(new Error('deadlock: a second connection was requested')), 3_000); });
-      expect(await Promise.race([messaging(new PgTransactionRunner(pool)).sendMessage(send()), deadlock])).toMatchObject({ seq: 1 });
+      expect(await messaging(new PgTransactionRunner(pool)).sendMessage(send())).toMatchObject({ seq: 1 });
     } finally {
-      clearTimeout(watchdog);
       await pool.end();
     }
   });

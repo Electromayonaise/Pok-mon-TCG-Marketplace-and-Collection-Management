@@ -49,4 +49,16 @@ describe('FR-DSC-5 order', () => {
     const rows = [k('c', 1, 5), k('b', null, 5), k('a', 9, 7)];
     expect(rows.sort((x, y) => compareRank(x, y, false)).map((r) => r.listingId)).toEqual(['b', 'c', 'a']);
   });
+
+  // Flow C backfill (decision log Impl-2 #8): a row with no usable distance sorts after every located row.
+  it('with an area: an unknown distance sorts after every known one, on either side of the comparison; two unknowns fall to price', () => {
+    expect(compareRank(k('a', null, 5), k('b', 50, 9), true)).toBeGreaterThan(0);
+    expect(compareRank(k('a', 50, 9), k('b', null, 5), true)).toBeLessThan(0);
+    const rows = [k('x', null, 9), k('y', 3, 9), k('w', null, 4), k('v', 0, 9)];
+    expect(rows.sort((p, q) => compareRank(p, q, true)).map((r) => r.listingId)).toEqual(['v', 'y', 'w', 'x']);
+  });
+
+  it('equal keys compare as 0, so the order is total and stable', () => {
+    expect(compareRank(k('a', 2, 5), k('a', 2, 5), true)).toBe(0);
+  });
 });
