@@ -1,0 +1,116 @@
+# Impl-2 quality gate (bmad-testarch-ci, decision log Impl-2 #10). It replaces the Impl-1 gate
+# (Impl-1 #9) and keeps its first job unchanged in purpose. On every push and PR it proves:
+#   gate  — `npm run test:ci`, the same chain as `npm test` minus `db:up` (CI gets Postgres from the
+#           service container): lint, the dependency, no-sleep and Prisma gates; the unit and
+#           integration tests with the per-file 90 % branch threshold on the domain cores; the
+#           Solu-2 generated surface, citations, trace and fitness functions; every ATDD test and
+#           NFR benchmark green for a `done` story and red for the right reason otherwise.
+#   e2e   — `npx playwright test` against a production build: the Page Object journeys, with
+#           `trace: 'on-first-retry'`. The HTML report and every trace.zip are uploaded, pass or fail.
+#   release — the PASS / FAIL decision: it passes only when every job above passed.
+# The Solu-2 gate stays as manual (workflow_dispatch) evidence.
+name: impl2-quality-gate
+
+on:
+  push:
+    branches: [main, 'impl-*']
+  pull_request:
+
+concurrency:
+  group: impl2-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TEZG_PG_HOST: 127.0.0.1
+  TEZG_PG_PORT: '55432'
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.6
+        env:
+          POSTGRES_USER: tezg
+          POSTGRES_PASSWORD: tezg
+          POSTGRES_DB: tezg
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U tezg -d tezg"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install (postinstall also installs the isolated tools/lint toolchain)
+        run: npm ci
+      - name: npm test without db:up
+        run: npm run test:ci
+      - name: The Solu-2 workflow and its docs mirror are identical
+        run: cmp .github/workflows/solu2-quality-gate.yml _bmad-output/test-artifacts/ci/quality-gate.yml
+      - name: Upload the coverage summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: .coverage/
+          if-no-files-found: ignore
+
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.6
+        env:
+          POSTGRES_USER: tezg
+          POSTGRES_PASSWORD: tezg
+          POSTGRES_DB: tezg
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U tezg -d tezg"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Playwright E2E (Page Objects, web-first assertions, trace on first retry)
+        run: npx playwright test
+      - name: Upload the Playwright report and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+
+  release:
+    needs: [gate, e2e]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Quality gate decision
+        run: |
+          echo "gate=${{ needs.gate.result }} e2e=${{ needs.e2e.result }}"
+          if [ "${{ needs.gate.result }}" = "success" ] && [ "${{ needs.e2e.result }}" = "success" ]; then
+            echo "Quality gate: PASS"
+          else
+            echo "Quality gate: FAIL"
+            exit 1
+          fi

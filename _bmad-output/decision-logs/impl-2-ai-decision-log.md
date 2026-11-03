@@ -130,3 +130,20 @@
 - **Reason:** A test may only assert what its input determines. Pinning "no collapse here" makes the old test fail if the truncation order ever changes, instead of silently skipping.
 - **Artifact changed:** `src/modules/listings/contact-domain.test.ts`.
 - **Decided by:** Mateo.
+
+### 10. The Playwright framework and the Impl-2 CI gate are in place before the stories; traces are proven by an evidence run (Testing)
+
+- **Phase:** A (shift-left: `bmad-testarch-framework`, `bmad-testarch-ci`), before any Impl-2 story code.
+- **Persona/Skill:** `bmad-testarch-framework`, `bmad-testarch-ci` (Murat).
+- **Prompt (summary):** The statement asks for the E2E framework and the CI quality gate before the complex stories, Playwright with Page Objects, web-first assertions and `trace: 'on-first-retry'`, and forensic traces "captured on CI". The configured option writes a `trace.zip` only for a test that failed and retried, so a green suite has none.
+- **AI output (summary):** For the trace evidence: **(recommended)** keep `on-first-retry`, upload any retry trace from CI, and commit one `trace.zip` per journey from an evidence run (`npx playwright test --trace on`) at the close. The alternatives were a forced-retry demonstration run, or CI artifacts only.
+- **Human decision:** ACCEPT the recommendation.
+- **Agent defaults applied without a menu (reported here):**
+  - **One command.** `npx playwright test` starts everything through `scripts/e2e-server.mjs`: the Compose Postgres (skipped in CI), a recreated and migrated `tezg_e2e` database, `next build` and `next start` on port 3100. It runs against the production build rather than `next dev`, so no on-demand compilation sits inside a web-first assertion's retry window. Next.js warns that `next start` does not support `output: 'standalone'`; it serves correctly, and the Docker image still uses the standalone server.
+  - **Config** (`playwright.config.ts`): serial workers (the journeys share one database and each seeds its own rows), `retries` 1 locally and 2 in CI (so the first retry exists everywhere), `expect.timeout` 10 s as the auto-retry bound, es-CO locale and the Bogotá time zone, HTML and JSON reporters.
+  - **Page Objects** in `_bmad-output/test-artifacts/e2e/pages/` (`BasePage`, `HomePage`), with role- and label-based locators; `gate:no-sleep` refuses a locator built in a spec. The E2E suite has its own SQL seed helpers, because the Vitest fixtures import `vitest`'s `expect`.
+  - **App shell:** `app/layout.tsx`, `app/page.tsx` (which shows the readiness verdict, so the smoke journey proves the server, the database and its migrations), `app/globals.css` (the mockups' tokens without the mock chrome), and `app/_server/runtime.ts`, the composition root that the tRPC route and the pages share (the system clock stays outside `src/`, AD-SYS-6).
+  - **CI:** `.github/workflows/impl1-quality-gate.yml` becomes `impl2-quality-gate.yml`: the unchanged `gate` job, an `e2e` job that uploads the report and traces whether it passes or fails, and a `release` job that prints `Quality gate: PASS` only when both passed. The k6 job joins it with Story 13.5 (Flow D).
+- **Evidence:** the first run of the smoke journey passed against the production build (1 passed, 36.4 s, exit 0).
+- **Artifact changed:** `playwright.config.ts`, `scripts/e2e-server.mjs`, `_bmad-output/test-artifacts/e2e/` (new); `app/layout.tsx`, `app/page.tsx`, `app/globals.css`, `app/_server/runtime.ts` (new), `app/api/trpc/[trpc]/route.ts`; `.github/workflows/impl2-quality-gate.yml` (renamed from `impl1-quality-gate.yml`); the Solu-2 workflow comment and its mirror; `test-support/README.md`; `tsconfig.json`; `.gitignore`.
+- **Decided by:** Mateo.

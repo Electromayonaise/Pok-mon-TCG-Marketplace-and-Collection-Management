@@ -43,7 +43,7 @@ Connection settings come from `TEZG_PG_*` (see `.env.example`). The defaults mat
 
 ## CI integration
 
-`.github/workflows/impl1-quality-gate.yml` runs `npm run test:ci` against a Postgres 16 service on every push and pull request. `.github/workflows/solu2-quality-gate.yml` is the manual (`workflow_dispatch`) Solu-2 gate, with a burn-in of the fitness suite. Reports are uploaded as artifacts.
+`.github/workflows/impl2-quality-gate.yml` (which replaced the Impl-1 gate, decision log Impl-2 #10) runs `npm run test:ci` and `npx playwright test` against a Postgres 16 service on every push and pull request, then a `release` job that passes only when both did. `.github/workflows/solu2-quality-gate.yml` is the manual (`workflow_dispatch`) Solu-2 gate, with a burn-in of the fitness suite. Reports are uploaded as artifacts.
 
 ## Knowledge-base references
 
