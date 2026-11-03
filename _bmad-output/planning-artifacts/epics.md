@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 404 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 407 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -1043,16 +1043,16 @@ Keep each business's prepaid commission balance exact. Each order is charged exa
 - **Kind:** Failure-state
 - **Description:** As an admin, I want reconciliation to report every balance mismatch and sequence gap without changing anything, so that I can investigate (NFR-COM-2).
 - **Contracts:** `COM-3` reconcile, `COM-3.last` getLastReconciliation
-- **Depends on:** Story 8.2
-- **Traceability:** FR-COM-8 · NFR-COM-2 · UI 7.4, 7.5 (dev)
+- **Depends on:** Story 8.2, Story 1.6
+- **Traceability:** FR-COM-8 · NFR-COM-2 · Risk R-23 (P0) · UI 7.4, 7.5 (dev)
 - **Binding invariants:** AD-COM-1 — One atomic account update + one ledger entry (`UPDATE … RETURNING`; `UNIQUE (businessId, seq)`); also cited by its clauses: AD-19, AD-ORD-2, AD-SYS-1, AD-SYS-4
 - **Files:** `src/modules/commission/application/com.v2.ts` (`ComServiceV2.reconcile`, `ComServiceV2.getLastReconciliation`), `src/modules/commission/ports/com.v2.ts` (`ComRepository`), `src/modules/commission/domain/com.ts`, `src/modules/commission/infra/pg.ts`
 - **Schema/DTO:** tables `"CommissionAccount"`, `"CommissionLedgerEntry"`, `"ReconciliationRun"`, `"TopUpRequest"`; DTOs `ReconcileRequest` → `ReconcileResponse`, `GetLastReconciliationRequest` → `GetLastReconciliationResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/com_contracts.test.ts` › `[COM-3.Q1]`, `[COM-3.Q2]`, `[COM-3.I1]`, `[COM-3.Q4]`, `[COM-3.P2]`, `[COM-3.last.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/com_contracts.test.ts` › `[COM-3.Q1]`, `[COM-3.Q2]`, `[COM-3.I1]`, `[COM-3.Q4]`, `[COM-3.P2]`, `[COM-3.last.h]`; `_bmad-output/test-artifacts/atdd/com_reconcile.test.ts` › `[COM-3.C1]`, `[COM-3.C2]`; `_bmad-output/test-artifacts/nfr/com2_drift.test.ts` › `[NFR-COM-2.drift]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a consistent account. **When:** reconciliation runs. **Then:** 0 discrepancies and one run row, shown as the last run on page 7.4.
   - **Scenario (failure) — Given:** a tampered balance, a sequence gap, an unknown business, or another run holding the job lock. **When:** reconciliation runs. **Then:** `balanceMismatch` with decimal-string expected and actual values, never repaired; the gap reported; 0 accounts with an explained notice; the job path skipped.
-- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 9 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 8.6: Set commission rates and read the ledger
 

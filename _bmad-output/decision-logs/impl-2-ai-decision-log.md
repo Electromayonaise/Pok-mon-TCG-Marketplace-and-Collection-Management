@@ -183,3 +183,17 @@
 - **Red phase:** `evidence/impl2/12-story-2.6-red.log`: 6 failed on `NotImplementedError`; `gate:atdd-red:impl1` 34 red for the right reason, 0 not as expected.
 - **Artifact changed:** `contracts.md` (S-FR-IDN-7, the Story 2.6 clauses), `epics.source.mjs` and `epics.md` (Story 2.6; 71 stories), `test-design.md` §2 (R-22), `sprint-status.yaml`, Story 2.6's file, `_bmad-output/test-artifacts/atdd/idn_auth.test.ts`.
 - **Decided by:** agent default within #11 (no menu).
+
+### 13. Epic 8 specs: the reconcile job stops at 50 s and restarts, three new red tests for 8.5, and a 50-line admin ledger (Scope)
+
+- **Phase:** B (spec approval of Epic 8: Stories 8.5 and 8.6).
+- **Persona/Skill:** `bmad-create-story`, `bmad-testarch-atdd` (Murat), reading COM-3, S-FR-COM-7 and S-FR-COM-8.ledger in `contracts.md` and the NFR-COM-2 row in `nfr-evidence.md`.
+- **Prompt (summary):** Three choices the contracts left open. COM-3 says the all-accounts job "resumes on the next run", but the schema has no cursor. NFR-COM-2's measurement (difference 0 over 10,000 operations with 20 % duplicates) had no test. The admin ledger has no page size.
+- **AI output (summary):**
+  - **Bound:** **(recommended)** stop at 50 s of Clock time, cite `partial: true`, restart from the first account next run. The alternatives were a persisted resume cursor (a migration) or no bound.
+  - **New 8.5 tests:** **(recommended)** all three: `[COM-3.C1]` (reconcile racing 50 concurrent deductions, 20 repetitions), `[COM-3.C2]` (the job path through `/api/jobs/commission-reconcile`), `[NFR-COM-2.drift]` (10,000 seeded-random operations). The alternatives were the two concurrency tests only, or none.
+  - **Ledger page:** **(recommended)** 50 lines newest first with a keyset cursor, as on the business's own page (Impl-1 #33). The alternative was 25.
+- **Human decision:** ACCEPT all three recommendations.
+- **Red phase:** `evidence/impl2/14-story-8.5-red.log`: the 6 Solu-2 tests and the 3 new ones fail on `NotImplemented` (C2 surfaces it from the failed JobRun's `errorCode`, because the 500 body carries no message).
+- **Artifact changed:** `contracts.md` (COM-3 concurrency and batch bound), `epics.source.mjs` and `epics.md` (8.5 binds 9 tests and depends on 1.6), `test-design.md` §2 (R-23), `sprint-status.yaml`, `atdd/com_reconcile.test.ts`, `nfr/com2_drift.test.ts`.
+- **Decided by:** Mateo.

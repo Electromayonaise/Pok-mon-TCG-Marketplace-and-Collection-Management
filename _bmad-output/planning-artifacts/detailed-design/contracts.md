@@ -796,7 +796,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Invariant (I):**
   - I1 After the seed and every suite, reconciliation reports 0 discrepancies. Bound to: AD-COM-1 rule 4, AD-19 (NFR-COM-2: 10,000 random top-ups and deductions with 20 % duplicate deliveries → difference 0).
   - I2 `"CommissionAccount"`, `"CommissionLedgerEntry"` and `"TopUpRequest"` are never written by reconcile. Bound to: AD-COM-1.
-- **Concurrency / idempotency:** two admin runs at once → two run rows with equal results over unchanged data. Two job runs → one runs and one is skipped. A run concurrent with deductions → no false discrepancy (Q1).
+- **Concurrency / idempotency:** two admin runs at once → two run rows with equal results over unchanged data. Two job runs → one runs and one is skipped. A run concurrent with deductions → no false discrepancy (Q1). Proven by `[COM-3.C1]` (50 concurrent deductions, 20 repetitions) and `[COM-3.C2]` (the job path through `/api/jobs/commission-reconcile`); NFR-COM-2's measurement by `[NFR-COM-2.drift]` (decision log Impl-2 #13).
+- **Batch bound (decision log Impl-2 #13):** the all-accounts run checks accounts in ascending `businessId` until 50 s of `Clock` time have passed; its decision then cites `partial: true` with `accountsChecked`, and the next run starts again from the first account.
 - **Time:** `Clock`, once per run.
 - **Latency budget (NFR):** the single-account admin call is a command, p95 ≤ 800 ms at N = 1 (NFR-SYS-9). The all-accounts job has no PRD latency target; it is bounded by the job's 50 s batch rule (AD-ORD-2 rule 7 pattern) and resumes on the next run.
 

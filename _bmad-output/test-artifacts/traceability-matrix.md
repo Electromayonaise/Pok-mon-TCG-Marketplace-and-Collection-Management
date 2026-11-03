@@ -18,15 +18,15 @@
 |---|---|
 | FRs traced to a contract clause and a test | 96 / 96 |
 | ADs of §14 with a test that turns red on violation | 61 / 61 |
-| P0 risks with a red test | 17 / 17 |
-| P0 risks linked to a story and a red test (final trace) | 17 / 17 |
+| P0 risks with a red test | 18 / 18 |
+| P0 risks linked to a story and a red test (final trace) | 18 / 18 |
 | §14 ADs linked to a story and a red test | 61 / 61 |
 | FRs linked to a story | 96 / 96 |
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
 | NFR evidence status | Green — ATDD: 34; Green — benchmark: 14; Green — gate: 8; Deferred — launch: 3; Planned — story DoD: 3; Red — ATDD: 3 |
-| Contract clauses / test ids | 114 / 404 (392 red, 12 green) |
+| Contract clauses / test ids | 114 / 407 (395 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -91,7 +91,7 @@
 | FR-COM-5 | Commission amount and rounding rule (CAP-21) | COM-1 | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 8 — `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +5 | 8.2 (done), 8.4 (done) | red |
 | FR-COM-6 | Threshold events without flapping (CAP-21) | COM-1, COM-2, COM-2.queue | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 16 — `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +13 | 8.2 (done), 8.3 (done), 8.4 (done) | red |
 | FR-COM-7 | Configure the commission rate (CAP-21) | S-FR-COM-7, S-FR-COM-7.list | AD-COM-2 | 3 — `S-FR-COM-7.f`, `S-FR-COM-7.h`, `S-FR-COM-7.list.h` | 8.6 (backlog) | red |
-| FR-COM-8 | Ledger views and reconciliation (CAP-21) | COM-3, S-FR-COM-8.ledger, COM-3.last | AD-SYS-4, AD-SYS-1, AD-COM-1, AD-19 | 7 — `COM-3.I1`, `COM-3.P2`, `COM-3.Q1` +4 | 8.5 (backlog), 8.6 (backlog) | red |
+| FR-COM-8 | Ledger views and reconciliation (CAP-21) | COM-3, S-FR-COM-8.ledger, COM-3.last | AD-SYS-4, AD-SYS-1, AD-COM-1, AD-19 | 9 — `COM-3.C1`, `COM-3.C2`, `COM-3.I1` +6 | 8.5 (backlog), 8.6 (backlog) | red |
 | FR-COM-9 | Low-balance notice (CAP-21) | S-FR-COM-9 | AD-COM-3 | 2 — `S-FR-COM-9.f`, `S-FR-COM-9.h` | 8.1 (done), 8.4 (done) | red |
 | FR-TRD-1 | Make an offer on an open-to-trade listing (CAP-25) | TRD-2, S-FR-TRD-1 | AD-TRD-1, AD-SYS-5 | 9 — `TRD-2.I3`, `TRD-2.P2`, `TRD-2.P5` +6 | 10.1 (done), 10.2 (done), 10.4 (done) | red |
 | FR-TRD-2 | Turn-taking: reject, counter, withdraw (CAP-25) | TRD-2, S-FR-TRD-2w | AD-TRD-1, AD-SYS-5 | 9 — `TRD-2.I3`, `TRD-2.P2`, `TRD-2.P5` +6 | 10.1 (done), 10.2 (done), 10.4 (done) | red |
@@ -178,7 +178,7 @@
 | NFR-ORD-2 | order creation (including the reservation) responds in p95 ≤ 800 ms | ORD-1 | `NFR-ORD-2.p95` | 7 | Green — benchmark (creation); Deferred — launch (the upload's transfer time needs the production storage) |
 | NFR-ORD-3 | 0 funds-held states or payment-gateway calls | — | `ORD-1.I4`, `SYS-6.R4` | 2 | Green — gate (`[SYS-6.R4]`); Green — ATDD (`[ORD-1.I4]`) |
 | NFR-ORD-4 | the stalled-order gap is documented in UI copy | — | `S-FR-ORD-10.h` | 1 | Green — ATDD (the support contact and the 7-day notice, `OrderAwaitingBusiness`) |
-| NFR-COM-2 | reconciliation is exact over a randomised sequence of 10,000 top-ups and deducti | COM-1, COM-3 | `COM-3.Q1`, `COM-3.I1` | 14 | Red — ATDD |
+| NFR-COM-2 | reconciliation is exact over a randomised sequence of 10,000 top-ups and deducti | COM-1, COM-3 | `COM-3.Q1`, `COM-3.I1` | 17 | Red — ATDD |
 | NFR-COM-3 | the deduction handler runs in p95 ≤ 200 ms | COM-1, COM-2 | `NFR-COM-3.deduction`, `NFR-COM-3.topUp` | 18 | Green — benchmark |
 | NFR-COM-4 | 0 floating-point operations on COP in the commission code path | COM-1 | `COM-1.I3` | 8 | Green — ATDD |
 | NFR-TRD-2 | accept responds in p95 ≤ 800 ms and other actions in p95 ≤ 500 ms. | TRD-1 | `NFR-TRD-2.counter`, `NFR-TRD-2.accept` | 11 | Green — benchmark |
@@ -285,6 +285,7 @@
 | R-20 Purchase (`createOrder`) misses its 800 ms p95 under the §3 seed | P1 | ORD | NFR benchmark | `NFR-ORD-2.p95` | 7.1 (done) | red |
 | R-21 A job runs without the `JOBS_SECRET` bearer, or two runs of one job… | P0 | SYS | Integration (race) | `S-SYS.jobs.C1` | 1.6 (done) | red |
 | R-22 The 11th failed sign-in in 15 min is not refused, a sign-up burst f… | P0 | IDN | Integration | `S-FR-IDN-7.signin.throttle`, `S-FR-IDN-7.signup.throttle`, `S-FR-IDN-7.signin.unknown` | 2.6 (done) | red |
+| R-23 Reconcile reports a false discrepancy while deductions commit, writ… | P0 | COM | Integration (race) + NFR | `COM-3.C1`, `COM-3.C2`, `NFR-COM-2.drift`, `COM-3.Q2` | 8.5 (backlog) | red |
 
 ## 6. Contract clauses
 
@@ -311,7 +312,7 @@
 | ORD-4 | core | FR-ORD-5 | AD-ORD-2, AD-2, AD-ORD-3 | 5 | red |
 | COM-1 | core | FR-COM-4, FR-COM-5, FR-COM-6 | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 8 | red |
 | COM-2 | core | FR-COM-3, FR-COM-6 | AD-COM-3, AD-COM-1 | 8 | red |
-| COM-3 | core | FR-COM-8 | AD-SYS-4, AD-SYS-1, AD-COM-1, AD-19 | 6 | red |
+| COM-3 | core | FR-COM-8 | AD-SYS-4, AD-SYS-1, AD-COM-1, AD-19 | 8 | red |
 | TRD-1 | core | FR-TRD-4, FR-TRD-5, FR-TRD-6 | AD-TRD-2, AD-6, AD-TRD-3 | 9 | red |
 | TRD-2 | core | FR-TRD-2, FR-TRD-1 | AD-TRD-1, AD-SYS-5 | 7 | red |
 | TRD-3 | core | FR-TRD-8 | AD-TRD-3, AD-INV-2 | 4 | red |

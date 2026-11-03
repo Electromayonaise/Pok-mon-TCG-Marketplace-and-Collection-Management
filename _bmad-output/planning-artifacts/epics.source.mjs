@@ -419,7 +419,8 @@ export default {
         {
           title: 'Reconcile ledgers and report, never repair, discrepancies', kind: 'Failure-state',
           as: 'As an admin, I want reconciliation to report every balance mismatch and sequence gap without changing anything, so that I can investigate (NFR-COM-2).',
-          ops: ['COM-3', 'COM-3.last'], tests: ['COM-3.Q1', 'COM-3.Q2', 'COM-3.I1', 'COM-3.Q4', 'COM-3.P2', 'COM-3.last.h'], depends: ['8.2'],
+          // Impl-2 (decision log Impl-2 #13): Flow A + D adds the concurrency proofs and the NFR-COM-2 measurement; depends on 1.6 for the job path.
+          ops: ['COM-3', 'COM-3.last'], tests: ['COM-3.Q1', 'COM-3.Q2', 'COM-3.I1', 'COM-3.Q4', 'COM-3.P2', 'COM-3.last.h', 'COM-3.C1', 'COM-3.C2', 'NFR-COM-2.drift'], depends: ['8.2', '1.6'],
           happy: ['a consistent account.', 'reconciliation runs.', '0 discrepancies and one run row, shown as the last run on page 7.4.'],
           failure: ['a tampered balance, a sequence gap, an unknown business, or another run holding the job lock.', 'reconciliation runs.', '`balanceMismatch` with decimal-string expected and actual values, never repaired; the gap reported; 0 accounts with an explained notice; the job path skipped.'],
         },
