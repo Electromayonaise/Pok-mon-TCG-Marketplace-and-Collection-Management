@@ -24,6 +24,7 @@ import { PgTransactionRunner } from '../shared-kernel/infra/pg-transactions.js';
 import type { Clock } from '../shared-kernel/ports.js';
 import { oneRepository } from '../shared-kernel/repositories.js';
 import { requestIpHmac } from './ip-hmac.js';
+import { serveJob } from './jobs.js';
 import { buildAppRouter, type Resolvers } from './trpc/router.v2.js';
 
 /**
@@ -134,6 +135,8 @@ export interface AppDeps {
   fx?: FxRateSource;
   /** S-7: the key of the caller IP's HMAC; without one no request names an IP, so MSG-2's per-IP limit is skipped. */
   ipHmacKey?: string;
+  /** S-9: the `JOBS_SECRET` bearer of `/api/jobs/*` (Story 1.6); without one every job request is refused. */
+  jobsSecret?: string;
 }
 
 /**
@@ -236,7 +239,7 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
 }
 
 export function compose({
-  pool, clock, sessions, handlers = {}, storage = UNWIRED_STORAGE, scanner = UNWIRED_SCANNER, feed = UNWIRED_FEED, fx = UNWIRED_FX, ipHmacKey,
+  pool, clock, sessions, handlers = {}, storage = UNWIRED_STORAGE, scanner = UNWIRED_SCANNER, feed = UNWIRED_FEED, fx = UNWIRED_FX, ipHmacKey, jobsSecret,
 }: AppDeps) {
   const ids = new CuidIds();
   const transactions = new PgTransactionRunner(pool);
@@ -290,5 +293,7 @@ export function compose({
     identity: new IdentityGateV2({ sessions, repo, transactions, idn }),
     ipHmac: ipHmacKey ? requestIpHmac(ipHmacKey) : () => null,
     router: buildAppRouter(resolvers({ idn, ver, cat, inv, dsc, ord, com, msg, contact, trd, col, val, rep, adminEvents })),
+    /** `/api/jobs/<job>` (Story 1.6). */
+    jobs: (req: Request) => serveJob(req, { secret: jobsSecret ?? '' }),
   };
 }

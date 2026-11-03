@@ -109,7 +109,7 @@ describe('SYS-8.R2 — ingress inputs (AD-SYS-8 rules 1–2, AD-16, NFR-IDN-3)',
         }
       }
     }
-    expect(procedures).toBe(113); // 108 tRPC procedures + 3 job endpoints + 2 health probes (Impl-1 scaffold)
+    expect(procedures).toBe(114); // 108 tRPC procedures + 4 job endpoints (jobs/outbox-sweep: decision log Impl-2 #11) + 2 health probes
     expect(problems).toEqual([]);
   });
 });

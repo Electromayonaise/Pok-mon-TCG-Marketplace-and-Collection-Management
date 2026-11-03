@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 391 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 70 stories. They bind 143 registry operations and 398 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -336,7 +336,7 @@ All 56 NFRs. Each has a metric, an artifact and a status in `_bmad-output/test-a
 
 | Epic | Module | Goal | Stories | MEC story |
 |---|---|---|---|---|
-| 1. Walking skeleton: errors, audit, outbox and determinism | shared-kernel, server/trpc | Build the cross-module platform every story stands on: one typed error body, an audit trail with a regulated-data redactor, exactly-once event delivery, deterministic time and boundaries, and the admin event panel. | 5 | — |
+| 1. Walking skeleton: errors, audit, outbox and determinism | shared-kernel, server/trpc | Build the cross-module platform every story stands on: one typed error body, an audit trail with a regulated-data redactor, exactly-once event delivery, deterministic time and boundaries, and the admin event panel. | 6 | — |
 | 2. User, role and seller-type access (IDN) | IDN (`identity`) | Give every account exactly one seller track and derive its capabilities from facts, never from a client claim. | 5 | 2.2 |
 | 3. Business verification workflow (VER) | VER (`identity`) | Let a business apply once with its legal identity, and let admins decide each application exactly once. | 5 | 3.2 |
 | 4. Catalog and price reference (CAT) | CAT (`catalog`) | Ingest the card catalog with stable ids and serve reference prices that are always a stored observation. | 5 | 4.2 |
@@ -433,6 +433,22 @@ Build the cross-module platform every story stands on: one typed error body, an 
   - **Scenario (happy) — Given:** 27 failed deliveries, one `pending` for 25 h and one `pending` for 23 h. **When:** an admin opens page 2.3's Entregas tab. **Then:** failed rows list by `firstFailedAt`, 25 per page with a next cursor; the 25-hour delivery is the only stuck row; the badge counts the failed rows and the stuck one.
   - **Scenario (failure) — Given:** the last tick started at 10:00 Bogotá. **When:** an admin reads tick health at 13:01. **Then:** `tickSilent=true` citing `lastTickStartedAt`; read at 11:00 it is `false`.
 - **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+
+### Story 1.6: Run scheduled jobs single-flight behind JOBS_SECRET
+
+- **Kind:** Skeleton
+- **Description:** As the platform operator, I want every scheduled job to run only for the scheduler, once at a time, and to leave one JobRun row, so that expiries, the TRM, reconciliation and stuck deliveries are processed without anyone else triggering them (S-9, AD-SYS-4 rule 7).
+- **Contracts:** `S-SYS.sweep` sweep · **Also proves:** `S-SYS.jobs` (§15 clause)
+- **Depends on:** Story 1.3, Story 1.5
+- **Traceability:** FR: none (cross-cutting) · NFR-SYS-6 · Risk R-21 (P0)
+- **Binding invariants:** also cited by its clauses: AD-SYS-2, AD-SYS-4
+- **Files:** `src/shared-kernel/admin-events.ts` (`AdminEventsServiceV2.sweep`)
+- **Schema/DTO:** DTOs `SweepDeliveriesRequest` → `SweepDeliveriesResponse`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/sys_jobs.test.ts` › `[S-SYS.jobs.auth]`, `[S-SYS.jobs.trigger]`, `[S-SYS.jobs.h]`, `[S-SYS.jobs.failed]`, `[S-SYS.sweep.h]`, `[S-SYS.jobs.single]`, `[S-SYS.jobs.C1]`
+- **Gherkin:**
+  - **Scenario (happy) — Given:** a due unpaid order and a delivery stuck `pending` for 120 s. **When:** the hourly tick calls `jobs/expiry-materialize` and `jobs/outbox-sweep` with the `JOBS_SECRET` bearer. **Then:** the order expires and releases its unit once, the delivery is delivered, and each run leaves one `succeeded` JobRun row with the tick trigger, which tick health reads.
+  - **Scenario (failure) — Given:** a request without the bearer, and another run already holding `job:expiry-materialize`. **When:** each calls the route. **Then:** the first is 401 `NotAuthenticated` with no JobRun row; the second is a `skipped` no-op with its row; 20 concurrent runs release the unit exactly once.
+- **DoD:** the shared DoD, plus: the 7 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; `JOBS_SECRET` is validated at start-up like `IP_HMAC_KEY`, and `.env.example`, `docker-compose.yml`, the Playwright web server and CI set a local value.
 
 ## Epic 2: User, role and seller-type access (IDN)
 

@@ -322,3 +322,5 @@ export type { ListDeliveriesRequest, ListDeliveriesResponse } from '../../../../
 export type { ReplayEventDeliveryRequest, ReplayEventDeliveryResponse } from '../../../../src/shared-kernel/admin-events.dto.js';
 // S-SYS.health getDeliveryHealth
 export type { GetDeliveryHealthRequest, GetDeliveryHealthResponse } from '../../../../src/shared-kernel/admin-events.dto.js';
+// S-SYS.sweep sweep
+export type { SweepDeliveriesRequest, SweepDeliveriesResponse } from '../../../../src/shared-kernel/admin-events.dto.js';

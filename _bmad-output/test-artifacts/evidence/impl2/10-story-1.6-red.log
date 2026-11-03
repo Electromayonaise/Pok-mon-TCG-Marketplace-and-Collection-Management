@@ -1,0 +1,137 @@
+# Flow A red phase — Story 1.6 (decision log Impl-2 #11). Captured 2026-11-03T18:10:03Z on branch impl-2 at c3996a5 + the red commit's working tree,
+# before any production code of the job route existed (src/server/jobs.ts and AdminEventsServiceV2.sweep are NotImplementedError stubs).
+# First capture: [S-SYS.jobs.C1] failed for another reason (an assertion on the rejected list hid the NotImplementedError); the test now rethrows the first rejection.
+$ npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/sys_jobs.test.ts
+
+ RUN  v5.0.5 C:/Users/Usuario/Desktop/Universidad/S9/daia/final_project/Pok-mon-TCG-Marketplace-and-Collection-Management
+
+ ❯ |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts (7 tests | 7 failed) 376ms
+   ❯ Story 1.6 — the job routes are behind JOBS_SECRET (S-9) (2)
+     × [S-SYS.jobs.auth] a missing, wrong, truncated or non-bearer secret is 401 NotAuthenticated on every job, and no JobRun row is written 36ms
+     × [S-SYS.jobs.trigger] an unknown job is 404 and a missing or unknown trigger is 400 RequestValidationFailed, with no JobRun row 19ms
+   ❯ Story 1.6 — each run writes one JobRun row (ARCHITECTURE §4) (3)
+     × [S-SYS.jobs.h] the tick runs trm-fetch: one succeeded JobRun with the tick trigger and the Clock's instants, and today's TRM is stored once 18ms
+     × [S-SYS.jobs.failed] a job whose work throws is 500 Unexpected with no message in the body, and its JobRun row is failed with the error code 22ms
+     × [S-SYS.sweep.h] the outbox sweep delivers a delivery stuck pending for over 60 s, and records the run 21ms
+   ❯ Story 1.6 — single-flight under job:<name> (AD-SYS-4 rule 7) (2)
+     × [S-SYS.jobs.single] while another run holds job:expiry-materialize the route is a skipped no-op; once it is released the run expires the due order 42ms
+     × [S-SYS.jobs.C1] 20 concurrent expiry runs: each is succeeded or skipped, every one writes its JobRun row, and the due order releases its unit exactly once 49ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Story 1.6 — the job routes are behind JOBS_SECRET (S-9) > [S-SYS.jobs.auth] a missing, wrong, truncated or non-bearer secret is 401 NotAuthenticated on every job, and no JobRun row is written
+NotImplementedError: NotImplemented: jobs.serveJob
+ ❯ serveJob src/server/jobs.ts:20:9
+     18| /** Serves `POST /api/jobs/<job>?trigger=<trigger>` with `Authorizatio…
+     19| export async function serveJob(_req: Request, _deps: JobRouteDeps): Pr…
+     20|   throw new NotImplementedError('jobs.serveJob');
+       |         ^
+     21| }
+     22|
+ ❯ Object.jobs src/server/composition.ts:297:29
+ ❯ call _bmad-output/test-artifacts/atdd/sys_jobs.test.ts:32:25
+ ❯ _bmad-output/test-artifacts/atdd/sys_jobs.test.ts:51:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Story 1.6 — the job routes are behind JOBS_SECRET (S-9) > [S-SYS.jobs.trigger] an unknown job is 404 and a missing or unknown trigger is 400 RequestValidationFailed, with no JobRun row
+NotImplementedError: NotImplemented: jobs.serveJob
+ ❯ serveJob src/server/jobs.ts:20:9
+     18| /** Serves `POST /api/jobs/<job>?trigger=<trigger>` with `Authorizatio…
+     19| export async function serveJob(_req: Request, _deps: JobRouteDeps): Pr…
+     20|   throw new NotImplementedError('jobs.serveJob');
+       |         ^
+     21| }
+     22|
+ ❯ Object.jobs src/server/composition.ts:297:29
+ ❯ call _bmad-output/test-artifacts/atdd/sys_jobs.test.ts:32:25
+ ❯ _bmad-output/test-artifacts/atdd/sys_jobs.test.ts:60:19
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Story 1.6 — each run writes one JobRun row (ARCHITECTURE §4) > [S-SYS.jobs.h] the tick runs trm-fetch: one succeeded JobRun with the tick trigger and the Clock's instants, and today's TRM is stored once
+NotImplementedError: NotImplemented: jobs.serveJob
+ ❯ serveJob src/server/jobs.ts:20:9
+     18| /** Serves `POST /api/jobs/<job>?trigger=<trigger>` with `Authorizatio…
+     19| export async function serveJob(_req: Request, _deps: JobRouteDeps): Pr…
+     20|   throw new NotImplementedError('jobs.serveJob');
+       |         ^
+     21| }
+     22|
+ ❯ Object.jobs src/server/composition.ts:297:29
+ ❯ call _bmad-output/test-artifacts/atdd/sys_jobs.test.ts:32:25
+ ❯ _bmad-output/test-artifacts/atdd/sys_jobs.test.ts:72:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Story 1.6 — each run writes one JobRun row (ARCHITECTURE §4) > [S-SYS.jobs.failed] a job whose work throws is 500 Unexpected with no message in the body, and its JobRun row is failed with the error code
+NotImplementedError: NotImplemented: jobs.serveJob
+ ❯ serveJob src/server/jobs.ts:20:9
+     18| /** Serves `POST /api/jobs/<job>?trigger=<trigger>` with `Authorizatio…
+     19| export async function serveJob(_req: Request, _deps: JobRouteDeps): Pr…
+     20|   throw new NotImplementedError('jobs.serveJob');
+       |         ^
+     21| }
+     22|
+ ❯ Object.jobs src/server/composition.ts:297:29
+ ❯ _bmad-output/test-artifacts/atdd/sys_jobs.test.ts:85:30
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Story 1.6 — each run writes one JobRun row (ARCHITECTURE §4) > [S-SYS.sweep.h] the outbox sweep delivers a delivery stuck pending for over 60 s, and records the run
+NotImplementedError: NotImplemented: jobs.serveJob
+ ❯ serveJob src/server/jobs.ts:20:9
+     18| /** Serves `POST /api/jobs/<job>?trigger=<trigger>` with `Authorizatio…
+     19| export async function serveJob(_req: Request, _deps: JobRouteDeps): Pr…
+     20|   throw new NotImplementedError('jobs.serveJob');
+       |         ^
+     21| }
+     22|
+ ❯ Object.jobs src/server/composition.ts:297:29
+ ❯ call _bmad-output/test-artifacts/atdd/sys_jobs.test.ts:32:25
+ ❯ _bmad-output/test-artifacts/atdd/sys_jobs.test.ts:97:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Story 1.6 — single-flight under job:<name> (AD-SYS-4 rule 7) > [S-SYS.jobs.single] while another run holds job:expiry-materialize the route is a skipped no-op; once it is released the run expires the due order
+NotImplementedError: NotImplemented: jobs.serveJob
+ ❯ serveJob src/server/jobs.ts:20:9
+     18| /** Serves `POST /api/jobs/<job>?trigger=<trigger>` with `Authorizatio…
+     19| export async function serveJob(_req: Request, _deps: JobRouteDeps): Pr…
+     20|   throw new NotImplementedError('jobs.serveJob');
+       |         ^
+     21| }
+     22|
+ ❯ Object.jobs src/server/composition.ts:297:29
+ ❯ call _bmad-output/test-artifacts/atdd/sys_jobs.test.ts:32:25
+ ❯ _bmad-output/test-artifacts/atdd/sys_jobs.test.ts:111:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Story 1.6 — single-flight under job:<name> (AD-SYS-4 rule 7) > [S-SYS.jobs.C1] 20 concurrent expiry runs: each is succeeded or skipped, every one writes its JobRun row, and the due order releases its unit exactly once
+NotImplementedError: NotImplemented: jobs.serveJob
+ ❯ serveJob src/server/jobs.ts:20:9
+     18| /** Serves `POST /api/jobs/<job>?trigger=<trigger>` with `Authorizatio…
+     19| export async function serveJob(_req: Request, _deps: JobRouteDeps): Pr…
+     20|   throw new NotImplementedError('jobs.serveJob');
+       |         ^
+     21| }
+     22|
+ ❯ Object.jobs src/server/composition.ts:297:29
+ ❯ call _bmad-output/test-artifacts/atdd/sys_jobs.test.ts:32:25
+ ❯ _bmad-output/test-artifacts/atdd/sys_jobs.test.ts:124:58
+ ❯ test-support/concurrency.ts:14:68
+ ❯ race test-support/concurrency.ts:16:19
+ ❯ _bmad-output/test-artifacts/atdd/sys_jobs.test.ts:124:37
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed (7)
+   Start at  13:10:05
+   Duration  1.16s (tests 41%, import 32%, transform 26%, setup 1%, worker 1%)
+
+$ npm run gate:atdd-red:impl1
+
+solu2-atdd: 359 tests in 20 files; 35 red for the right reason; 324 green for done stories (363 contracts or test ids done); 0 not as expected

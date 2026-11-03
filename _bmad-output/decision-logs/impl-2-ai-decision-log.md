@@ -147,3 +147,23 @@
 - **Evidence:** the first run of the smoke journey passed against the production build (1 passed, 36.4 s, exit 0).
 - **Artifact changed:** `playwright.config.ts`, `scripts/e2e-server.mjs`, `_bmad-output/test-artifacts/e2e/` (new); `app/layout.tsx`, `app/page.tsx`, `app/globals.css`, `app/_server/runtime.ts` (new), `app/api/trpc/[trpc]/route.ts`; `.github/workflows/impl2-quality-gate.yml` (renamed from `impl1-quality-gate.yml`); the Solu-2 workflow comment and its mirror; `test-support/README.md`; `tsconfig.json`; `.gitignore`.
 - **Decided by:** Mateo.
+
+### 11. Specs of Stories 1.6 and 2.6: an outbox-sweep job route, a hand-run scheduler, sign-in before verification, and the throttle as designed (Scope)
+
+- **Phase:** B (spec approval of the first Impl-2 batch: Epics 1 and 2), before their red tests.
+- **Persona/Skill:** `bmad-create-story`, reading `contracts.md` (COM-3 P2, S-FR-IDN-7, §15 S-SYS), `ARCHITECTURE.md` (§4, §13, AD-IDN-3, S-8, S-9), `operations.json` and `deferred-work.md`.
+- **Prompt (summary):** The two stories of #7 needed four choices the design left open:
+  - The registry has three job routes, but ARCH §13 also lists an `outbox-sweep` job with no route, so nothing would ever trigger the sweeper in production (NFR-SYS-6).
+  - Whether to ship the scheduler (G-3's GitHub Actions tick) that calls the routes.
+  - AD-IDN-3 wants email verification, but no mail provider exists, and buying is already gated by `requireCanBuy`.
+  - The Epic 2 review's deferred throttle question: a per-account limit lets anyone who knows an email lock that account out.
+- **AI output (summary):**
+  - **Sweep:** **(recommended)** a fourth registry procedure, `jobs/outbox-sweep` (op `S-SYS.sweep`), a contract change with `openapi.yaml` regenerated. The alternatives were running the sweep inside `expiry-materialize` (one JobRun row hiding two jobs), or deferring it.
+  - **Scheduler:** **(recommended)** `.github/workflows/jobs-tick.yml` with `workflow_dispatch` only, its `schedule:` commented until a deployment exists, so the repository never fails an hourly run. The alternatives were the full hourly schedule now (it fails every hour until a deployment exists), or no workflow.
+  - **Verification:** **(recommended)** an unverified user may sign in, and `requireCanBuy` keeps refusing buying, offering and writing; Better Auth sends verification through an `EmailSender` port whose production binding is `UNWIRED_EMAIL` (NotImplemented, like storage) and whose test binding captures the link. The alternative was blocking sign-in until verified, which with no mail provider means no real user can sign in until launch.
+  - **Throttle key:** **(recommended)** AD-IDN-3 as designed, 10 failed sign-ins per account and 30 per IP in 15 minutes, with the lockout risk accepted and recorded. The alternative keyed the account limit by account and IP together, a contract change that gives a distributed attacker 10 tries per IP.
+- **Human decision:** ACCEPT all four recommendations.
+- **Reason:** Each closes a gap without inventing a provider the project does not have: the sweep and the scheduler make the resilience design reachable; sign-in without verification keeps the product usable while the money paths stay gated.
+- **Also recorded (Story 1.6's red phase, `evidence/impl2/10-story-1.6-red.log`):** the first red run had `[S-SYS.jobs.C1]` failing "for another reason": `expect(rejected).toEqual([])` reported an assertion error and hid the `NotImplementedError` behind it. The agent found it through `gate:atdd-red`, and the test now rethrows the first rejection, so it fails with its real cause in the red phase and in any later regression.
+- **Artifact changed:** `operations.json`, `openapi.yaml` and the generated surface, `contracts.md` §15 (`S-SYS.jobs`, `S-SYS.sweep`), `dto.ts`, `admin-events.dto.ts`, `epics.source.mjs` and `epics.md` (Story 1.6; 2.6 with its red tests), `test-design.md` §2 (R-21), `sprint-status.yaml`, Story 1.6's file.
+- **Decided by:** Mateo.

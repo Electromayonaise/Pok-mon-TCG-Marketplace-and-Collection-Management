@@ -171,7 +171,8 @@
     { "id": "S-SYS.tick", "module": "SYS", "method": "getTickHealth", "request": "GetTickHealthRequest", "response": "GetTickHealthResponse", "layer": "Inbound Port", "consumers": [] },
     { "id": "S-SYS.deliveries", "module": "SYS", "method": "listDeliveries", "request": "ListDeliveriesRequest", "response": "ListDeliveriesResponse", "layer": "Inbound Port", "consumers": [] },
     { "id": "S-SYS.replay", "module": "SYS", "method": "replayEventDelivery", "request": "ReplayEventDeliveryRequest", "response": "ReplayEventDeliveryResponse", "layer": "Inbound Port", "consumers": [] },
-    { "id": "S-SYS.health", "module": "SYS", "method": "getDeliveryHealth", "request": "GetDeliveryHealthRequest", "response": "GetDeliveryHealthResponse", "layer": "Inbound Port", "consumers": [] }
+    { "id": "S-SYS.health", "module": "SYS", "method": "getDeliveryHealth", "request": "GetDeliveryHealthRequest", "response": "GetDeliveryHealthResponse", "layer": "Inbound Port", "consumers": [] },
+    { "id": "S-SYS.sweep", "module": "SYS", "method": "sweep", "request": "SweepDeliveriesRequest", "response": "SweepDeliveriesResponse", "layer": "Inbound Port", "consumers": [] }
   ],
   "ingress": [
     { "procedure": "access.completeIndividualProfile", "kind": "mutation", "builder": "authed", "op": "IDN-1.ingress", "input": "CompleteIndividualProfileRequest", "omit": ["userId"], "errors": ["AlreadyVerifiedBusiness", "BusinessApplicationOnFile", "IndividualSellerProfileAlreadyComplete"] },
@@ -284,7 +285,8 @@
     { "procedure": "admin.events.deliveries", "kind": "query", "builder": "admin", "op": "S-SYS.deliveries", "input": "ListDeliveriesRequest", "omit": ["adminId"], "errors": [] },
     { "procedure": "jobs/trm-fetch", "kind": "job", "builder": "job", "op": "S-FR-CAT-8.fetch", "input": null, "omit": [], "errors": [] },
     { "procedure": "jobs/expiry-materialize", "kind": "job", "builder": "job", "op": "S-FR-ORD-8", "input": null, "omit": [], "errors": [] },
-    { "procedure": "jobs/commission-reconcile", "kind": "job", "builder": "job", "op": "COM-3", "input": null, "omit": [], "errors": [] }
+    { "procedure": "jobs/commission-reconcile", "kind": "job", "builder": "job", "op": "COM-3", "input": null, "omit": [], "errors": [] },
+    { "procedure": "jobs/outbox-sweep", "kind": "job", "builder": "job", "op": "S-SYS.sweep", "input": null, "omit": [], "errors": [] }
   ],
   "platform": [
     { "path": "/api/health/live", "probe": "liveness", "summary": "Liveness: the process serves requests." },

@@ -8,6 +8,10 @@ export type Subscriber = 'commission' | 'listings' | 'collections';
 export interface ReplayEventDeliveryRequest { adminId: CuidId; eventId: CuidId; subscriber: Subscriber }
 export interface ReplayEventDeliveryResponse { status: 'delivered' | 'failed'; replayed: boolean; decision: ExplanationDTO }
 
+/** S-SYS.sweep (Story 1.6): the `outbox-sweep` job's run of the attempt procedure (AD-SYS-2 rules 4 and 6). */
+export interface SweepDeliveriesRequest { trigger: 'tick' | 'daily-morning' | 'daily-night' }
+export interface SweepDeliveriesResponse { attempted: number; delivered: number; failed: number }
+
 export interface GetDeliveryHealthRequest { adminId: CuidId }
 export interface GetDeliveryHealthResponse {
   failedCount: number;

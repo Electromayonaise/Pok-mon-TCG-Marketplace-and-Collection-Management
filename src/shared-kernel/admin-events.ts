@@ -4,7 +4,7 @@ import type { AuditLog } from './audit.js';
 import type { OutboxV2 } from './events.js';
 import type { Clock, IdGenerator, TransactionRunner } from './ports.js';
 import type { DispatcherV2 } from './dispatcher.js';
-import type { GetDeliveryHealthRequest, GetDeliveryHealthResponse, GetTickHealthRequest, GetTickHealthResponse, ListDeliveriesRequest, ListDeliveriesResponse, ReplayEventDeliveryRequest, ReplayEventDeliveryResponse } from './admin-events.dto.js';
+import type { GetDeliveryHealthRequest, GetDeliveryHealthResponse, GetTickHealthRequest, GetTickHealthResponse, ListDeliveriesRequest, ListDeliveriesResponse, ReplayEventDeliveryRequest, ReplayEventDeliveryResponse, SweepDeliveriesRequest, SweepDeliveriesResponse } from './admin-events.dto.js';
 
 /** Everything SYS reaches outside its domain core: its repository, time, ids, the outbox, the audit log (AD-SYS-6, R-2), external systems behind ports that tests bind to simulated adapters, and its neighbours. */
 export interface AdminEventsV2Deps {
@@ -27,11 +27,14 @@ export interface AdminEventsV2UseCases {
   replayEventDelivery(input: ReplayEventDeliveryRequest): Promise<ReplayEventDeliveryResponse>;
   /** S-SYS.health · Inbound Port */
   getDeliveryHealth(input: GetDeliveryHealthRequest): Promise<GetDeliveryHealthResponse>;
+  /** S-SYS.sweep · Inbound Port */
+  sweep(input: SweepDeliveriesRequest): Promise<SweepDeliveriesResponse>;
 }
 // </gen-solu2-api>
 
 import type { DeliveryRowDTO, Subscriber } from './admin-events.dto.js';
 import type { Decision } from './decision.js';
+import { NotImplementedError } from './errors.js';
 import type { ReplayOutcome } from './dispatcher.js';
 import { MESSAGES, type MessageCode } from './messages.generated.js';
 import { renderMessage } from './messages.js';
@@ -131,6 +134,11 @@ function messageCodeOf(code: string | undefined): MessageCode {
 
 export class AdminEventsServiceV2 implements AdminEventsV2UseCases {
   constructor(protected readonly deps: AdminEventsV2Deps) {}
+
+  /** S-SYS.sweep (Story 1.6): the `outbox-sweep` job's sweeper run. Red-phase stub until the story is done. */
+  async sweep(_input: SweepDeliveriesRequest): Promise<SweepDeliveriesResponse> {
+    throw new NotImplementedError('adminEvents.sweep');
+  }
 
   /** S-SYS.tick (ARCH §4): derived at read from the latest tick JobRun and `clock.now()`. */
   async getTickHealth(_input: GetTickHealthRequest): Promise<GetTickHealthResponse> {

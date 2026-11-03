@@ -12501,6 +12501,20 @@ paths:
           description: "The run finished, or was skipped because another run holds the lock."
         "401":
           description: "Missing or wrong JOBS_SECRET bearer; no JobRun row is written (S-9)."
+  "/api/jobs/outbox-sweep":
+    post:
+      operationId: "job_outbox_sweep"
+      summary: "S-SYS.sweep sweep (contracts.md §13 (EventDeliveryNotReplayable))"
+      description: "Scheduled entry point (ARCHITECTURE §4). Idempotent and single-flight under `job:<name>` (AD-SYS-4 rule 7); writes one JobRun row."
+      tags:
+        - "jobs"
+      security:
+        - jobsSecret: []
+      responses:
+        "200":
+          description: "The run finished, or was skipped because another run holds the lock."
+        "401":
+          description: "Missing or wrong JOBS_SECRET bearer; no JobRun row is written (S-9)."
   "/api/health/live":
     get:
       operationId: "health_liveness"

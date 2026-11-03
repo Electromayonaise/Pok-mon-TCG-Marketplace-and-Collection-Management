@@ -67,11 +67,12 @@ The *Red tests* column lists the test ids that turn red when the mitigation is r
 | R-18 | A module writes another module's tables, or the app role rewrites an append-only log | SYS | Data integrity | 2 | 2 | 4 | P1 | Table-ownership scan; revoked grants | `[SYS-AD8]`, `[SYS-R2]`, `[SYS-R2.grants]` | Static + integration |
 | R-19 | A wall-clock read makes a test or a deadline non-deterministic | SYS | Determinism | 2 | 2 | 4 | P1 | `Clock` port; no `now()` in SQL; socket guard | `[SYS-6.R1]`, `[SYS-6.R4]` | Static (fitness) |
 | R-20 | Purchase (`createOrder`) misses its 800 ms p95 under the §3 seed | ORD | Performance | 2 | 2 | 4 | P1 | One transaction; ascending unit locks; indexed visibility | `[NFR-ORD-2.p95]` | NFR benchmark |
+| R-21 | A job runs without the `JOBS_SECRET` bearer, or two runs of one job overlap and apply an expiry twice (Impl-2, Story 1.6) | SYS | Security | 2 | 3 | 6 | P0 | Constant-time bearer check before any write; `pg_try_advisory_xact_lock(job:<name>)` held for the run; one JobRun row per run | `[S-SYS.jobs.auth]`, `[S-SYS.jobs.single]`, `[S-SYS.jobs.C1]` | Integration (race) |
 
-Twenty risks are registered:
+Twenty risks were registered in Solu-2, and Impl-2 adds its own (§7.2) as each story's red tests land:
 
-- 15 are P0: the 12 MECs plus R-13, R-14 and R-15.
-- 5 are P1.
+- Solu-2: 15 are P0 (the 12 MECs plus R-13, R-14 and R-15) and 5 are P1.
+- Impl-2: R-21 onward.
 
 Every P0 and P1 risk has at least one red test. The test-id gate (`npm run gate:ids:solu2`) and the trace gate prove that each id exists.
 

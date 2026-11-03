@@ -18,15 +18,15 @@
 |---|---|
 | FRs traced to a contract clause and a test | 96 / 96 |
 | ADs of §14 with a test that turns red on violation | 61 / 61 |
-| P0 risks with a red test | 15 / 15 |
-| P0 risks linked to a story and a red test (final trace) | 15 / 15 |
+| P0 risks with a red test | 16 / 16 |
+| P0 risks linked to a story and a red test (final trace) | 16 / 16 |
 | §14 ADs linked to a story and a red test | 61 / 61 |
 | FRs linked to a story | 96 / 96 |
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
 | NFR evidence status | Green — ATDD: 34; Green — benchmark: 14; Green — gate: 8; Deferred — launch: 3; Planned — story DoD: 3; Red — ATDD: 3 |
-| Contract clauses / test ids | 112 / 391 (379 red, 12 green) |
+| Contract clauses / test ids | 114 / 398 (386 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -141,7 +141,7 @@
 | NFR-SYS-3 | Independent executability | — | `SYS-6.R4` | 1 | Green — gate |
 | NFR-SYS-4 | Virtual time | — | `SYS-6.R1`, `SYS-6.R1.probe` | 2 | Green — gate |
 | NFR-SYS-5 | Money-shape safety | — | `VAL-1.I1`, `COM-1.I3` | 2 | Green — ATDD (`[COM-1.I3]` with Story 8.2, `[VAL-1.I1]` with Story 12.1) |
-| NFR-SYS-6 | Post-commit events are exactly-once in effect | — | `NFR-SYS-6.sweep`, `SYS-2.R6`, `SYS-2.R4` | 3 | Green — benchmark |
+| NFR-SYS-6 | Post-commit events are exactly-once in effect | S-SYS.sweep | `NFR-SYS-6.sweep`, `SYS-2.R6`, `SYS-2.R4` | 4 | Green — benchmark |
 | NFR-SYS-7 | Server-side authorization | — | `SYS-8.R2`, `SYS-8.R2.static` | 2 | Green — ATDD |
 | NFR-SYS-8 | Admin audit trail | IDN-3 | `IDN-3.Q1`, `REP-2.Q1`, `SYS-R2` +1 | 9 | Green — ATDD (identity, VER, the grants, and `[REP-2.Q1]` with Story 13.2) |
 | NFR-SYS-9 | Latency baseline | — | `NFR-ORD-2.p95` | 1 | Green — benchmark |
@@ -283,6 +283,7 @@
 | R-18 A module writes another module's tables, or the app role rewrites a… | P1 | SYS | Static + integration | `SYS-AD8`, `SYS-R2`, `SYS-R2.grants` | 1.2 (done), 1.4 (done) | green + red |
 | R-19 A wall-clock read makes a test or a deadline non-deterministic | P1 | SYS | Static (fitness) | `SYS-6.R1`, `SYS-6.R4` | 1.4 (done) | green |
 | R-20 Purchase (`createOrder`) misses its 800 ms p95 under the §3 seed | P1 | ORD | NFR benchmark | `NFR-ORD-2.p95` | 7.1 (done) | red |
+| R-21 A job runs without the `JOBS_SECRET` bearer, or two runs of one job… | P0 | SYS | Integration (race) | `S-SYS.jobs.C1` | 1.6 (in-progress) | red |
 
 ## 6. Contract clauses
 
@@ -400,4 +401,6 @@
 | REP-1.check | read model / mirror | FR-REP-1, FR-REP-2 | AD-REP-1 | 2 | red |
 | S-SYS.tick | read model / mirror | — | — | 1 | red |
 | S-SYS.deliveries | read model / mirror | — | AD-SYS-2 | 1 | red |
+| S-SYS.jobs | read model / mirror | — | AD-SYS-4 | 6 | red |
+| S-SYS.sweep | read model / mirror | — | AD-SYS-2 | 1 | red |
 
