@@ -18,15 +18,15 @@
 |---|---|
 | FRs traced to a contract clause and a test | 96 / 96 |
 | ADs of §14 with a test that turns red on violation | 61 / 61 |
-| P0 risks with a red test | 16 / 16 |
-| P0 risks linked to a story and a red test (final trace) | 16 / 16 |
+| P0 risks with a red test | 17 / 17 |
+| P0 risks linked to a story and a red test (final trace) | 17 / 17 |
 | §14 ADs linked to a story and a red test | 61 / 61 |
 | FRs linked to a story | 96 / 96 |
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
 | NFR evidence status | Green — ATDD: 34; Green — benchmark: 14; Green — gate: 8; Deferred — launch: 3; Planned — story DoD: 3; Red — ATDD: 3 |
-| Contract clauses / test ids | 114 / 398 (386 red, 12 green) |
+| Contract clauses / test ids | 114 / 404 (392 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -39,7 +39,7 @@
 | FR-IDN-4 | Guard seller-type exclusivity atomically (CAP-5, CAP-19) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | 2.1 (done), 2.2 (done), 3.1 (done), 3.3 (done) | red |
 | FR-IDN-5 | Capability audit trace for admins (CAP-15) | IDN-3 | AD-IDN-1, AD-VER-2, AD-13, AD-SYS-8 | 5 — `IDN-3.I1`, `IDN-3.I3`, `IDN-3.P2` +2 | 2.5 (done) | red |
 | FR-IDN-6 | Messaging, review-target and seller-kind queries (CAP-18, CAP-7, CAP-1) | MSG-3, S-FR-IDN-6 | AD-IDN-1, AD-MSG-2 | 5 — `MSG-3.MEC`, `MSG-3.Q1`, `MSG-3.QF1` +2 | 2.5 (done), 9.1 (done) | red |
-| FR-IDN-7 | Authentication and admin gating (CAP-15, CAP-28) | S-FR-IDN-7 | AD-16, AD-IDN-3, AD-SYS-8 | 2 — `S-FR-IDN-7.f`, `S-FR-IDN-7.h` | 2.4 (done) | red |
+| FR-IDN-7 | Authentication and admin gating (CAP-15, CAP-28) | S-FR-IDN-7 | AD-16, AD-IDN-3, AD-SYS-8 | 8 — `S-FR-IDN-7.f`, `S-FR-IDN-7.h`, `S-FR-IDN-7.signin.h` +5 | 2.4 (done), 2.6 (in-progress) | red |
 | FR-VER-1 | Submit a business application (CAP-15, CAP-5) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | 2.1 (done), 2.2 (done), 3.1 (done), 3.3 (done) | red |
 | FR-VER-2 | Admin review queue (CAP-15) | VER-3, S-FR-VER-2 | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 8 — `VER-3.I1`, `VER-3.I2`, `VER-3.I3` +5 | 3.4 (done), 3.5 (done) | red |
 | FR-VER-3 | Approve (CAP-15, CAP-5) | VER-1 | AD-VER-1, AD-SYS-5, AD-SYS-2 | 7 — `VER-1.I1`, `VER-1.MEC`, `VER-1.P2` +4 | 3.2 (done), 3.3 (done) | red |
@@ -284,6 +284,7 @@
 | R-19 A wall-clock read makes a test or a deadline non-deterministic | P1 | SYS | Static (fitness) | `SYS-6.R1`, `SYS-6.R4` | 1.4 (done) | green |
 | R-20 Purchase (`createOrder`) misses its 800 ms p95 under the §3 seed | P1 | ORD | NFR benchmark | `NFR-ORD-2.p95` | 7.1 (done) | red |
 | R-21 A job runs without the `JOBS_SECRET` bearer, or two runs of one job… | P0 | SYS | Integration (race) | `S-SYS.jobs.C1` | 1.6 (done) | red |
+| R-22 The 11th failed sign-in in 15 min is not refused, a sign-up burst f… | P0 | IDN | Integration | `S-FR-IDN-7.signin.throttle`, `S-FR-IDN-7.signup.throttle`, `S-FR-IDN-7.signin.unknown` | 2.6 (in-progress) | red |
 
 ## 6. Contract clauses
 
@@ -327,7 +328,7 @@
 | REP-2 | core | FR-REP-4 | AD-16, AD-12, AD-REP-2, AD-REP-3 | 7 | red |
 | REP-3 | core | FR-REP-3 | AD-12, AD-REP-2 | 4 | red |
 | S-FR-IDN-6 | supporting | FR-IDN-6 | AD-IDN-1 | 2 | red |
-| S-FR-IDN-7 | supporting | FR-IDN-7 | AD-16, AD-IDN-3, AD-SYS-8 | 2 | red |
+| S-FR-IDN-7 | supporting | FR-IDN-7 | AD-16, AD-IDN-3, AD-SYS-8 | 8 | red |
 | S-FR-VER-2 | supporting | FR-VER-2 | AD-VER-2 | 2 | red |
 | S-FR-VER-7 | supporting | FR-VER-7 | AD-VER-3 | 2 | red |
 | S-FR-VER-8 | supporting | FR-VER-8 | AD-VER-1 | 3 | red |

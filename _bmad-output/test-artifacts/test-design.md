@@ -68,6 +68,7 @@ The *Red tests* column lists the test ids that turn red when the mitigation is r
 | R-19 | A wall-clock read makes a test or a deadline non-deterministic | SYS | Determinism | 2 | 2 | 4 | P1 | `Clock` port; no `now()` in SQL; socket guard | `[SYS-6.R1]`, `[SYS-6.R4]` | Static (fitness) |
 | R-20 | Purchase (`createOrder`) misses its 800 ms p95 under the §3 seed | ORD | Performance | 2 | 2 | 4 | P1 | One transaction; ascending unit locks; indexed visibility | `[NFR-ORD-2.p95]` | NFR benchmark |
 | R-21 | A job runs without the `JOBS_SECRET` bearer, or two runs of one job overlap and apply an expiry twice (Impl-2, Story 1.6) | SYS | Security | 2 | 3 | 6 | P0 | Constant-time bearer check before any write; `pg_try_advisory_xact_lock(job:<name>)` held for the run; one JobRun row per run | `[S-SYS.jobs.auth]`, `[S-SYS.jobs.single]`, `[S-SYS.jobs.C1]` | Integration (race) |
+| R-22 | The 11th failed sign-in in 15 min is not refused, a sign-up burst from one IP is not throttled, or a throttle row stores a raw IP or an empty key (Impl-2, Story 2.6) | IDN | Security | 3 | 3 | 9 | P0 | The auth guard checks `checkAuthThrottle` before Better Auth; one `AuthThrottleEvent` per known key after a failure; keys are account ids or `ipHmac` | `[S-FR-IDN-7.signin.throttle]`, `[S-FR-IDN-7.signup.throttle]`, `[S-FR-IDN-7.signin.unknown]` | Integration |
 
 Twenty risks were registered in Solu-2, and Impl-2 adds its own (§7.2) as each story's red tests land:
 

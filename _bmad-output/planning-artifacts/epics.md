@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 70 stories. They bind 143 registry operations and 398 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 404 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -241,7 +241,7 @@ All 56 NFRs. Each has a metric, an artifact and a status in `_bmad-output/test-a
 | FR-IDN-4 | 2.1, 2.2, 3.1, 3.3 |
 | FR-IDN-5 | 2.5 |
 | FR-IDN-6 | 2.5, 9.1 |
-| FR-IDN-7 | 2.4 |
+| FR-IDN-7 | 2.4, 2.6 |
 | FR-VER-1 | 2.1, 2.2, 3.1, 3.3 |
 | FR-VER-2 | 3.4, 3.5 |
 | FR-VER-3 | 3.2, 3.3 |
@@ -337,7 +337,7 @@ All 56 NFRs. Each has a metric, an artifact and a status in `_bmad-output/test-a
 | Epic | Module | Goal | Stories | MEC story |
 |---|---|---|---|---|
 | 1. Walking skeleton: errors, audit, outbox and determinism | shared-kernel, server/trpc | Build the cross-module platform every story stands on: one typed error body, an audit trail with a regulated-data redactor, exactly-once event delivery, deterministic time and boundaries, and the admin event panel. | 6 | — |
-| 2. User, role and seller-type access (IDN) | IDN (`identity`) | Give every account exactly one seller track and derive its capabilities from facts, never from a client claim. | 5 | 2.2 |
+| 2. User, role and seller-type access (IDN) | IDN (`identity`) | Give every account exactly one seller track and derive its capabilities from facts, never from a client claim. | 6 | 2.2 |
 | 3. Business verification workflow (VER) | VER (`identity`) | Let a business apply once with its legal identity, and let admins decide each application exactly once. | 5 | 3.2 |
 | 4. Catalog and price reference (CAT) | CAT (`catalog`) | Ingest the card catalog with stable ids and serve reference prices that are always a stored observation. | 5 | 4.2 |
 | 5. Listings and shared inventory (INV) | INV (`listings`) | Let sellers list from one stock pool per (seller, item, condition). | 6 | 5.2 |
@@ -533,6 +533,22 @@ Give every account exactly one seller track and derive its capabilities from fac
   - **Scenario (happy) — Given:** Andrés is an Approved business. **When:** an admin traces his capabilities. **Then:** six capabilities in fixed order, each citing its source facts and equal to `getCapabilities`; one `CapabilityAuditRead` and one admin audit row.
   - **Scenario (failure) — Given:** the target id is unknown. **When:** an admin traces it. **Then:** `AccountNotFound` (404) with zero writes; no trace ever carries a legal-identity value.
 - **DoD:** the shared DoD, plus: the 9 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+
+### Story 2.6: Sign up, sign in and throttle failed attempts
+
+- **Kind:** Failure-state
+- **Description:** As Camila, I want to create my account with my consent recorded and sign in with my password, and as the platform, I want failed sign-ins and sign-up bursts throttled, so that accounts cannot be brute-forced (AD-IDN-3, S-8).
+- **Contracts:** — (no registry operation of its own) · **Also proves:** `S-FR-IDN-7` (§15 clause)
+- **Depends on:** Story 2.4
+- **Traceability:** FR-IDN-7 · Risk R-22 (P0)
+- **Binding invariants:** also cited by its clauses: AD-16, AD-IDN-3, AD-SYS-8
+- **Files:** —
+- **Schema/DTO:** tables `"AuthThrottleEvent"`, `"Session"`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_auth.test.ts` › `[S-FR-IDN-7.signup.h]`, `[S-FR-IDN-7.signup.f]`, `[S-FR-IDN-7.signup.throttle]`, `[S-FR-IDN-7.signin.h]`, `[S-FR-IDN-7.signin.throttle]`, `[S-FR-IDN-7.signin.unknown]`
+- **Gherkin:**
+  - **Scenario (happy) — Given:** a visitor with the privacy notice `privacy-v1` in front of her. **When:** Camila signs up accepting it, then signs in with her password before verifying her email. **Then:** her user stores the consent instant and version, her password only as a hash, one verification link is sent, and she is signed in, while `canBuy` still refuses `EmailNotVerified`.
+  - **Scenario (failure) — Given:** 10 failed sign-ins for her account in 15 minutes, a sign-up without consent, and a 6th sign-up from one IP within an hour. **When:** each arrives. **Then:** the 11th sign-in is 429 `AuthRateLimited` citing `retryAt` even with the right password; the sign-up without consent is 400 on `consentAccepted` with no user; the 6th sign-up is 429; every throttle row is keyed by an account id or a 64-hex `ipHmac`, never a raw IP or an empty key.
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; `app/api/auth/[...all]` serves `compose().auth`; production binds `UNWIRED_EMAIL` until a mail provider is chosen (launch checklist).
 
 ## Epic 3: Business verification workflow (VER)
 

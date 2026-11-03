@@ -167,3 +167,19 @@
 - **Also recorded (Story 1.6's red phase, `evidence/impl2/10-story-1.6-red.log`):** the first red run had `[S-SYS.jobs.C1]` failing "for another reason": `expect(rejected).toEqual([])` reported an assertion error and hid the `NotImplementedError` behind it. The agent found it through `gate:atdd-red`, and the test now rethrows the first rejection, so it fails with its real cause in the red phase and in any later regression.
 - **Artifact changed:** `operations.json`, `openapi.yaml` and the generated surface, `contracts.md` §15 (`S-SYS.jobs`, `S-SYS.sweep`), `dto.ts`, `admin-events.dto.ts`, `epics.source.mjs` and `epics.md` (Story 1.6; 2.6 with its red tests), `test-design.md` §2 (R-21), `sprint-status.yaml`, Story 1.6's file.
 - **Decided by:** Mateo.
+
+### 12. Story 2.6 guards Better Auth's routes from outside, and its red tests run through the real handler (Architecture)
+
+- **Phase:** B (Story 2.6's red phase), after Story 1.6 closed green (`7ac39a2`).
+- **Persona/Skill:** `bmad-testarch-atdd` (Murat), `bmad-dev-story` (Amelia), reading Better Auth 1.7.7's option types (`hooks`, `databaseHooks`, `emailVerification`, `rateLimit`).
+- **Prompt (summary):** AD-IDN-3 names "a Better Auth `hooks.before` on sign-in and sign-up". The agent had to decide where the throttle check sits.
+- **AI output (summary):** The agent chose, and reports here, a guard around Better Auth's handler (`serveAuth` in `src/server/auth-routes.ts`) rather than Better Auth's internal `hooks.before`, for three reasons:
+  - Inside Better Auth, a refusal becomes Better Auth's error JSON. Outside it, a 429 is the platform's `{ error: ErrorBody }` with the `retryAt` citation (AD-SYS-1).
+  - A thrown `NotImplementedError` inside a hook becomes a generic 500, so the red tests would fail "for another reason". At the guard, the red phase fails on `NotImplemented: auth.serveAuth`, which `gate:atdd-red` requires.
+  - The guard sees the request before Better Auth parses it, so the consent fields can be checked and removed without declaring them as Better Auth inputs.
+
+  The behaviour is the one AD-IDN-3 describes: the check runs before the password is verified, one row per known key is written after a failure, and Better Auth's own rate limiter is off. The consent instant is written by Better Auth's `databaseHooks.user.create.before` from the Clock.
+- **Human decision:** none asked: an implementation choice inside the approved design (#11), recorded as an agent default. The bound tests pin the AD-IDN-3 behaviour, whichever mechanism carries it.
+- **Red phase:** `evidence/impl2/12-story-2.6-red.log`: 6 failed on `NotImplementedError`; `gate:atdd-red:impl1` 34 red for the right reason, 0 not as expected.
+- **Artifact changed:** `contracts.md` (S-FR-IDN-7, the Story 2.6 clauses), `epics.source.mjs` and `epics.md` (Story 2.6; 71 stories), `test-design.md` §2 (R-22), `sprint-status.yaml`, Story 2.6's file, `_bmad-output/test-artifacts/atdd/idn_auth.test.ts`.
+- **Decided by:** agent default within #11 (no menu).

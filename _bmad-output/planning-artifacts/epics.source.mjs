@@ -159,6 +159,16 @@ export default {
           happy: ['Andrés is an Approved business.', 'an admin traces his capabilities.', 'six capabilities in fixed order, each citing its source facts and equal to `getCapabilities`; one `CapabilityAuditRead` and one admin audit row.'],
           failure: ['the target id is unknown.', 'an admin traces it.', '`AccountNotFound` (404) with zero writes; no trace ever carries a legal-identity value.'],
         },
+        {
+          // Impl-2 (decision log Impl-2 #7, #11, #12): Story 2.4's sign-in completion, which Impl-1 #26 handed over.
+          title: 'Sign up, sign in and throttle failed attempts', kind: 'Failure-state',
+          as: 'As Camila, I want to create my account with my consent recorded and sign in with my password, and as the platform, I want failed sign-ins and sign-up bursts throttled, so that accounts cannot be brute-forced (AD-IDN-3, S-8).',
+          ops: [], contracts: ['S-FR-IDN-7'],
+          tests: ['S-FR-IDN-7.signup.h', 'S-FR-IDN-7.signup.f', 'S-FR-IDN-7.signup.throttle', 'S-FR-IDN-7.signin.h', 'S-FR-IDN-7.signin.throttle', 'S-FR-IDN-7.signin.unknown'], depends: ['2.4'],
+          happy: ['a visitor with the privacy notice `privacy-v1` in front of her.', 'Camila signs up accepting it, then signs in with her password before verifying her email.', 'her user stores the consent instant and version, her password only as a hash, one verification link is sent, and she is signed in, while `canBuy` still refuses `EmailNotVerified`.'],
+          failure: ['10 failed sign-ins for her account in 15 minutes, a sign-up without consent, and a 6th sign-up from one IP within an hour.', 'each arrives.', 'the 11th sign-in is 429 `AuthRateLimited` citing `retryAt` even with the right password; the sign-up without consent is 400 on `consentAccepted` with no user; the 6th sign-up is 429; every throttle row is keyed by an account id or a 64-hex `ipHmac`, never a raw IP or an empty key.'],
+          dod: ['`app/api/auth/[...all]` serves `compose().auth`; production binds `UNWIRED_EMAIL` until a mail provider is chosen (launch checklist)'],
+        },
       ],
     },
     // =============================================================== 3 VER
