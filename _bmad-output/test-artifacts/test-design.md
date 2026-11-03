@@ -1,9 +1,9 @@
 ---
-title: "TEZG Solu-2 — Risk-based test design"
+title: "TEZG — Risk-based test design (Solu-2 system level, extended for Impl-2 in §7)"
 phase: "3 — Test Preparation (TEA)"
 deliverable: "3.1 (task-statement.md §6)"
 test-lead: "Martín Gómez (decisions relayed by Mateo Rubio, decision log Solu-2 #10)"
-skill: "bmad-testarch-test-design (system level)"
+skill: "bmad-testarch-test-design (system level; Impl-2 epic level in §7, decided by Mateo Rubio, decision log Impl-2 #1–#7)"
 inputs:
   - _bmad-output/planning-artifacts/prd.md (FRs, NFRs, §3 seed, §7 measurement protocol)
   - _bmad-output/planning-artifacts/detailed-design/contracts.md (37 core operations, 39 supporting contracts, §14 AD bindings)
@@ -126,3 +126,67 @@ Every P0 and P1 risk has at least one red test. The test-id gate (`npm run gate:
   - the test-quality review is triaged.
 
 **Martín's scope (decision log Solu-2 #10).** Full ATDD: the core operations plus the supporting contracts. The plan above, red NFR benchmarks, and a new Solu-2 CI workflow.
+
+## 7. Impl-2 test design (epic level)
+
+Impl-2 implements the 7 reserved stories and two new ones (decision log Impl-2 #1, #7), and pairs each with a testing flow of the Impl-2 statement. This section decides the flow, the new red tests and the thresholds **before any production code**. Each planned risk enters the register in §2 together with its red tests, in the story's red commit (decision log Impl-2 #6), because `gate:trace:solu2` refuses a risk citing an id that does not exist yet.
+
+### 7.1 Flow per story
+
+| Story | Kind | Highest risk | Flow | Why this flow |
+|---|---|---|---|---|
+| 1.6 Run scheduled jobs single-flight behind `JOBS_SECRET` (new) | Skeleton | An unauthenticated caller runs a job, or two runs overlap (S-9, AD-SYS-4 rule 7) | **A** ATDD-first | Security boundary and single-flight are strict contracts |
+| 2.6 Sign up, sign in and throttle failed attempts (new) | Failure-state | Brute force: the 11th failed sign-in is not refused (AD-IDN-3) | **A** ATDD-first | Security contract; the throttle is a numeric rule |
+| 8.5 Reconcile ledgers and report, never repair | Failure-state | A false discrepancy while deductions commit, or a "repair" write (AD-COM-1) | **A** + **D** | Atomic read contract; concurrency hammer against live deductions |
+| 8.6 Set commission rates and read the ledger | Supporting | A rate applied retroactively, or at the wrong boundary | **B** test-along | Well-understood rule; unit tests of the boundary written with the code |
+| 9.6 Read the inbox, mark threads read and mute | Supporting | A stale tab lowers `lastReadSeq` (AD-MSG-3) | **A** + **D** + **E** | Monotonic state under concurrent tabs; interactive inbox |
+| 11.5 Binder, external cards, moves and wishlist | Supporting | An unstable binder order; a wishlist price from a non-purchasable listing | **B** + **E** | Read-model logic built with its unit tests; interactive binder |
+| 11.6 Refuse unsafe links, foreign entries and unknown wishlist cards | Failure-state | An unsafe URL stored and rendered (XSS) | **A** | Pure refusal contracts |
+| 13.5 Profiles, moderation logs and listing hides | Supporting | Profile aggregate and first page disagree around a hide; p95 over 300 ms | **D** + **E** | NFR-REP-2 latency and snapshot consistency under load; public profile page |
+| 13.6 Refuse invalid moderation and bad aggregate requests | Failure-state | `100%` matches everything (LIKE wildcard); a double hide logs twice | **A** | Pure refusal contracts |
+| Impl-1 code | — | Weakly-green lock tests that sleep 200 ms (test review MEDIUM-1/2) | **C** test-after | Backfill and hardening of existing code |
+
+### 7.2 Planned risks (enter §2 with their red tests)
+
+| Planned id | Story | Risk | P × I | Priority | Planned red tests (new ids marked *) |
+|---|---|---|---|---|---|
+| R-21 | 1.6 | A job runs without the `JOBS_SECRET` bearer, or two runs of one job overlap | 2 × 3 | P0 | `[S-SYS.jobs.auth]`*, `[S-SYS.jobs.single]`* |
+| R-22 | 2.6 | The 11th failed sign-in in 15 min is not refused, or the IP is stored in clear | 3 × 3 | P0 | `[S-FR-IDN-7.signin.throttle]`*, `[S-FR-IDN-7.signin.h]`* |
+| R-23 | 8.5 | Reconcile reports a false discrepancy while deductions commit, or writes to an account | 3 × 3 | P0 | `[COM-3.Q1]`, `[COM-3.I1]`, `[COM-3.C1]`* |
+| R-24 | 8.5 | Two job runs of reconcile both run | 2 × 2 | P1 | `[COM-3.P2]`, `[COM-3.C2]`* |
+| R-25 | 8.6 | A new rate applies before its `effectiveFrom`, or a past-dated rate is accepted | 2 × 3 | P0 | `[S-FR-COM-7.h]`, `[S-FR-COM-7.f]` |
+| R-26 | 9.6 | Concurrent or stale `markRead` calls lower `lastReadSeq`, or a reader sees the other side's read state | 3 × 2 | P0 | `[S-FR-MSG-7.f]`, `[S-FR-MSG-7.C1]`* |
+| R-27 | 11.5 | The binder order differs between two reads with ties | 3 × 1 | P2 | `[S-FR-COL-5.h]`, `[S-FR-COL-5.f]` |
+| R-28 | 11.6 | A non-https or scripted link (`javascript:`, `data:`, an `HTTP://` spoof) is stored | 2 × 3 | P0 | `[S-FR-COL-3.f]`, `[S-FR-COL-3.f2]`* |
+| R-29 | 13.5 | A profile's aggregate and its first page come from different snapshots around a hide | 3 × 3 | P0 | `[S-FR-REP-7.h]`, `[S-FR-REP-7.C1]`* |
+| R-30 | 13.5 | The profile read misses p95 ≤ 300 ms (NFR-REP-2) | 2 × 2 | P1 | `[NFR-REP-2.profile]`* (benchmark), k6 `reputation-profile` |
+| R-31 | 13.6 | A search for `100%` matches everything, or two concurrent hides log twice | 3 × 2 | P0 | `[S-FR-REP-6.f]`, `[S-FR-REP-5.f]`, `[S-FR-REP-5.C1]`* |
+
+Every P0 risk keeps the §1 rule: a red test before code, a story, and a CI gate.
+
+### 7.3 Levels and the 70 / 20 / 10 + NFR pyramid
+
+| Level | Impl-2 content | Where | Target share of new tests |
+|---|---|---|---|
+| Unit (pure, < 10 ms, no I/O) | Domain rules: rate resolution, reconcile arithmetic, binder sort and completion, link validation, LIKE escaping, read-state clamp, throttle window | colocated `src/modules/*/domain/*.test.ts` | ≈ 70 % |
+| Integration | ATDD contracts over real Postgres 16, repository adapters, job route handlers, concurrency hammers (50 connections) | `_bmad-output/test-artifacts/atdd/`, colocated `application/*.test.ts` | ≈ 20 % |
+| E2E (browser) | Three journeys through Page Objects: public seller profile, inbox read and mute, binder sort and add | `_bmad-output/test-artifacts/e2e/` (Playwright) | ≈ 10 % |
+| NFR | k6 burst on the public profile and catalog reads (p95, p99, error rate); PRD §7 benchmarks for NFR-REP-2 and NFR-COL-2 | `_bmad-output/test-artifacts/nfr/` | Separate layer |
+
+The share is counted on the tests Impl-2 adds and reported in `walkthrough-impl2.md`. Coverage: ≥ 90 % branches over `src/modules/*/domain/**`, enforced by the Vitest coverage threshold in `npm test`.
+
+### 7.4 Thresholds added for Impl-2
+
+| Kind | Threshold | Source | Proof |
+|---|---|---|---|
+| Load (k6) | p95 ≤ 300 ms and p99 ≤ 800 ms for `reputation.profile`; p95 ≤ 1,000 ms for `catalog.browse`; 0 % 5xx; error rate < 1 % under a 50 VU burst | NFR-REP-2, NFR-SYS-9 | `npm run nfr:k6`, its summary in `nfr-evidence.md` |
+| Concurrency | 50 connections: 0 false discrepancies, `lastReadSeq` equal to the highest seq, exactly one log row per hide, exactly one job run | NFR-SYS-10, AD-COM-1, AD-MSG-3, AD-REP-3, AD-SYS-4 rule 7 | the `.C*` tests above |
+| Determinism | 0 `waitForTimeout`, 0 sleep-as-synchronization (`setTimeout` resolving a promise, `pg_sleep`) in tests | Impl-2 statement checklist | `npm run gate:no-sleep` |
+| E2E | Page Objects only (no locator in a spec), web-first assertions, `trace: 'on-first-retry'` | Impl-2 statement §3 | `gate:no-sleep` also refuses `page.locator(` in `*.spec.ts` |
+
+### 7.5 The four testing traps, as rules
+
+- **Ice cream cone:** a behaviour is proven at the lowest level that can prove it; E2E specs assert journeys, never business rules already proven below.
+- **Flaky sleeper:** waits are on a condition (`pg_stat_activity` lock wait, a barrier, a web-first assertion), never on time.
+- **Mocking mirage:** the unit under test is never faked. Fakes stand only at module seams and external ports; contract tests run on real Postgres.
+- **Blindly green:** every test asserts an observable outcome (a value, a row count, a code); the red run proves each new test can fail.

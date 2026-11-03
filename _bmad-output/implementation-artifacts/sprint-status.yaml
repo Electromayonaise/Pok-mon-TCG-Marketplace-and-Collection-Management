@@ -1,5 +1,5 @@
 # generated: 2026-10-24
-# last_updated: 2026-10-30
+# last_updated: 2026-11-03
 # project: Pok-mon-TCG-Marketplace-and-Collection-Management
 # project_key: NOKEY
 # tracking_system: file-system
@@ -7,6 +7,8 @@
 # backlog_source: _bmad-output/planning-artifacts/epics.md (13 epics, 69 stories)
 # scope: 853449c:docs/impl-1/task-statement.md Appendix B: 43 stories in Impl-1; the 26 listed under impl2_scope stay backlog until Impl-2
 # delivery: the 6 stories under impl1_delivery (decision log Impl-1 #22, Appendix B.0)
+# impl2_scope: decision log Impl-2 #1, #7: the 7 reserved stories (8.5, 8.6, 9.6, 11.5, 11.6, 13.5, 13.6) plus two new stories, 1.6 (the jobs route) and 2.6 (sign-up, sign-in and the throttle hook), added when their red tests land
+# impl2_flows: _bmad-output/test-artifacts/test-design.md §7.1 (Flow A ATDD-first, B test-along, C test-after, D quality gate, E Playwright)
 # readiness_gate: IR-PASS (scripts/readiness-audit.mjs --package docs/solu-2, run as this workflow's prepend step, 2026-10-24)
 
 # STATUS DEFINITIONS:
@@ -47,7 +49,7 @@
 # - An epic is 'done' when its Impl-1 stories are done and Martín signed its gate; its impl2_scope stories stay backlog
 
 generated: 2026-10-24
-last_updated: 2026-10-30
+last_updated: 2026-11-03
 project: Pok-mon-TCG-Marketplace-and-Collection-Management
 project_key: NOKEY
 tracking_system: file-system
