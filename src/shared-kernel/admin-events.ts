@@ -34,7 +34,6 @@ export interface AdminEventsV2UseCases {
 
 import type { DeliveryRowDTO, Subscriber } from './admin-events.dto.js';
 import type { Decision } from './decision.js';
-import { NotImplementedError } from './errors.js';
 import type { ReplayOutcome } from './dispatcher.js';
 import { MESSAGES, type MessageCode } from './messages.generated.js';
 import { renderMessage } from './messages.js';
@@ -135,9 +134,9 @@ function messageCodeOf(code: string | undefined): MessageCode {
 export class AdminEventsServiceV2 implements AdminEventsV2UseCases {
   constructor(protected readonly deps: AdminEventsV2Deps) {}
 
-  /** S-SYS.sweep (Story 1.6): the `outbox-sweep` job's sweeper run. Red-phase stub until the story is done. */
+  /** S-SYS.sweep (Story 1.6): the `outbox-sweep` job runs the sweeper once (AD-SYS-2 rules 4 and 6). */
   async sweep(_input: SweepDeliveriesRequest): Promise<SweepDeliveriesResponse> {
-    throw new NotImplementedError('adminEvents.sweep');
+    return this.deps.dispatcher.sweep();
   }
 
   /** S-SYS.tick (ARCH §4): derived at read from the latest tick JobRun and `clock.now()`. */

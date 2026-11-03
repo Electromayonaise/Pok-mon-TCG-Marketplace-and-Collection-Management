@@ -35,7 +35,7 @@ export interface IdnV2UseCases {
 
 import { ambientTx } from '../../../shared-kernel/db.js';
 import type { Decision } from '../../../shared-kernel/decision.js';
-import { UnexpectedError } from '../../../shared-kernel/errors.js';
+import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
@@ -289,6 +289,19 @@ export class IdnServiceV2 implements IdnV2UseCases {
     if (distinct.length === 0) return { names: [] };
     const names = await this.reading((tx) => this.deps.repo.readDisplayNames(tx, distinct));
     return { names: distinct.flatMap((userId) => (names.has(userId) ? [{ userId, displayName: names.get(userId)! }] : [])) };
+  }
+
+  /**
+   * S-FR-IDN-7 Q (Story 2.6): one `"AuthThrottleEvent"` per known key of a failed sign-in or a sign-up,
+   * the account id and/or the caller's `ipHmac`, never `''`. Red-phase stub until Story 2.6 is done.
+   */
+  async recordAuthThrottleEvent(_input: { scope: 'signInFail' | 'signUp'; accountId: CuidId | null; ipHmac: string | null }): Promise<void> {
+    throw new NotImplementedError('identity.recordAuthThrottleEvent');
+  }
+
+  /** The account a sign-in names, for the per-account throttle key (Story 2.6). Red-phase stub. */
+  async accountIdForEmail(_email: string): Promise<CuidId | null> {
+    throw new NotImplementedError('identity.accountIdForEmail');
   }
 }
 

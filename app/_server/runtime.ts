@@ -19,8 +19,16 @@ let app: ReturnType<typeof compose> | undefined;
 
 /** The composed application, built once per process. */
 export function application(): ReturnType<typeof compose> {
-  app ??= compose({ pool: db().pool, clock: systemClock, sessions: betterAuthSessions(auth()), ipHmacKey: loadConfig().ipHmacKey });
+  if (!app) {
+    const { ipHmacKey, jobsSecret } = loadConfig();
+    app = compose({ pool: db().pool, clock: systemClock, sessions: betterAuthSessions(auth()), ipHmacKey, jobsSecret, log });
+  }
   return app;
+}
+
+/** Serves one `/api/jobs/<job>` request (Story 1.6). */
+export function handleJob(req: Request): Promise<Response> {
+  return application().jobs(req);
 }
 
 /** Serves one tRPC request through the wired router, with batching off (R-9, in serveTrpc). */

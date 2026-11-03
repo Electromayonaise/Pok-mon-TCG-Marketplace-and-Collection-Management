@@ -74,7 +74,8 @@ describe('Story 1.6 — each run writes one JobRun row (ARCHITECTURE §4)', () =
     expect(res.json).toMatchObject({ job: 'trm-fetch', trigger: 'tick', outcome: 'succeeded' });
     expect(await jobRuns()).toEqual([{ job: 'trm-fetch', trigger: 'tick', outcome: 'succeeded', errorCode: null, startedAt: new Date(T0), finishedAt: new Date(T0) }]);
     expect(await rows(db, 'FxRate')).toHaveLength(1);
-    // A second run on a covered day is a succeeded no-op: still one rate, now two runs.
+    // A second run on a covered day, 1 ms later on the Clock, is a succeeded no-op: still one rate, now two runs.
+    clock.advance(1);
     expect((await call('trm-fetch', { trigger: 'daily-morning' })).json).toMatchObject({ outcome: 'succeeded' });
     expect(await rows(db, 'FxRate')).toHaveLength(1);
     expect((await jobRuns()).map((r) => r.trigger)).toEqual(['tick', 'daily-morning']);
@@ -114,6 +115,8 @@ describe('Story 1.6 — single-flight under job:<name> (AD-SYS-4 rule 7)', () =>
       await holder.query('ROLLBACK');
       holder.release();
     }
+    // 1 ms later on the Clock, so the two rows order by their start, never by their random ids.
+    clock.advance(1);
     expect((await call('expiry-materialize')).json).toMatchObject({ outcome: 'succeeded' });
     expect(await unitQuantity()).toBe(1);
     expect((await jobRuns()).map((r) => r.outcome)).toEqual(['skipped', 'succeeded']);

@@ -283,7 +283,7 @@
 | R-18 A module writes another module's tables, or the app role rewrites a… | P1 | SYS | Static + integration | `SYS-AD8`, `SYS-R2`, `SYS-R2.grants` | 1.2 (done), 1.4 (done) | green + red |
 | R-19 A wall-clock read makes a test or a deadline non-deterministic | P1 | SYS | Static (fitness) | `SYS-6.R1`, `SYS-6.R4` | 1.4 (done) | green |
 | R-20 Purchase (`createOrder`) misses its 800 ms p95 under the §3 seed | P1 | ORD | NFR benchmark | `NFR-ORD-2.p95` | 7.1 (done) | red |
-| R-21 A job runs without the `JOBS_SECRET` bearer, or two runs of one job… | P0 | SYS | Integration (race) | `S-SYS.jobs.C1` | 1.6 (in-progress) | red |
+| R-21 A job runs without the `JOBS_SECRET` bearer, or two runs of one job… | P0 | SYS | Integration (race) | `S-SYS.jobs.C1` | 1.6 (done) | red |
 
 ## 6. Contract clauses
 

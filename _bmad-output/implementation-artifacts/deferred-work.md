@@ -50,12 +50,12 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 ## Deferred from: 4-1-start-and-continue-a-catalog-feed-run (2026-10-27)
 
 - No production `CatalogFeedSource` exists: OQ-9 names a fixture file, and no story builds its production reader. `compose()` binds `UNWIRED_FEED`, so a production `catalog.feed.continue` fails the run as NotImplemented, never silently. Tests bind `FixtureFeedSource`.
-- The scheduled run of AD-CAT-1 rule 4 (`daily-night`, looping in-process for up to 240 s) has no jobs route to run from. It belongs with the jobs route, together with `jobs/trm-fetch` (Story 4.4).
+- The scheduled run of AD-CAT-1 rule 4 (`daily-night`, looping in-process for up to 240 s) has no jobs route to run from. It belongs with the jobs route, together with `jobs/trm-fetch` (Story 4.4). **Impl-2 note:** Story 1.6 built the job route, but the catalog feed has no `jobs/*` procedure in the registry and no production `CatalogFeedSource` (`UNWIRED_FEED`), so this stays open. Owner: the launch checklist, with the production feed.
 
 ## Deferred from: 4-4-never-fabricate-a-price (2026-10-27)
 
 - The production `FxRateSource` (datos.gov.co dataset `32sa-8pi3`, ADD-§6) is not built. It needs an HTTP client behind `tezg/no-direct-io`, the three transport retries of NFR-CAT-4, and its fields checked against the live dataset (`unidad = 'COP'`, the floating `vigenciadesde`/`vigenciahasta`). `compose()` binds `UNWIRED_FX`, so `catalog.fx.retry` fails as NotImplemented in production.
-- No jobs route exists, so the `jobs/trm-fetch` procedure (`daily-morning` plus the hourly tick, G-3) is not reachable. `fetchTrm` is ready for it. Its single-flight lock (`job:trm-fetch`) belongs with that route; until then, the exclusion constraint makes two concurrent fetches converge on one row.
+- ~~No jobs route exists, so the `jobs/trm-fetch` procedure (`daily-morning` plus the hourly tick, G-3) is not reachable. `fetchTrm` is ready for it. Its single-flight lock (`job:trm-fetch`) belongs with that route; until then, the exclusion constraint makes two concurrent fetches converge on one row.~~ Resolved by Story 1.6 (decision log Impl-2 #11): `jobs/trm-fetch` runs on `tick` and `daily-morning` under `job:trm-fetch`.
 - `getFxRate` raises `Unexpected` (500) when no TRM is stored on or before the date, because the DTO has no null. Only an empty `"FxRate"` table reaches it. Revisit if VAL needs an explained answer before the first fetch. VAL does not need one: it never calls `getFxRate`, because an FX-derived observation already carries its COP (decision log Impl-1 #37, D3). Owner: the jobs route (the first `trm-fetch` run).
 
 ## Deferred from: code review of Epic 4 (4.1–4.5) (2026-10-27)
@@ -85,7 +85,7 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 
 ## Deferred from: spec of Epic 7 (7.1–7.5) (2026-10-27)
 
-- No jobs route exists, so `expireDueOrders` (S-FR-ORD-8) has no tick or cron caller: the hourly tick (G-3), `daily-morning` and `daily-night` with the single-flight `job:expiry-materialize`. It belongs with the jobs route, together with `trm-fetch` (Story 4.4) and the catalog's `daily-night` (Story 4.1). Until then expiry is still correct at every read and command (AD-ORD-2 rule 8, AD-SYS-6 rule 5). Stock is reclaimed by the `orders.create` pre-step for the same listing, and by every command that meets an overdue order.
+- ~~No jobs route exists, so `expireDueOrders` (S-FR-ORD-8) has no tick or cron caller: the hourly tick (G-3), `daily-morning` and `daily-night` with the single-flight `job:expiry-materialize`. It belongs with the jobs route, together with `trm-fetch` (Story 4.4) and the catalog's `daily-night` (Story 4.1). Until then expiry is still correct at every read and command (AD-ORD-2 rule 8, AD-SYS-6 rule 5). Stock is reclaimed by the `orders.create` pre-step for the same listing, and by every command that meets an overdue order.~~ Resolved by Story 1.6 (decision log Impl-2 #11): `jobs/expiry-materialize` runs `expireDueOrders` on every trigger under `job:expiry-materialize`; `[S-SYS.jobs.C1]` proves 20 concurrent runs release a unit once.
 - `orders.supportContact.get` is `Unexpected` (500) until an admin first sets the contact, because `SupportContactDTO` has no null (decision log Impl-1 #32). Setting it belongs to the launch checklist; revisit with the support page (UI 6.2) if a public read must come before it.
 - The comprobante uses the production `ObjectStorage` and `MalwareScanner`, which are still `UNWIRED_STORAGE` and `UNWIRED_SCANNER` (Story 3.1's item above). In production the ticket, the upload and the URL fail as NotImplemented (500). NFR-ORD-2's upload transfer time (≤ 10 s at 10 Mbps) is measured with them, at launch.
 
@@ -124,7 +124,7 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 
 ## Deferred from: spec of Epic 10 (10.1–10.5) (2026-10-30)
 
-- No jobs route exists, so `expireDueOffers` (S-FR-TRD-9) has no tick or cron caller (`daily-morning`, the hourly tick, `JOBS_SECRET`, single-flight). It belongs with the jobs route, together with `trm-fetch` (Story 4.4), the catalog's `daily-night` (Story 4.1) and `expireDueOrders` (Story 7.5). Until then expiry is correct at every read and command (AD-TRD-1 rule 5), and an offer's own expired predecessor is materialized when the proposer offers again.
+- ~~No jobs route exists, so `expireDueOffers` (S-FR-TRD-9) has no tick or cron caller (`daily-morning`, the hourly tick, `JOBS_SECRET`, single-flight). It belongs with the jobs route, together with `trm-fetch` (Story 4.4), the catalog's `daily-night` (Story 4.1) and `expireDueOrders` (Story 7.5). Until then expiry is correct at every read and command (AD-TRD-1 rule 5), and an offer's own expired predecessor is materialized when the proposer offers again.~~ Resolved by Story 1.6 (decision log Impl-2 #11): the same `expiry-materialize` run calls `expireDueOffers`.
 
 ## Deferred from: code review of Epic 10 (10.1–10.5) (2026-10-30)
 
@@ -170,7 +170,14 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 ## Deferred from: the Impl-1 close (Phase 4, 2026-10-30)
 
 - NFR-IDN-1 (capability reads of 500 ids, p95 ≤ 50 ms) and NFR-COL-2 (binder page and wishlist) are "Planned — story DoD", but no story in `epics.md` names them in its Traceability, so no DoD carries their benchmark (`impl1-final-trace.md` §4). Martín kept the certified backlog unchanged (decision log Impl-1 #39). Owners: NFR-COL-2, Story 11.5; NFR-IDN-1's benchmark, the Impl-2 test hardening (a `nfr/idn1_latency.test.ts` with the shared harness; changed at the close review, #39).
-- No story in `epics.md` builds the jobs route (the items of Stories 4.1, 4.4, 7.5 and 10.5 above, and 8.5's `commission-reconcile`). Owner: Impl-2 planning, which must give it a story before Epic 8's completion needs it.
+- ~~No story in `epics.md` builds the jobs route (the items of Stories 4.1, 4.4, 7.5 and 10.5 above, and 8.5's `commission-reconcile`). Owner: Impl-2 planning, which must give it a story before Epic 8's completion needs it.~~ Resolved by Story 1.6 (decision log Impl-2 #7, #11), which also adds `jobs/outbox-sweep`; Story 8.5 completes `commission-reconcile`.
 - The test review's findings (`impl1-test-review.md`): the two lock-wait tests that sleep 200 ms before asserting a block (`ver.v2.test.ts:549`, `inv.v2.test.ts:293`; wait on `pg_stat_activity` instead), the deadlock watchdog copied into seven files, four test files over 300 lines, three unused variables in ATDD files, and the shared app in `composition.test.ts`. Owner: Impl-2 test hardening. The VAL benchmarks' run time (about 313 of 675 test-seconds) goes to whoever owns CI, together with whether `solu2-nfr` runs on every push.
 - `traceability-matrix.md` still shows each test's Solu-2 design state ("red") beside its done story; the implementation result is in `impl1-final-trace.md`. The generator was left unchanged (#39), and it still splits a status cell on every semicolon and does not check status names against the known set, so `nfr-evidence.md` keeps its details free of semicolons by convention only. Owner: the Impl-2 close's trace.
 - The Docker image build needs Docker Hub and the npm registry from inside the build stage; behind a TLS-re-signing proxy `npm ci` fails ("Exit handler never called"). The README says so. Owner: the launch checklist, with the deployment target.
+
+## Deferred from: Story 1.6 (2026-11-03)
+
+- The `schedule:` of `.github/workflows/jobs-tick.yml` stays commented until a deployment exists and the repository secrets `TEZG_URL` and `JOBS_SECRET` are set (decision log Impl-2 #11). Owner: the launch checklist. Until then the jobs run by hand (`workflow_dispatch`), and no correctness rule depends on them (AD-SYS-6 rule 5).
+- Production deployments must set `JOBS_SECRET` (≥ 32 bytes): `loadConfig()` now requires it. `.env.example`, `docker-compose.yml` and the Playwright web server carry local values. Owner: the launch checklist.
+- `retention-purge` (ARCH §13, `daily-night`) has no registry procedure either; like the catalog feed it stays with the launch checklist (LG-2).
+

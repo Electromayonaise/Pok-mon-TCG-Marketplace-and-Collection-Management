@@ -6,6 +6,7 @@ const valid = {
   BETTER_AUTH_SECRET: 'x'.repeat(32),
   BETTER_AUTH_URL: 'http://localhost:3000',
   IP_HMAC_KEY: 'k'.repeat(32),
+  JOBS_SECRET: 'j'.repeat(32),
 };
 
 describe('loadConfig', () => {
@@ -14,12 +15,13 @@ describe('loadConfig', () => {
       databaseUrl: valid.DATABASE_URL,
       auth: { secret: valid.BETTER_AUTH_SECRET, baseUrl: valid.BETTER_AUTH_URL },
       ipHmacKey: valid.IP_HMAC_KEY,
+      jobsSecret: valid.JOBS_SECRET,
     });
   });
 
   it('names every missing or malformed variable in one error', () => {
-    const bad = { DATABASE_URL: 'mysql://db/tezg', BETTER_AUTH_SECRET: 'short', IP_HMAC_KEY: 'short' };
-    expect(() => loadConfig(bad)).toThrow(/Invalid configuration[\s\S]*DATABASE_URL[\s\S]*BETTER_AUTH_SECRET[\s\S]*BETTER_AUTH_URL[\s\S]*IP_HMAC_KEY/);
+    const bad = { DATABASE_URL: 'mysql://db/tezg', BETTER_AUTH_SECRET: 'short', IP_HMAC_KEY: 'short', JOBS_SECRET: 'short' };
+    expect(() => loadConfig(bad)).toThrow(/Invalid configuration[\s\S]*DATABASE_URL[\s\S]*BETTER_AUTH_SECRET[\s\S]*BETTER_AUTH_URL[\s\S]*IP_HMAC_KEY[\s\S]*JOBS_SECRET/);
   });
 
   it('accepts the postgres:// scheme as well as postgresql://', () => {

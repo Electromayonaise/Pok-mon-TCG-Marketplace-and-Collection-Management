@@ -6,12 +6,14 @@
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { betterAuth } from 'better-auth';
 import type { PrismaClient } from '../../generated/prisma/client.js';
+import type { EmailSender } from '../shared-kernel/external.js';
+import type { Clock } from '../shared-kernel/ports.js';
 import { loadConfig } from '../shared-kernel/config.js';
 import { CuidIds } from '../shared-kernel/infra/cuid-ids.js';
 import { db } from './db.js';
 
 /** One Better Auth instance on `prisma`; tests build theirs on the test database. */
-export function createAuth({ prisma, secret, baseUrl }: { prisma: PrismaClient; secret: string; baseUrl: string }) {
+export function createAuth({ prisma, secret, baseUrl }: { prisma: PrismaClient; secret: string; baseUrl: string; clock?: Clock; email?: EmailSender }) {
   const ids = new CuidIds();
   return betterAuth({
     secret,

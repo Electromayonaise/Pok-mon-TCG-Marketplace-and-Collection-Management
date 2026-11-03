@@ -1,5 +1,6 @@
 // S-FR-IDN-7: the gates the procedure builders ask (AD-11). Identity raises its own codes, so
 // server/trpc never decides who is signed in or who is an admin (decision log Impl-1 #24).
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type { TransactionRunner } from '../../../shared-kernel/ports.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import type { CuidId } from '../../../shared-kernel/types.js';
@@ -32,6 +33,18 @@ export class IdentityGateV2 {
     const { repo, transactions } = this.deps;
     const facts = await transactions.run((tx) => repo.readCapabilityFacts(tx, actorId), { readOnly: true });
     if (!facts?.isAdmin) raise('AdminOnly', [{ rule: 'AD-16', inputs: { isAdmin: false } }]);
+  }
+
+  /**
+   * S-9 (Story 1.6): the job routes' `Authorization: Bearer <JOBS_SECRET>`. Both sides are hashed first,
+   * so the comparison is constant-time whatever their lengths; an empty secret matches nothing.
+   */
+  requireJobBearer(authorization: string | null, secret: string): void {
+    const bearer = /^Bearer (.+)$/.exec(authorization ?? '')?.[1];
+    const digest = (s: string) => createHash('sha256').update(s, 'utf8').digest();
+    if (secret === '' || bearer === undefined || !timingSafeEqual(digest(bearer), digest(secret))) {
+      raise('NotAuthenticated', [{ rule: 'AD-SYS-8', inputs: { jobsBearer: bearer === undefined ? 'missing' : 'mismatch' } }]);
+    }
   }
 
   async requireCanBuy(input: RequireCanBuyRequest): Promise<RequireCanBuyResponse> {

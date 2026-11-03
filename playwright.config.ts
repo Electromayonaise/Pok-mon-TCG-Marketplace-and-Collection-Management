@@ -45,6 +45,7 @@ export default defineConfig({
       BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? 'e2e-only-secret-not-for-any-deployed-environment',
       BETTER_AUTH_URL: baseURL,
       IP_HMAC_KEY: process.env.IP_HMAC_KEY ?? 'e2e-only-ip-hmac-key-not-for-any-deployed-environment',
+      JOBS_SECRET: process.env.JOBS_SECRET ?? 'e2e-only-jobs-secret-not-for-any-deployed-environment',
     },
   },
 });
