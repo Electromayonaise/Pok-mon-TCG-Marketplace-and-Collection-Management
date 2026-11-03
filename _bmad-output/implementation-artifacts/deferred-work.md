@@ -16,11 +16,11 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 
 ## Deferred from: spec of 2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins (2026-10-25)
 
-- `checkAuthThrottle` only counts. Inserting an `"AuthThrottleEvent"` row on each failed sign-in or sign-up, and the Better Auth `hooks.before` that calls the check, belong to the story that configures sign-in and sign-up (`src/server/auth.ts` has neither yet). Until then nothing writes the table. No story in `epics.md` configures them: decision log Impl-1 #26 gives the work to Story 2.4's completion in Impl-2.
+- ~~`checkAuthThrottle` only counts. Inserting an `"AuthThrottleEvent"` row on each failed sign-in or sign-up, and the Better Auth `hooks.before` that calls the check, belong to the story that configures sign-in and sign-up (`src/server/auth.ts` has neither yet). Until then nothing writes the table. No story in `epics.md` configures them: decision log Impl-1 #26 gives the work to Story 2.4's completion in Impl-2.~~ Resolved by Story 2.6 (decision log Impl-2 #11, #12): `src/server/auth-routes.ts` checks before Better Auth and inserts one row per known key after a failed sign-in or any sign-up attempt.
 
 ## Deferred from: code review of 2-4-refuse-unverified-buyers-and-throttle-failed-sign-ins (2026-10-25)
 
-- Throttle hardening for the story that wires the hook: the per-account limit lets anyone who knows an email lock that account out (AD-IDN-3 as designed; decide there whether the account key needs the IP too); the hook must pass a 64-hex `ipHmac` and `null`, never `''`, for an unknown account; the insert must write the clock's millisecond instants so `retryAt` frees the key on time.
+- ~~Throttle hardening for the story that wires the hook: the per-account limit lets anyone who knows an email lock that account out (AD-IDN-3 as designed; decide there whether the account key needs the IP too); the hook must pass a 64-hex `ipHmac` and `null`, never `''`, for an unknown account; the insert must write the clock's millisecond instants so `retryAt` frees the key on time.~~ Resolved by Story 2.6: the account limit stays as designed and the lockout risk is accepted (decision log Impl-2 #11, D4); the hook passes a 64-hex `ipHmac` or `null`, never `''` (`[S-FR-IDN-7.signin.unknown]`); the insert writes the Clock's millisecond instant.
 
 ## Deferred from: code review of 2-5-trace-capabilities-for-admins-and-answer-neighbours-identity-queries (2026-10-25)
 
@@ -43,7 +43,7 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 - ~~Length checks run on untrimmed input, so whitespace-only names pass the 2-character minimum. The contracts do not say whether to trim; decide it with the UI form.~~ Resolved before Epic 13 (decision log Impl-1 #38): the kernel's `textIssue` counts the minimum after trim and refuses a NUL, in VER's names, city, holder name, reason text and decision note.
 - `bankName` has no length bound in the contract, zod or the schema. Add one with a contract change.
 - The rejection reason's `textEsCo` is never shown to the business, and the status copy shows the reason code and a raw ISO date. Presentation belongs to the verification UI story.
-- A non-admin can flood `"LegalIdentityAccessLog"` with denied rows. Needs the throttle tables (NFR-SYS-14). Epic 9 does not close it: Story 9.5's limiter counts `"ContactRequestLog"` only, which is the contact handoff's own table, not a general throttle. Owner: Story 2.4's Impl-2 completion, which wires `"AuthThrottleEvent"` and the sign-in hook (decision log Impl-1 #34).
+- A non-admin can flood `"LegalIdentityAccessLog"` with denied rows. Needs the throttle tables (NFR-SYS-14). Epic 9 does not close it: Story 9.5's limiter counts `"ContactRequestLog"` only, which is the contact handoff's own table, not a general throttle. Owner: Story 2.4's Impl-2 completion, which wires `"AuthThrottleEvent"` and the sign-in hook (decision log Impl-1 #34). **Impl-2 note:** Story 2.6 wires `"AuthThrottleEvent"` for sign-in and sign-up only (its two scopes); a limit on denied legal-identity reads needs a new scope, a contract change. Owner: the launch checklist (NFR-SYS-14).
 - `legal-identity-confined` misses the table name built from concatenation or reached through an accessor. The same literal-style limit Story 1.4 recorded.
 - ~~`nfr-evidence.md` leaves every row at "Red — ATDD" after its story is done (NFR-VER-2, NFR-IDN-2). Refresh the whole table once.~~ Resolved by Story 4.4: the table was refreshed as a whole, with a new "Green — ATDD" status, and each later epic refreshes its own rows.
 
@@ -180,4 +180,10 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 - The `schedule:` of `.github/workflows/jobs-tick.yml` stays commented until a deployment exists and the repository secrets `TEZG_URL` and `JOBS_SECRET` are set (decision log Impl-2 #11). Owner: the launch checklist. Until then the jobs run by hand (`workflow_dispatch`), and no correctness rule depends on them (AD-SYS-6 rule 5).
 - Production deployments must set `JOBS_SECRET` (≥ 32 bytes): `loadConfig()` now requires it. `.env.example`, `docker-compose.yml` and the Playwright web server carry local values. Owner: the launch checklist.
 - `retention-purge` (ARCH §13, `daily-night`) has no registry procedure either; like the catalog feed it stays with the launch checklist (LG-2).
+
+## Deferred from: Story 2.6 (2026-11-03)
+
+- Production binds `UNWIRED_EMAIL`, so a production sign-up fails as NotImplemented (500) when Better Auth sends the verification link, until a mail provider is chosen (decision log Impl-2 #11, D3). Owner: the launch checklist. Tests bind `CapturingEmailSender`; the E2E journeys sign in with seeded users.
+- Better Auth's own `401` body on a wrong password passes through the guard unchanged (`{ code: 'INVALID_EMAIL_OR_PASSWORD', message }`), so it is not the platform's `ErrorBody`. The sign-in page maps it to its es-CO copy. Owner: the next contract revision, if the registry gains a credentials code.
+- Better Auth writes `ipAddress: ''` on every session write even with IP tracking off; `createAuth` strips it in a Prisma client extension (R-12). Revisit on a Better Auth upgrade.
 

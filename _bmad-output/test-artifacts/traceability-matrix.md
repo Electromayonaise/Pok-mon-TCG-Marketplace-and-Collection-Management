@@ -39,7 +39,7 @@
 | FR-IDN-4 | Guard seller-type exclusivity atomically (CAP-5, CAP-19) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | 2.1 (done), 2.2 (done), 3.1 (done), 3.3 (done) | red |
 | FR-IDN-5 | Capability audit trace for admins (CAP-15) | IDN-3 | AD-IDN-1, AD-VER-2, AD-13, AD-SYS-8 | 5 — `IDN-3.I1`, `IDN-3.I3`, `IDN-3.P2` +2 | 2.5 (done) | red |
 | FR-IDN-6 | Messaging, review-target and seller-kind queries (CAP-18, CAP-7, CAP-1) | MSG-3, S-FR-IDN-6 | AD-IDN-1, AD-MSG-2 | 5 — `MSG-3.MEC`, `MSG-3.Q1`, `MSG-3.QF1` +2 | 2.5 (done), 9.1 (done) | red |
-| FR-IDN-7 | Authentication and admin gating (CAP-15, CAP-28) | S-FR-IDN-7 | AD-16, AD-IDN-3, AD-SYS-8 | 8 — `S-FR-IDN-7.f`, `S-FR-IDN-7.h`, `S-FR-IDN-7.signin.h` +5 | 2.4 (done), 2.6 (in-progress) | red |
+| FR-IDN-7 | Authentication and admin gating (CAP-15, CAP-28) | S-FR-IDN-7 | AD-16, AD-IDN-3, AD-SYS-8 | 8 — `S-FR-IDN-7.f`, `S-FR-IDN-7.h`, `S-FR-IDN-7.signin.h` +5 | 2.4 (done), 2.6 (done) | red |
 | FR-VER-1 | Submit a business application (CAP-15, CAP-5) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | 2.1 (done), 2.2 (done), 3.1 (done), 3.3 (done) | red |
 | FR-VER-2 | Admin review queue (CAP-15) | VER-3, S-FR-VER-2 | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 8 — `VER-3.I1`, `VER-3.I2`, `VER-3.I3` +5 | 3.4 (done), 3.5 (done) | red |
 | FR-VER-3 | Approve (CAP-15, CAP-5) | VER-1 | AD-VER-1, AD-SYS-5, AD-SYS-2 | 7 — `VER-1.I1`, `VER-1.MEC`, `VER-1.P2` +4 | 3.2 (done), 3.3 (done) | red |
@@ -284,7 +284,7 @@
 | R-19 A wall-clock read makes a test or a deadline non-deterministic | P1 | SYS | Static (fitness) | `SYS-6.R1`, `SYS-6.R4` | 1.4 (done) | green |
 | R-20 Purchase (`createOrder`) misses its 800 ms p95 under the §3 seed | P1 | ORD | NFR benchmark | `NFR-ORD-2.p95` | 7.1 (done) | red |
 | R-21 A job runs without the `JOBS_SECRET` bearer, or two runs of one job… | P0 | SYS | Integration (race) | `S-SYS.jobs.C1` | 1.6 (done) | red |
-| R-22 The 11th failed sign-in in 15 min is not refused, a sign-up burst f… | P0 | IDN | Integration | `S-FR-IDN-7.signin.throttle`, `S-FR-IDN-7.signup.throttle`, `S-FR-IDN-7.signin.unknown` | 2.6 (in-progress) | red |
+| R-22 The 11th failed sign-in in 15 min is not refused, a sign-up burst f… | P0 | IDN | Integration | `S-FR-IDN-7.signin.throttle`, `S-FR-IDN-7.signup.throttle`, `S-FR-IDN-7.signin.unknown` | 2.6 (done) | red |
 
 ## 6. Contract clauses
 

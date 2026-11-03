@@ -31,7 +31,7 @@ let app: ReturnType<typeof compose>;
 let sessions = 0;
 
 beforeAll(() => {
-  const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000' });
+  const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000', clock });
   const ok = async () => undefined;
   app = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { commission: ok, collections: ok }, storage, scanner: new SimulatedScanner(), feed,
     fx: new FixtureFxRateSource([{ valor: '4130.00', validFrom: '2026-10-01', validTo: '2026-10-01' }]), ipHmacKey: IP_KEY });
@@ -515,7 +515,7 @@ describe('orders.create over HTTP on a pool of 1 (ORD-1, AD-SYS-4 rule 9)', () =
     const cookie = await signIn(id('camila'));
     const pool = singleConnectionPool(db);
     try {
-      const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000' });
+      const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000', clock });
       const small = compose({ pool, clock, sessions: betterAuthSessions(auth), storage, scanner: new SimulatedScanner() });
       const request = new Request('http://localhost/api/trpc/orders.create', { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ listingId: id('lchar'), qty: 1 }) });
       const res = await serveTrpc(request, small.router, clock, { identity: small.identity });
@@ -584,7 +584,7 @@ describe('the commission account and top-ups over HTTP (S-FR-COM-1, -2, -9, COM-
   /** A failed commission delivery of `type`, replayed by an admin through an app that keeps the real commission handler (the shared app binds an inert one). */
   async function replayToCommission(type: 'BusinessApplicationApproved' | 'OrderClosed' | 'OrderPaymentConfirmedByBusiness', aggregateId: string, payload: object): Promise<string> {
     await admin(db);
-    const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000' });
+    const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000', clock });
     const real = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { collections: async () => undefined } });
     await ins(db, 'OutboxEvent', { id: id('ev1'), type, aggregateId, schemaVersion: 1, payload: JSON.stringify(payload) }, 'created');
     await ins(db, 'EventDelivery', { eventId: id('ev1'), subscriber: 'commission', status: 'failed', attempts: 3, lastErrorCode: 'DeliveryAttemptsExhausted', firstFailedAt: at(-DAY), lastFailedAt: at(-DAY) });
@@ -787,7 +787,7 @@ describe('collections over HTTP (S-FR-COL-1, COL-3, COL-1, COL-2; Stories 11.1â€
   it('a replayed OrderClosed creates one prompt through the real collections handler; the buyer lists it and accepts it into a collection (Story 11.3)', async () => {
     await admin(db);
     await user(db, { id: id('camila') });
-    const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000' });
+    const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: 'http://localhost:3000', clock });
     const real = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), handlers: { commission: async () => undefined } });
     const payload = {
       orderId: id('o1'), buyerId: id('camila'), businessId: id('andres'), totalCop: 45_000, lines: [{ itemRef: id('char'), title: 'Charizard ex', qty: 1, unitPriceCop: 45_000 }],

@@ -58,4 +58,8 @@ export interface IdnRepository {
   readDisplayNames(tx: Tx, userIds: readonly CuidId[]): Promise<Map<CuidId, string>>;
   /** AD-IDN-3 rule 3: `"createdAt"` of the limit-th newest `"AuthThrottleEvent"` on `key` in `(since, until]`, or null. */
   readThrottleCutoff(tx: Tx, q: { scope: AuthThrottleScope; key: string; since: IsoInstant; until: IsoInstant; limit: number }): Promise<IsoInstant | null>;
+  /** S-FR-IDN-7 Q (Story 2.6): one throttle row; `key` is an account id or a 64-hex `ipHmac` (the CHECK refuses anything else). */
+  insertThrottleEvent(tx: Tx, row: { id: CuidId; scope: AuthThrottleScope; key: string; createdAt: IsoInstant }): Promise<void>;
+  /** The id of the account with this email (Better Auth stores it lower-cased), or null. */
+  readUserIdByEmail(tx: Tx, email: string): Promise<CuidId | null>;
 }

@@ -3,7 +3,7 @@
 // scan (AD-SYS-6), and the log sink, since `src/` writes to no console. The services, the identity
 // gate and the wired router come from src/server/composition.ts, built on first use so
 // `next build` reads no configuration. `_server` is a private Next.js folder: it is never a route.
-import { auth } from '../../src/server/auth.js';
+import { createAuth, type Auth } from '../../src/server/auth.js';
 import { compose } from '../../src/server/composition.js';
 import { db } from '../../src/server/db.js';
 import { betterAuthSessions } from '../../src/server/sessions.js';
@@ -16,14 +16,27 @@ export const systemClock: Clock = { now: () => new Date() };
 const log = createLogger((line) => console.error(line));
 
 let app: ReturnType<typeof compose> | undefined;
+let authInstance: Auth | undefined;
+
+/** Better Auth on the app database and the system clock (Story 2.6); production binds UNWIRED_EMAIL. */
+function appAuth(): Auth {
+  authInstance ??= createAuth({ prisma: db().prisma, ...loadConfig().auth, clock: systemClock });
+  return authInstance;
+}
 
 /** The composed application, built once per process. */
 export function application(): ReturnType<typeof compose> {
   if (!app) {
     const { ipHmacKey, jobsSecret } = loadConfig();
-    app = compose({ pool: db().pool, clock: systemClock, sessions: betterAuthSessions(auth()), ipHmacKey, jobsSecret, log });
+    const auth = appAuth();
+    app = compose({ pool: db().pool, clock: systemClock, sessions: betterAuthSessions(auth), ipHmacKey, jobsSecret, log, auth });
   }
   return app;
+}
+
+/** Serves one `/api/auth/*` request behind the AD-IDN-3 guard (Story 2.6). */
+export function handleAuth(req: Request): Promise<Response> {
+  return application().auth(req);
 }
 
 /** Serves one `/api/jobs/<job>` request (Story 1.6). */

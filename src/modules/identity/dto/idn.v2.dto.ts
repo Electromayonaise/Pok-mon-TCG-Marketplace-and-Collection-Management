@@ -48,8 +48,8 @@ export interface RequireCanBuyResponse { canBuy: true; decision: ExplanationDTO 
 export interface CheckAuthThrottleRequest {
   scope: 'signInFail' | 'signUp';
   accountId: CuidId | null;
-  /** HMAC-SHA256 of the caller IP (S-7), 64 hex chars. Never a raw IP. */
-  ipHmac: string;
+  /** HMAC-SHA256 of the caller IP (S-7), 64 hex chars, or null when the request names no IP (its limit is then skipped). Never a raw IP, never `''`. */
+  ipHmac: string | null;
 }
 export interface CheckAuthThrottleResponse { allowed: true }
 

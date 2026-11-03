@@ -169,6 +169,15 @@ export class PgIdnRepository implements IdnRepository {
     );
     return iso(rows[0]?.createdAt ?? null);
   }
+
+  async insertThrottleEvent(tx: Tx, row: { id: CuidId; scope: AuthThrottleScope; key: string; createdAt: IsoInstant }): Promise<void> {
+    await tx.query(`INSERT INTO "AuthThrottleEvent" (id, scope, key, "createdAt") VALUES ($1, $2, $3, $4)`, [row.id, row.scope, row.key, row.createdAt]);
+  }
+
+  async readUserIdByEmail(tx: Tx, email: string): Promise<CuidId | null> {
+    const { rows } = await tx.query<{ id: CuidId }>(`SELECT id FROM "User" WHERE email = $1`, [email]);
+    return rows[0]?.id ?? null;
+  }
 }
 
 /**

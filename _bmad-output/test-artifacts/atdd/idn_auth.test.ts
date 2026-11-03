@@ -3,7 +3,7 @@
 // every test fails on NotImplementedError until Story 2.6 is done. Requests go through `compose().auth`,
 // the route `app/api/auth/[...all]` serves, over a real Better Auth on the test database.
 import { PrismaPg } from '@prisma/adapter-pg';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaClient } from '../../../generated/prisma/client.js';
 import { createAuth } from '../../../src/server/auth.js';
 import { compose } from '../../../src/server/composition.js';
@@ -27,6 +27,11 @@ let app: ReturnType<typeof compose>;
 beforeAll(() => {
   const auth = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: BASE, clock, email });
   app = compose({ pool: db.pool, clock, sessions: betterAuthSessions(auth), ipHmacKey: IP_KEY, auth });
+});
+// The capture and the virtual clock are shared by the file; each test starts from none sent, at T0.
+beforeEach(() => {
+  email.sent.length = 0;
+  clock.set(Date.parse(T0));
 });
 
 type Body = { error?: { code: string; httpStatus: number; decision: { citations: { inputs: Record<string, unknown> }[] }; issues?: { field: string }[] } };

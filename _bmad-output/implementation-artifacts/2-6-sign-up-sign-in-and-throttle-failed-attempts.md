@@ -2,7 +2,7 @@
 title: 'Story 2.6: Sign up, sign in and throttle failed attempts'
 type: 'feature'
 created: '2026-11-03'
-status: 'in-progress'
+status: 'done'
 baseline_commit: '7ac39a2'
 review_loop_iteration: 0
 flow: 'Impl-2 Flow A, ATDD-first (test-design.md §7.1): red tests committed before any guard code; one code review per epic batch (decision log Impl-2 #4)'
@@ -41,8 +41,8 @@ context:
 
 **Execution:**
 - [x] red: the 6 bound tests, the Story 2.6 clauses of `S-FR-IDN-7`, the stubs; R-22 in `test-design.md` §2; red run in `evidence/impl2/12-story-2.6-red.log`
-- [ ] green: the guard, `createAuth`, the identity methods, the composition and the route
-- [ ] `npm run test:ci` green with 2.6 `done`
+- [x] green: the guard, `createAuth`, the identity methods, the composition and the route
+- [x] `npm run test:ci` green with 2.6 `done`
 
 **Acceptance Criteria:**
 - Given the current consent, when Camila signs up, then an unverified user with its consent instant, a hashed password, one verification link and one ipHmac-keyed throttle row.
@@ -56,3 +56,15 @@ context:
 - `npm run test:ci` -- expected: exit 0
 
 **Red phase (Flow A):** `evidence/impl2/12-story-2.6-red.log`: 6 failed on `NotImplemented: auth.serveAuth`; `gate:atdd-red:impl1`: 34 red for the right reason, 0 not as expected.
+
+**Green phase:** `evidence/impl2/13-story-2.6-green.log`. The first green run failed two ways:
+- **A test isolation bug:** the file shares one `CapturingEmailSender` and one virtual clock, so `[S-FR-IDN-7.signup.f]` saw the previous test's email. A `beforeEach` now empties the capture and resets the clock to T0.
+- **A real defect no Impl-1 test could reach:** Better Auth writes `ipAddress: ''` on every session insert even with IP tracking off, and `"Session"` has no such column (R-12), so every sign-in was a 500. Impl-1's tests created sessions by inserting rows directly, so no Better Auth sign-in ever ran. A database hook cannot drop the field (its data is merged over the original), so `createAuth` gives the adapter a Prisma client extension that removes it from every Session write.
+
+## Implementation Notes
+
+- **Where the throttle sits:** a guard around Better Auth's handler, not its internal `hooks.before` (decision log Impl-2 #12). Its 429 is the platform's `ErrorBody`, and its red phase fails on `NotImplemented` rather than a generic 500.
+- **Consent:** the guard checks and removes `consentAccepted` and `consentVersion`; `databaseHooks.user.create.before` writes `signupConsentAt` from the Clock and `signupConsentVersion = privacy-v1` (`CURRENT_CONSENT_VERSION`, now exported by identity).
+- **Keys:** `recordAuthThrottleEvent` writes one row per non-empty key, with the Clock's millisecond instant; `CheckAuthThrottleRequest.ipHmac` is now `string | null`, and a request with neither key skips the check.
+- **The instance:** `createAuth` requires a `Clock`; the app's instance moved from `src/server/auth.ts` to `app/_server/runtime.ts`, which owns the system clock (AD-SYS-6). Better Auth's rate limiter is off.
+- **Deferred** (`deferred-work.md`): the production mail provider (`UNWIRED_EMAIL`), Better Auth's own 401 body, and the session `ipAddress` workaround.
