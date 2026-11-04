@@ -19,8 +19,8 @@ The latest version of every BMAD/WDS artifact for TEZG, in the folders `_bmad/bm
 | `planning-artifacts/sprint-readiness-report.md` | The sprint readiness gate on the backlog (IR-PASS) |
 | `planning-artifacts/reviews/` | Every review of the planning artifacts, each with its triage |
 | `planning-artifacts/.memlog.md`, `.memlog-detailed-design.md` | The process logs of the PRD and of the detailed design |
-| `test-artifacts/` | The ATDD, fitness and NFR suites, fixtures, the CI gate mirror (`ci/`), test design, NFR evidence, the traceability matrix (the final trace and quality gate, `traceability-matrix.md`), the test review (`test-review.md`), the Playwright journeys (`e2e/`) and the run evidence (`evidence/`) |
-| `implementation-artifacts/` | `sprint-status.yaml`, one file per story, `walkthrough-impl1.md` |
+| `test-artifacts/` | The ATDD, fitness and NFR suites, fixtures, the CI gate mirror (`ci/`), test design (`test-design.md`, with the Impl-2 flows in §7), NFR evidence, the traceability matrix (the final trace and quality gate, `traceability-matrix.md`), the test review (`test-review.md`), the Playwright journeys and their Page Objects (`e2e/`, `e2e/pages/`), the k6 load script and its seed (`nfr/k6/`) and the run evidence (`evidence/impl2/`: the red and green logs, `k6-summary.json` and one `trace.zip` per journey in `traces/`) |
+| `implementation-artifacts/` | `sprint-status.yaml`, one file per story, `deferred-work.md`, `walkthrough-impl1.md` (the Impl-1 stories) and `walkthrough-impl2.md` (the Impl-2 stories, flows and evidence) |
 | `decision-logs/` | The human/AI decision log of every task from Plan-1 on. They are records, not versions of one another, so all are kept |
 
 ## Documents that build on each other

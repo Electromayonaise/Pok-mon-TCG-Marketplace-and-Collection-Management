@@ -15,7 +15,7 @@
 
 <br/>
 
-![Status](https://img.shields.io/badge/status-Impl--1%3A%2043%20of%2043%20stories%20done-brightgreen?style=for-the-badge)
+![Status](https://img.shields.io/badge/status-Impl--2%3A%2071%20of%2071%20stories%20done-brightgreen?style=for-the-badge)
 ![Region](https://img.shields.io/badge/region-Colombia-8A2BE2?style=for-the-badge)
 ![Made with BMAD](https://img.shields.io/badge/planned%20with-BMAD%2FWDS-2596BE?style=for-the-badge)
 
@@ -81,10 +81,15 @@ npm run db:migrate        # creates tezg_dev and applies the migrations
 npm run dev               # http://localhost:3000
 ```
 
+`npm run dev` and any deployment need `JOBS_SECRET`, at least 32 bytes: it is the bearer every scheduled job call sends (`POST /api/jobs/<job>?trigger=tick`), and `src/shared-kernel/config.ts` refuses to start without it. `.env.example` gives a local value, and `docker-compose.yml` sets its own. The tests need no `.env`.
+
 | Command | What it does |
 |---|---|
 | `npm test` | `npm run db:up`, then `npm run test:ci` |
-| `npm run test:ci` | The full suite against a running PostgreSQL: lint, the dependency and Prisma gates, the unit tests, then `gate:impl1` (typecheck, the Solu-2 contract gates, `gate:purity`, the fitness suite and the Impl-1 red gates). CI runs this command |
+| `npm run test:ci` | The full suite against a running PostgreSQL: lint, the dependency, no-sleep and Prisma gates, the unit tests with the 90 % per-file branch threshold on the domain cores, then `gate:impl1` (typecheck, the Solu-2 contract gates, the trace gate, `gate:purity`, the fitness suite and the red gates for the ATDD tests and NFR benchmarks). CI runs this command; it takes about 15 minutes, because the benchmarks run one file at a time |
+| `npx playwright test` | The E2E journeys: it starts the Compose PostgreSQL, recreates the `tezg_e2e` database, builds and serves the app on port 3100, and runs the specs through their Page Objects (`trace: 'on-first-retry'`) |
+| `npm run nfr:k6` | The k6 load run: it seeds `tezg_k6`, serves the production build on port 3200 and runs `grafana/k6` in Docker at a fixed arrival rate; it fails on any p95, p99, error-rate, 5xx or dropped-iteration threshold |
+| `npm run gate:no-sleep` | Refuses timed waits (`waitForTimeout`, `pg_sleep`, promise sleeps) everywhere, and locators built in a Playwright spec |
 | `npm run test:unit` | The unit and integration tests colocated with the code (`*.test.ts`) |
 | `npm run lint` | ESLint, run from its own toolchain in `tools/lint/` |
 | `npm run typecheck` | TypeScript 7, no emit |
@@ -95,7 +100,7 @@ npm run dev               # http://localhost:3000
 | `npm run gen:api:solu2` | Regenerates `openapi.yaml` from `operations.json` |
 | `npm run build` / `start` | Production build and server |
 
-The tests need only `npm run db:up`: each test file gets its own database, cloned from a template migrated once per run. They reach PostgreSQL through `TEZG_PG_HOST`, `TEZG_PG_PORT`, `TEZG_PG_USER`, `TEZG_PG_PASSWORD` and `TEZG_PG_DB` (defaults: `127.0.0.1:55432`, user, password and maintenance database `tezg`).
+The Vitest tests need only `npm run db:up`; Playwright and k6 start it themselves, and k6 also needs Docker for its image. Each test file gets its own database, cloned from a template migrated once per run. They reach PostgreSQL through `TEZG_PG_HOST`, `TEZG_PG_PORT`, `TEZG_PG_USER`, `TEZG_PG_PASSWORD` and `TEZG_PG_DB` (defaults: `127.0.0.1:55432`, user, password and maintenance database `tezg`).
 
 ### Troubleshooting: port 55432 on Windows
 
@@ -112,9 +117,15 @@ Windows (WinNAT/Hyper-V) can reserve a port range that includes 55432. `npm run 
 
   For `npm run dev`, also change the port in `DATABASE_URL` in `.env`.
 
+## What Impl-2 delivers
+
+Impl-2 is closed: all 71 stories of the 13 epics are `done`. It built the 7 stories Impl-1 reserved and two new ones, 1.6 (the jobs route, single-flight behind `JOBS_SECRET`) and 2.6 (sign-up, sign-in and the throttle), each paired with a testing flow: ATDD-first with the red run committed before the code, test-along, the hardening of the Impl-1 tests, the NFR gate (k6 and concurrency hammers) and Playwright journeys through Page Objects, with one committed `trace.zip` per journey. The final trace (`traceability-matrix.md`) awards **PASS**, and the CI workflow `impl2-quality-gate` releases only when the suite, the journeys and k6 all pass. Every registry procedure is now wired, and the service has its first pages: sign-in, the inbox, the binder and the public seller profile.
+
+Where each Impl-2 deliverable is, what changed in each artifact and how to run everything: [`docs/impl-2/README.md`](docs/impl-2/README.md). The walkthrough: [`walkthrough-impl2.md`](_bmad-output/implementation-artifacts/walkthrough-impl2.md).
+
 ## What Impl-1 delivers
 
-Impl-1 is closed: all 43 stories of its cut are `done`, together with 19 stories pulled forward from Impl-2 (62 of the project's 69). The 7 stories reserved for Impl-2 (8.5, 8.6, 9.6, 11.5, 11.6, 13.5, 13.6) keep their ATDD tests red for the right reason (`NotImplementedError`). The final trace's gate is PASS: every Impl-1 story's bound tests pass, at least two per story, and every P0 risk is covered.
+Impl-1 is closed: all 43 stories of its cut are `done`, together with 19 stories pulled forward from Impl-2 (62 of the project's 69). The 7 stories reserved for Impl-2 (8.5, 8.6, 9.6, 11.5, 11.6, 13.5, 13.6) kept their ATDD tests red for the right reason (`NotImplementedError`) until Impl-2 built them. The final trace's gate is PASS: every Impl-1 story's bound tests pass, at least two per story, and every P0 risk is covered.
 
 > The first graded delivery (the foundation and three Identity stories, decision log #22) is the tag [`impl1-entrega`](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/tree/impl1-entrega). The close of Impl-1 will be the tag `impl1-done`, set on `main` once the close is merged.
 
@@ -134,7 +145,7 @@ Impl-1 is closed: all 43 stories of its cut are `done`, together with 19 stories
 | 12 VAL | A collection is valued exactly in COP, with a null (never NaN) change on a zero baseline |
 | 13 REP | Only closed purchases review businesses, and a hide racing a new review never skews the aggregate |
 
-**Over HTTP**, 84 of the 111 procedures are wired behind a Better Auth session (or public, where the contract says so). A request without a session gets `NotAuthenticated` (401), and a non-admin on an admin procedure `AdminOnly` (403). Of the other 27, the 24 tRPC procedures of the reserved stories answer `Unexpected` (500) until they are built, and the 3 job routes (`jobs/trm-fetch`, `jobs/expiry-materialize`, `jobs/commission-reconcile`) have no route handler yet, so they answer 404. Sign-up and sign-in are not configured yet (Story 2.4's Impl-2 completion), and the production storage, malware scanner, catalog feed and TRM adapters are not chosen yet: [`walkthrough-impl1.md`](_bmad-output/implementation-artifacts/walkthrough-impl1.md) §18 lists every known limit with its owner.
+**Over HTTP at the Impl-1 close**, 84 of the 111 procedures are wired behind a Better Auth session (or public, where the contract says so). A request without a session gets `NotAuthenticated` (401), and a non-admin on an admin procedure `AdminOnly` (403). Of the other 27, the 24 tRPC procedures of the reserved stories answer `Unexpected` (500) until they are built, and the 3 job routes (`jobs/trm-fetch`, `jobs/expiry-materialize`, `jobs/commission-reconcile`) have no route handler yet, so they answer 404. Sign-up and sign-in are not configured yet (Story 2.4's Impl-2 completion), and the production storage, malware scanner, catalog feed and TRM adapters are not chosen yet: [`walkthrough-impl1.md`](_bmad-output/implementation-artifacts/walkthrough-impl1.md) §18 lists every known limit with its owner.
 
 The walkthrough covers each story's goal, procedures, database changes, blast radius and test evidence, together with the suite and gate output. Each story's full record is in `_bmad-output/implementation-artifacts/`.
 
@@ -149,7 +160,7 @@ The walkthrough covers each story's goal, procedures, database changes, blast ra
 | Story files | [`_bmad-output/implementation-artifacts/`](_bmad-output/implementation-artifacts/) |
 | Walkthrough and test output | [`_bmad-output/implementation-artifacts/walkthrough-impl1.md`](_bmad-output/implementation-artifacts/walkthrough-impl1.md) |
 | Final trace and test review | [`_bmad-output/test-artifacts/traceability-matrix.md`](_bmad-output/test-artifacts/traceability-matrix.md) (the final trace and quality gate, regenerated by `npm run gen:trace:solu2`), [`test-review.md`](_bmad-output/test-artifacts/test-review.md); the Impl-1 versions stay in git: `git show 31999bc:_bmad-output/test-artifacts/impl1-final-trace.md`, `git show 31999bc:_bmad-output/test-artifacts/impl1-test-review.md` |
-| Deliverable map | [`docs/impl-1/README.md`](docs/impl-1/README.md) |
+| Deliverable map | [`docs/impl-1/README.md`](docs/impl-1/README.md); for Impl-2, [`docs/impl-2/README.md`](docs/impl-2/README.md) |
 | AI decision log | [`_bmad-output/decision-logs/impl-1-ai-decision-log.md`](_bmad-output/decision-logs/impl-1-ai-decision-log.md) |
 | PRD | [`_bmad-output/planning-artifacts/prd.md`](_bmad-output/planning-artifacts/prd.md) and `addendum.md` |
 | Contracts (OpenAPI, schemas) | [`_bmad-output/planning-artifacts/detailed-design/`](_bmad-output/planning-artifacts/detailed-design/) |
@@ -158,7 +169,7 @@ The walkthrough covers each story's goal, procedures, database changes, blast ra
 
 TEZG is a modular monolith in hexagonal style (Plan-2 ARCHITECTURE, Solu-2 detailed design):
 
-- **Inbound adapters.** A Next.js 16 App Router app with no pages. `app/api/trpc/[trpc]/route.ts` serves tRPC 11 on the non-batched wire, from the composition root `src/server/composition.ts`. `app/api/auth/[...all]/route.ts` mounts Better Auth for sessions. `app/api/health/` holds the liveness and readiness probes.
+- **Inbound adapters.** A Next.js 16 App Router app with a thin page slice since Impl-2 (`/ingresar`, `/mensajes`, `/coleccion`, `/perfil/<userId>`). `app/api/trpc/[trpc]/route.ts` serves tRPC 11 on the non-batched wire, from the composition root `src/server/composition.ts`. `app/api/auth/[...all]/route.ts` mounts Better Auth for sessions. `app/api/jobs/[job]/route.ts` serves the scheduled jobs behind `JOBS_SECRET`. `app/api/health/` holds the liveness and readiness probes.
 - **Modules.** The 12 logical modules live in nine folders under `src/modules/<module>/`: `identity` (IDN, VER), `catalog`, `listings` (INV, DSC), `orders`, `commission`, `trading`, `messaging`, `collections` (COL, VAL) and `reviews`. Each folder has a `domain/` (pure: no framework, driver, network or wall clock; `gate:purity` enforces it), `application/`, `ports/`, `dto/` and `infra/`. Other modules may import it only through its `index.ts`, and only along the AD-1 edges.
 - **Persistence.** PostgreSQL 16. The SQL DDL in `_bmad-output/planning-artifacts/detailed-design/schemas/` is the schema source of truth: `npm run db:migrate` applies it, and every table belongs to exactly one module. Repositories run SQL through the `Sql`/`Tx` ports. The Prisma model is generated from the migrated database and backs Better Auth only.
 - **Shared kernel.** `src/shared-kernel/` holds the ports (`Clock`, `IdGenerator`, `TransactionRunner`, the outbox), the error registry, the event registry and the validated configuration (`config.ts`).
@@ -166,7 +177,7 @@ TEZG is a modular monolith in hexagonal style (Plan-2 ARCHITECTURE, Solu-2 detai
 
 | Path | Contents |
 |---|---|
-| `app/` | Route handlers (tRPC, health) |
+| `app/` | Route handlers (tRPC, auth, jobs, health) and the Impl-2 pages |
 | `src/` | Modules, shared kernel, server wiring (`src/server/`) |
 | `prisma/schema.prisma` | Generated model (`npm run db:pull`) |
 | `test-support/` | Test harness: per-file databases, virtual clock, ids, simulated adapters, the Reference Seed Profile (`fixtures/`) |
