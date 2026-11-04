@@ -118,7 +118,7 @@ In every row, *file* is relative to `src/modules/<host>/`. Each **Driving Adapte
 |---|---|---|---|
 | Router `messaging` (5 procedures) | **Driving Adapter** | `server/trpc/` | AD-MSG-2 |
 | `MsgV2UseCases` (5) | **Inbound Port** | `application/msg.v2.ts` | contracts §9, §15 |
-| `sendEligibility`, `normalizeBody` (existing); unread and read-seq clamp (new, S-FR-MSG-7 story) | **Core Domain** | `domain/msg.ts` | AD-MSG-3 rules 1–2 |
+| `normalizeBody` (existing; `sendEligibility`, never called since Story 9.2 used identity's `requireMessagingEligibility`, removed as dead code by decision log Impl-2 #19); unread and read-seq clamp (new, S-FR-MSG-7 story) | **Core Domain** | `domain/msg.ts` | AD-MSG-3 rules 1–2 |
 | `IdentityForMsg` (MSG-3, P-IDN.names, P-VER.name) | **Outbound Port** | `ports/msg.v2.ts` | AD-1 (`messaging → identity`) |
 | `PgConversationRepository` | **Driven Adapter** (Database) | `infra/pg.ts` | AD-MSG-2 unique keys |
 

@@ -248,3 +248,48 @@
 - **Deferred:** page 7.4's "Registrada" column and its worked example have no field in `ListCommissionRatesResponse`; `listCommissionRates` has no paging (owner: the UI 7.4 story).
 - **Artifact changed:** the commission module, `composition.ts` (+ test), `contracts.md` §15 and §15.12, `deferred-work.md`, `sprint-status.yaml` (8.6 and Epic 8 `done`), `traceability-matrix.md`, Story 8.6's file (commit `ecd8ca6`); `ux/C-UX-Scenarios/…/7.4-rate-settings-reconciliation.md` (this entry's commit).
 - **Decided by:** Mateo (the open decision); agent defaults within #13.
+
+### 17. Epic 11 specs: a batch identity port for the wishlist, link-spoof and NFR-COL-2 tests, and a binder journey (Scope)
+
+- **Phase:** B (spec approval of Stories 11.5 and 11.6), asked while Story 9.6 ran in its subagent.
+- **Persona/Skill:** `bmad-create-story`, `bmad-testarch-atdd` and `bmad-testarch-nfr` (Murat), reading S-FR-COL-3..6, the collections DTOs, `deferred-work.md` (Epic 5) and `nfr-evidence.md` (NFR-COL-2).
+- **Prompt (summary):** 11.6 is proof-only: its tests prove 11.5's operations, so the two stories land together in one subagent (the red gate fails if one is `done` while the other's tests already pass). Three choices: an Epic 5 deferral gives the COL wishlist a batch identity port (`getSellerKinds`) plus AD-INV-3 rule 2's parity test; which new tests to add; and what the binder's E2E journey covers.
+- **AI output (summary):**
+  - **Batch port:** **(recommended)** listings asks identity once per page through `getSellerKinds`, and a parity test proves the batch and single forms agree. This closes the Epic 5 deferral and supports NFR-COL-2's wishlist budget. The alternative was keeping per-seller reads and measuring first.
+  - **New tests:** **(recommended)** `[S-FR-COL-3.f2]`, red before code (`javascript:`, `data:`, `HTTP://`, userinfo and over-long URLs refused with `InvalidExternalLink` on the field; R-28), plus the NFR-COL-2 benchmark (a 500-entry sorted binder at p95 ≤ 800 ms, a 200-card wishlist at ≤ 1,000 ms). The alternatives were only one of the two.
+  - **Binder journey:** **(recommended)** sign in, open a seeded binder, switch the sort (stable on reload), add a promo card by an https link, and see an http:// link refused on the field. The alternatives were adding the wishlist panel, or a read-only binder.
+- **Human decision:** ACCEPT all three recommendations.
+- **Artifact changed:** none yet (the Stories 11.5 and 11.6 commits).
+- **Decided by:** Mateo.
+
+### 18. Epic 13 specs: k6 locally and as a blocking CI job, two race tests and a profile benchmark, and a public profile journey (Scope)
+
+- **Phase:** B (spec approval of Stories 13.5 and 13.6), asked while Story 9.6 ran in its subagent.
+- **Persona/Skill:** `bmad-testarch-nfr` (k6) and `bmad-testarch-atdd` (Murat), `bmad-ux` (page 11.2), reading S-FR-REP-5..7, NFR-REP-2 and test-design.md §7.4.
+- **Prompt (summary):** 13.6 is proof-only, so 13.5 and 13.6 land together. Three choices: how the k6 proof runs and whether CI enforces it, which new tests to add, and what the public profile journey covers.
+- **AI output (summary):**
+  - **k6:** **(recommended)** `npm run nfr:k6` seeds `tezg_k6` with the §3 marketplace seed (a Vitest seed proof that also asserts the seed counts), serves the production build, and runs `grafana/k6:1.4.2` in Docker: a 50-VU ramp for 60 s on `reputation.profile` and `catalog.browse`. Thresholds: profile p95 ≤ 300 ms and p99 ≤ 800 ms, browse p95 ≤ 1,000 ms, 0 % 5xx, < 1 % errors. CI gets an `nfr-k6` job that the release gate requires. The alternatives were local only, or a non-blocking CI job.
+  - **New tests:** **(recommended)** `[S-FR-REP-7.C1]`, red (100 rounds of profile reads racing hides and unhides: every read's aggregate count equals its page's visible reviews, one `REPEATABLE READ` snapshot); `[S-FR-REP-5.C1]`, red (20 concurrent hides of one listing: one log row and one hide); and the NFR-REP-2 profile benchmark (p95 ≤ 300 ms). The alternatives were the benchmark only, or the races only.
+  - **Profile journey:** **(recommended)** with no sign-in, a visitor sees a seeded seller's rating, count and first page of visible reviews; a hidden review is neither shown nor counted; an unknown seller shows the es-CO not-found state. The alternatives were adding paging, or the header only.
+- **Human decision:** ACCEPT all three recommendations.
+- **Artifact changed:** none yet (the Stories 13.5 and 13.6 commits).
+- **Decided by:** Mateo.
+
+### 19. Story 9.6 is green with the first two UI pages and a Playwright journey; a second dead domain stub is removed (Implementation)
+
+- **Phase:** B (Story 9.6, Flow A + D + E), in a story subagent. It was resumed once after an API usage limit interrupted it mid-run; no work was lost.
+- **Persona/Skill:** `bmad-dev-story` (Amelia), `bmad-testarch-atdd` (Murat), reading S-FR-MSG-7, S-FR-MSG-8, AD-MSG-3, page 12.2 and #15.
+- **Prompt (summary):** Red tests `[S-FR-MSG-7.C1]` and `[S-FR-MSG-7.f2]` before any code (`0291b05`). Then the four use cases, their procedures, the pages `/ingresar` and `/mensajes`, and a Playwright journey, within #15's page sizes.
+- **AI output (summary):** pure read-state rules and an inbox keyset in the domain; one conditional read-mark statement; a buyer-only mute and an explained business no-op; four stored-only codes (`ConversationThreadShown`, `ConversationMuted`, `ConversationUnmuted`, `MuteNotAvailableToBusiness`); the procedures `messaging.inbox`, `.thread`, `.markRead`, `.setMuted`. The sign-in page posts to the guarded Better Auth route; the inbox shows badges and the total, marks a thread read on open, has a mute toggle, and polls every 30 s. Page objects `SignInPage` and `InboxPage`, and a journey that seeds a verified buyer with Better Auth's own password hash.
+- **Agent defaults (no menu):**
+  - `markRead` writes nothing when the clamped seq is not above the mark. Read marks and mutes write no audit rows.
+  - A repeated mute keeps the first `mutedAt`.
+  - A negative or fractional seq is `RequestValidationFailed`.
+  - Since the inbox DTO has no role, a business also sees the mute toggle, and its click shows the server's notice.
+  - The client files reference the DOM lib, which `tsconfig.json` lacks.
+- **Test problem found and fixed:** the first E2E run failed with a strict-mode violation, because Next.js's route announcer is a second `role=alert`. The sign-in page object now scopes its locators to the named form.
+- **Dead code put to Mateo:** the subagent reported `sendEligibility` in `messaging/domain/msg.ts`, a `NotImplementedError` stub nothing calls (Story 9.2 uses identity's `requireMessagingEligibility`). Options: **(recommended)** delete it, as with `turnVerdict` (#8); or keep it and record it. **Human decision:** ACCEPT the recommendation: deleted, and its row in `ports-and-adapters.md` is updated.
+- **Evidence:** `evidence/impl2/17-story-9.6-red.log` (6 failed on `NotImplemented`), `18-story-9.6-e2e.log` (Playwright 3 passed, 21.8 s), `19-story-9.6-green.log` (`test:ci` exit 0, `solu2-atdd` 355 green and 14 red for the right reason, `domain/msg.ts` 100 % branches).
+- **Deferred:** no inbox preview, verification markers or per-message Pending notice (DTO fields); no composer, filters or deep link; the business sees the mute toggle; one identity call per shop for names; no return-to page, sign-out or sign-up on `/ingresar`.
+- **Artifact changed:** the messaging module, `composition.ts` (+ test), `app/` (`_client/api.ts`, `_server/runtime.ts` `callProcedure`, `ingresar/`, `mensajes/`, `layout.tsx`), `_bmad-output/test-artifacts/e2e/` (`inbox.spec.ts`, `pages/SignInPage.ts`, `pages/InboxPage.ts`, `support/inbox-seed.ts`), `contracts.md`, `epics.source.mjs` and `epics.md`, `test-design.md` (R-26), `deferred-work.md`, `nfr-evidence.md`, `sprint-status.yaml` (9.6 and Epic 9 `done`), `traceability-matrix.md`, Story 9.6's file (commits `0291b05`, `90db9da`); `domain/msg.ts` and `ports-and-adapters.md` (this entry's commit).
+- **Decided by:** Mateo (#15 and the dead stub); agent defaults within #15.
