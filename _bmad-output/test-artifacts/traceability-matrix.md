@@ -25,8 +25,8 @@
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 53 / 56 |
-| NFR evidence status | Green — ATDD: 36; Green — benchmark: 16; Green — gate: 8; Deferred — launch: 3; Planned — story DoD: 2; Red — ATDD: 1 |
-| Contract clauses / test ids | 114 / 414 (402 red, 12 green) |
+| NFR evidence status | Green — ATDD: 37; Green — benchmark: 16; Green — gate: 8; Deferred — launch: 3; Planned — story DoD: 1 |
+| Contract clauses / test ids | 114 / 415 (403 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -124,11 +124,11 @@
 | FR-VAL-5 | Money-shape separation (CAP-3, CAP-9) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (done), 12.4 (done) | red |
 | FR-REP-1 | Gated review of a business (CAP-7) | REP-1, REP-1.edit, REP-1.check | AD-REP-1, AD-2 | 11 — `REP-1.I1`, `REP-1.I2`, `REP-1.MEC` +8 | 13.1 (done), 13.4 (done) | red |
 | FR-REP-2 | Ungated review of an individual seller (CAP-7) | REP-1, REP-1.edit, REP-1.check | AD-REP-1, AD-2 | 11 — `REP-1.I1`, `REP-1.I2`, `REP-1.MEC` +8 | 13.1 (done), 13.4 (done) | red |
-| FR-REP-3 | Aggregate reputation with a stated rounding rule (CAP-7) | REP-3 | AD-12, AD-REP-2 | 4 — `REP-3.I1`, `REP-3.MEC`, `REP-3.P1` +1 | 13.3 (done), 13.5 (in-progress) | red |
+| FR-REP-3 | Aggregate reputation with a stated rounding rule (CAP-7) | REP-3 | AD-12, AD-REP-2 | 4 — `REP-3.I1`, `REP-3.MEC`, `REP-3.P1` +1 | 13.3 (done), 13.5 (done) | red |
 | FR-REP-4 | Hide and unhide a review (CAP-28) | REP-2 | AD-16, AD-12, AD-REP-2, AD-REP-3 | 7 — `REP-2.I1`, `REP-2.I2`, `REP-2.P2` +4 | 13.2 (done) | red |
-| FR-REP-5 | Hide and unhide a listing (listings host) (CAP-28) | S-FR-REP-5 | AD-REP-3, AD-12 | 3 — `S-FR-REP-5.C1`, `S-FR-REP-5.f`, `S-FR-REP-5.h` | 13.5 (in-progress), 13.6 (in-progress) | red |
-| FR-REP-6 | Moderation queue and audit view (CAP-28) | S-FR-REP-6 | AD-REP-3 | 2 — `S-FR-REP-6.f`, `S-FR-REP-6.h` | 13.5 (in-progress), 13.6 (in-progress) | red |
-| FR-REP-7 | Profile page with reviews (CAP-7) | S-FR-REP-7 | AD-REP-2 | 3 — `S-FR-REP-7.C1`, `S-FR-REP-7.f`, `S-FR-REP-7.h` | 13.5 (in-progress), 13.6 (in-progress) | red |
+| FR-REP-5 | Hide and unhide a listing (listings host) (CAP-28) | S-FR-REP-5 | AD-REP-3, AD-12 | 3 — `S-FR-REP-5.C1`, `S-FR-REP-5.f`, `S-FR-REP-5.h` | 13.5 (done), 13.6 (done) | red |
+| FR-REP-6 | Moderation queue and audit view (CAP-28) | S-FR-REP-6 | AD-REP-3 | 2 — `S-FR-REP-6.f`, `S-FR-REP-6.h` | 13.5 (done), 13.6 (done) | red |
+| FR-REP-7 | Profile page with reviews (CAP-7) | S-FR-REP-7 | AD-REP-2 | 3 — `S-FR-REP-7.C1`, `S-FR-REP-7.f`, `S-FR-REP-7.h` | 13.5 (done), 13.6 (done) | red |
 
 ## 3. Non-functional requirements
 
@@ -190,7 +190,7 @@
 | NFR-COL-3 | there are 0 CatalogEntry writes from collections | — | `SYS-AD8`, `S-FR-COL-3.h` | 2 | Green — gate (`[SYS-AD8]`); Green — ATDD (`[S-FR-COL-3.h]` with Story 11.5) |
 | NFR-VAL-2 | current value plus the 30-day trend for 500 entries takes p95 ≤ 1,500 ms | VAL-1, VAL-3 | `NFR-VAL-2.current`, `NFR-VAL-2.trend`, `NFR-VAL-2.history` | 12 | Green — benchmark (p95: current 74 ms, current + 30-day trend 281 ms, 365-point history 262 ms, local Postgres 16) |
 | NFR-VAL-3 | 0 floating-point operations on COP in valuation code | VAL-1, VAL-2 | `VAL-1.I1`, `VAL-2.I3` | 9 | Green — ATDD (`[VAL-1.I1]` with Story 12.1, `[VAL-2.I3]` with Story 12.5) |
-| NFR-REP-2 | a profile read (aggregate plus the first page) takes p95 ≤ 300 ms | REP-2, REP-3 | `NFR-REP-2.nextRead`, `NFR-REP-2.aggregates`, `S-FR-REP-7.h` | 14 | Green — benchmark (the next read and the aggregates, p95 0.7 ms and 1.8 ms, local Postgres 16); Red — ATDD (`[S-FR-REP-7.h]`, the profile read, Story 13.5 in Impl-2, decision log Impl-1 #38); Planned — story DoD (the profile benchmark, Story 13.5) |
+| NFR-REP-2 | a profile read (aggregate plus the first page) takes p95 ≤ 300 ms | REP-2, REP-3 | `NFR-REP-2.nextRead`, `NFR-REP-2.aggregates`, `S-FR-REP-7.h` +1 | 15 | Green — benchmark (the next read, the aggregates and the profile, p95 0.7 ms, 1.8 ms and 34.7 ms at N = 1, and the k6 burst's profile p95 177 ms under 50 users, local Postgres 16, decision log Impl-2 #18); Green — ATDD (`[S-FR-REP-7.h]` with Story 13.5) |
 | NFR-REP-3 | 0 hard deletes of Review or Listing rows | — | `REP-2.I1`, `SYS-R2.grants` | 2 | Green — gate (grant); Green — ATDD (behaviour, Story 13.2) |
 
 ## 4. Architecture decisions (§14)
@@ -288,8 +288,9 @@
 | R-23 Reconcile reports a false discrepancy while deductions commit, writ… | P0 | COM | Integration (race) + NFR | `COM-3.C1`, `COM-3.C2`, `NFR-COM-2.drift`, `COM-3.Q2` | 8.5 (done) | red |
 | R-26 Concurrent or stale `markRead` calls lower `lastReadSeq`, a reader … | P0 | MSG | Integration (race) | `S-FR-MSG-7.f`, `S-FR-MSG-7.C1`, `S-FR-MSG-7.f2` | 9.6 (done) | red |
 | R-28 A non-https or scripted link (`javascript:`, `data:`, an `HTTP://` … | P0 | COL | Integration + pure | `S-FR-COL-3.f`, `S-FR-COL-3.f2` | 11.6 (done) | red |
-| R-29 A profile's aggregate and its first page come from different snapsh… | P0 | REP | Integration (race) | `S-FR-REP-7.h`, `S-FR-REP-7.C1` | 13.5 (in-progress) | red |
-| R-31 An admin search for `100%` matches every review (an unescaped `LIKE… | P0 | REP | Integration (race) + pure | `S-FR-REP-6.f`, `S-FR-REP-5.f`, `S-FR-REP-5.C1` | 13.6 (in-progress) | red |
+| R-29 A profile's aggregate and its first page come from different snapsh… | P0 | REP | Integration (race) | `S-FR-REP-7.h`, `S-FR-REP-7.C1` | 13.5 (done) | red |
+| R-30 The profile read misses p95 ≤ 300 ms (NFR-REP-2) at N = 1, or under… | P1 | REP | NFR benchmark + load | `NFR-REP-2.profile` | 13.5 (done) | red |
+| R-31 An admin search for `100%` matches every review (an unescaped `LIKE… | P0 | REP | Integration (race) + pure | `S-FR-REP-6.f`, `S-FR-REP-5.f`, `S-FR-REP-5.C1` | 13.6 (done) | red |
 
 ## 6. Contract clauses
 

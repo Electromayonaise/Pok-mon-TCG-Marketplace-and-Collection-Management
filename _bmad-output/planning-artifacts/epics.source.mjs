@@ -654,8 +654,9 @@ export default {
         {
           title: 'Read profiles, search moderation logs and hide listings', kind: 'Supporting',
           as: 'As a buyer and as an admin, I want seller profiles with consistent aggregates, a searchable moderation log, and listing hides that leave discovery at once, so that reputation and moderation stay visible and auditable.',
-          // Impl-2 (decision log Impl-2 #18): Flow A adds the one-snapshot race (R-29), red before any 13.5/13.6 code.
-          ops: ['S-FR-REP-5', 'S-FR-REP-6.listing', 'S-FR-REP-6.search', 'S-FR-REP-6.log', 'S-FR-REP-7'], contracts: ['REP-3'], tests: ['S-FR-REP-5.h', 'S-FR-REP-6.h', 'S-FR-REP-7.h', 'S-FR-REP-7.C1'], depends: ['13.2', '5.1'],
+          // Impl-2 (decision log Impl-2 #18): Flow A adds the one-snapshot race (R-29), red before any 13.5/13.6 code;
+          // Flow D adds the NFR-REP-2 profile benchmark (R-30), written with the code.
+          ops: ['S-FR-REP-5', 'S-FR-REP-6.listing', 'S-FR-REP-6.search', 'S-FR-REP-6.log', 'S-FR-REP-7'], contracts: ['REP-3'], tests: ['S-FR-REP-5.h', 'S-FR-REP-6.h', 'S-FR-REP-7.h', 'S-FR-REP-7.C1', 'NFR-REP-2.profile'], depends: ['13.2', '5.1'],
           happy: ['a seller with a visible and a hidden review, and a listing to moderate.', 'a buyer opens the profile, and an admin hides the listing and reads the log.', 'the profile lists and counts only the visible review; the listing leaves discovery with a title snapshot logged; the log reads newest first by `(at desc, id)`.'],
           failure: ['the profile read and a hide happen around the same instant.', 'the profile is read.', 'the aggregate and the first page come from one snapshot, so they never disagree.'],
         },

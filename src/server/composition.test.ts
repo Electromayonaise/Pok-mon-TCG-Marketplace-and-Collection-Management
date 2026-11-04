@@ -14,7 +14,11 @@ import { useTestDatabase } from '../../test-support/db.js';
 import { FixtureFeedSource, FixtureFxRateSource, InMemoryObjectStorage, SimulatedScanner } from '../../test-support/simulated/index.js';
 import { admin, at, business, catalogEntry, commissionAccount, DAY, feedRun, HOUR, id, individualSeller, ins, listing, observation, order, purchasableListing, rejectionReason, rows, T0, topUp, unit, user } from '../../test-support/solu2/fixtures.js';
 import { createAuth } from './auth.js';
-import { compose } from './composition.js';
+import type { ListingModerationLogRow } from '../modules/listings/index.js';
+import type { ReviewModerationLogRow } from '../modules/reviews/index.js';
+import { compose, WIRED_PROCEDURES } from './composition.js';
+import { PROCEDURES } from './trpc/inputs.generated.js';
+import { mergeModerationLogs } from './moderation-log.js';
 import { betterAuthSessions } from './sessions.js';
 import { serveTrpc } from './trpc/init.js';
 import { singleConnectionPool } from '../../test-support/single-connection.js';
@@ -701,11 +705,9 @@ describe('the commission account and top-ups over HTTP (S-FR-COM-1, -2, -9, COM-
   });
 });
 
-describe('the rest of the registry stays unwired', () => {
-  it('a procedure no done story implements is still Unexpected 500 behind a real session', async () => {
-    await user(db, { id: id('camila') });
-    const { status, json } = await get('reputation.profile', { userId: id('andres'), page: 1 }, await signIn(id('camila')));
-    expect([status, json.error?.code]).toEqual([500, 'Unexpected']);
+describe('the whole registry is wired (Story 13.5, the last stories)', () => {
+  it('every registry procedure has a resolver, so none answers NotImplemented', () => {
+    expect([...WIRED_PROCEDURES].sort()).toEqual(PROCEDURES.map((p) => p.procedure).sort());
   });
 });
 
@@ -995,5 +997,42 @@ describe('review moderation over HTTP (REP-2, REP-2.unhide; Story 13.2)', () => 
     expect((await post('reputation.admin.hide', { reviewId: id('r1'), reasonCode: 'Harassment', note: null }, adminCookie)).json.result?.data).toMatchObject({ decision: { outcome: 'hidden', reasonCode: 'ReviewHidden' } });
     expect((await post('reputation.admin.unhide', { reviewId: id('r1'), reasonCode: 'Other', note: 'Revisado: no infringe.' }, adminCookie)).json.result?.data).toMatchObject({ decision: { reasonCode: 'ReviewUnhidden' } });
     expect(await rows(db, 'ReviewModerationLog')).toHaveLength(2);
+  });
+});
+
+describe('profiles, listing moderation and the merged audit over HTTP (S-FR-REP-5, -6, -7; Story 13.5)', () => {
+  it('a visitor with no session reads a profile without the hidden review; an admin hides a listing and the merged audit interleaves both logs by time', async () => {
+    await user(db, { id: id('camila') });
+    await user(db, { id: id('troll') });
+    await individualSeller(db, id('julian'));
+    await admin(db);
+    await ins(db, 'Review', { id: id('r1'), reviewerId: id('camila'), targetUserId: id('julian'), targetKind: 'individual', purchaseVerified: false, rating: 4, text: 'Puntual.' });
+    await ins(db, 'Review', { id: id('r2'), reviewerId: id('troll'), targetUserId: id('julian'), targetKind: 'individual', purchaseVerified: false, rating: 1, text: 'Insulto.' });
+    await purchasableListing(db, { businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar'), entryId: id('char'), quantity: 1 });
+    const adminCookie = await signIn(id('admin'));
+    // The review hide, then a minute later the listing hide, then the review unhide: three instants, two logs.
+    expect((await post('reputation.admin.hide', { reviewId: id('r2'), reasonCode: 'Harassment', note: null }, adminCookie)).status).toBe(200);
+    clock.advance(60_000);
+    const denied = await post('inventory.admin.hide', { listingId: id('lchar'), reasonCode: 'Counterfeit', note: null }, await signIn(id('camila')));
+    expect([denied.status, denied.json.error?.code]).toEqual([403, 'AdminOnly']);
+    const hid = await post('inventory.admin.hide', { listingId: id('lchar'), reasonCode: 'Counterfeit', note: null }, adminCookie);
+    expect(hid.json.result?.data).toMatchObject({ decision: { outcome: 'hidden', reasonCode: 'ListingHiddenByAdmin' } });
+    expect((await get('inventory.get', { listingId: id('lchar') }, '')).json.error?.code).toBe('ListingNotFound');
+    const unknown = await post('inventory.admin.unhide', { listingId: id('ghost'), reasonCode: 'Counterfeit', note: null }, adminCookie);
+    expect([unknown.status, unknown.json.error?.code]).toEqual([404, 'ListingNotFound']);
+
+    const profile = await get('reputation.profile', { userId: id('julian'), page: 1 }, '');
+    expect(profile.status).toBe(200);
+    expect(profile.json.result?.data).toMatchObject({ seller: { userId: id('julian'), kind: 'individual' }, aggregate: { count: 1, averageTenths: 40 }, reviews: [{ reviewId: id('r1') }], hasMore: false });
+    const missing = await get('reputation.profile', { userId: id('camila'), page: 1 }, '');
+    expect([missing.status, missing.json.error?.code]).toEqual([404, 'TargetNotFound']);
+    const found = await get('reputation.admin.search', { query: 'insulto', cursor: null }, adminCookie);
+    expect(found.json.result?.data).toMatchObject({ rows: [{ reviewId: id('r2'), hidden: true }], nextCursor: null });
+
+    clock.advance(60_000);
+    expect((await post('reputation.admin.unhide', { reviewId: id('r2'), reasonCode: 'Other', note: 'Revisado: no infringe.' }, adminCookie)).status).toBe(200);
+    const reviewLog = (await get('reputation.admin.log', { cursor: null }, adminCookie)).json.result?.data as unknown as { rows: ReviewModerationLogRow[] };
+    const listingLog = (await get('inventory.admin.log', { cursor: null }, adminCookie)).json.result?.data as unknown as { rows: ListingModerationLogRow[] };
+    expect(mergeModerationLogs(reviewLog.rows, listingLog.rows).map((e) => [e.kind, e.row.action])).toEqual([['review', 'unhide'], ['listing', 'hide'], ['review', 'hide']]);
   });
 });

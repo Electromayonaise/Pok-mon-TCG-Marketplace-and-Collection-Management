@@ -14022,6 +14022,8 @@ components:
       type: "object"
       additionalProperties: false
       properties:
+        seller:
+          "$ref": "#/components/schemas/ProfileSellerDTO"
         aggregate:
           "$ref": "#/components/schemas/SellerAggregateDTO"
         reviews:
@@ -14031,6 +14033,7 @@ components:
         hasMore:
           type: "boolean"
       required:
+        - "seller"
         - "aggregate"
         - "reviews"
         - "hasMore"
@@ -15001,6 +15004,26 @@ components:
         - "purchaseVerified"
         - "createdAt"
         - "editedAt"
+    ProfileSellerDTO:
+      type: "object"
+      additionalProperties: false
+      properties:
+        userId:
+          type: "string"
+          pattern: "^[a-z][0-9a-z]{23}$"
+        kind:
+          type: "string"
+          enum:
+            - "business"
+            - "individual"
+        displayName:
+          anyOf:
+            - type: "string"
+            - type: "null"
+      required:
+        - "userId"
+        - "kind"
+        - "displayName"
     PromptRowDTO:
       type: "object"
       additionalProperties: false

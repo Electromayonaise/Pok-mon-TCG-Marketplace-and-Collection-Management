@@ -289,16 +289,23 @@ describe('S-FR-REP-7 — profile (contracts.md §15)', () => {
       await review(db, { id: id(`rr${i}`), reviewerId: id(`rv${i}`), targetUserId: id('tienda'), rating: 1 + (i % 5) });
     }
     const { rep } = setup({ targets });
-    const read = () => rep.getProfile({ userId: id('tienda'), page: 1 });
+    type Profile = Awaited<ReturnType<typeof rep.getProfile>>;
     for (let round = 0; round < 100; round++) {
-      // Each pair of rounds hides four reviews, then unhides the same four, while three profile reads run.
-      const pair = Math.floor(round / 2);
-      const moderated = [0, 3, 6, 9].map((k) => id(`rr${(pair + k) % 12}`));
-      const moderate = (reviewId: string) => (round % 2 === 0 ? rep.hideReview(hide(reviewId)) : rep.unhideReview(hide(reviewId)));
-      const { fulfilled, rejected } = await race(7, (i): Promise<unknown> => (i < 3 ? read() : moderate(moderated[i - 3]!)));
+      // Each round: four admins each hide, then unhide, one review while four readers each read the profile three times.
+      const moderated = [0, 3, 6, 9].map((k) => id(`rr${(round + k) % 12}`));
+      const { fulfilled, rejected } = await race(8, async (i): Promise<Profile[]> => {
+        if (i >= 4) {
+          await rep.hideReview(hide(moderated[i - 4]!));
+          await rep.unhideReview(hide(moderated[i - 4]!));
+          return [];
+        }
+        const reads: Profile[] = [];
+        for (let k = 0; k < 3; k++) reads.push(await rep.getProfile({ userId: id('tienda'), page: 1 }));
+        return reads;
+      });
       if (rejected.length > 0) throw rejected[0];
-      const profiles = fulfilled.filter((r): r is Awaited<ReturnType<typeof read>> => typeof r === 'object' && r !== null && 'reviews' in r);
-      expect(profiles).toHaveLength(3);
+      const profiles = fulfilled.flat();
+      expect(profiles).toHaveLength(12);
       for (const p of profiles) {
         const sum = p.reviews.reduce((n, r) => n + r.rating, 0);
         expect(p.hasMore).toBe(false);

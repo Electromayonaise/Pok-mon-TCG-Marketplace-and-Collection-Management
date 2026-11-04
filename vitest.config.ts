@@ -54,6 +54,16 @@ export default defineConfig({
           hookTimeout: 300_000,
         },
       },
+      // The k6 load run's seed (Story 13.5): `npm run nfr:k6` runs it once against the `tezg_k6` database it migrated,
+      // named by K6_DATABASE_URL. No per-file database: the app under load serves exactly what this test seeds.
+      {
+        test: {
+          name: 'k6-seed',
+          include: ['_bmad-output/test-artifacts/nfr/k6/seed.k6.ts'],
+          setupFiles: ['test-support/solu2/network-guard.ts'],
+          testTimeout: 300_000,
+        },
+      },
       // Impl-1: the unit and integration tests colocated with the code they prove (statement §4.1).
       {
         test: {

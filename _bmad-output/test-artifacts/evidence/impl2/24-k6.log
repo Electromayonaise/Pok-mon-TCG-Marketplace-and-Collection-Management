@@ -1,0 +1,311 @@
+# Flow D — the k6 burst of Story 13.5 (decision log Impl-2 #18). Captured 2026-11-04T06:20:26Z on branch impl-2 at f8f2b62 + the green working tree,
+# on a Windows 11 laptop (16 threads), Docker Desktop Postgres 16.6, grafana/k6:1.4.2 via host.docker.internal. Build skipped (E2E_SKIP_BUILD=1):
+# the production build of the same tree had just been made by the previous npm run nfr:k6. Summary: evidence/impl2/k6-summary.json.
+# Three local runs of the same tree gave profile p95 236 ms, 279 ms and 177 ms (this one): the closed-loop burst is bound by the one
+# Node process's throughput (about 330-400 requests/s here), so the p95 moves with the machine's load.
+$ E2E_SKIP_BUILD=1 npm run nfr:k6
+
+> tezg@0.0.0 nfr:k6
+> node scripts/nfr-k6.mjs
+
+nfr-k6: $ npm run db:up
+
+> tezg@0.0.0 db:up
+> docker compose up -d --wait postgres
+
+ Container tezg-postgres-1 Running 
+ Container tezg-postgres-1 Waiting 
+ Container tezg-postgres-1 Healthy 
+nfr-k6: $ node scripts/db-migrate.mjs --reset
+dropped database tezg_k6
+created database tezg_k6
+applied 001_tezg_schema.sql
+tezg_k6: 1 migrations applied, 1 new
+nfr-k6: $ npx vitest run --project k6-seed
+
+ RUN  v5.0.5 C:/Users/Usuario/Desktop/Universidad/S9/daia/final_project/Pok-mon-TCG-Marketplace-and-Collection-Management
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  01:18:57
+   Duration  4.92s (tests 92%, transform 4%, import 3%)
+
+▲ Next.js 16.4.1
+- Local:         http://localhost:3200
+- Network:       http://0.0.0.0:3200
+✓ Ready in 325ms
+nfr-k6: $ docker run --rm -v C:\Users\Usuario\Desktop\Universidad\S9\daia\final_project\Pok-mon-TCG-Marketplace-and-Collection-Management\_bmad-output\test-artifacts\nfr\k6:/scripts:ro -v C:\Users\Usuario\Desktop\Universidad\S9\daia\final_project\Pok-mon-TCG-Marketplace-and-Collection-Management\_bmad-output\test-artifacts\evidence\impl2:/out -e BASE_URL=http://host.docker.internal:3200 grafana/k6:1.4.2 run --summary-export /out/k6-summary.json /scripts/reputation-profile.js
+⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+     execution: local
+        script: /scripts/reputation-profile.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 50 max VUs, 1m5s max duration (incl. graceful stop):
+              * burst: Up to 50 looping VUs for 1m0s over 3 stages (gracefulRampDown: 5s, gracefulStop: 30s)
+
+
+running (0m01.0s), 04/50 VUs, 56 complete and 0 interrupted iterations
+burst   [   2% ] 04/50 VUs  0m01.0s/1m00.0s
+
+running (0m02.0s), 09/50 VUs, 270 complete and 0 interrupted iterations
+burst   [   3% ] 09/50 VUs  0m02.0s/1m00.0s
+
+running (0m03.0s), 14/50 VUs, 496 complete and 0 interrupted iterations
+burst   [   5% ] 14/50 VUs  0m03.0s/1m00.0s
+
+running (0m04.0s), 19/50 VUs, 760 complete and 0 interrupted iterations
+burst   [   7% ] 19/50 VUs  0m04.0s/1m00.0s
+
+running (0m05.0s), 24/50 VUs, 1053 complete and 0 interrupted iterations
+burst   [   8% ] 24/50 VUs  0m05.0s/1m00.0s
+
+running (0m06.0s), 29/50 VUs, 1342 complete and 0 interrupted iterations
+burst   [  10% ] 29/50 VUs  0m06.0s/1m00.0s
+
+running (0m07.0s), 34/50 VUs, 1521 complete and 0 interrupted iterations
+burst   [  12% ] 34/50 VUs  0m07.0s/1m00.0s
+
+running (0m08.0s), 39/50 VUs, 1707 complete and 0 interrupted iterations
+burst   [  13% ] 39/50 VUs  0m08.0s/1m00.0s
+
+running (0m09.0s), 44/50 VUs, 1911 complete and 0 interrupted iterations
+burst   [  15% ] 44/50 VUs  0m09.0s/1m00.0s
+
+running (0m10.0s), 49/50 VUs, 2111 complete and 0 interrupted iterations
+burst   [  17% ] 49/50 VUs  0m10.0s/1m00.0s
+
+running (0m11.0s), 50/50 VUs, 2310 complete and 0 interrupted iterations
+burst   [  18% ] 50/50 VUs  0m11.0s/1m00.0s
+
+running (0m12.0s), 50/50 VUs, 2518 complete and 0 interrupted iterations
+burst   [  20% ] 50/50 VUs  0m12.0s/1m00.0s
+
+running (0m13.0s), 50/50 VUs, 2724 complete and 0 interrupted iterations
+burst   [  22% ] 50/50 VUs  0m13.0s/1m00.0s
+
+running (0m14.0s), 50/50 VUs, 2845 complete and 0 interrupted iterations
+burst   [  23% ] 50/50 VUs  0m14.0s/1m00.0s
+
+running (0m15.0s), 50/50 VUs, 3052 complete and 0 interrupted iterations
+burst   [  25% ] 50/50 VUs  0m15.0s/1m00.0s
+
+running (0m16.0s), 50/50 VUs, 3280 complete and 0 interrupted iterations
+burst   [  27% ] 50/50 VUs  0m16.0s/1m00.0s
+
+running (0m17.0s), 50/50 VUs, 3442 complete and 0 interrupted iterations
+burst   [  28% ] 50/50 VUs  0m17.0s/1m00.0s
+
+running (0m18.0s), 50/50 VUs, 3651 complete and 0 interrupted iterations
+burst   [  30% ] 50/50 VUs  0m18.0s/1m00.0s
+
+running (0m19.0s), 50/50 VUs, 3814 complete and 0 interrupted iterations
+burst   [  32% ] 50/50 VUs  0m19.0s/1m00.0s
+
+running (0m20.0s), 50/50 VUs, 4025 complete and 0 interrupted iterations
+burst   [  33% ] 50/50 VUs  0m20.0s/1m00.0s
+
+running (0m21.0s), 50/50 VUs, 4190 complete and 0 interrupted iterations
+burst   [  35% ] 50/50 VUs  0m21.0s/1m00.0s
+
+running (0m22.0s), 50/50 VUs, 4394 complete and 0 interrupted iterations
+burst   [  37% ] 50/50 VUs  0m22.0s/1m00.0s
+
+running (0m23.0s), 50/50 VUs, 4589 complete and 0 interrupted iterations
+burst   [  38% ] 50/50 VUs  0m23.0s/1m00.0s
+
+running (0m24.0s), 50/50 VUs, 4777 complete and 0 interrupted iterations
+burst   [  40% ] 50/50 VUs  0m24.0s/1m00.0s
+
+running (0m25.0s), 50/50 VUs, 4996 complete and 0 interrupted iterations
+burst   [  42% ] 50/50 VUs  0m25.0s/1m00.0s
+
+running (0m26.0s), 50/50 VUs, 5202 complete and 0 interrupted iterations
+burst   [  43% ] 50/50 VUs  0m26.0s/1m00.0s
+
+running (0m27.0s), 50/50 VUs, 5393 complete and 0 interrupted iterations
+burst   [  45% ] 50/50 VUs  0m27.0s/1m00.0s
+
+running (0m28.0s), 50/50 VUs, 5567 complete and 0 interrupted iterations
+burst   [  47% ] 50/50 VUs  0m28.0s/1m00.0s
+
+running (0m29.0s), 50/50 VUs, 5789 complete and 0 interrupted iterations
+burst   [  48% ] 50/50 VUs  0m29.0s/1m00.0s
+
+running (0m30.0s), 50/50 VUs, 5986 complete and 0 interrupted iterations
+burst   [  50% ] 50/50 VUs  0m30.0s/1m00.0s
+
+running (0m31.0s), 50/50 VUs, 6218 complete and 0 interrupted iterations
+burst   [  52% ] 50/50 VUs  0m31.0s/1m00.0s
+
+running (0m32.0s), 50/50 VUs, 6435 complete and 0 interrupted iterations
+burst   [  53% ] 50/50 VUs  0m32.0s/1m00.0s
+
+running (0m33.0s), 50/50 VUs, 6631 complete and 0 interrupted iterations
+burst   [  55% ] 50/50 VUs  0m33.0s/1m00.0s
+
+running (0m34.0s), 50/50 VUs, 6815 complete and 0 interrupted iterations
+burst   [  57% ] 50/50 VUs  0m34.0s/1m00.0s
+
+running (0m35.0s), 50/50 VUs, 7003 complete and 0 interrupted iterations
+burst   [  58% ] 50/50 VUs  0m35.0s/1m00.0s
+
+running (0m36.0s), 50/50 VUs, 7191 complete and 0 interrupted iterations
+burst   [  60% ] 50/50 VUs  0m36.0s/1m00.0s
+
+running (0m37.0s), 50/50 VUs, 7404 complete and 0 interrupted iterations
+burst   [  62% ] 50/50 VUs  0m37.0s/1m00.0s
+
+running (0m38.0s), 50/50 VUs, 7628 complete and 0 interrupted iterations
+burst   [  63% ] 50/50 VUs  0m38.0s/1m00.0s
+
+running (0m39.0s), 50/50 VUs, 7816 complete and 0 interrupted iterations
+burst   [  65% ] 50/50 VUs  0m39.0s/1m00.0s
+
+running (0m40.0s), 50/50 VUs, 8046 complete and 0 interrupted iterations
+burst   [  67% ] 50/50 VUs  0m40.0s/1m00.0s
+
+running (0m41.0s), 50/50 VUs, 8267 complete and 0 interrupted iterations
+burst   [  68% ] 50/50 VUs  0m41.0s/1m00.0s
+
+running (0m42.0s), 50/50 VUs, 8498 complete and 0 interrupted iterations
+burst   [  70% ] 50/50 VUs  0m42.0s/1m00.0s
+
+running (0m43.0s), 50/50 VUs, 8712 complete and 0 interrupted iterations
+burst   [  72% ] 50/50 VUs  0m43.0s/1m00.0s
+
+running (0m44.0s), 50/50 VUs, 8907 complete and 0 interrupted iterations
+burst   [  73% ] 50/50 VUs  0m44.0s/1m00.0s
+
+running (0m45.0s), 50/50 VUs, 9090 complete and 0 interrupted iterations
+burst   [  75% ] 50/50 VUs  0m45.0s/1m00.0s
+
+running (0m46.0s), 50/50 VUs, 9234 complete and 0 interrupted iterations
+burst   [  77% ] 50/50 VUs  0m46.0s/1m00.0s
+
+running (0m47.0s), 50/50 VUs, 9456 complete and 0 interrupted iterations
+burst   [  78% ] 50/50 VUs  0m47.0s/1m00.0s
+
+running (0m48.0s), 50/50 VUs, 9606 complete and 0 interrupted iterations
+burst   [  80% ] 50/50 VUs  0m48.0s/1m00.0s
+
+running (0m49.0s), 50/50 VUs, 9815 complete and 0 interrupted iterations
+burst   [  82% ] 50/50 VUs  0m49.0s/1m00.0s
+
+running (0m50.0s), 50/50 VUs, 10024 complete and 0 interrupted iterations
+burst   [  83% ] 50/50 VUs  0m50.0s/1m00.0s
+
+running (0m51.0s), 46/50 VUs, 10250 complete and 0 interrupted iterations
+burst   [  85% ] 46/50 VUs  0m51.0s/1m00.0s
+
+running (0m52.0s), 41/50 VUs, 10444 complete and 0 interrupted iterations
+burst   [  87% ] 41/50 VUs  0m52.0s/1m00.0s
+
+running (0m53.0s), 37/50 VUs, 10655 complete and 0 interrupted iterations
+burst   [  88% ] 37/50 VUs  0m53.0s/1m00.0s
+
+running (0m54.0s), 31/50 VUs, 10850 complete and 0 interrupted iterations
+burst   [  90% ] 31/50 VUs  0m54.0s/1m00.0s
+
+running (0m55.0s), 26/50 VUs, 11069 complete and 0 interrupted iterations
+burst   [  92% ] 26/50 VUs  0m55.0s/1m00.0s
+
+running (0m56.0s), 21/50 VUs, 11284 complete and 0 interrupted iterations
+burst   [  93% ] 21/50 VUs  0m56.0s/1m00.0s
+
+running (0m57.0s), 16/50 VUs, 11477 complete and 0 interrupted iterations
+burst   [  95% ] 16/50 VUs  0m57.0s/1m00.0s
+
+running (0m58.0s), 11/50 VUs, 11686 complete and 0 interrupted iterations
+burst   [  97% ] 11/50 VUs  0m58.0s/1m00.0s
+
+running (0m59.0s), 06/50 VUs, 11870 complete and 0 interrupted iterations
+burst   [  98% ] 06/50 VUs  0m59.0s/1m00.0s
+
+running (1m00.0s), 01/50 VUs, 11979 complete and 0 interrupted iterations
+burst   [ 100% ] 01/50 VUs  1m00.0s/1m00.0s
+
+
+  █ THRESHOLDS 
+
+    http_req_duration{endpoint:browse}
+    ✓ 'p(95)<1000' p(95)=176.65ms
+
+    http_req_duration{endpoint:profile}
+    ✓ 'p(95)<300' p(95)=177.4ms
+    ✓ 'p(99)<800' p(99)=292.68ms
+
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+
+      {endpoint:browse}
+      ✓ 'rate<0.01' rate=0.00%
+
+      {endpoint:profile}
+      ✓ 'rate<0.01' rate=0.00%
+
+    http_reqs{endpoint:browse}
+    ✓ 'count>0' count=11981
+
+    http_reqs{endpoint:profile}
+    ✓ 'count>0' count=11981
+
+    server_errors_5xx
+    ✓ 'count==0' count=0
+
+      {endpoint:browse}
+      ✓ 'count==0' count=0
+
+      {endpoint:profile}
+      ✓ 'count==0' count=0
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 23962   399.205888/s
+    checks_succeeded...: 100.00% 23962 out of 23962
+    checks_failed......: 0.00%   0 out of 23962
+
+    ✓ profile answers 200
+    ✓ browse answers 200
+
+    CUSTOM
+    server_errors_5xx..............: 0      0/s
+      { endpoint:browse }..........: 0      0/s
+      { endpoint:profile }.........: 0      0/s
+
+    HTTP
+    http_req_duration..............: avg=104.26ms min=5.41ms  med=106.89ms max=635.92ms p(90)=146.35ms p(95)=177.26ms p(99)=287.41ms
+      { endpoint:browse }..........: avg=106.91ms min=10.55ms med=110.26ms max=626.37ms p(90)=147.89ms p(95)=176.65ms p(99)=282.09ms
+      { endpoint:profile }.........: avg=101.61ms min=5.41ms  med=103.55ms max=635.92ms p(90)=144.3ms  p(95)=177.4ms  p(99)=292.68ms
+      { expected_response:true }...: avg=104.26ms min=5.41ms  med=106.89ms max=635.92ms p(90)=146.35ms p(95)=177.26ms p(99)=287.41ms
+    http_req_failed................: 0.00%  0 out of 23962
+      { endpoint:browse }..........: 0.00%  0 out of 11981
+      { endpoint:profile }.........: 0.00%  0 out of 11981
+    http_reqs......................: 23962  399.205888/s
+      { endpoint:browse }..........: 11981  199.602944/s
+      { endpoint:profile }.........: 11981  199.602944/s
+
+    EXECUTION
+    iteration_duration.............: avg=208.96ms min=16.46ms med=218.77ms max=780.47ms p(90)=288.87ms p(95)=338.27ms p(99)=489.25ms
+    iterations.....................: 11981  199.602944/s
+    vus............................: 1      min=1          max=50
+    vus_max........................: 50     min=50         max=50
+
+    NETWORK
+    data_received..................: 112 MB 1.9 MB/s
+    data_sent......................: 4.3 MB 72 kB/s
+
+
+
+
+running (1m00.0s), 00/50 VUs, 11981 complete and 0 interrupted iterations
+burst ✓ [ 100% ] 00/50 VUs  1m0s
+nfr-k6: k6 exited with 0

@@ -58,7 +58,9 @@ export interface GetProfileRequest {
   /** @minimum 1 */
   page: number;
 }
-export interface GetProfileResponse { aggregate: SellerAggregateDTO; reviews: ProfileReviewDTO[]; hasMore: boolean }
+/** The profile's header (UX 11.2 `rep-profile-header`): the seller's kind sets the provenance label; no phone, no email (AD-SYS-8). */
+export interface ProfileSellerDTO { userId: CuidId; kind: 'business' | 'individual'; displayName: string | null }
+export interface GetProfileResponse { seller: ProfileSellerDTO; aggregate: SellerAggregateDTO; reviews: ProfileReviewDTO[]; hasMore: boolean }
 
 // Edit (FR-REP-1) and the 11.1 eligibility read found by the UI-state check (contracts.md §15.12)
 export interface EditReviewRequest {

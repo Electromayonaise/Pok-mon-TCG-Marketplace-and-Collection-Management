@@ -7,6 +7,10 @@
 #           NFR benchmark green for a `done` story and red for the right reason otherwise.
 #   e2e   — `npx playwright test` against a production build: the Page Object journeys, with
 #           `trace: 'on-first-retry'`. The HTML report and every trace.zip are uploaded, pass or fail.
+#   nfr-k6 — `npm run nfr:k6` (Story 13.5, decision log Impl-2 #18): the PRD §3 seed in `tezg_k6`, the production
+#           build on port 3200, and grafana/k6 in Docker on the host network: 50 virtual users for a minute on
+#           `reputation.profile` and `catalog.browse`, failing on p95/p99, the error rate or any 5xx. The summary
+#           JSON is uploaded, pass or fail.
 #   release — the PASS / FAIL decision: it passes only when every job above passed.
 # The Solu-2 gate stays as manual (workflow_dispatch) evidence.
 name: impl2-quality-gate
@@ -100,15 +104,49 @@ jobs:
             test-results/
           if-no-files-found: ignore
 
+  nfr-k6:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.6
+        env:
+          POSTGRES_USER: tezg
+          POSTGRES_PASSWORD: tezg
+          POSTGRES_DB: tezg
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U tezg -d tezg"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: k6 burst on the public profile and catalog reads (thresholds of test-design.md §7.4)
+        run: npm run nfr:k6
+      - name: Upload the k6 summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-summary
+          path: _bmad-output/test-artifacts/evidence/impl2/k6-summary.json
+          if-no-files-found: ignore
+
   release:
-    needs: [gate, e2e]
+    needs: [gate, e2e, nfr-k6]
     if: always()
     runs-on: ubuntu-24.04
     steps:
       - name: Quality gate decision
         run: |
-          echo "gate=${{ needs.gate.result }} e2e=${{ needs.e2e.result }}"
-          if [ "${{ needs.gate.result }}" = "success" ] && [ "${{ needs.e2e.result }}" = "success" ]; then
+          echo "gate=${{ needs.gate.result }} e2e=${{ needs.e2e.result }} nfr-k6=${{ needs.nfr-k6.result }}"
+          if [ "${{ needs.gate.result }}" = "success" ] && [ "${{ needs.e2e.result }}" = "success" ] && [ "${{ needs.nfr-k6.result }}" = "success" ]; then
             echo "Quality gate: PASS"
           else
             echo "Quality gate: FAIL"

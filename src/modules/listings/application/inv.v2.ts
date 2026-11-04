@@ -49,20 +49,21 @@ export interface InvV2UseCases {
 
 import type { Citation, Decision } from '../../../shared-kernel/decision.js';
 import { ambientTx } from '../../../shared-kernel/db.js';
-import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest } from '../../../shared-kernel/request.js';
 import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import { requireAdmin } from '../../identity/index.js';
 import {
   availability, conditionFitsKind, createdState, decodeListingCursor, detailState, encodeListingCursor, isValidLocation, isValidPrice, ownerCheck, pausedAtInsert, purchasable,
   type ListingDetailState, type ProjectionState, type VerificationStatus,
 } from '../domain/inv.js';
 import type { ListingDetailDTO, ListingSnapshotDTO } from '../dto/inv.v2.dto.js';
 import { checkSearchArea } from './dsc.v2.js';
-import type { ListingDetailRow, ReserveFacts } from '../ports/inv.v2.js';
+import type { ListingDetailRow, ModeratedListing, ReserveFacts } from '../ports/inv.v2.js';
 
 const raise = raiserFor('listings');
 
@@ -113,6 +114,18 @@ const MAX_COMPONENTS = 20;
 const MAX_RESTOCK = 999;
 /** P-INV.availability: at most 500 distinct ids. */
 const MAX_IDS = 500;
+/** S-FR-REP-6: the moderation log's page size (AD-REP-3 rule 5). */
+const MODERATION_PAGE = 50;
+/** The moderation log's `note` CHECK. */
+const MAX_NOTE = 500;
+
+/** S-FR-REP-5 P (ADD-§9.2, `listing_log_other_has_note`): Other needs a 10–500 character note, any other reason a null or 0–500 one. */
+function checkModerationNote(reasonCode: string, note: string | null): void {
+  const min = reasonCode === 'Other' ? 10 : 0;
+  if (note === null && min === 0) return;
+  const why = note === null ? 'length' : textIssue(note, min, MAX_NOTE);
+  if (why !== null) rejectRequest([{ field: 'note', issue: why === 'nul' ? NUL_ISSUE : min > 0 ? 'con el motivo Otro, escribe entre 10 y 500 caracteres' : 'debe tener como máximo 500 caracteres' }]);
+}
 
 /** S-FR-INV-10: the decision a listing's state reads with. */
 function detailDecision(state: ListingDetailState, row: ListingDetailRow, verification: VerificationStatus | null, now: IsoInstant): Decision {
@@ -133,7 +146,7 @@ function creationDecision(state: 'Active' | 'Unverified' | 'Paused', citations: 
   return explained('allowed', 'ListingActive', citations, now);
 }
 
-/** Every method not yet built throws NotImplementedError until its story is done (red for the right reason). */
+/** INV's use cases (contracts.md §5, §15), and S-FR-REP-5/-6's listing moderation (listings host). */
 export class InvServiceV2 implements InvV2UseCases {
   constructor(protected readonly deps: InvV2Deps) {}
 
@@ -580,12 +593,67 @@ export class InvServiceV2 implements InvV2UseCases {
     });
   }
 
-  async setListingHidden(_input: SetListingHiddenRequest): Promise<SetListingHiddenResponse> {
-    throw new NotImplementedError('listings.setListingHidden');
+  /**
+   * S-FR-REP-5 (AD-REP-3 rules 1–3, AD-12): the conditional hide or unhide, its log row with the title snapshot and
+   * the admin audit row, in one transaction. On 0 rows the listing is re-read `FOR UPDATE`: an unknown id is
+   * `ListingNotFound`, a listing already in the target state is an explained no-op with zero writes. Racing admins:
+   * the losers' updates wait on the winner's row lock, then match 0 rows. Only the hide columns change, so
+   * reservations and open orders are untouched, and discovery drops the listing on its next read (AD-DSC-1 rule 6).
+   */
+  async setListingHidden(input: SetListingHiddenRequest): Promise<SetListingHiddenResponse> {
+    const { adminId, listingId, hidden, reasonCode, note } = input;
+    checkModerationNote(reasonCode, note);
+    const { repo, transactions, clock, ids, audit } = this.deps;
+    return transactions.run(async (tx) => {
+      // P (admin) is the builder's; repeated first for in-process callers (AD-16), as REP-2 does.
+      await requireAdmin(repo, tx, adminId);
+      const now = clock.now().toISOString();
+      const flip = () => (hidden ? repo.hideVisibleListing(tx, { listingId, reasonCode, adminId, now }) : repo.unhideHiddenListing(tx, { listingId, now }));
+      let moderated = await flip();
+      if (moderated === null) {
+        // The locked re-read sees a moderation that committed meanwhile; one that changed the state back lets this apply.
+        const state = await repo.readListingHide(tx, listingId);
+        if (state === null) return this.notFound('FR-REP-5');
+        if ((state.hiddenAt === null) !== hidden) {
+          return hidden
+            ? { decision: explained('allowedWithNotice', 'ListingAlreadyHidden', [{ rule: 'FR-REP-5', inputs: { hiddenAt: state.hiddenAt, hiddenBy: state.hiddenBy } }], now) }
+            : { decision: explained('allowedWithNotice', 'ListingNotHidden', [{ rule: 'FR-REP-5', inputs: { listingId } }], now) };
+        }
+        moderated = await flip();
+        if (moderated === null) throw new UnexpectedError('listings.setListingHidden: the locked listing changed state');
+      }
+      const logId = ids.next();
+      const action = hidden ? 'hide' : 'unhide';
+      const code = hidden ? 'ListingHiddenByAdmin' : 'ListingUnhiddenByAdmin';
+      await repo.insertListingModerationLog(tx, { id: logId, listingId, action, reasonCode, note, adminId, titleSnapshot: await this.titleOf(listingId, moderated), sellerId: moderated.sellerId, now });
+      await audit.record(tx, {
+        actorId: adminId, actorKind: 'admin', module: 'listings', action: hidden ? 'listings.listing.hidden' : 'listings.listing.unhidden',
+        aggregateType: 'Listing', aggregateId: listingId, decisionCode: code, data: { reasonCode, logId }, at: now,
+      });
+      return { decision: explained(hidden ? 'hidden' : 'allowed', code, [{ rule: 'FR-REP-5', inputs: { listingId, reasonCode } }], now) };
+    });
   }
 
-  async listListingModerationLog(_input: ListListingModerationLogRequest): Promise<ListListingModerationLogResponse> {
-    throw new NotImplementedError('listings.listListingModerationLog');
+  /** EC-35: what the log snapshots of a listing: a bundle's title, or a single's catalog entry name (INV-1 Q2's rule). */
+  private async titleOf(listingId: CuidId, listing: ModeratedListing): Promise<string> {
+    if (listing.unitEntryId === null) return listing.title ?? '';
+    const { entries } = await this.deps.catalog.getEntries({ catalogEntryIds: [listing.unitEntryId] });
+    const entry = entries.find((e) => e.catalogEntryId === listing.unitEntryId);
+    if (!entry) throw new UnexpectedError(`Unexpected: listing ${listingId} names catalog entry ${listing.unitEntryId}, which catalog does not know`);
+    return entry.name;
+  }
+
+  /** S-FR-REP-6.listing (AD-REP-3 rule 5): 50 log rows newest first by `(at desc, id)`, the order the 11.4 view merges. Zero writes. */
+  async listListingModerationLog(input: ListListingModerationLogRequest): Promise<ListListingModerationLogResponse> {
+    const after = input.cursor === null ? null : decodeListingCursor(input.cursor);
+    if (input.cursor !== null && after === null) rejectRequest([{ field: 'cursor', issue: 'no es un cursor de esta lista' }]);
+    return this.deps.transactions.run(async (tx) => {
+      await requireAdmin(this.deps.repo, tx, input.adminId);
+      const rows = await this.deps.repo.listListingModerationLog(tx, { after, reasonCode: input.reasonCode ?? null, limit: MODERATION_PAGE + 1 });
+      const page = rows.slice(0, MODERATION_PAGE);
+      const last = page.at(-1);
+      return { rows: page, nextCursor: rows.length > MODERATION_PAGE && last ? encodeListingCursor(last.at, last.logId) : null };
+    }, { readOnly: true });
   }
 
 }

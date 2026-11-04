@@ -152,7 +152,7 @@ export interface AppDeps {
  * The procedures whose contracts the done stories implement: IDN-1.ingress (Story 2.1),
  * IDN-3 (Story 2.5), S-SYS.replay (Story 1.3), S-SYS.tick, .deliveries, .health
  * (Story 1.5), VER-2 (Story 3.1), VER-1 (Story 3.2), VER-3 and S-FR-VER-5.audit (Story 3.4) and
- * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), CAT-3 and S-FR-CAT-8.fetch (Story 4.4), S-FR-CAT-1 (Story 4.5), INV-2 (Story 5.1), S-FR-INV-2, -9 and -10 (Story 5.6), DSC-1 (Story 6.2), DSC-2 (Story 6.3), ORD-1 and S-FR-ORD-2 (Story 7.1), ORD-2, -3 and -4 (Story 7.2), S-FR-ORD-6, -7, -9 and -10 (Story 7.5; S-FR-ORD-8 through the `expiry-materialize` job, Story 1.6), S-FR-COM-2 and -9 (Story 8.1, with the commission subscriber, which runs COM-1 for Story 8.2), COM-2, COM-2.reject and COM-2.queue (Story 8.3), COM-3 and COM-3.last (Story 8.5; COM-3 also through the `commission-reconcile` job), S-FR-COM-7, S-FR-COM-7.list and S-FR-COM-8.ledger (Story 8.6), MSG-1 (Story 9.2), MSG-2 (Story 9.3), S-FR-MSG-7 and S-FR-MSG-8 (Story 9.6: the inbox, the thread, the read mark and mute), and TRD's ten: S-FR-TRD-1, -2w and -3.get/.mine (Story 10.1), TRD-2 (Story 10.2), TRD-1 and S-FR-TRD-3.handoff (Story 10.3), TRD-3 and S-FR-TRD-7 (Story 10.5; S-FR-TRD-9 through the `expiry-materialize` job, Story 1.6), S-FR-COL-1 and its list (Story 11.1), COL-3 (Story 11.2), COL-1, COL-1.dismiss and COL-1.list (Story 11.3, with the collections subscriber, which runs COL-2), S-FR-COL-3, -4 (move and copy), -5 (binder, layout, reorder) and -6 (the wishlist) (Story 11.5), VAL-1 (Story 12.1), VAL-2 and VAL-3 (Story 12.2), REP-1, REP-1.edit and REP-1.check (Story 13.1), and REP-2 and REP-2.unhide (Story 13.2). Every other procedure stays NotImplemented until its story wires it.
+ * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), CAT-3 and S-FR-CAT-8.fetch (Story 4.4), S-FR-CAT-1 (Story 4.5), INV-2 (Story 5.1), S-FR-INV-2, -9 and -10 (Story 5.6), DSC-1 (Story 6.2), DSC-2 (Story 6.3), ORD-1 and S-FR-ORD-2 (Story 7.1), ORD-2, -3 and -4 (Story 7.2), S-FR-ORD-6, -7, -9 and -10 (Story 7.5; S-FR-ORD-8 through the `expiry-materialize` job, Story 1.6), S-FR-COM-2 and -9 (Story 8.1, with the commission subscriber, which runs COM-1 for Story 8.2), COM-2, COM-2.reject and COM-2.queue (Story 8.3), COM-3 and COM-3.last (Story 8.5; COM-3 also through the `commission-reconcile` job), S-FR-COM-7, S-FR-COM-7.list and S-FR-COM-8.ledger (Story 8.6), MSG-1 (Story 9.2), MSG-2 (Story 9.3), S-FR-MSG-7 and S-FR-MSG-8 (Story 9.6: the inbox, the thread, the read mark and mute), and TRD's ten: S-FR-TRD-1, -2w and -3.get/.mine (Story 10.1), TRD-2 (Story 10.2), TRD-1 and S-FR-TRD-3.handoff (Story 10.3), TRD-3 and S-FR-TRD-7 (Story 10.5; S-FR-TRD-9 through the `expiry-materialize` job, Story 1.6), S-FR-COL-1 and its list (Story 11.1), COL-3 (Story 11.2), COL-1, COL-1.dismiss and COL-1.list (Story 11.3, with the collections subscriber, which runs COL-2), S-FR-COL-3, -4 (move and copy), -5 (binder, layout, reorder) and -6 (the wishlist) (Story 11.5), VAL-1 (Story 12.1), VAL-2 and VAL-3 (Story 12.2), REP-1, REP-1.edit and REP-1.check (Story 13.1), REP-2 and REP-2.unhide (Story 13.2), and S-FR-REP-5 (the listing hide and unhide), S-FR-REP-6 (the review search and both moderation logs, which `moderation-log.ts` merges) and S-FR-REP-7 (the public profile) (Story 13.5). With them every procedure of the registry is wired.
  */
 function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2; inv: InvServiceV2; dsc: DscServiceV2; ord: OrdServiceV2; com: ComServiceV2; msg: MsgServiceV2; contact: ContactServiceV2; trd: TrdServiceV2; col: ColServiceV2; val: ValServiceV2; rep: RepServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
   return {
@@ -258,12 +258,25 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
     'reputation.eligibility': ({ targetUserId }, reviewerId) => s.rep.getReviewEligibility({ targetUserId, reviewerId }),
     'reputation.admin.hide': (input, adminId) => s.rep.hideReview({ ...input, adminId }),
     'reputation.admin.unhide': (input, adminId) => s.rep.unhideReview({ ...input, adminId }),
+    'reputation.admin.search': ({ query, cursor }, adminId) => s.rep.searchReviews({ query, cursor, adminId }),
+    'reputation.admin.log': ({ cursor, reasonCode }, adminId) => s.rep.listReviewModerationLog({ cursor, adminId, ...(reasonCode ? { reasonCode } : {}) }),
+    // Public (S-FR-REP-7): a reader is never asked who they are; hidden reviews are absent for everyone here.
+    'reputation.profile': ({ userId, page }) => s.rep.getProfile({ userId, page }),
+    'inventory.admin.hide': ({ listingId, reasonCode, note }, adminId) => s.inv.setListingHidden({ listingId, reasonCode, note, adminId, hidden: true }),
+    'inventory.admin.unhide': ({ listingId, reasonCode, note }, adminId) => s.inv.setListingHidden({ listingId, reasonCode, note, adminId, hidden: false }),
+    'inventory.admin.log': ({ cursor, reasonCode }, adminId) => s.inv.listListingModerationLog({ cursor, adminId, ...(reasonCode ? { reasonCode } : {}) }),
     'admin.events.replay': (input, adminId) => s.adminEvents.replayEventDelivery({ ...input, adminId }),
     'admin.jobs.tickHealth': (_input, adminId) => s.adminEvents.getTickHealth({ adminId }),
     'admin.events.deliveries': (input, adminId) => s.adminEvents.listDeliveries({ ...input, adminId }),
     'admin.events.deliveryHealth': (_input, adminId) => s.adminEvents.getDeliveryHealth({ adminId }),
   };
 }
+
+/**
+ * The procedures `resolvers` wires, read without building a service: each entry is a closure that touches its service
+ * only when called. Since Story 13.5 it is the whole registry (composition.test.ts proves it).
+ */
+export const WIRED_PROCEDURES: readonly string[] = Object.keys(resolvers({} as Parameters<typeof resolvers>[0]));
 
 export function compose({
   pool, clock, sessions, handlers = {}, storage = UNWIRED_STORAGE, scanner = UNWIRED_SCANNER, feed = UNWIRED_FEED, fx = UNWIRED_FX, ipHmacKey, jobsSecret, log, auth,

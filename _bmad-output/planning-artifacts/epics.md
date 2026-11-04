@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 414 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 415 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -1472,7 +1472,7 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Gherkin:**
   - **Scenario (happy) — Given:** a 1-star review containing personal data. **When:** an admin hides it for Harassment. **Then:** `hiddenAt`, reason and admin are set, one log row snapshots the rating and text, and an admin audit row is written; the row is never deleted, and unhiding clears the columns with an `unhide` log row.
   - **Scenario (failure) — Given:** two admins hide the same review at once; an admin unhides a visible review; reason Other with a 5-character note; an unknown review. **When:** the commands run. **Then:** one hide, one log row and one explained no-op citing `hiddenAt` and `hiddenBy`; the unhide is an explained no-op with zero log rows; `RequestValidationFailed` (400) with zero writes; `ReviewNotFound` (404).
-- **DoD:** the shared DoD, plus: the 8 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 8 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 13.3: Keep reputation honest: paid is not enough, and a racing hide never skews the aggregate
 
@@ -1488,7 +1488,7 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Gherkin:**
   - **Scenario (happy) — Given:** ratings 5, 4 and 4 for one seller, and one hidden 1-star. **When:** aggregates are read. **Then:** 4.3 (43 tenths, BigInt half-up), in input order, with the hidden review neither counted nor summed; a seller with no review reads `null`, never 0.0.
   - **Scenario (failure) — Given:** an order Paid but not closed, 100 review attempts; a hide racing a new post on one seller, 100 times; duplicate seller ids. **When:** the reviews, the race and the read run. **Then:** `NotVerifiedPurchaser` citing `latestState: 'Paid'` every time, with zero rows; after each race the aggregate counts exactly the visible committed set; `RequestValidationFailed`.
-- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7); NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7).
 
 ### Story 13.4: Refuse self, unknown and duplicate reviews
 
@@ -1512,15 +1512,15 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Description:** As a buyer and as an admin, I want seller profiles with consistent aggregates, a searchable moderation log, and listing hides that leave discovery at once, so that reputation and moderation stay visible and auditable.
 - **Contracts:** `S-FR-REP-5` setListingHidden, `S-FR-REP-6.listing` listListingModerationLog, `S-FR-REP-6.search` searchReviews, `S-FR-REP-6.log` listReviewModerationLog, `S-FR-REP-7` getProfile · **Also proves:** `REP-3` (operation owned by Story 13.3)
 - **Depends on:** Story 13.2, Story 5.1
-- **Traceability:** FR-REP-3, FR-REP-5, FR-REP-6, FR-REP-7 · NFR-REP-1, NFR-REP-2 · Risk R-29 (P0) · UI 11.2, 11.3, 11.4
+- **Traceability:** FR-REP-3, FR-REP-5, FR-REP-6, FR-REP-7 · NFR-REP-1, NFR-REP-2 · Risk R-29 (P0), R-30 (P1) · UI 11.2, 11.3, 11.4
 - **Binding invariants:** also cited by its clauses: AD-12, AD-REP-2, AD-REP-3
 - **Files:** `src/modules/listings/application/inv.v2.ts` (`InvServiceV2.setListingHidden`, `InvServiceV2.listListingModerationLog`), `src/modules/listings/ports/inv.v2.ts` (`InvRepository`), `src/modules/listings/domain/inv.ts`, `src/modules/listings/infra/pg.ts`, `src/modules/reviews/application/rep.v2.ts` (`RepServiceV2.searchReviews`, `RepServiceV2.listReviewModerationLog`, `RepServiceV2.getProfile`), `src/modules/reviews/ports/rep.v2.ts` (`RepRepository`), `src/modules/reviews/domain/rep.ts`, `src/modules/reviews/infra/pg.ts`
 - **Schema/DTO:** tables `"ListingModerationLog"`, `"Review"`; DTOs `SetListingHiddenRequest` → `SetListingHiddenResponse`, `ListListingModerationLogRequest` → `ListListingModerationLogResponse`, `SearchReviewsRequest` → `SearchReviewsResponse`, `ListReviewModerationLogRequest` → `ListReviewModerationLogResponse`, `GetProfileRequest` → `GetProfileResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.h]`; `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[S-FR-REP-6.h]`, `[S-FR-REP-7.h]`, `[S-FR-REP-7.C1]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.h]`; `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[S-FR-REP-6.h]`, `[S-FR-REP-7.h]`, `[S-FR-REP-7.C1]`; `_bmad-output/test-artifacts/nfr/rep2_latency.test.ts` › `[NFR-REP-2.profile]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a seller with a visible and a hidden review, and a listing to moderate. **When:** a buyer opens the profile, and an admin hides the listing and reads the log. **Then:** the profile lists and counts only the visible review; the listing leaves discovery with a title snapshot logged; the log reads newest first by `(at desc, id)`.
   - **Scenario (failure) — Given:** the profile read and a hide happen around the same instant. **When:** the profile is read. **Then:** the aggregate and the first page come from one snapshot, so they never disagree.
-- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 13.6: Refuse invalid moderation and bad aggregate requests
 

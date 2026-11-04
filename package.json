@@ -24,6 +24,7 @@
     "gate:deps": "node scripts/check-deps.mjs",
     "gate:no-sleep": "node scripts/check-no-sleep.mjs",
     "gate:prisma": "node scripts/gen-prisma-schema.mjs --check",
+    "nfr:k6": "node scripts/nfr-k6.mjs",
     "test": "npm run db:up && npm run test:ci",
     "test:ci": "npm run lint && npm run gate:deps && npm run gate:no-sleep && npm run gate:prisma && npm run test:unit && npm run gate:impl1",
     "gen:api:solu2": "node scripts/gen-solu2-api.mjs",
