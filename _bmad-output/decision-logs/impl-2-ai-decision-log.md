@@ -336,3 +336,15 @@
 - **Evidence:** `evidence/impl2/23-story-13.5-13.6-red.log`, `24-k6.log`, `k6-summary.json`, `25-story-13.5-e2e.log` (Playwright 6 passed, 16.3 s), `26-story-13.5-13.6-green.log` (`test:ci` exit 0, `solu2-atdd` 372 green and 0 red, `solu2-nfr` 27 green).
 - **Artifact changed:** listings and reviews modules, `src/server/moderation-log.ts`, `composition.ts` (+ tests), `rep2_latency.test.ts`, `nfr/k6/`, `scripts/nfr-k6.mjs`, `vitest.config.ts`, `package.json`, the E2E files, `.github/workflows/impl2-quality-gate.yml`, `contracts.md`, `epics.source.mjs` and `epics.md`, `test-design.md` (R-29, R-30, R-31), `nfr-evidence.md`, `deferred-work.md`, `sprint-status.yaml` (all 71 stories `done`), both story files.
 - **Decided by:** Mateo (#18 and the k6 rate); agent defaults within #18.
+
+### 22. k6 runs at a fixed arrival rate with a warm-up, as the PRD §7 benchmarks do (Testing)
+
+- **Phase:** C (applying #21), in a subagent; then a menu on the warm-up it added.
+- **Persona/Skill:** `bmad-testarch-nfr` (Murat).
+- **AI output (summary):** two `constant-arrival-rate` scenarios at 100 iterations/s each for 60 s (25 VUs pre-allocated, at most 50), tagged `endpoint:profile` and `endpoint:browse`, with no `sleep()`. A new threshold fails a starved run: `dropped_iterations` < 1 % (60 per scenario, 120 in all). The other thresholds are unchanged, and the job still blocks `release`.
+- **Problem found:** without a warm-up, the cold Next server dropped 60–63 iterations in its first second, so the run failed on dropped iterations alone, although its latency was fine (profile p95 112 ms). An earlier attempt run alongside `npm run lint` was discarded (CPU contention: p95 567 ms). The subagent added a `setup()` warm-up (5 batches of 25 concurrent reads per endpoint, tagged out of the measured figures) and asked whether it was acceptable.
+- **Options put to Mateo:** **(recommended)** keep the warm-up, which matches the PRD §7 protocol of the benchmarks (50 warm-up calls before the measured ones); or remove it and loosen the threshold to 2 %.
+- **Human decision:** ACCEPT the recommendation.
+- **Evidence:** two runs, both exit 0, 0.00 % errors and 0 5xx: profile p95 34.4 and 38.3 ms, p99 156.2 and 113.7 ms; browse p95 36.4 and 39.4 ms, p99 140.3 and 98.7 ms; 0–3 dropped iterations of 6,000 per endpoint (`evidence/impl2/24-k6.log`, `k6-summary.json`).
+- **Artifact changed:** `nfr/k6/reputation-profile.js`, `scripts/nfr-k6.mjs`, `.github/workflows/impl2-quality-gate.yml`, `test-design.md` §7.4 (and R-30), `nfr-evidence.md`, `deferred-work.md` (commit `c84225a`).
+- **Decided by:** Mateo.
