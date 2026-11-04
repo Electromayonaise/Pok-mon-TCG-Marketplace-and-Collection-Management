@@ -391,7 +391,7 @@ export class InvServiceV2 implements InvV2UseCases {
 
   /** S-FR-INV-10.mine: every listing of the seller, newest first, 25 per page behind a keyset cursor. */
   async listMyListings(input: ListMyListingsRequest): Promise<ListMyListingsResponse> {
-    const after = input.cursor === null ? null : decodeListingCursor(input.cursor);
+    const after = input.cursor === null ? null : decodeListingCursor('mine', input.cursor);
     if (input.cursor !== null && after === null) rejectRequest([{ field: 'cursor', issue: 'no es un cursor válido' }]);
     const rows = await this.reading((tx) => this.deps.repo.listSellerListings(tx, input.sellerId, after, MY_LISTINGS_PAGE + 1));
     const page = rows.slice(0, MY_LISTINGS_PAGE);
@@ -399,7 +399,7 @@ export class InvServiceV2 implements InvV2UseCases {
     let verification: Promise<VerificationStatus | null> | undefined;
     const items = await this.details(page, (r) => (r.sellerKindAtCreation === 'business' ? (verification ??= this.verificationOf(r)) : Promise.resolve(null)));
     const last = page[page.length - 1];
-    return { items, nextCursor: rows.length > MY_LISTINGS_PAGE && last ? encodeListingCursor(last.createdAt, last.id) : null };
+    return { items, nextCursor: rows.length > MY_LISTINGS_PAGE && last ? encodeListingCursor('mine', last.createdAt, last.id) : null };
   }
 
   /** S-FR-INV-9.update: the owner's conditional edit on `version`; a stale version is refused (decision log Impl-1 #30). */
@@ -645,14 +645,14 @@ export class InvServiceV2 implements InvV2UseCases {
 
   /** S-FR-REP-6.listing (AD-REP-3 rule 5): 50 log rows newest first by `(at desc, id)`, the order the 11.4 view merges. Zero writes. */
   async listListingModerationLog(input: ListListingModerationLogRequest): Promise<ListListingModerationLogResponse> {
-    const after = input.cursor === null ? null : decodeListingCursor(input.cursor);
+    const after = input.cursor === null ? null : decodeListingCursor('log', input.cursor);
     if (input.cursor !== null && after === null) rejectRequest([{ field: 'cursor', issue: 'no es un cursor de esta lista' }]);
     return this.deps.transactions.run(async (tx) => {
       await requireAdmin(this.deps.repo, tx, input.adminId);
       const rows = await this.deps.repo.listListingModerationLog(tx, { after, reasonCode: input.reasonCode ?? null, limit: MODERATION_PAGE + 1 });
       const page = rows.slice(0, MODERATION_PAGE);
       const last = page.at(-1);
-      return { rows: page, nextCursor: rows.length > MODERATION_PAGE && last ? encodeListingCursor(last.at, last.logId) : null };
+      return { rows: page, nextCursor: rows.length > MODERATION_PAGE && last ? encodeListingCursor('log', last.at, last.logId) : null };
     }, { readOnly: true });
   }
 

@@ -20,3 +20,28 @@ $ npx vitest run --project impl1-unit src/modules/listings/inv-domain.test.ts sr
 # codeOf of the resolved page, citations null). The domain round-trip fails because decodeListingCursor takes no
 # list tag yet (the tag is read as the cursor, null). The domain cross-list/untagged refusals pass vacuously in red
 # (the one-argument decoder refuses everything given a tag); they guard the green decoder.
+
+## 2. Green (the fix: ListingListTag 'mine' | 'log' in encodeListingCursor / decodeListingCursor, as REP's encodeReviewCursor)
+$ npx vitest run --project impl1-unit src/modules/listings/inv-domain.test.ts src/modules/listings/application/inv.v2-manage.test.ts src/modules/listings/application/inv.v2-moderation.test.ts
+        Tests  34 passed (34)
+$ npx tsc --noEmit -p .   -> exit 0
+
+$ npm run test:ci   -> EXIT 0
+  no-sleep: 346 files checked, 7 rules proven on planted violations, 0 problems
+   Test Files  70 passed (70)
+        Tests  729 passed (729)
+  All files          |   99.05 |    97.49 |     100 |     100 |                   
+   listings/domain   |   98.75 |    95.36 |     100 |     100 |                   
+  > npm run typecheck && npm run test:lint-rules && npm run gate:api:solu2 && npm run gate:ui:solu2 && npm run gate:codes:solu2 && npm run gate:ids:solu2 && npm run gate:trace:solu2 && npm run gate:epics:solu2 && npm run gate:purity && npm run test:fitness:solu2 && npm run gate:atdd-red:impl1 && npm run gate:nfr-red:impl1
+  43 pages, 327 states (138 data, 77 refusal, 112 client), 0 problems
+  204 code citations checked, 0 problems
+  > tezg@0.0.0 gate:trace:solu2
+  trace: 96 FRs, 56 NFRs, 61 AD rows, 31 risks, 114 clauses, 419 test ids (419 enforced green), 4 journeys, 1 k6 scripts; gate PASS; 0 problems
+  > tezg@0.0.0 gate:purity
+  > node scripts/check-domain-purity.mjs
+   Test Files  2 passed (2)
+        Tests  12 passed (12)
+  solu2-atdd: 373 tests in 25 files; 0 red for the right reason; 373 green for done stories (419 contracts or test ids done); 0 not as expected
+  solu2-nfr: 30 tests in 15 files; 0 red for the right reason; 30 green for done stories (419 contracts or test ids done); 0 not as expected
+# lint: 0 warnings. No test id, no generated surface and no UI-visible shape changed (cursors stay opaque strings),
+# so gen:epics / gen:trace were not needed and the Playwright journeys were not re-run.
