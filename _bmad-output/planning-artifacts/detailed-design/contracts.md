@@ -1802,7 +1802,7 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *Q:* a conditional `hiddenAt` change plus one `"ListingModerationLog"` with `titleSnapshot`. The listing leaves discovery on the next request. Reservations are untouched. Audit row.
   - *Errors:* `AdminOnly` (HTTP 403, identity), `ListingNotFound` (HTTP 404, listings).
   - *I:* AD-REP-3, AD-12.
-  - *Tests:* `[S-FR-REP-5.h]` a hidden listing is absent from the next search; `[S-FR-REP-5.f]` hiding twice → one log row and an explained no-op.
+  - *Tests:* `[S-FR-REP-5.h]` a hidden listing is absent from the next search; `[S-FR-REP-5.f]` hiding twice → one log row and an explained no-op; `[S-FR-REP-5.C1]` 20 concurrent hides of one listing → exactly one hide, one `"ListingModerationLog"` row and one audit row, and every other call the explained no-op, with no error (decision log Impl-2 #18).
 - **S-FR-REP-6 — `reputation.admin.search` / `log` and `listings.listingModerationLog`, merged in the 11.4 RSC.** Inbound Port.
   - *P:* admin.
   - *Q:* the two queries are merged by `(at desc, id)`, 50 per page. Search uses `tezg_unaccent_lower(text) LIKE … ESCAPE '\'` with `\`, `%` and `_` escaped. Zero writes.
@@ -1814,7 +1814,7 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *Q:* the aggregate (REP-3) plus a page of 20 visible reviews, read in one `REPEATABLE READ` read-only transaction. Zero writes.
   - *Errors:* `TargetNotFound` (HTTP 404, reviews).
   - *I:* AD-REP-2 rule 2.
-  - *Tests:* `[S-FR-REP-7.h]` a hidden review is neither listed nor counted; `[S-FR-REP-7.f]` an unknown user → `TargetNotFound`.
+  - *Tests:* `[S-FR-REP-7.h]` a hidden review is neither listed nor counted; `[S-FR-REP-7.f]` an unknown user → `TargetNotFound`; `[S-FR-REP-7.C1]` 100 rounds of profile reads racing hides and unhides of that seller's reviews (≤ 20, so one page lists them all): in every read the aggregate's count and average are exactly those of the visible reviews it lists, i.e. one snapshot (decision log Impl-2 #18).
 
 ### Offered ports (§15.11)
 

@@ -280,6 +280,34 @@ describe('S-FR-REP-7 — profile (contracts.md §15)', () => {
     expect(profile.hasMore).toBe(false);
   });
 
+  // Story 13.5 (Flow A, decision log Impl-2 #18, R-29): AD-REP-2 rule 2 under hides and unhides committing mid-read.
+  it('[S-FR-REP-7.C1] 100 rounds of profile reads racing hides and unhides of the seller’s reviews: every read’s aggregate counts and averages exactly the reviews it lists', async () => {
+    await people();
+    // Given: 12 visible reviews of the business (≤ 20, so the first page lists every visible one).
+    for (let i = 0; i < 12; i++) {
+      await user(db, { id: id(`rv${i}`) });
+      await review(db, { id: id(`rr${i}`), reviewerId: id(`rv${i}`), targetUserId: id('tienda'), rating: 1 + (i % 5) });
+    }
+    const { rep } = setup({ targets });
+    const read = () => rep.getProfile({ userId: id('tienda'), page: 1 });
+    for (let round = 0; round < 100; round++) {
+      // Each pair of rounds hides four reviews, then unhides the same four, while three profile reads run.
+      const pair = Math.floor(round / 2);
+      const moderated = [0, 3, 6, 9].map((k) => id(`rr${(pair + k) % 12}`));
+      const moderate = (reviewId: string) => (round % 2 === 0 ? rep.hideReview(hide(reviewId)) : rep.unhideReview(hide(reviewId)));
+      const { fulfilled, rejected } = await race(7, (i): Promise<unknown> => (i < 3 ? read() : moderate(moderated[i - 3]!)));
+      if (rejected.length > 0) throw rejected[0];
+      const profiles = fulfilled.filter((r): r is Awaited<ReturnType<typeof read>> => typeof r === 'object' && r !== null && 'reviews' in r);
+      expect(profiles).toHaveLength(3);
+      for (const p of profiles) {
+        const sum = p.reviews.reduce((n, r) => n + r.rating, 0);
+        expect(p.hasMore).toBe(false);
+        expect(p.aggregate.count).toBe(p.reviews.length);
+        expect(p.aggregate.averageTenths).toBe(p.reviews.length === 0 ? null : Math.floor((20 * sum + p.reviews.length) / (2 * p.reviews.length)));
+      }
+    }
+  });
+
   it('[S-FR-REP-7.f] an unknown user is TargetNotFound (404)', async () => {
     await people();
     const error = await caught(() => setup({ targets }).rep.getProfile({ userId: id('ghost'), page: 1 }));

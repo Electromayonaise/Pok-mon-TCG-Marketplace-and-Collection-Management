@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 412 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 414 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -1512,15 +1512,15 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Description:** As a buyer and as an admin, I want seller profiles with consistent aggregates, a searchable moderation log, and listing hides that leave discovery at once, so that reputation and moderation stay visible and auditable.
 - **Contracts:** `S-FR-REP-5` setListingHidden, `S-FR-REP-6.listing` listListingModerationLog, `S-FR-REP-6.search` searchReviews, `S-FR-REP-6.log` listReviewModerationLog, `S-FR-REP-7` getProfile · **Also proves:** `REP-3` (operation owned by Story 13.3)
 - **Depends on:** Story 13.2, Story 5.1
-- **Traceability:** FR-REP-3, FR-REP-5, FR-REP-6, FR-REP-7 · NFR-REP-1, NFR-REP-2 · UI 11.2, 11.3, 11.4
+- **Traceability:** FR-REP-3, FR-REP-5, FR-REP-6, FR-REP-7 · NFR-REP-1, NFR-REP-2 · Risk R-29 (P0) · UI 11.2, 11.3, 11.4
 - **Binding invariants:** also cited by its clauses: AD-12, AD-REP-2, AD-REP-3
 - **Files:** `src/modules/listings/application/inv.v2.ts` (`InvServiceV2.setListingHidden`, `InvServiceV2.listListingModerationLog`), `src/modules/listings/ports/inv.v2.ts` (`InvRepository`), `src/modules/listings/domain/inv.ts`, `src/modules/listings/infra/pg.ts`, `src/modules/reviews/application/rep.v2.ts` (`RepServiceV2.searchReviews`, `RepServiceV2.listReviewModerationLog`, `RepServiceV2.getProfile`), `src/modules/reviews/ports/rep.v2.ts` (`RepRepository`), `src/modules/reviews/domain/rep.ts`, `src/modules/reviews/infra/pg.ts`
 - **Schema/DTO:** tables `"ListingModerationLog"`, `"Review"`; DTOs `SetListingHiddenRequest` → `SetListingHiddenResponse`, `ListListingModerationLogRequest` → `ListListingModerationLogResponse`, `SearchReviewsRequest` → `SearchReviewsResponse`, `ListReviewModerationLogRequest` → `ListReviewModerationLogResponse`, `GetProfileRequest` → `GetProfileResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.h]`; `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[S-FR-REP-6.h]`, `[S-FR-REP-7.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.h]`; `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[S-FR-REP-6.h]`, `[S-FR-REP-7.h]`, `[S-FR-REP-7.C1]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a seller with a visible and a hidden review, and a listing to moderate. **When:** a buyer opens the profile, and an admin hides the listing and reads the log. **Then:** the profile lists and counts only the visible review; the listing leaves discovery with a title snapshot logged; the log reads newest first by `(at desc, id)`.
   - **Scenario (failure) — Given:** the profile read and a hide happen around the same instant. **When:** the profile is read. **Then:** the aggregate and the first page come from one snapshot, so they never disagree.
-- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
 
 ### Story 13.6: Refuse invalid moderation and bad aggregate requests
 
@@ -1528,13 +1528,13 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Description:** As an admin, I want invalid moderation actions and malformed reads refused with the reason, so that the moderation log stays exact.
 - **Contracts:** — (no registry operation of its own) · **Also proves:** `S-FR-REP-5` (operation owned by Story 13.5), `S-FR-REP-6` (§15 clause), `S-FR-REP-7` (operation owned by Story 13.5)
 - **Depends on:** Story 13.5
-- **Traceability:** FR-REP-5, FR-REP-6, FR-REP-7
+- **Traceability:** FR-REP-5, FR-REP-6, FR-REP-7 · Risk R-31 (P0)
 - **Binding invariants:** also cited by its clauses: AD-12, AD-REP-2, AD-REP-3
 - **Files:** —
 - **Schema/DTO:** tables `"ListingModerationLog"`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.f]`; `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[S-FR-REP-6.f]`, `[S-FR-REP-7.f]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.f]`, `[S-FR-REP-5.C1]`; `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[S-FR-REP-6.f]`, `[S-FR-REP-7.f]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a listing hidden once, and a known seller's profile. **When:** an admin hides the listing, and a buyer opens the profile. **Then:** one hide with one log row, and the profile: the contrast cases.
   - **Scenario (failure) — Given:** a listing hidden twice; a search for "100%"; a profile for an unknown user. **When:** the command or read runs. **Then:** one log row and an explained no-op; only the literal "100%" text matches; `TargetNotFound` (404).
-- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 

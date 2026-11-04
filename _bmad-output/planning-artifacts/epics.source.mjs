@@ -654,14 +654,16 @@ export default {
         {
           title: 'Read profiles, search moderation logs and hide listings', kind: 'Supporting',
           as: 'As a buyer and as an admin, I want seller profiles with consistent aggregates, a searchable moderation log, and listing hides that leave discovery at once, so that reputation and moderation stay visible and auditable.',
-          ops: ['S-FR-REP-5', 'S-FR-REP-6.listing', 'S-FR-REP-6.search', 'S-FR-REP-6.log', 'S-FR-REP-7'], contracts: ['REP-3'], tests: ['S-FR-REP-5.h', 'S-FR-REP-6.h', 'S-FR-REP-7.h'], depends: ['13.2', '5.1'],
+          // Impl-2 (decision log Impl-2 #18): Flow A adds the one-snapshot race (R-29), red before any 13.5/13.6 code.
+          ops: ['S-FR-REP-5', 'S-FR-REP-6.listing', 'S-FR-REP-6.search', 'S-FR-REP-6.log', 'S-FR-REP-7'], contracts: ['REP-3'], tests: ['S-FR-REP-5.h', 'S-FR-REP-6.h', 'S-FR-REP-7.h', 'S-FR-REP-7.C1'], depends: ['13.2', '5.1'],
           happy: ['a seller with a visible and a hidden review, and a listing to moderate.', 'a buyer opens the profile, and an admin hides the listing and reads the log.', 'the profile lists and counts only the visible review; the listing leaves discovery with a title snapshot logged; the log reads newest first by `(at desc, id)`.'],
           failure: ['the profile read and a hide happen around the same instant.', 'the profile is read.', 'the aggregate and the first page come from one snapshot, so they never disagree.'],
         },
         {
           title: 'Refuse invalid moderation and bad aggregate requests', kind: 'Failure-state',
           as: 'As an admin, I want invalid moderation actions and malformed reads refused with the reason, so that the moderation log stays exact.',
-          contracts: ['S-FR-REP-5', 'S-FR-REP-6', 'S-FR-REP-7'], tests: ['S-FR-REP-5.f', 'S-FR-REP-6.f', 'S-FR-REP-7.f'], depends: ['13.5'],
+          // Impl-2 (decision log Impl-2 #18): Flow A adds the 20-way hide race (R-31), red before any 13.5/13.6 code.
+          contracts: ['S-FR-REP-5', 'S-FR-REP-6', 'S-FR-REP-7'], tests: ['S-FR-REP-5.f', 'S-FR-REP-6.f', 'S-FR-REP-7.f', 'S-FR-REP-5.C1'], depends: ['13.5'],
           happy: ['a listing hidden once, and a known seller\'s profile.', 'an admin hides the listing, and a buyer opens the profile.', 'one hide with one log row, and the profile: the contrast cases.'],
           failure: ['a listing hidden twice; a search for "100%"; a profile for an unknown user.', 'the command or read runs.', 'one log row and an explained no-op; only the literal "100%" text matches; `TargetNotFound` (404).'],
         },
