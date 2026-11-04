@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 415 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 416 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -511,7 +511,7 @@ Give every account exactly one seller track and derive its capabilities from fac
 - **Traceability:** FR-IDN-7
 - **Binding invariants:** AD-IDN-3 — `canBuy` gate and auth throttle (`requireCanBuy`; `AuthThrottleEvent` count); also cited by its clauses: AD-16, AD-SYS-8
 - **Files:** `src/modules/identity/application/idn.v2.ts` (`IdnServiceV2.requireCanBuy`, `IdnServiceV2.checkAuthThrottle`), `src/modules/identity/ports/idn.v2.ts` (`IdnRepository`), `src/modules/identity/domain/idn.ts`, `src/modules/identity/infra/pg.ts`
-- **Schema/DTO:** tables `"AuthThrottleEvent"`, `"Session"`; DTOs `RequireCanBuyRequest` → `RequireCanBuyResponse`, `CheckAuthThrottleRequest` → `CheckAuthThrottleResponse`
+- **Schema/DTO:** tables `"Account"`, `"AuthThrottleEvent"`, `"Session"`, `"User"`; DTOs `RequireCanBuyRequest` → `RequireCanBuyResponse`, `CheckAuthThrottleRequest` → `CheckAuthThrottleResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_contracts.test.ts` › `[S-FR-IDN-7.h]`, `[S-FR-IDN-7.f]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Camila's email is verified. **When:** a `canBuy` procedure runs. **Then:** she passes, with the decision explained.
@@ -543,12 +543,12 @@ Give every account exactly one seller track and derive its capabilities from fac
 - **Traceability:** FR-IDN-7 · Risk R-22 (P0)
 - **Binding invariants:** also cited by its clauses: AD-16, AD-IDN-3, AD-SYS-8
 - **Files:** —
-- **Schema/DTO:** tables `"AuthThrottleEvent"`, `"Session"`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_auth.test.ts` › `[S-FR-IDN-7.signup.h]`, `[S-FR-IDN-7.signup.f]`, `[S-FR-IDN-7.signup.throttle]`, `[S-FR-IDN-7.signin.h]`, `[S-FR-IDN-7.signin.throttle]`, `[S-FR-IDN-7.signin.unknown]`
+- **Schema/DTO:** tables `"Account"`, `"AuthThrottleEvent"`, `"Session"`, `"User"`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_auth.test.ts` › `[S-FR-IDN-7.signup.h]`, `[S-FR-IDN-7.signup.f]`, `[S-FR-IDN-7.signup.throttle]`, `[S-FR-IDN-7.signin.h]`, `[S-FR-IDN-7.signin.throttle]`, `[S-FR-IDN-7.signin.unknown]`, `[S-FR-IDN-7.signup.unwired]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a visitor with the privacy notice `privacy-v1` in front of her. **When:** Camila signs up accepting it, then signs in with her password before verifying her email. **Then:** her user stores the consent instant and version, her password only as a hash, one verification link is sent, and she is signed in, while `canBuy` still refuses `EmailNotVerified`.
   - **Scenario (failure) — Given:** 10 failed sign-ins for her account in 15 minutes, a sign-up without consent, and a 6th sign-up from one IP within an hour. **When:** each arrives. **Then:** the 11th sign-in is 429 `AuthRateLimited` citing `retryAt` even with the right password; the sign-up without consent is 400 on `consentAccepted` with no user; the 6th sign-up is 429; every throttle row is keyed by an account id or a 64-hex `ipHmac`, never a raw IP or an empty key.
-- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; `app/api/auth/[...all]` serves `compose().auth`; production binds `UNWIRED_EMAIL` until a mail provider is chosen (launch checklist).
+- **DoD:** the shared DoD, plus: the 7 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; `app/api/auth/[...all]` serves `compose().auth`; production binds `UNWIRED_EMAIL` until a mail provider is chosen (launch checklist), and while it does the guard refuses sign-up before any write.
 
 ## Epic 3: Business verification workflow (VER)
 

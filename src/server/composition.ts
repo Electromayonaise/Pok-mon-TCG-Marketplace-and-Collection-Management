@@ -145,7 +145,7 @@ export interface AppDeps {
   /** Where a failed job run is logged (the route's sink); none in tests. */
   log?: Logger;
   /** Better Auth's routes, served behind the AD-IDN-3 guard (Story 2.6); without it `/api/auth/*` is refused. */
-  auth?: Pick<Auth, 'handler'>;
+  auth?: Pick<Auth, 'handler' | 'emailWired'>;
 }
 
 /**
@@ -345,7 +345,7 @@ export function compose({
     },
     'outbox-sweep': { singleFlight: 'runner', triggers: JOB_TRIGGERS, run: async (trigger) => ({ skipped: false, result: await adminEvents.sweep({ trigger }) }) },
   };
-  const runner = new JobRunner({ repo: new PgJobRunRepository(), locks: new PgJobLocks(pool), transactions, clock, ids });
+  const runner = new JobRunner({ repo: new PgJobRunRepository(), locks: new PgJobLocks(pool), transactions, clock, ids, ...(log ? { log } : {}) });
   const identity = new IdentityGateV2({ sessions, repo, transactions, idn });
   const ipHmac = ipHmacKey ? requestIpHmac(ipHmacKey) : () => null;
   const authGuard: AuthGuard = {

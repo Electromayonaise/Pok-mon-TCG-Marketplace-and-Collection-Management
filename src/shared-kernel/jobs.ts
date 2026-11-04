@@ -5,6 +5,7 @@
 // connection, because the work opens transactions of its own (expiry runs one per order).
 import { DomainError, NotImplementedError } from './errors.js';
 import type { Clock, IdGenerator, TransactionRunner, Tx } from './ports.js';
+import type { Logger } from './regulated.js';
 import type { CuidId, IsoInstant } from './types.js';
 
 /** The schedulers that call a job route (ARCH §4); `admin` runs come from admin procedures only. */
@@ -46,7 +47,7 @@ export function jobErrorCode(error: unknown): string {
 }
 
 export class JobRunner {
-  constructor(private readonly deps: { repo: JobRunRepository; locks: JobLocks; transactions: TransactionRunner; clock: Clock; ids: IdGenerator }) {}
+  constructor(private readonly deps: { repo: JobRunRepository; locks: JobLocks; transactions: TransactionRunner; clock: Clock; ids: IdGenerator; log?: Logger }) {}
 
   async run(job: string, trigger: JobTrigger, work: JobWork): Promise<JobRunResult> {
     const { repo, locks, transactions, clock, ids } = this.deps;
@@ -75,7 +76,11 @@ export class JobRunner {
       await transactions.run((tx) => repo.finishJobRun(tx, runId, { outcome: ran.outcome, errorCode, finishedAt }));
       return ran;
     } finally {
-      await hold?.release();
+      // The run's row is committed by now: a lock whose release fails (its COMMIT on a broken connection) ends with
+      // its session, and never replaces the run's outcome (Impl-2 code review F4). Only the error code is logged.
+      await hold?.release().catch((error: unknown) => {
+        this.deps.log?.error('job.lock.releaseFailed', { job, runId, errorCode: jobErrorCode(error) });
+      });
     }
   }
 }

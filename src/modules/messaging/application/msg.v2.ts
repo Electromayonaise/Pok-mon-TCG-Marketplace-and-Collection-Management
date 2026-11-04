@@ -127,16 +127,17 @@ export class MsgServiceV2 implements MsgV2UseCases {
   /**
    * S-FR-MSG-7.inbox (AD-MSG-3 rules 2–4, decision log Impl-2 #15): 20 conversations per page by `(lastMessageAt desc,
    * id)` with a keyset cursor bound to the reader, and the total unread over every non-muted conversation, from one
-   * snapshot. Each row carries the reader's own unread count only. Zero writes.
+   * snapshot: the page and the total are read in one `REPEATABLE READ` read-only transaction (Impl-2 code review F3).
+   * Each row carries the reader's own unread count only. Zero writes.
    */
   async listInbox(input: ListInboxRequest): Promise<ListInboxResponse> {
     const { repo } = this.deps;
     const { actorId, cursor } = input;
     const after = cursor === null ? null : decodeInboxCursor(cursor, actorId) ?? rejectRequest([{ field: 'cursor', issue: 'no es un cursor de esta lista' }]);
-    const { page, unreadTotal } = await this.reading(async (tx) => ({
+    const { page, unreadTotal } = await this.deps.transactions.run(async (tx) => ({
       page: await repo.listInboxPage(tx, actorId, INBOX_PAGE_SIZE, after),
       unreadTotal: await repo.unreadTotal(tx, actorId),
-    }));
+    }), { isolation: 'REPEATABLE READ', readOnly: true });
     const names = await this.counterpartNames(page);
     const rows: InboxRowDTO[] = page.map((v) => ({
       conversationId: v.conversationId,

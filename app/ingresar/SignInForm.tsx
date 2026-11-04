@@ -7,6 +7,7 @@
 import { useState, type FormEvent } from 'react';
 import type { ErrorBody } from '../../src/shared-kernel/explanation.js';
 import { hora } from '../_client/api.js';
+import { destination } from './destination.js';
 
 const WRONG_CREDENTIALS = 'El correo o la contraseña no coinciden. Revísalos e inténtalo de nuevo.';
 const MISSING_FIELDS = 'Escribe tu correo y tu contraseña para ingresar.';
@@ -23,11 +24,6 @@ function refusalText(status: number, error: ErrorBody | null): string {
   }
   if (status === 401 || status === 400) return WRONG_CREDENTIALS;
   return status === 0 ? NOT_CONFIRMED : SERVER_ERROR;
-}
-
-/** Where a signed-in user goes: `next` when it is a path on this site (never `//host` or `/\host`), else the inbox. */
-function destination(next: string | undefined): string {
-  return next !== undefined && /^\/(?![/\\])/.test(next) ? next : '/mensajes';
 }
 
 export function SignInForm({ next }: { next?: string | undefined }) {
@@ -55,7 +51,7 @@ export function SignInForm({ next }: { next?: string | undefined }) {
     }
     if (status === 200) {
       // A full navigation, so the next page renders on the server with the new session cookie.
-      window.location.assign(destination(next));
+      window.location.assign(destination(next, window.location.origin));
       return;
     }
     setPending(false);

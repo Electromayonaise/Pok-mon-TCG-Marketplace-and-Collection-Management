@@ -26,7 +26,7 @@
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 53 / 56 |
 | NFR evidence status | Green — ATDD: 37; Green — benchmark: 16; Green — gate: 8; Deferred — launch: 3; Planned — story DoD: 1 |
-| Contract clauses / test ids | 114 / 415 (403 red, 12 green) |
+| Contract clauses / test ids | 114 / 416 (404 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -39,7 +39,7 @@
 | FR-IDN-4 | Guard seller-type exclusivity atomically (CAP-5, CAP-19) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | 2.1 (done), 2.2 (done), 3.1 (done), 3.3 (done) | red |
 | FR-IDN-5 | Capability audit trace for admins (CAP-15) | IDN-3 | AD-IDN-1, AD-VER-2, AD-13, AD-SYS-8 | 5 — `IDN-3.I1`, `IDN-3.I3`, `IDN-3.P2` +2 | 2.5 (done) | red |
 | FR-IDN-6 | Messaging, review-target and seller-kind queries (CAP-18, CAP-7, CAP-1) | MSG-3, S-FR-IDN-6 | AD-IDN-1, AD-MSG-2 | 5 — `MSG-3.MEC`, `MSG-3.Q1`, `MSG-3.QF1` +2 | 2.5 (done), 9.1 (done) | red |
-| FR-IDN-7 | Authentication and admin gating (CAP-15, CAP-28) | S-FR-IDN-7 | AD-16, AD-IDN-3, AD-SYS-8 | 8 — `S-FR-IDN-7.f`, `S-FR-IDN-7.h`, `S-FR-IDN-7.signin.h` +5 | 2.4 (done), 2.6 (done) | red |
+| FR-IDN-7 | Authentication and admin gating (CAP-15, CAP-28) | S-FR-IDN-7 | AD-16, AD-IDN-3, AD-SYS-8 | 9 — `S-FR-IDN-7.f`, `S-FR-IDN-7.h`, `S-FR-IDN-7.signin.h` +6 | 2.4 (done), 2.6 (done) | red |
 | FR-VER-1 | Submit a business application (CAP-15, CAP-5) | IDN-1, VER-2 | AD-SYS-4, AD-IDN-2, AD-18, AD-SYS-8 | 14 — `IDN-1.I1`, `IDN-1.MEC`, `IDN-1.Q1` +11 | 2.1 (done), 2.2 (done), 3.1 (done), 3.3 (done) | red |
 | FR-VER-2 | Admin review queue (CAP-15) | VER-3, S-FR-VER-2 | AD-VER-2, AD-14, AD-SYS-8, AD-13 | 8 — `VER-3.I1`, `VER-3.I2`, `VER-3.I3` +5 | 3.4 (done), 3.5 (done) | red |
 | FR-VER-3 | Approve (CAP-15, CAP-5) | VER-1 | AD-VER-1, AD-SYS-5, AD-SYS-2 | 7 — `VER-1.I1`, `VER-1.MEC`, `VER-1.P2` +4 | 3.2 (done), 3.3 (done) | red |
@@ -190,7 +190,7 @@
 | NFR-COL-3 | there are 0 CatalogEntry writes from collections | — | `SYS-AD8`, `S-FR-COL-3.h` | 2 | Green — gate (`[SYS-AD8]`); Green — ATDD (`[S-FR-COL-3.h]` with Story 11.5) |
 | NFR-VAL-2 | current value plus the 30-day trend for 500 entries takes p95 ≤ 1,500 ms | VAL-1, VAL-3 | `NFR-VAL-2.current`, `NFR-VAL-2.trend`, `NFR-VAL-2.history` | 12 | Green — benchmark (p95: current 74 ms, current + 30-day trend 281 ms, 365-point history 262 ms, local Postgres 16) |
 | NFR-VAL-3 | 0 floating-point operations on COP in valuation code | VAL-1, VAL-2 | `VAL-1.I1`, `VAL-2.I3` | 9 | Green — ATDD (`[VAL-1.I1]` with Story 12.1, `[VAL-2.I3]` with Story 12.5) |
-| NFR-REP-2 | a profile read (aggregate plus the first page) takes p95 ≤ 300 ms | REP-2, REP-3 | `NFR-REP-2.nextRead`, `NFR-REP-2.aggregates`, `S-FR-REP-7.h` +1 | 15 | Green — benchmark (the next read, the aggregates and the profile, p95 0.7 ms, 1.8 ms and 34.7 ms at N = 1, and the k6 burst's profile p95 177 ms under 50 users, local Postgres 16, decision log Impl-2 #18); Green — ATDD (`[S-FR-REP-7.h]` with Story 13.5) |
+| NFR-REP-2 | a profile read (aggregate plus the first page) takes p95 ≤ 300 ms | REP-2, REP-3 | `NFR-REP-2.nextRead`, `NFR-REP-2.aggregates`, `S-FR-REP-7.h` +1 | 15 | Green — benchmark (the next read, the aggregates and the profile, p95 0.7 ms, 1.8 ms and 34.7 ms at N = 1, and the k6 profile p95 38 ms at 100 requests/s, local Postgres 16, decision log Impl-2 #18 and #21); Green — ATDD (`[S-FR-REP-7.h]` with Story 13.5) |
 | NFR-REP-3 | 0 hard deletes of Review or Listing rows | — | `REP-2.I1`, `SYS-R2.grants` | 2 | Green — gate (grant); Green — ATDD (behaviour, Story 13.2) |
 
 ## 4. Architecture decisions (§14)
@@ -334,7 +334,7 @@
 | REP-2 | core | FR-REP-4 | AD-16, AD-12, AD-REP-2, AD-REP-3 | 7 | red |
 | REP-3 | core | FR-REP-3 | AD-12, AD-REP-2 | 4 | red |
 | S-FR-IDN-6 | supporting | FR-IDN-6 | AD-IDN-1 | 2 | red |
-| S-FR-IDN-7 | supporting | FR-IDN-7 | AD-16, AD-IDN-3, AD-SYS-8 | 8 | red |
+| S-FR-IDN-7 | supporting | FR-IDN-7 | AD-16, AD-IDN-3, AD-SYS-8 | 9 | red |
 | S-FR-VER-2 | supporting | FR-VER-2 | AD-VER-2 | 2 | red |
 | S-FR-VER-7 | supporting | FR-VER-7 | AD-VER-3 | 2 | red |
 | S-FR-VER-8 | supporting | FR-VER-8 | AD-VER-1 | 3 | red |

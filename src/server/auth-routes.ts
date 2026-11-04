@@ -1,6 +1,8 @@
 // Driving adapter — Better Auth's routes `/api/auth/*` behind the AD-IDN-3 guard (Story 2.6; S-FR-IDN-7;
 // ARCHITECTURE S-7, S-8; decision log Impl-2 #11, #12). Every other path passes straight to Better Auth.
-//   - `POST /sign-up/email`: `consentAccepted = true` and the current `consentVersion`, else
+//   - `POST /sign-up/email`: while no mail provider is wired (`auth.emailWired` false), NotImplemented before
+//     anything else, answered as the platform's 500 `Unexpected`: Better Auth would write the user and its
+//     account before failing to send the link (Impl-2 code review F2). Then `consentAccepted = true` and the current `consentVersion`, else
 //     RequestValidationFailed on the field (rule 1); then the per-IP sign-up limit; the consent fields
 //     are removed before Better Auth reads the body, and every forwarded attempt is counted.
 //   - `POST /sign-in/email`: the account and IP limits before the password is checked, so the
@@ -8,6 +10,7 @@
 // A refusal of this guard is the platform's `{ error: ErrorBody }`; Better Auth's own answers pass through.
 import type { CheckAuthThrottleRequest, CheckAuthThrottleResponse } from '../modules/identity/index.js';
 import { CURRENT_CONSENT_VERSION } from '../modules/identity/index.js';
+import { NotImplementedError } from '../shared-kernel/errors.js';
 import type { Clock } from '../shared-kernel/ports.js';
 import { rejectRequest, type RequestIssue } from '../shared-kernel/request.js';
 import type { CuidId } from '../shared-kernel/types.js';
@@ -22,7 +25,7 @@ export interface AuthGuard {
 }
 
 export interface AuthRouteDeps {
-  auth: Pick<Auth, 'handler'>;
+  auth: Pick<Auth, 'handler' | 'emailWired'>;
   guard: AuthGuard;
   clock: Clock;
   ipHmacOf: (headers: Headers) => string | null;
@@ -47,6 +50,7 @@ async function jsonBody(req: Request): Promise<Record<string, unknown>> {
 }
 
 async function signUp(req: Request, { auth, guard, ipHmacOf }: AuthRouteDeps): Promise<Response> {
+  if (!auth.emailWired) throw new NotImplementedError('email.sendVerificationEmail');
   const { consentAccepted, consentVersion, ...rest } = await jsonBody(req);
   const issues: RequestIssue[] = [];
   if (consentAccepted !== true) issues.push({ field: 'consentAccepted', issue: 'debes aceptar el aviso de privacidad' });

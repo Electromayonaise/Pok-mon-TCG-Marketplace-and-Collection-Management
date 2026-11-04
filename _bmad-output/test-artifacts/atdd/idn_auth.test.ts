@@ -84,6 +84,23 @@ describe('Story 2.6 — sign-up records consent and sends verification (AD-IDN-3
     expect(sixth.body.error!.decision.citations[0]!.inputs).toMatchObject({ scope: 'signUp', limit: 5, retryAt: new Date(Date.parse(T0) + 3_600_000).toISOString() });
     expect(await rows(db, 'User')).toHaveLength(5);
   });
+
+  it('[S-FR-IDN-7.signup.unwired] while the email sender is UNWIRED_EMAIL, a sign-up is refused before Better Auth runs: 500 Unexpected, and no "User", "Account" or "AuthThrottleEvent" row', async () => {
+    const unwired = createAuth({ prisma: new PrismaClient({ adapter: new PrismaPg(db.pool) }), secret: SECRET, baseUrl: BASE, clock });
+    const production = compose({ pool: db.pool, clock, sessions: betterAuthSessions(unwired), ipHmacKey: IP_KEY, auth: unwired });
+    const res = await production.auth(new Request(`${BASE}/api/auth/sign-up/email`, {
+      method: 'POST', headers: { 'content-type': 'application/json', origin: BASE, 'x-real-ip': IP },
+      body: JSON.stringify({ name: 'Camila Rojas', email: 'camila@example.co', password: 'una-clave-larga-1', consentAccepted: true, consentVersion: 'privacy-v1' }),
+    }));
+    const text = await res.text();
+    expect(res.status).toBe(500);
+    expect((JSON.parse(text) as Body).error).toMatchObject({ code: 'Unexpected', httpStatus: 500 });
+    expect(text).not.toContain('NotImplemented');
+    expect(text).not.toContain('sendVerificationEmail');
+    expect(await rows(db, 'User')).toEqual([]);
+    expect(await rows(db, 'Account')).toEqual([]);
+    expect(await rows(db, 'AuthThrottleEvent')).toEqual([]);
+  });
 });
 
 describe('Story 2.6 — sign-in, before verification, behind the throttle (AD-IDN-3 rules 2–3, S-8)', () => {

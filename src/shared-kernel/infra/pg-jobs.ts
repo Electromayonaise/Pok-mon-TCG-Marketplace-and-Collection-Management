@@ -39,12 +39,16 @@ export class PgJobLocks implements JobLocks {
       const { rows } = await client.query<{ held: boolean }>(`SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0)) AS held`, [`job:${job}`]);
       if (rows[0]?.held) {
         return {
+          // A COMMIT that throws releases the client with its error, so pg destroys a broken connection rather
+          // than pool it (Impl-2 code review F4); the error still reaches the runner.
           release: async () => {
             try {
               await client.query('COMMIT');
-            } finally {
-              client.release();
+            } catch (error) {
+              client.release(error instanceof Error ? error : true);
+              throw error;
             }
+            client.release();
           },
         };
       }

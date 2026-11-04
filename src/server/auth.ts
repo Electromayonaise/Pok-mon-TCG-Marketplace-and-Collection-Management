@@ -46,10 +46,15 @@ function withoutSessionIp(prisma: PrismaClient) {
   });
 }
 
-/** One Better Auth instance on `prisma`; tests build theirs on the test database. */
+/**
+ * One Better Auth instance on `prisma`; tests build theirs on the test database. `emailWired` is false while the
+ * sender is `UNWIRED_EMAIL`: Better Auth writes `"User"` and `"Account"` before it sends the link, so the guard
+ * (auth-routes.ts) refuses a sign-up before Better Auth runs rather than leave an account that can never be
+ * verified (Impl-2 code review F2).
+ */
 export function createAuth({ prisma, secret, baseUrl, clock, email = UNWIRED_EMAIL }: { prisma: PrismaClient; secret: string; baseUrl: string; clock: Clock; email?: EmailSender }) {
   const ids = new CuidIds();
-  return betterAuth({
+  const instance = betterAuth({
     secret,
     baseURL: baseUrl,
     database: prismaAdapter(withoutSessionIp(prisma), { provider: 'postgresql' }),
@@ -81,6 +86,7 @@ export function createAuth({ prisma, secret, baseUrl, clock, email = UNWIRED_EMA
     },
     telemetry: { enabled: false },
   });
+  return Object.assign(instance, { emailWired: email !== UNWIRED_EMAIL });
 }
 
 export type Auth = ReturnType<typeof createAuth>;
