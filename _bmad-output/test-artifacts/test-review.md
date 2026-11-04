@@ -164,7 +164,7 @@ The suite is integration-first by design, not by neglect. Test-design.md §3 all
 
 ## Recommendations (no registry row, no deduction)
 
-1. **The listing keyset cursor carries no list tag.** `decodeListingCursor` (`listings/domain/inv.ts`) decodes the cursors of both `inventory.mine` and `inventory.admin.log`, so a cursor of one list is accepted by the other (unlike `encodeReviewCursor`, which tags its list). No data leaks (the admin log is admin-only and keyed by its own columns), but a client can page one list with the other's cursor. A tag, as REP's, would refuse it. Recorded in `deferred-work.md`.
+1. **The listing keyset cursor carries no list tag.** `decodeListingCursor` (`listings/domain/inv.ts`) decodes the cursors of both `inventory.mine` and `inventory.admin.log`, so a cursor of one list is accepted by the other (unlike `encodeReviewCursor`, which tags its list). No data leaks (the admin log is admin-only and keyed by its own columns), but a client can page one list with the other's cursor. A tag, as REP's, would refuse it. **Fixed after this review** (decision log #26, `dc47a0d` red, `58aa73e` green): each list now refuses the other's cursor with `RequestValidationFailed`.
 2. **The NFR benchmarks ran side by side, and the order decided whether they passed (fixed here, at a cost in time).** Shuffled with seed 3, `solu2-nfr` failed three p95 thresholds in each of three runs: `[NFR-IDN-1.*]` at 52.8–108.2 ms against 50 ms (4.2–13.1 ms in the close's run), with `NFR-MSG-1.contact` and `NFR-COM-3.deduction` in some runs. Then `test:ci` in file order failed the same way twice, because Vitest's default sequencer runs the files that failed last first, and with no cache at all it orders by size: either way `idn1_latency` started beside the benchmarks seeding the §3 marketplace. The benchmarks share no state, so no H4 row fires; they measured each other's load, which the PRD §7 protocol (an otherwise idle reference machine) excludes. One file at a time the project passes shuffled (30 of 30, 878 s). **Agent default:** `vitest.config.ts` gives `solu2-nfr` `fileParallelism: false`, so the gate's benchmark step takes about 15 minutes instead of 5 (within the `gate` job's 30-minute timeout). The cheaper alternative, for the CI owner to weigh with Impl-1 LOW-4: `maxWorkers: 2` with the heavy benchmarks (`[NFR-COM-2.drift]`, the VAL ones) in a project of their own.
 
 ## Best Practices Found
@@ -191,7 +191,7 @@ Vitest counts each case of an `it.each` table, so its totals are higher than the
 
 ## Next Steps
 
-- **Follow-up (`deferred-work.md`):** the listing cursor's list tag (Recommendation 1), Impl-1 LOW-4 (the benchmarks' run time, to the CI owner), and the pyramid's remaining gap, which the deliberate deviation above explains.
+- **Follow-up (`deferred-work.md`):** the listing cursor's list tag (Recommendation 1, since fixed by #26), Impl-1 LOW-4 (the benchmarks' run time, to the CI owner), and the pyramid's remaining gap, which the deliberate deviation above explains.
 - **Re-review:** at the next phase, or after any change to the test harness.
 
 ## Decision

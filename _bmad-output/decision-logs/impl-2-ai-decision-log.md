@@ -12,6 +12,7 @@
 | Entry | Tag | AI proposal | Outcome | Decided by |
 | --- | --- | --- | --- | --- |
 | #7 | `[CORRECTED]` | Impl-2 plan: finish sign-in "as Story 2.4's completion" and build the jobs route with no story | The agent found the gate conflict itself (a self-correction, not a human catch); Mateo chose two new stories, 1.6 and 2.6 | Mateo |
+| #8 | `[CORRECTED]` | Impl-1 AI tests (written by the BMad agents) proved lock waits with 200 ms sleeps, a `pg_sleep(0.05)` and a timer watchdog (Flaky Sleeper); the mutation check shows the sleep version passes with the `FOR SHARE` lock removed | `untilBlockedOnLock` on `pg_stat_activity`, `single-connection.ts` and `gate:no-sleep`; Mateo confirmed the AI authorship (#27) | Mateo |
 | #9 | `[CORRECTED]` | Impl-1 AI test `contact-domain.test.ts` "maximal trade": `if (steps.includes('collapsedItems')) expect(…)`, a conditional assertion that never ran (Blindly Green) | Made unconditional: the input must fit without a collapse; the collapse has its own forced test | Mateo |
 | #23 | `[CORRECTED]` | Story 2.6 (AI): sign-up with `UNWIRED_EMAIL` "fails as NotImplemented (500), never silently", recorded in `deferred-work.md` | Found by the fresh-context review: Better Auth commits the user and answers 200 though the email fails, so the account can never be verified; Mateo chose to refuse sign-up before any write while mail is unwired | Mateo |
 | #23 | `[CORRECTED]` | Story 11.5 (AI): the `/ingresar?siguiente=` guard (a regex that refused only `//` and `/\` after the first slash) ("a path on this site only") | Found by the review: `/%09/evil.com` redirects off-site after sign-in; Mateo approved resolving against the origin, with unit tests | Mateo |
@@ -101,7 +102,7 @@
 - **Artifact changed:** `epics.source.mjs`, `epics.md`, `sprint-status.yaml` (when each story's red tests land).
 - **Decided by:** Mateo.
 
-### 8. Flow C hardens Impl-1's tests: lock waits on `pg_stat_activity`, per-file 90 % branch coverage, and a dead domain function removed (Testing)
+### 8. `[CORRECTED]` Flow C hardens Impl-1's tests: lock waits on `pg_stat_activity`, per-file 90 % branch coverage, and a dead domain function removed (Testing)
 
 - **Phase:** A (shift-left), before any Impl-2 story code.
 - **Persona/Skill:** `bmad-testarch-automate` (Flow C, test-after: coverage scan → gap analysis → regression tests), `bmad-testarch-framework`; inputs `impl1-test-review.md` (MEDIUM-1, -2, -3) and a V8 coverage run.
@@ -450,4 +451,29 @@
 - **Human decision (menu):** **(recommended)** keep each list's existing refusal text: "no es un cursor válido" on the owner list and "no es un cursor de esta lista" on the moderation log. Both texts predate the fix, the code is `RequestValidationFailed` either way, and unifying them is a microcopy change with no functional gain. The alternative was unifying both to "de esta lista". ACCEPT.
 - **Evidence:** `evidence/impl2/31-cursor-list-tag.log`, red and green. `test:ci` exit 0: 729 unit tests (97.49 % branches; `listings/domain` 95.36 %), trace gate PASS, `solu2-atdd` 373 green, `solu2-nfr` 30 green. Playwright was not rerun because the UI never builds a cursor.
 - **Artifact changed:** `src/modules/listings/domain/inv.ts`, `application/inv.v2.ts`, `inv-domain.test.ts`, `inv.v2-manage.test.ts`, `inv.v2-moderation.test.ts`, `test-support/suites/inv.ts`, and `deferred-work.md` (the entry is struck through, kept, and cites this decision).
+- **Decided by:** Mateo.
+
+
+### 27. The Impl-2 documentation is written; the branch is pushed so CI captures the traces, and #8 is tagged as a correction of AI tests (Governance + Documentation)
+
+- **Phase:** C (close), documentation, in a subagent (`3f2632d`, `787a0e1`); then menus.
+- **Persona/Skill:** tech writing (no BMad skill), reading the statement, `docs/impl-1/README.md`, this log, the story files, `test-review.md`, `traceability-matrix.md` and `evidence/impl2/`.
+- **Prompt (summary):** write `walkthrough-impl2.md` and `docs/impl-2/README.md`. The README covers the §5 deliverable map, the checklist, the rubric with its evidence paths, where each `_bmad-output` artifact is and what changed in it, how to run everything, the CI and the commits. Also update `docs/README.md`, the root README, `_bmad-output/README.md` and `project-context.md`.
+- **AI output (summary):**
+  - The six files, with every figure copied from a committed log. The link check found 117 relative links with anchors and 0 broken. Lint exits 0, the trace gate passes and fitness passes 12 / 12. `project-context.md` gains 11 testing rules (47 → 58).
+  - **Gaps reported, not hidden:**
+    - no CI run, since the branch was never pushed;
+    - the pyramid deviation;
+    - NFR-SYS-11 (WCAG) waived;
+    - #8 quotes a coverage baseline (91.55 %, `ord.ts` 88.9 %) that differs from the committed log (92.38 %, 93.05 %); the walkthrough quotes the log;
+    - the 8.5 red log has no `gate:atdd-red` line;
+    - the 2.6 `serveAuth` stub landed with the 1.6 green commit;
+    - the 8.6 same-instant rate guard has only a sequential test.
+  - **Stale text found:** `sprint-status.yaml` still said "69 stories", and its two `last_updated` values differed. `test-review.md` Recommendation 1 still called the cursor tag deferred. The main agent fixed all three here.
+  - **The second correction was weak:** only #9 was clearly a human correction of an AI *test*. #23 corrected an untested claim in `deferred-work.md`, not a test.
+- **Human decisions (menus):**
+  - **CI traces:** **(recommended)** push `impl-2` to `origin` with no PR or merge, so that `impl2-quality-gate` runs once. Then link the run, its artifacts and its `trace.zip` in the docs; a job that fails on CI is shown to Mateo before any fix. The alternatives were Mateo pushing it himself, or keeping local evidence only as a known gap. ACCEPT.
+  - **The second correction:** Mateo confirmed that the BMad AI agents wrote the Impl-1 tests. **(recommended)** #8 is tagged `[CORRECTED]` in the index. The AI tests proved lock waits with 200 ms sleeps (the Flaky Sleeper trap), and `02-flowC-lock-mutation.log` shows the sleep version still passing with the `FOR SHARE` lock removed. The human choice was `untilBlockedOnLock` and `gate:no-sleep`. The alternatives were looking for more evidence, or keeping #9 and #23. ACCEPT.
+- **Evidence:** link check 117 / 0; `gate:trace:solu2` PASS; `gate:epics:solu2` 13 epics, 71 stories.
+- **Artifact changed:** `walkthrough-impl2.md`, `docs/impl-2/README.md`, `docs/README.md`, `README.md`, `_bmad-output/README.md`, `project-context.md` (the subagent's commits); this log's index and #8 heading, `sprint-status.yaml` (71 stories, `last_updated`), `test-review.md` (Recommendation 1 fixed by #26), and walkthrough §16 and README row 6 (the #8 authorship).
 - **Decided by:** Mateo.
