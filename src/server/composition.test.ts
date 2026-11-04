@@ -3,7 +3,7 @@
 // VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
 // (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2), the seller's inventory (S-FR-INV-2, -9, -10), the discovery reads (DSC-1, DSC-2),
 // the order, its comprobante, its three facts and its supporting reads (ORD-1 to ORD-4, S-FR-ORD-2, -6, -7, -10), the business's
-// commission account, its deductions and its top-ups (S-FR-COM-1 and COM-1 through a replay, S-FR-COM-2, -9), the rates and the admin ledger (S-FR-COM-7, -7.list, -8.ledger), the in-app send (MSG-1), the contact handoff (MSG-2) and S-SYS.replay,
+// commission account, its deductions and its top-ups (S-FR-COM-1 and COM-1 through a replay, S-FR-COM-2, -9), the rates and the admin ledger (S-FR-COM-7, -7.list, -8.ledger), the in-app send (MSG-1), the inbox, thread, read mark and mute (S-FR-MSG-7, -8), the contact handoff (MSG-2) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -704,7 +704,7 @@ describe('the commission account and top-ups over HTTP (S-FR-COM-1, -2, -9, COM-
 describe('the rest of the registry stays unwired', () => {
   it('a procedure no done story implements is still Unexpected 500 behind a real session', async () => {
     await user(db, { id: id('camila') });
-    const { status, json } = await get('messaging.inbox', { cursor: null }, await signIn(id('camila')));
+    const { status, json } = await get('reputation.profile', { userId: id('andres'), page: 1 }, await signIn(id('camila')));
     expect([status, json.error?.code]).toEqual([500, 'Unexpected']);
   });
 });
@@ -723,6 +723,45 @@ describe('messaging.send over HTTP (MSG-1; Story 9.2)', () => {
     const start = await post('messaging.send', { target: { recipientId: id('camila') }, body: 'Promo', clientMessageId: 'cm-2' }, shop);
     expect([start.status, start.json.error?.code]).toEqual([409, 'BusinessCannotInitiate']);
     expect(await rows(db, 'Message')).toHaveLength(2);
+  });
+});
+
+describe('the inbox, the thread, the read mark and mute over HTTP (S-FR-MSG-7, S-FR-MSG-8; Story 9.6)', () => {
+  it('the buyer reads the inbox and the thread, marks it read and mutes; the business sees only its own state; an outsider is 403', async () => {
+    await user(db, { id: id('camila') });
+    await user(db, { id: id('julian') });
+    await business(db, id('andres'), 'Approved');
+    const buyer = await signIn(id('camila'));
+    const shop = await signIn(id('andres'));
+    const sent = await post('messaging.send', { target: { recipientId: id('andres') }, body: 'Hola, ¿tienes el Charizard?', clientMessageId: 'cm-1' }, buyer);
+    const conversationId = String(sent.json.result!.data.conversationId);
+    await post('messaging.send', { target: { conversationId }, body: 'Sí, lo tengo.', clientMessageId: 'cm-1' }, shop);
+
+    const inbox = await get('messaging.inbox', { cursor: null }, buyer);
+    expect(inbox.status).toBe(200);
+    expect(inbox.json.result?.data).toEqual({ rows: [{ conversationId, counterpartName: 'Tienda andres', lastMessageAt: T0, unread: 2, muted: false }], nextCursor: null, unreadTotal: 2 });
+    const thread = await get('messaging.thread', { conversationId, afterSeq: 0 }, buyer);
+    expect(thread.json.result?.data).toMatchObject({ lastSeq: 2, messages: [{ seq: 1, mine: true, body: 'Hola, ¿tienes el Charizard?' }, { seq: 2, mine: false, body: 'Sí, lo tengo.' }], decision: { reasonCode: 'ConversationThreadShown' } });
+    expect(JSON.stringify(thread.json)).not.toContain('lastReadSeq');
+    const read = await post('messaging.markRead', { conversationId, seq: 2 }, buyer);
+    expect([read.status, read.json.result?.data]).toEqual([200, { lastReadSeq: 2, unread: 0 }]);
+    const mute = await post('messaging.setMuted', { conversationId, muted: true }, buyer);
+    expect(mute.json.result?.data).toMatchObject({ muted: true, decision: { outcome: 'allowed', reasonCode: 'ConversationMuted' } });
+    expect((await get('messaging.inbox', { cursor: null }, buyer)).json.result?.data).toMatchObject({ rows: [{ unread: 0, muted: true }], unreadTotal: 0 });
+
+    // The business's own unread count (the buyer's first message), its name for the buyer, and its mute is the notice.
+    expect((await get('messaging.inbox', { cursor: null }, shop)).json.result?.data).toMatchObject({ rows: [{ counterpartName: id('camila'), unread: 2, muted: false }], unreadTotal: 2 });
+    const shopMute = await post('messaging.setMuted', { conversationId, muted: true }, shop);
+    expect(shopMute.json.result?.data).toMatchObject({ muted: false, decision: { outcome: 'allowedWithNotice', reasonCode: 'MuteNotAvailableToBusiness' } });
+
+    const outsider = await signIn(id('julian'));
+    const refused = await get('messaging.thread', { conversationId, afterSeq: 0 }, outsider);
+    expect([refused.status, refused.json.error?.code]).toEqual([403, 'ConversationNotVisibleToCaller']);
+    const foreignCursor = await get('messaging.inbox', { cursor: 'bm90LWEtY3Vyc29y' }, buyer);
+    expect([foreignCursor.status, foreignCursor.json.error?.code]).toEqual([400, 'RequestValidationFailed']);
+    expect((await get('messaging.inbox', { cursor: null }, await signIn(id('julian')))).status).toBe(200);
+    const unauthenticated = await get('messaging.inbox', { cursor: null }, '');
+    expect([unauthenticated.status, unauthenticated.json.error?.code]).toEqual([401, 'NotAuthenticated']);
   });
 });
 

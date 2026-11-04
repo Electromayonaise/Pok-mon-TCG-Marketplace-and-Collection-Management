@@ -18,15 +18,20 @@ export interface MsgV2UseCases {
 }
 // </gen-solu2-api>
 
-import type { Citation, Decision } from '../../../shared-kernel/decision.js';
-import { NotImplementedError } from '../../../shared-kernel/errors.js';
+import type { Citation, CitationValue, Decision, DecisionOutcome } from '../../../shared-kernel/decision.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
+import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
+import type { Tx } from '../../../shared-kernel/ports.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
 import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import { sellerKindOf } from '../../identity/index.js';
-import { CLIENT_MESSAGE_ID, normalizeBody } from '../domain/msg.js';
+import {
+  clampReadSeq, CLIENT_MESSAGE_ID, decodeInboxCursor, encodeInboxCursor, INBOX_PAGE_SIZE, isSeq, muteChange, normalizeBody, THREAD_PAGE_SIZE, unreadOf,
+} from '../domain/msg.js';
+import type { InboxRowDTO } from '../dto/msg.v2.dto.js';
+import type { ParticipantView } from '../ports/msg.v2.js';
 
 const raise = raiserFor('messaging');
 
@@ -40,7 +45,17 @@ function sendDecision(recipientStatus: 'Approved' | 'Pending', now: IsoInstant):
   return { outcome: recipientStatus === 'Approved' ? 'allowed' : 'allowedWithNotice', reasonCode: code, humanMessage: renderMessage(code, citations[0].inputs), citations, occurredAt: now };
 }
 
-/** MSG's use cases (contracts.md §9, §15); the supporting ones throw NotImplementedError until Story 9.6. */
+/** A decision of the read side (S-FR-MSG-7, S-FR-MSG-8), with one citation. */
+function decision(outcome: DecisionOutcome, code: MessageCode, rule: string, inputs: Record<string, CitationValue>, now: IsoInstant): Decision {
+  return { outcome, reasonCode: code, humanMessage: renderMessage(code, inputs), citations: [{ rule, inputs }], occurredAt: now };
+}
+
+/** S-FR-MSG-7 P: a non-participant and an unknown id get the same body, so nothing tells an outsider a conversation exists. */
+function notVisible(): never {
+  return raise('ConversationNotVisibleToCaller', [{ rule: 'FR-MSG-7', inputs: { participant: false } }]);
+}
+
+/** MSG's use cases (contracts.md §9, §15). */
 export class MsgServiceV2 implements MsgV2UseCases {
   constructor(protected readonly deps: MsgV2Deps) {}
 
@@ -104,19 +119,117 @@ export class MsgServiceV2 implements MsgV2UseCases {
       return send();
     }
   }
-  async listInbox(_input: ListInboxRequest): Promise<ListInboxResponse> {
-    throw new NotImplementedError('messaging.listInbox');
+  /** A read-only transaction. */
+  private reading<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+    return this.deps.transactions.run(fn, { readOnly: true });
   }
 
-  async getThread(_input: GetThreadRequest): Promise<GetThreadResponse> {
-    throw new NotImplementedError('messaging.getThread');
+  /**
+   * S-FR-MSG-7.inbox (AD-MSG-3 rules 2–4, decision log Impl-2 #15): 20 conversations per page by `(lastMessageAt desc,
+   * id)` with a keyset cursor bound to the reader, and the total unread over every non-muted conversation, from one
+   * snapshot. Each row carries the reader's own unread count only. Zero writes.
+   */
+  async listInbox(input: ListInboxRequest): Promise<ListInboxResponse> {
+    const { repo } = this.deps;
+    const { actorId, cursor } = input;
+    const after = cursor === null ? null : decodeInboxCursor(cursor, actorId) ?? rejectRequest([{ field: 'cursor', issue: 'no es un cursor de esta lista' }]);
+    const { page, unreadTotal } = await this.reading(async (tx) => ({
+      page: await repo.listInboxPage(tx, actorId, INBOX_PAGE_SIZE, after),
+      unreadTotal: await repo.unreadTotal(tx, actorId),
+    }));
+    const names = await this.counterpartNames(page);
+    const rows: InboxRowDTO[] = page.map((v) => ({
+      conversationId: v.conversationId,
+      counterpartName: names.get(counterpartOf(v))!,
+      lastMessageAt: v.lastMessageAt,
+      unread: unreadOf(v.lastSeq, v.lastReadSeq),
+      muted: v.mutedAt !== null,
+    }));
+    const last = page.length === INBOX_PAGE_SIZE ? page[page.length - 1] : undefined;
+    return { rows, nextCursor: last ? encodeInboxCursor(actorId, { lastMessageAt: last.lastMessageAt, conversationId: last.conversationId }) : null, unreadTotal };
   }
 
-  async markRead(_input: MarkReadRequest): Promise<MarkReadResponse> {
-    throw new NotImplementedError('messaging.markRead');
+  /**
+   * The name each row shows: the business's name to the buyer (P-VER.name), the buyer's display name to the business
+   * (P-IDN.names). A business with no application on file falls back to its display name.
+   */
+  private async counterpartNames(page: ParticipantView[]): Promise<Map<CuidId, string>> {
+    const { identity } = this.deps;
+    const ids = [...new Set(page.map(counterpartOf))];
+    if (ids.length === 0) return new Map();
+    const businesses = [...new Set(page.filter((v) => v.role === 'buyer').map((v) => v.businessId))];
+    const [{ names }, shops] = await Promise.all([
+      identity.getDisplayNames({ userIds: ids }),
+      Promise.all(businesses.map(async (businessId) => [businessId, (await identity.getBusinessName({ businessId })).businessName] as const)),
+    ]);
+    const result = new Map(names.map((n) => [n.userId, n.displayName]));
+    for (const [businessId, name] of shops) if (name !== null) result.set(businessId, name);
+    // A participant always has a "User" row, so a missing name is a data defect; the row still reads as a sentence.
+    for (const userId of ids) if (!result.has(userId)) result.set(userId, 'Usuario de TEZG');
+    return result;
   }
 
-  async setMuted(_input: SetMutedRequest): Promise<SetMutedResponse> {
-    throw new NotImplementedError('messaging.setMuted');
+  /**
+   * S-FR-MSG-7.thread (AD-MSG-3 rule 3, decision log Impl-2 #15): a participant's messages with `seq > afterSeq`,
+   * ascending, at most 100 per call. `mine` is the caller's; no read state of either side is returned. Zero writes.
+   */
+  async getThread(input: GetThreadRequest): Promise<GetThreadResponse> {
+    const { repo, clock } = this.deps;
+    const { actorId, conversationId, afterSeq } = input;
+    if (!isSeq(afterSeq)) rejectRequest([{ field: 'afterSeq', issue: 'debe ser un número entero desde 0' }]);
+    const { view, messages } = await this.reading(async (tx) => {
+      const found = await repo.readParticipantView(tx, conversationId, actorId);
+      if (found === null) return notVisible();
+      return { view: found, messages: await repo.threadMessages(tx, conversationId, afterSeq, THREAD_PAGE_SIZE) };
+    });
+    const now = clock.now().toISOString();
+    return {
+      messages: messages.map((m) => ({ messageId: m.messageId, seq: m.seq, mine: m.senderId === actorId, body: m.body, at: m.createdAt })),
+      lastSeq: view.lastSeq,
+      decision: decision('allowed', 'ConversationThreadShown', 'AD-MSG-3 rule 3', { afterSeq, returned: messages.length, lastSeq: view.lastSeq }, now),
+    };
   }
+
+  /**
+   * S-FR-MSG-7.read (AD-MSG-3 rule 1): the read mark moves to `LEAST(seq, lastSeq)` and never back, in one conditional
+   * statement, so stale and concurrent tabs only ever raise it. Returns the reader's own state after it.
+   */
+  async markRead(input: MarkReadRequest): Promise<MarkReadResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { actorId, conversationId, seq } = input;
+    if (!isSeq(seq)) rejectRequest([{ field: 'seq', issue: 'debe ser un número entero desde 0' }]);
+    return transactions.run(async (tx) => {
+      const view = await repo.readParticipantView(tx, conversationId, actorId);
+      if (view === null) return notVisible();
+      // At or below the mark already read nothing can move: no write, the state read is the answer.
+      if (clampReadSeq(seq, view.lastSeq) <= view.lastReadSeq) return { lastReadSeq: view.lastReadSeq, unread: unreadOf(view.lastSeq, view.lastReadSeq) };
+      const after = await repo.advanceReadSeq(tx, conversationId, actorId, seq, clock.now().toISOString());
+      return { lastReadSeq: after.lastReadSeq, unread: unreadOf(after.lastSeq, after.lastReadSeq) };
+    });
+  }
+
+  /**
+   * S-FR-MSG-8 (AD-MSG-3 rule 2, C-GAP-4): a buyer's mute sets or clears `mutedAt`, which takes the conversation out of
+   * (or back into) the unread total; repeating it writes nothing. A business's is an explained no-op with zero writes.
+   */
+  async setMuted(input: SetMutedRequest): Promise<SetMutedResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { actorId, conversationId, muted } = input;
+    return transactions.run(async (tx) => {
+      const view = await repo.readParticipantView(tx, conversationId, actorId);
+      if (view === null) return notVisible();
+      const now = clock.now().toISOString();
+      const change = muteChange(view.role, muted, now);
+      if (change.kind === 'businessNoOp') {
+        return { muted: false, decision: decision('allowedWithNotice', 'MuteNotAvailableToBusiness', 'FR-MSG-8', { role: 'business', muted: false }, now) };
+      }
+      await repo.setBuyerMutedAt(tx, conversationId, actorId, change.mutedAt, now);
+      return { muted, decision: decision('allowed', muted ? 'ConversationMuted' : 'ConversationUnmuted', 'FR-MSG-8', { muted }, now) };
+    });
+  }
+}
+
+/** The other participant of a conversation, as the reader sees it. */
+function counterpartOf(v: ParticipantView): CuidId {
+  return v.role === 'buyer' ? v.businessId : v.buyerId;
 }

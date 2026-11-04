@@ -111,7 +111,7 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 
 ## Deferred from: spec of Epic 9 (9.1–9.5) (2026-10-30)
 
-- Story 9.6 (the inbox, thread, read marks and mute: `S-FR-MSG-7.inbox`, `.thread`, `.read`, `S-FR-MSG-8`) stays in `impl2_scope`; its four procedures stay unwired and its 4 tests red for NotImplemented. Owner: Epic 9's Impl-2 completion.
+- ~~Story 9.6 (the inbox, thread, read marks and mute: `S-FR-MSG-7.inbox`, `.thread`, `.read`, `S-FR-MSG-8`) stays in `impl2_scope`; its four procedures stay unwired and its 4 tests red for NotImplemented. Owner: Epic 9's Impl-2 completion.~~ Resolved by Story 9.6: the four procedures are wired and their 6 tests are green.
 - Production deployments must set `IP_HMAC_KEY` (≥ 32 bytes) before this branch ships: `loadConfig()` now requires it, and every route reads the config. `.env.example` and `docker-compose.yml` carry a local value. Owner: the launch checklist (decision log Impl-1 #34).
 
 ## Deferred from: code review of Epic 9 (9.1–9.5) (2026-10-30)
@@ -197,3 +197,11 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 - Page 7.4 says "a mistaken future rate is replaced by scheduling another row with the same or an earlier start", but `"CommissionRateSetting"."effectiveFrom"` is `UNIQUE`, so a row with the same start is refused (`RequestValidationFailed` on `effectiveFrom`). A row with an earlier start does not replace it either: the rate in force is the one with the greatest `effectiveFrom ≤ t`. As built, a mistaken scheduled rate can only be overridden by a later start, and it is in force until then. Owner: the rate page story (UI 7.4), after the open decision on how to correct a scheduled rate (Story 8.6 report).
 - The 7.4 history has a "Registrada" column, but `ListCommissionRatesResponse` carries only `rateBps`, `effectiveFrom` and `setBy`. Its "worked example" line ("Un pedido de $45.000 pagaría {c}") has no contract either. Owner: the rate page story (UI 7.4), with a DTO change in `operations.json`.
 - `listCommissionRates` returns every setting with no page. Settings are admin actions and few. Owner: the rate page story, if the history grows.
+
+## Deferred from: Story 9.6 (2026-11-03)
+
+- `InboxRowDTO` has no last-message preview ("Tú: " prefix) and no counterpart verification marker ("sin verificar", "solo lectura"), and `ThreadMessageDTO` has no `recipientVerificationAtSend`, so page 12.2's notice line on messages sent while the shop was Pending cannot be drawn. Owner: the full UI 12.2 story, with a DTO change in `operations.json`.
+- The `/mensajes` slice has no composer, no "Todas" · "Sin leer" · "Silenciadas" filters and no `/mensajes/<conversationId>` deep link; the thread opens in the right pane only. Owner: the full UI 12.2 story.
+- The inbox response does not say which side the caller is on, so the mute toggle is shown to a business too; its click gets the server's explained no-op (`MuteNotAvailableToBusiness`) as a notice, never a write. Owner: the full UI 12.2 story (a `role` field on the inbox, or the capabilities read on the page).
+- `listInbox` asks identity for the business name once per distinct shop on the page (at most 20 read-only transactions, P-VER.name has no batch form). Owner: a batch `getBusinessNames` port when the inbox read approaches its latency budget.
+- `/ingresar` always continues to `/mensajes` (no return-to page), the header shows "Ingresar" to a signed-in user, and there is no sign-out or sign-up page. Owner: the account pages story.

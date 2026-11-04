@@ -31,9 +31,22 @@ export interface MsgV2Deps {
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { AdminFactsReader } from '../../identity/index.js';
+import type { InboxKey, ParticipantRole } from '../domain/msg.js';
 
 /** One `"Conversation"` row as MSG-1 P3 reads it. */
 export interface ConversationRow { id: CuidId; buyerId: CuidId; businessId: CuidId }
+
+/**
+ * S-FR-MSG-7 / S-FR-MSG-8: a conversation as one of its participants sees it, with that participant's own read
+ * state only (AD-MSG-3 rule 4: the other side's `lastReadSeq` is never selected).
+ */
+export interface ParticipantView {
+  conversationId: CuidId; buyerId: CuidId; businessId: CuidId; role: ParticipantRole;
+  lastSeq: number; lastMessageAt: IsoInstant | null; lastReadSeq: number; mutedAt: IsoInstant | null;
+}
+
+/** S-FR-MSG-7.thread: one message as the thread returns it. */
+export interface ThreadMessageRow { messageId: CuidId; seq: number; senderId: CuidId; body: string; createdAt: IsoInstant }
 
 /**
  * Repository port of MSG's own tables (review A-4): the only way its application service reads or
@@ -60,6 +73,28 @@ export interface MsgTablesRepository {
   /** MSG-1 I3: the message a sender already sent under `clientMessageId` in the pair's conversation, or null. */
   findSentMessage(tx: Tx, k: { conversationId: CuidId } | { buyerId: CuidId; businessId: CuidId }, senderId: CuidId, clientMessageId: string):
     Promise<{ conversationId: CuidId; messageId: CuidId; seq: number; recipientVerificationAtSend: 'Approved' | 'Pending' } | null>;
+  /** S-FR-MSG-7 P: the conversation as `userId` sees it if `userId` is a participant, else null (an unknown id too). */
+  readParticipantView(tx: Tx, conversationId: CuidId, userId: CuidId): Promise<ParticipantView | null>;
+  /**
+   * S-FR-MSG-7.inbox (AD-MSG-3 rule 3): the reader's conversations by `(lastMessageAt desc, id)`, `null` last,
+   * strictly after `after` when given, at most `limit`.
+   */
+  listInboxPage(tx: Tx, userId: CuidId, limit: number, after: InboxKey | null): Promise<ParticipantView[]>;
+  /** AD-MSG-3 rule 2: Σ `lastSeq − lastReadSeq` over the reader's conversations with `"mutedAt" IS NULL`. */
+  unreadTotal(tx: Tx, userId: CuidId): Promise<number>;
+  /** S-FR-MSG-7.thread: the messages with `seq > afterSeq`, ascending, at most `limit`. */
+  threadMessages(tx: Tx, conversationId: CuidId, afterSeq: number, limit: number): Promise<ThreadMessageRow[]>;
+  /**
+   * S-FR-MSG-7.read (AD-MSG-3 rule 1): one statement, `SET "lastReadSeq" = LEAST(:seq, c."lastSeq") WHERE … AND
+   * "lastReadSeq" < LEAST(:seq, c."lastSeq")`, so a stale or concurrent tab never lowers it. Returns the reader's
+   * read state after it (the committed value when the update matched nothing) and the conversation's `lastSeq`.
+   */
+  advanceReadSeq(tx: Tx, conversationId: CuidId, userId: CuidId, seq: number, now: IsoInstant): Promise<{ lastReadSeq: number; lastSeq: number }>;
+  /**
+   * S-FR-MSG-8: the buyer row's `mutedAt`, only when it changes (`muted` and not yet muted, or the reverse), so a
+   * repeated request writes nothing. Never a business row (`role = 'buyer'` in the statement).
+   */
+  setBuyerMutedAt(tx: Tx, conversationId: CuidId, userId: CuidId, mutedAt: IsoInstant | null, now: IsoInstant): Promise<void>;
 }
 
 /**

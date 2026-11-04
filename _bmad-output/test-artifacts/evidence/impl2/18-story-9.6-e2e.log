@@ -1,0 +1,13 @@
+# Flow E — Story 9.6 (decision log Impl-2 #15). Captured 2026-11-04T01:01:37Z on branch impl-2 at 0291b05 + the green working tree.
+# npx playwright test: the web server recreates and migrates tezg_e2e, builds and serves the app; the list reporter's output.
+# The first run failed the wrong-password spec on a strict-mode violation (Next's route announcer is a second role=alert);
+# SignInPage now scopes its locators to the named form. This is the run after that fix.
+$ npx playwright test
+Running 3 tests using 1 worker
+
+  ✓  1 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:14:1 › Camila reads a conversation, its badge clears, and muting another takes it out of her unread total (2.0s)
+  ✓  2 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:49:1 › a wrong password keeps Camila on the sign-in page with the es-CO error (886ms)
+  ✓  3 [chromium] › _bmad-output\test-artifacts\e2e\smoke.spec.ts:6:1 › a visitor opens TEZG and sees the service ready (433ms)
+
+  3 passed (21.8s)
+EXIT 0
