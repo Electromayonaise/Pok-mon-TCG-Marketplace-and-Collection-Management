@@ -13,6 +13,8 @@
 | --- | --- | --- | --- | --- |
 | #7 | `[CORRECTED]` | Impl-2 plan: finish sign-in "as Story 2.4's completion" and build the jobs route with no story | The agent found the gate conflict itself (a self-correction, not a human catch); Mateo chose two new stories, 1.6 and 2.6 | Mateo |
 | #9 | `[CORRECTED]` | Impl-1 AI test `contact-domain.test.ts` "maximal trade": `if (steps.includes('collapsedItems')) expect(…)`, a conditional assertion that never ran (Blindly Green) | Made unconditional: the input must fit without a collapse; the collapse has its own forced test | Mateo |
+| #23 | `[CORRECTED]` | Story 2.6 (AI): sign-up with `UNWIRED_EMAIL` "fails as NotImplemented (500), never silently", recorded in `deferred-work.md` | Found by the fresh-context review: Better Auth commits the user and answers 200 though the email fails, so the account can never be verified; Mateo chose to refuse sign-up before any write while mail is unwired | Mateo |
+| #23 | `[CORRECTED]` | Story 11.5 (AI): the `/ingresar?siguiente=` guard (a regex that refused only `//` and `/\` after the first slash) ("a path on this site only") | Found by the review: `/%09/evil.com` redirects off-site after sign-in; Mateo approved resolving against the origin, with unit tests | Mateo |
 
 ---
 
@@ -348,3 +350,35 @@
 - **Evidence:** two runs, both exit 0, 0.00 % errors and 0 5xx: profile p95 34.4 and 38.3 ms, p99 156.2 and 113.7 ms; browse p95 36.4 and 39.4 ms, p99 140.3 and 98.7 ms; 0–3 dropped iterations of 6,000 per endpoint (`evidence/impl2/24-k6.log`, `k6-summary.json`).
 - **Artifact changed:** `nfr/k6/reputation-profile.js`, `scripts/nfr-k6.mjs`, `.github/workflows/impl2-quality-gate.yml`, `test-design.md` §7.4 (and R-30), `nfr-evidence.md`, `deferred-work.md` (commit `c84225a`).
 - **Decided by:** Mateo.
+
+### 23. The fresh-context code review of Impl-2: an open redirect and a half-done sign-up fixed, three deferrals with owners (Governance)
+
+- **Phase:** C (close), over `a7c5d81..85dbad8`.
+- **Persona/Skill:** `bmad-code-review` in a fresh-context subagent (Blind Hunter, Edge Case Hunter, Acceptance Auditor, run in turn), as #4 asked; then a fix subagent. A first review of the Phase A and Stories 1.6 and 2.6 batch had been stopped at a usage limit before it reported, so this one covers all of Impl-2.
+- **AI output (summary):**
+  - **What held up:** the constant-time job bearer; every admin gate; no raw IP stored; React escaping everywhere; https-only external images with `no-referrer`; the profile's single snapshot; the one-statement `markRead`; job locks held for the run; E2E specs that use only page objects.
+  - **Findings after deduplication:** 3 patches, 1 decision, 3 deferrals, 9 dismissed (each verified against the code):
+    - **F1 HIGH:** an open redirect, `/ingresar?siguiente=%2F%09%2Fevil.com`, lands on `evil.com` after a real sign-in, because a tab, newline or CR after the first slash passes the regex.
+    - **F2 MEDIUM:** a production sign-up writes `User` and `Account` before the unwired email sender throws.
+    - **F3 LOW:** the inbox page and `unreadTotal` claimed one snapshot under `READ COMMITTED`.
+    - **F4 LOW:** a failed lock `COMMIT` returned a broken connection to the pool and turned a committed job into a 500.
+    - **F5 LOW:** es-CO templates render raw ISO instants and "1 cuentas".
+    - **F6 LOW:** the merged moderation log's later-page cursors would skip rows.
+    - **F7 LOW:** Better Auth's own limiter is off on every route.
+- **Human decisions (menus):**
+  - **F2:** **(recommended)** refuse `POST /sign-up/email` before Better Auth while the email sender is unwired. The alternatives were `sendOnSignUp: false` while unwired, or keeping it and recording the risk. ACCEPT.
+  - **F1, F3, F4:** apply all three. ACCEPT (the alternative was F1 only).
+  - **F5:** defer the typed formatter (Bogotá date and time, COP) to the microcopy and UI phase, and fix the plural now. ACCEPT.
+  - **F6, F7:** defer both, F6 to the UX 11.4 moderation view story and F7 to the mail-provider launch item. ACCEPT.
+- **What the fixes found:** the earlier Story 2.6 deferral was wrong. It said a production sign-up "fails as NotImplemented (500)", but with the guard disabled the new test got **200**: Better Auth swallowed the email error and committed an account that can never be verified. That was worse than a visible error, and is corrected here.
+- **Fix choices (agent defaults):**
+  - **F1:** `app/ingresar/destination.ts` resolves `siguiente` against the origin and keeps same-origin paths only. It also refuses whitespace, control characters and any value not starting with `/`. Unit tests cover `	`, `
+`, ``, `//`, `/\`, `javascript:` and good paths.
+  - **F2:** `createAuth` exposes `emailWired`, and the guard throws `NotImplementedError` before reading the body. `[S-FR-IDN-7.signup.unwired]` proves no `User`, `Account` or throttle row and a 500 `Unexpected` body; it fails without the fix.
+  - **F3:** the inbox read runs in `REPEATABLE READ` read-only.
+  - **F4:** `client.release(error)` on a failed `COMMIT`; the runner logs `job.lock.releaseFailed` with only the error code and keeps the run's outcome.
+  - **F5:** "Conciliación sin diferencias; cuentas revisadas: {accountsChecked}.", and `ReconciliationPartial` likewise.
+- **Evidence:** `evidence/impl2/27-review-fixes.log`: `test:ci` exit 0, with 678 unit tests (96.48 % branches) and `solu2-atdd` 373 green and 0 red, and `solu2-nfr` 27 green; `npx playwright test` 6 passed (25.7 s).
+- **Artifact changed:** `app/ingresar/` (`destination.ts` + test, `SignInForm.tsx`), `src/server/auth.ts`, `auth-routes.ts`, `composition.ts`, `src/modules/messaging/application/msg.v2.ts`, `src/shared-kernel/jobs.ts` (+ test), `infra/pg-jobs.ts`, `atdd/idn_auth.test.ts`, `contracts.md`, `epics.source.mjs` and `epics.md`, `traceability-matrix.md`, `deferred-work.md` (commit `cd50fa1`).
+- **Decided by:** Mateo.
+
