@@ -47,6 +47,10 @@ export default defineConfig({
         test: {
           name: 'solu2-nfr',
           include: ['_bmad-output/test-artifacts/nfr/**/*.test.ts'],
+          // One benchmark file at a time (test-review remediation, decision log Impl-2 #24): the PRD §7 protocol measures
+          // on an otherwise idle machine. Run side by side, the files measured each other's seeding and load, and the order
+          // Vitest picked (a shuffled seed, or its failed-first cache) decided whether [NFR-IDN-1.*] passed its 50 ms p95.
+          fileParallelism: false,
           globalSetup: ['test-support/global-setup.ts'],
           setupFiles: ['test-support/solu2/network-guard.ts'],
           provide: { migrationsDir: '_bmad-output/planning-artifacts/detailed-design/schemas', templateDb: 'tezg_tpl_solu2' },
