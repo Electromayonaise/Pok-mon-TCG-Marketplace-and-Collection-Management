@@ -405,3 +405,28 @@
 - **Evidence:** `evidence/impl2/28-final-trace.log` (`test:ci` exit 0: 678 unit tests, `solu2-atdd` 373 green, `solu2-nfr` 30 green), `29-playwright-traces.log`.
 - **Artifact changed:** `scripts/gen-solu2-trace.mjs`, `traceability-matrix.md`, `test-review.md` (renamed from `impl1-test-review.md`), `impl1-final-trace.md` (removed), `nfr/idn1_latency.test.ts`, `test-design.md` §2, `tools/lint/base.mjs`, `nfr-evidence.md`, `deferred-work.md`, `_bmad-output/README.md`, `docs/impl-1/README.md`, the root `README.md`, `walkthrough-impl1.md`'s header, `evidence/impl2/traces/`.
 - **Decided by:** Mateo.
+
+
+### 25. The test-review remediation reaches 100 / 100; the benchmarks run one file at a time, and the cross-list cursor is fixed now (Testing + Governance)
+
+- **Phase:** C (close), in a subagent (`276c280`, `2501bf6`, `727c74f`); then menus.
+- **Persona/Skill:** `bmad-testarch-test-review` (Murat), `bmad-dev-story` (Amelia).
+- **AI output (summary):**
+  - **Long files (HIGH-1..7):** the seven files over 300 lines became 23 files of 87–216 lines, by moving tests without changing them. Shared Given steps live in `test-support/http-app.ts` and `test-support/suites/*.ts`. The new `atdd/rep_reads.test.ts` regenerated `epics.md` and the trace.
+  - **Order dependence (HIGH-8):** each composition test gets a freshly composed app at T0. Shuffling every project found two more order dependences, both fixed: `atdd/sys_jobs.test.ts` (a shared clock) and `pg-outbox.test.ts` (a shared id sequence). Seeds 1, 2, 3, 42 and 1234 pass for `impl1-unit` (726), `solu2-atdd` (373) and `solu2-fitness` (12).
+  - **MEDIUM-1:** inline rows use factories (`failedDelivery`, `catalogSet` and `fxRate` added to `fixtures.ts`). The three unused variables of Impl-1 LOW-2 were removed, so lint has 0 warnings.
+  - **Pure unit tests:** 48 tests cover the job runner and job route, the auth guard (with a fake Better Auth handler), cursors, the moderation-log merge, the destination rule, the binder page and the API client. Three rules moved from services into the domain: `isBinderSort`, `isExactOrder` and `readMarkAdvances`. The code was broken 18 times on purpose, and every break failed its tests.
+  - **Re-review:** 100 / 100 (A, Approve), 0 findings. `test-review.md` gains the "Deliberate deviation" section.
+  - **Pyramid** (unit / integration / E2E):
+    - Impl-2's additions: 43.1 / 52.0 / 4.9 % → 59.1 / 37.4 / 3.5 %.
+    - Whole suite: 23.9 / 75.5 / 0.6 % → 27.4 / 72.0 / 0.6 %.
+  - **Agent self-correction:** commit `2501bf6` claimed every new test runs under 10 ms. In fact 45 of 48 do, and three first-in-file tests take 18–36 ms. The agent corrected the claim in the review and in `727c74f`'s body.
+  - **Open findings:**
+    - Run in parallel, the benchmarks slowed each other down: `[NFR-IDN-1.*]` measured 52–108 ms against 50 ms in shuffled runs. `test:ci` then failed twice in normal order too, because Vitest reruns the last-failed files first. The agent set `fileParallelism: false` on `solu2-nfr` and asked for a confirmation.
+    - The listing cursor has no list tag, so an `inventory.mine` cursor is accepted by `inventory.admin.log`. It was recorded in `deferred-work.md`.
+- **Human decisions (menus):**
+  - **NFR benchmarks:** **(recommended)** keep them serial. Each benchmark measures on a quiet machine, so a failure points at the code and not at another benchmark. The step takes about 15 min instead of 5, inside the 30-minute CI timeout. The alternatives were `maxWorkers: 2` with the heavy benchmarks split out, or reverting to parallel. ACCEPT.
+  - **Cross-list cursor:** **(recommended)** fix it now under Flow A: a list tag in the cursor, refused with `RequestValidationFailed` from the other list, with the red test committed first. The alternative was leaving it deferred, since the admin log already requires the admin role. ACCEPT.
+- **Evidence:** `evidence/impl2/30-test-remediation.log`: `test:ci` exit 0 (15.5 min), `solu2-atdd` 373 green, `solu2-nfr` 30 green, trace gate PASS, 97.48 % branches; `npx playwright test` 6 passed.
+- **Artifact changed:** `test-review.md`, `vitest.config.ts`, `test-support/` (`http-app.ts`, `suites/`, `fixtures.ts`), 23 split test files, 48 new unit tests, `src/modules/*/domain/` (`isBinderSort`, `isExactOrder`, `readMarkAdvances`), `epics.md`, `traceability-matrix.md`, `deferred-work.md`.
+- **Decided by:** Mateo.
