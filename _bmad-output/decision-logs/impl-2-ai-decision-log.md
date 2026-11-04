@@ -197,3 +197,20 @@
 - **Red phase:** `evidence/impl2/14-story-8.5-red.log`: the 6 Solu-2 tests and the 3 new ones fail on `NotImplemented` (C2 surfaces it from the failed JobRun's `errorCode`, because the 500 body carries no message).
 - **Artifact changed:** `contracts.md` (COM-3 concurrency and batch bound), `epics.source.mjs` and `epics.md` (8.5 binds 9 tests and depends on 1.6), `test-design.md` §2 (R-23), `sprint-status.yaml`, `atdd/com_reconcile.test.ts`, `nfr/com2_drift.test.ts`.
 - **Decided by:** Mateo.
+
+### 14. Story 8.5 is green: reconcile reads each account `FOR SHARE` before its ledger, and the drift proof replays 10,000 operations with 0 discrepancies (Implementation)
+
+- **Phase:** B (Story 8.5 green), in a story subagent (the user asked that every story be dispatched to a subagent to save tokens).
+- **Persona/Skill:** `bmad-dev-story` (Amelia), reading COM-3, COM-3.last and #13.
+- **Prompt (summary):** Implement `reconcile` and `getLastReconciliation` until the 9 bound tests pass, within #13's 50 s bound and with the job lock inside COM-3 (P2).
+- **AI output (summary):** a pure `accountDiscrepancies` check in the domain; one transaction per account that reads the account `FOR SHARE` and then the ledger's sum, count and highest seq; on the job path, the lock held in an outer transaction that also writes the run row and its audit row; the stored-only codes `ReconciliationClean`, `…Discrepancies`, `…AccountNotFound`, `…Partial`; the admin procedures `commission.reconcile` and `commission.admin.lastReconciliation`; NFR-COM-2 green.
+- **Agent defaults (no menu):**
+  - A ledger is gapless only if its entry count and its highest seq both equal `ledgerSeq`.
+  - A partial run cites `ReconciliationPartial` first, then one `FR-COM-8` citation per discrepancy.
+  - The account reads run in read-write transactions, because Postgres refuses `FOR SHARE` in read-only ones.
+  - Extra integration tests cover the 50 s bound (with a Clock that advances on each read), `AdminOnly` before any write, and an empty last run.
+- **Problems found and fixed in the subagent's own work:** the message catalog's placeholder allow-list (`messages.test.ts`) rejected the new placeholders, so `businessId`, `accountsChecked`, `rateBps`, `expected` and `actual` were added. And `[SYS-6.R1]` read a test helper called `now()` as a wall-clock read, so it was renamed. No defect was found in earlier code.
+- **Evidence:** `evidence/impl2/14-story-8.5-red.log`, `evidence/impl2/15-story-8.5-green.log`: `test:ci` exit 0, with `solu2-atdd` at 345 green and 22 red for the right reason, and `solu2-nfr` at 24 green. `[NFR-COM-2.drift]`: 1,988 top-ups, 6,480 orders and 1,532 duplicate deliveries (19.1 %), 0 discrepancies, about 170 s.
+- **Deferred:** a restart-from-the-first-account run can keep missing the last accounts at large volume (owner: the launch checklist); an admin all-accounts run happens inside the request and can take up to 50 s (owner: the UI 7.4 story).
+- **Artifact changed:** the commission module, `composition.ts` (+ test), `messages.test.ts`, `contracts.md` §13, `nfr-evidence.md`, `deferred-work.md`, `sprint-status.yaml`, `traceability-matrix.md`, Story 8.5's file. Commit `30e2654`.
+- **Decided by:** agent default within #13.
