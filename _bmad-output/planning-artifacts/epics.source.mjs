@@ -568,7 +568,8 @@ export default {
         {
           title: 'Refuse unsafe links, foreign entries and unknown wishlist cards', kind: 'Failure-state',
           as: 'As Julián, I want unsafe or foreign actions on entries refused with the field, so that nothing unsafe enters my collection.',
-          contracts: ['S-FR-COL-3', 'S-FR-COL-4', 'S-FR-COL-5', 'S-FR-COL-6'], tests: ['S-FR-COL-3.f', 'S-FR-COL-4.f', 'S-FR-COL-5.f', 'S-FR-COL-6.f'], depends: ['11.5'],
+          // Impl-2 (decision log Impl-2 #17): Flow A adds the link-spoof proof (R-28), red before any 11.5/11.6 code.
+          contracts: ['S-FR-COL-3', 'S-FR-COL-4', 'S-FR-COL-5', 'S-FR-COL-6'], tests: ['S-FR-COL-3.f', 'S-FR-COL-4.f', 'S-FR-COL-5.f', 'S-FR-COL-6.f', 'S-FR-COL-3.f2'], depends: ['11.5'],
           happy: ['an `https://` promo link.', 'Julián adds it.', 'it is added: the contrast case.'],
           failure: ['an `http://` URL; another owner\'s entry; a set with 0 card entries; an unknown catalog id on the wishlist.', 'the action runs.', '`InvalidExternalLink` citing the url field; `CollectionEntryNotFound`; completion null, never a division; `InvalidCatalogEntry`.'],
         },

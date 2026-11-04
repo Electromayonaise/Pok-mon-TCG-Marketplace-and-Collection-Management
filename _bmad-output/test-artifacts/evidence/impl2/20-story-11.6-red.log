@@ -1,0 +1,159 @@
+# Flow A red phase — Story 11.6 (decision log Impl-2 #17). Captured 2026-11-04T04:42:42Z on branch impl-2 at 711ff4b + the red commit's working tree,
+# before any Story 11.5/11.6 code existed (ColServiceV2.addExternalEntry, moveOrCopyEntry, getBinder, addWishlist and listWishlist throw NotImplementedError).
+# The 8 Solu-2 bound tests of 11.5 and 11.6 and the new [S-FR-COL-3.f2] (atdd/col_links.test.ts) fail on NotImplemented.
+$ npx vitest run --project solu2-atdd col_links.test.ts col_supporting.test.ts -t "S-FR-COL-[3-6]"
+
+ RUN  v5.0.5 C:/Users/Usuario/Desktop/Universidad/S9/daia/final_project/Pok-mon-TCG-Marketplace-and-Collection-Management
+
+ ❯ |solu2-atdd| _bmad-output/test-artifacts/atdd/col_links.test.ts (1 test | 1 failed) 174ms
+   ❯ Story 11.6 — link spoofs are refused on their field (S-FR-COL-3, R-28) (1)
+     × [S-FR-COL-3.f2] javascript:, data:, an HTTP:// spoof, userinfo, a scheme-relative //host, a 2,049-character URL and a non-https imageUrl are each InvalidExternalLink citing the field, with zero writes 38ms
+ ❯ |solu2-atdd| _bmad-output/test-artifacts/atdd/col_supporting.test.ts (12 tests | 8 failed | 4 skipped) 346ms
+   ❯ Supporting COL contracts (contracts.md §15, §15.12) (12)
+     × [S-FR-COL-3.h] two promos added by link leave the catalog untouched (no CatalogEntry write) 35ms
+     × [S-FR-COL-3.f] an http:// URL is InvalidExternalLink citing the url field 30ms
+     × [S-FR-COL-4.h] copying a purchase entry keeps its source and order id 28ms
+     × [S-FR-COL-4.f] another owner’s entry is CollectionEntryNotFound 28ms
+     × [S-FR-COL-5.h] the same binder sort twice gives the same order, with entryId as the last tie-break 27ms
+     × [S-FR-COL-5.f] a set with 0 card entries has completion null, never a division 27ms
+     × [S-FR-COL-6.h] a wishlisted card shows its lowest purchasable price 22ms
+     × [S-FR-COL-6.f] wishlisting an unknown catalog id is InvalidCatalogEntry 21ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/col_links.test.ts > Story 11.6 — link spoofs are refused on their field (S-FR-COL-3, R-28) > [S-FR-COL-3.f2] javascript:, data:, an HTTP:// spoof, userinfo, a scheme-relative //host, a 2,049-character URL and a non-https imageUrl are each InvalidExternalLink citing the field, with zero writes
+AssertionError: javascript:: expected 'NotImplementedError' to be 'InvalidExternalLink' // Object.is equality
+
+Expected: "InvalidExternalLink"
+Received: "NotImplementedError"
+
+ ❯ _bmad-output/test-artifacts/atdd/col_links.test.ts:45:38
+     43|     for (const r of refused) {
+     44|       const error = await caught(() => add(r));
+     45|       expect(codeOf(error), r.label).toBe('InvalidExternalLink');
+       |                                      ^
+     46|       expect([httpOf(error), citedInputs(error)?.field], r.label).toEq…
+     47|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/col_supporting.test.ts > Supporting COL contracts (contracts.md §15, §15.12) > [S-FR-COL-3.h] two promos added by link leave the catalog untouched (no CatalogEntry write)
+NotImplementedError: NotImplemented: collections.addExternalEntry
+ ❯ ColServiceV2.addExternalEntry src/modules/collections/application/col.v2.ts:267:11
+    265|   }
+    266|   async addExternalEntry(_input: AddExternalEntryRequest): Promise<Add…
+    267|     throw new NotImplementedError('collections.addExternalEntry');
+       |           ^
+    268|   }
+    269|
+ ❯ _bmad-output/test-artifacts/atdd/col_supporting.test.ts:67:55
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/col_supporting.test.ts > Supporting COL contracts (contracts.md §15, §15.12) > [S-FR-COL-3.f] an http:// URL is InvalidExternalLink citing the url field
+AssertionError: expected 'NotImplementedError' to be 'InvalidExternalLink' // Object.is equality
+
+Expected: "InvalidExternalLink"
+Received: "NotImplementedError"
+
+ ❯ _bmad-output/test-artifacts/atdd/col_supporting.test.ts:76:27
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/col_supporting.test.ts > Supporting COL contracts (contracts.md §15, §15.12) > [S-FR-COL-4.h] copying a purchase entry keeps its source and order id
+NotImplementedError: NotImplemented: collections.moveOrCopyEntry
+ ❯ ColServiceV2.moveOrCopyEntry src/modules/collections/application/col.v2.ts:271:11
+    269|
+    270|   async moveOrCopyEntry(_input: MoveOrCopyEntryRequest): Promise<MoveO…
+    271|     throw new NotImplementedError('collections.moveOrCopyEntry');
+       |           ^
+    272|   }
+    273|
+ ❯ _bmad-output/test-artifacts/atdd/col_supporting.test.ts:85:38
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/col_supporting.test.ts > Supporting COL contracts (contracts.md §15, §15.12) > [S-FR-COL-4.f] another owner’s entry is CollectionEntryNotFound
+AssertionError: expected 'NotImplementedError' to be 'CollectionEntryNotFound' // Object.is equality
+
+Expected: "CollectionEntryNotFound"
+Received: "NotImplementedError"
+
+ ❯ _bmad-output/test-artifacts/atdd/col_supporting.test.ts:95:159
+     93|     await collection(db, { id: id('cj'), ownerId: id('julian') });
+     94|     await entry(db, { id: id('e1'), collectionId: id('c1'), catalogEnt…
+     95|     expect(codeOf(await caught(() => setup().col.moveOrCopyEntry({ own…
+       |                                                                                                                                                               ^
+     96|   });
+     97|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/col_supporting.test.ts > Supporting COL contracts (contracts.md §15, §15.12) > [S-FR-COL-5.h] the same binder sort twice gives the same order, with entryId as the last tie-break
+NotImplementedError: NotImplemented: collections.getBinder
+ ❯ ColServiceV2.getBinder src/modules/collections/application/col.v2.ts:275:11
+    273|
+    274|   async getBinder(_input: GetBinderRequest): Promise<GetBinderResponse…
+    275|     throw new NotImplementedError('collections.getBinder');
+       |           ^
+    276|   }
+    277|
+ ❯ _bmad-output/test-artifacts/atdd/col_supporting.test.ts:103:25
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/col_supporting.test.ts > Supporting COL contracts (contracts.md §15, §15.12) > [S-FR-COL-5.f] a set with 0 card entries has completion null, never a division
+NotImplementedError: NotImplemented: collections.getBinder
+ ❯ ColServiceV2.getBinder src/modules/collections/application/col.v2.ts:275:11
+    273|
+    274|   async getBinder(_input: GetBinderRequest): Promise<GetBinderResponse…
+    275|     throw new NotImplementedError('collections.getBinder');
+       |           ^
+    276|   }
+    277|
+ ❯ _bmad-output/test-artifacts/atdd/col_supporting.test.ts:112:31
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/col_supporting.test.ts > Supporting COL contracts (contracts.md §15, §15.12) > [S-FR-COL-6.h] a wishlisted card shows its lowest purchasable price
+NotImplementedError: NotImplemented: collections.addWishlist
+ ❯ ColServiceV2.addWishlist src/modules/collections/application/col.v2.ts:287:11
+    285|
+    286|   async addWishlist(_input: AddWishlistRequest): Promise<ListWishlistR…
+    287|     throw new NotImplementedError('collections.addWishlist');
+       |           ^
+    288|   }
+    289|
+ ❯ _bmad-output/test-artifacts/atdd/col_supporting.test.ts:118:15
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/9]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/col_supporting.test.ts > Supporting COL contracts (contracts.md §15, §15.12) > [S-FR-COL-6.f] wishlisting an unknown catalog id is InvalidCatalogEntry
+AssertionError: expected 'NotImplementedError' to be 'InvalidCatalogEntry' // Object.is equality
+
+Expected: "InvalidCatalogEntry"
+Received: "NotImplementedError"
+
+ ❯ _bmad-output/test-artifacts/atdd/col_supporting.test.ts:124:152
+    122|   it('[S-FR-COL-6.f] wishlisting an unknown catalog id is InvalidCatal…
+    123|     await user(db, { id: id('camila') });
+    124|     expect(codeOf(await caught(() => setup().col.addWishlist({ ownerId…
+       |                                                                                                                                                        ^
+    125|     expect(await rows(db, 'WishlistEntry')).toHaveLength(0);
+    126|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/9]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  9 failed | 4 skipped (13)
+   Start at  23:42:14
+   Duration  878ms (tests 44%, transform 29%, import 25%, setup 1%, worker 1%)
+
+
+$ npm run gate:atdd-red:impl1
+> tezg@0.0.0 gate:atdd-red:impl1
+> node scripts/check-atdd-red.mjs solu2-atdd 352 --status _bmad-output/implementation-artifacts/sprint-status.yaml --epics _bmad-output/planning-artifacts/epics.md
+
+solu2-atdd: 370 tests in 24 files; 15 red for the right reason; 355 green for done stories (395 contracts or test ids done); 0 not as expected

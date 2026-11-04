@@ -130,13 +130,13 @@ development_status:
   10-4-refuse-stale-out-of-turn-and-duplicate-offer-actions: done
   10-5-cancel-complete-and-expire-trades-exactly-once: done
   epic-10-retrospective: optional
-  epic-11: done
+  epic-11: in-progress
   11-1-organize-my-collections: done
   11-2-add-catalog-cards-to-a-collection: done
   11-3-turn-a-closed-order-into-one-prompt-and-one-entry-set: done
   11-4-refuse-foreign-resolved-and-invalid-collection-actions: done
-  11-5-use-the-binder-add-external-cards-move-entries-and-wishlist-cards: backlog
-  11-6-refuse-unsafe-links-foreign-entries-and-unknown-wishlist-cards: backlog
+  11-5-use-the-binder-add-external-cards-move-entries-and-wishlist-cards: in-progress
+  11-6-refuse-unsafe-links-foreign-entries-and-unknown-wishlist-cards: in-progress
   epic-11-retrospective: optional
   epic-12: done
   12-1-value-a-collection-exactly: done

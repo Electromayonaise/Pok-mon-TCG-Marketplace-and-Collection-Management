@@ -1773,7 +1773,7 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *Q:* an entry with `cardKind = 'external'`, plus an audit row. No server fetch, and no `"CatalogEntry"` write.
   - *Errors:* `InvalidExternalLink` (HTTP 400, collections), `CollectionNotFound` (HTTP 404, collections).
   - *I:* AD-COL-1 rule 4, AD-7, AD-8.
-  - *Tests:* `[S-FR-COL-3.h]` 2 promos are added and the `"CatalogEntry"` count is unchanged; `[S-FR-COL-3.f]` an `http://` URL → `InvalidExternalLink`, citing `url`.
+  - *Tests:* `[S-FR-COL-3.h]` 2 promos are added and the `"CatalogEntry"` count is unchanged; `[S-FR-COL-3.f]` an `http://` URL → `InvalidExternalLink`, citing `url`; `[S-FR-COL-3.f2]` `javascript:`, `data:`, an uppercase `HTTP://` spoof, `https://user:pass@host` userinfo, a scheme-relative `//host` and a 2,049-character URL are each `InvalidExternalLink` citing `url`, and a non-https `imageUrl` citing `imageUrl`, with zero writes (decision log Impl-2 #17).
 - **S-FR-COL-4 — `collections.moveEntry` / `copyEntry`.** Inbound Port.
   - *P:* the owner of the entry and of the target collection.
   - *Q:* move changes `collectionId` and `manualPosition`. Copy inserts a new entry keeping `source` and `orderId`. Audit row.

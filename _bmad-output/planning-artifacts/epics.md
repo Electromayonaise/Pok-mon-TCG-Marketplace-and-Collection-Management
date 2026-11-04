@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 409 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 410 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -1344,15 +1344,15 @@ Let collectors keep collections of catalog cards and external promos, organize t
 - **Description:** As Julián, I want unsafe or foreign actions on entries refused with the field, so that nothing unsafe enters my collection.
 - **Contracts:** — (no registry operation of its own) · **Also proves:** `S-FR-COL-3` (operation owned by Story 11.5), `S-FR-COL-4` (operation owned by Story 11.5), `S-FR-COL-5` (§15 clause), `S-FR-COL-6` (§15 clause)
 - **Depends on:** Story 11.5
-- **Traceability:** FR-COL-3, FR-COL-4, FR-COL-5, FR-COL-6
+- **Traceability:** FR-COL-3, FR-COL-4, FR-COL-5, FR-COL-6 · Risk R-28 (P0)
 - **Binding invariants:** also cited by its clauses: AD-1, AD-7, AD-8, AD-COL-1
 - **Files:** —
 - **Schema/DTO:** tables `"CatalogEntry"`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/col_supporting.test.ts` › `[S-FR-COL-3.f]`, `[S-FR-COL-4.f]`, `[S-FR-COL-5.f]`, `[S-FR-COL-6.f]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/col_supporting.test.ts` › `[S-FR-COL-3.f]`, `[S-FR-COL-4.f]`, `[S-FR-COL-5.f]`, `[S-FR-COL-6.f]`; `_bmad-output/test-artifacts/atdd/col_links.test.ts` › `[S-FR-COL-3.f2]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** an `https://` promo link. **When:** Julián adds it. **Then:** it is added: the contrast case.
   - **Scenario (failure) — Given:** an `http://` URL; another owner's entry; a set with 0 card entries; an unknown catalog id on the wishlist. **When:** the action runs. **Then:** `InvalidExternalLink` citing the url field; `CollectionEntryNotFound`; completion null, never a division; `InvalidCatalogEntry`.
-- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ## Epic 12: Collection valuation and trends (VAL)
 
