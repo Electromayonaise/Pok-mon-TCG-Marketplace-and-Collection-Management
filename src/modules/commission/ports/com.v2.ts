@@ -32,7 +32,7 @@ export interface ComV2Deps {
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { AdminFactsReader } from '../../identity/index.js';
-import type { AccountState, CommissionTrigger } from '../domain/com.js';
+import type { AccountState, CommissionTrigger, Discrepancy } from '../domain/com.js';
 
 /** A commission account as COM reads it; money stays `bigint` until the DTO edge (AD-SYS-7). */
 export interface AccountRow {
@@ -118,4 +118,19 @@ export interface ComTablesRepository {
   listTopUpsOf(tx: Tx, businessId: CuidId, after: { at: IsoInstant; id: CuidId } | null, limit: number): Promise<TopUpRow[]>;
   /** S-FR-COM-2.url: the request's owner and proof key, or null for an unknown id. */
   topUpProofOf(tx: Tx, topUpRequestId: CuidId): Promise<{ businessId: CuidId; proofObjectKey: string } | null>;
+  /** COM-3 P2 (AD-SYS-4 rule 7): `pg_try_advisory_xact_lock(job:commission-reconcile)` in `tx`; false when another run holds it. */
+  tryReconcileJobLock(tx: Tx): Promise<boolean>;
+  /** COM-3: every account's business, ascending, for the all-accounts run. */
+  listAccountBusinessIds(tx: Tx): Promise<CuidId[]>;
+  /** COM-3 Q1: the account read `FOR SHARE`, so a concurrent `apply` waits until this read's transaction ends. */
+  readAccountForShare(tx: Tx, businessId: CuidId): Promise<AccountRow | null>;
+  /** COM-3 Q1: Σ over the ledger (top-ups minus deductions), the number of entries and the highest seq (0 when empty), read in the same transaction. */
+  ledgerTotals(tx: Tx, businessId: CuidId): Promise<{ sum: bigint; entries: bigint; maxSeq: bigint }>;
+  /** COM-3 Q2: the one write of a run. */
+  insertReconciliationRun(tx: Tx, r: { id: CuidId; scope: string; accountsChecked: number; discrepancies: ReconciliationDiscrepancy[]; now: IsoInstant }): Promise<void>;
+  /** COM-3.last: the newest run, or null. */
+  lastReconciliationRun(tx: Tx): Promise<{ id: CuidId; scope: string; accountsChecked: number; discrepancies: ReconciliationDiscrepancy[]; createdAt: Date } | null>;
 }
+
+/** COM-3: one reported difference, as the domain computes it and the run row stores it. */
+export type ReconciliationDiscrepancy = Discrepancy;

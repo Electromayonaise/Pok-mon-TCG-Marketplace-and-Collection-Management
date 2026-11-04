@@ -656,6 +656,20 @@ describe('the commission account and top-ups over HTTP (S-FR-COM-1, -2, -9, COM-
     expect(await rows(db, 'TopUpDecisionLog')).toHaveLength(2);
   });
 
+  it('an admin reconciles every account and reads the run back; a business is AdminOnly 403 (COM-3, COM-3.last; Story 8.5)', async () => {
+    await admin(db);
+    await business(db, id('andres'), 'Approved');
+    await commissionAccount(db, id('andres'), 0);
+    const adminCookie = await signIn(id('admin'));
+    const refused = await post('commission.reconcile', { businessId: null }, await signIn(id('andres')));
+    expect([refused.status, refused.json.error?.code]).toEqual([403, 'AdminOnly']);
+    expect((await get('commission.admin.lastReconciliation', {}, adminCookie)).json.result?.data).toEqual({ run: null });
+    const ran = (await post('commission.reconcile', { businessId: null }, adminCookie)).json.result?.data as { runId: string };
+    expect(ran).toMatchObject({ accountsChecked: 1, discrepancies: [], decision: { outcome: 'allowed', reasonCode: 'ReconciliationClean' } });
+    expect((await get('commission.admin.lastReconciliation', {}, adminCookie)).json.result?.data).toMatchObject({ run: { runId: ran.runId, scope: 'all', accountsChecked: 1 } });
+    expect(await rows(db, 'audit_events', `action = 'commission.reconcile.ran'`)).toMatchObject([{ actorKind: 'admin', actorId: id('admin') }]);
+  });
+
   it('an individual account is NotBusinessAccount 409, and a foreign proof is the unknown-id body', async () => {
     await individualSeller(db, id('valentina'));
     const valentina = await signIn(id('valentina'));

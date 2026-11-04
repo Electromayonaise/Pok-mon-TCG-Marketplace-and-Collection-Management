@@ -1388,6 +1388,11 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `TopUpNotFound` | 404 | commission | COM-2 P2 | "No encontramos esa recarga." | no |
 | `CommissionRateNotFutureDated` | 400 | commission | S-FR-COM-7 | "La tarifa debe empezar desde ahora o después ({effectiveFrom})." | no |
 | `CommissionAccountNotOpen` † | 409 | commission | S-FR-COM-2 (C-GAP-3) | "Tu cuenta de comisiones se está abriendo; intenta la recarga en unos minutos." | yes |
+| `ReconciliationClean` | — (stored only) | commission | COM-3 Q4 `allowed`: 0 discrepancies, citing `{ accountsChecked, discrepancies }` (FR-COM-8; Story 8.5, decision log Impl-2 #13) | "Conciliación sin diferencias: se revisaron {accountsChecked} cuentas." | no |
+| `ReconciliationDiscrepancies` | — (stored only) | commission | COM-3 Q4 `allowedWithNotice`: one citation per discrepancy, `{ businessId, expected, actual }` (FR-COM-8; Story 8.5) | "La conciliación encontró una diferencia en la cuenta {businessId}: esperado {expected}, registrado {actual}. No se corrigió nada." | no |
+| `ReconciliationAccountNotFound` | — (stored only) | commission | COM-3 Q4 `allowedWithNotice`: an unknown `businessId`, citing `{ businessId, accountFound }` (FR-COM-8; Story 8.5) | "No hay cuenta de comisiones para {businessId}; se revisaron 0 cuentas." | no |
+| `ReconciliationPartial` | — (stored only) | commission | COM-3 batch bound `allowedWithNotice`: the run stopped at 50 s, citing `{ accountsChecked, partial }` (Story 8.5, decision log Impl-2 #13) | "La conciliación se detuvo a los 50 s tras revisar {accountsChecked} cuentas; la próxima ejecución empieza de nuevo." | yes |
+| `CommissionRateScheduled` | — (stored only) | commission | S-FR-COM-7 `allowed`: the setting is stored, citing `{ rateBps, effectiveFrom }` (FR-COM-7; Story 8.6) | "La tarifa de {rateBps} pb rige desde {effectiveFrom}." | no |
 | `TopUpSelfDecision` | 409 | commission | COM-2 P3a; COM-2.reject (decision log Impl-1 #33) | "No puedes decidir una recarga de tu propia tienda; pídele a otro administrador que la revise." | no |
 | `SelfTradeNotAllowed` | 409 | trading | S-FR-TRD-1 | "No puedes ofertar por tu propia publicación." | no |
 | `EmptyTradeOffer` | 400 | trading | TRD-2 P2; S-FR-TRD-1 | "Agrega una carta o un monto a tu oferta." | no |

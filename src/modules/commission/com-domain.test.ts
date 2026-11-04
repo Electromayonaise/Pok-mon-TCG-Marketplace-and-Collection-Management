@@ -1,6 +1,6 @@
-// COM domain (AD-SYS-3 rule 2, ADD-§2.6, AD-COM-1 rule 3, AD-COM-3 rule 3): pure rules, no database.
+// COM domain (AD-SYS-3 rule 2, ADD-§2.6, AD-COM-1 rules 3 and 4, AD-COM-3 rule 3): pure rules, no database.
 import { describe, expect, it } from 'vitest';
-import { commissionOf, commissionTrigger, crossing, isLowBalance, isTopUpProofUploadKey, isValidTopUpAmount, neededToResume, sniffProofType } from './domain/com.js';
+import { accountDiscrepancies, commissionOf, commissionTrigger, crossing, isLowBalance, isTopUpProofUploadKey, isValidTopUpAmount, neededToResume, sniffProofType } from './domain/com.js';
 
 const at = (m: number) => new Date(Date.UTC(2026, 9, 1, 15, m));
 
@@ -58,5 +58,33 @@ describe('top-up input rules (S-FR-COM-2, AD-SYS-8)', () => {
     expect([`topup-proof/${b}/abc1`, `topup-proof/${b}/`, `topup-proof/${b}/a/b`, `topup-proof/${b}/../x`, `topup-proof/${'c'.repeat(24)}/abc`].map((k) => isTopUpProofUploadKey(k, b)))
       .toEqual([true, false, false, false, false]);
     expect([sniffProofType(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d])), sniffProofType(new Uint8Array([1, 2, 3]))]).toEqual(['application/pdf', null]);
+  });
+});
+
+describe('accountDiscrepancies (COM-3 Q1, AD-COM-1 rule 4)', () => {
+  const b = 'b'.repeat(24);
+  const acct = (balanceCop: bigint, ledgerSeq: bigint) => ({ businessId: b, balanceCop, ledgerSeq });
+
+  it('a consistent account, and a new one with an empty ledger, have none', () => {
+    expect(accountDiscrepancies(acct(46_400n, 2n), { sum: 46_400n, entries: 2n, maxSeq: 2n })).toEqual([]);
+    expect(accountDiscrepancies(acct(0n, 0n), { sum: 0n, entries: 0n, maxSeq: 0n })).toEqual([]);
+  });
+
+  it('reports a tampered balance as decimal strings, beyond 2^53 too', () => {
+    expect(accountDiscrepancies(acct(46_000n, 2n), { sum: 46_400n, entries: 2n, maxSeq: 2n }))
+      .toEqual([{ businessId: b, kind: 'balanceMismatch', expected: '46400', actual: '46000' }]);
+    expect(accountDiscrepancies(acct(-9_007_199_254_740_993n, 1n), { sum: -9_007_199_254_740_992n, entries: 1n, maxSeq: 1n })[0])
+      .toMatchObject({ expected: '-9007199254740992', actual: '-9007199254740993' });
+  });
+
+  it('reports a missing seq by the count, and a seq past ledgerSeq by the highest seq', () => {
+    expect(accountDiscrepancies(acct(46_400n, 3n), { sum: 46_400n, entries: 2n, maxSeq: 3n }))
+      .toEqual([{ businessId: b, kind: 'seqGap', expected: '3', actual: '2' }]);
+    expect(accountDiscrepancies(acct(46_400n, 2n), { sum: 46_400n, entries: 2n, maxSeq: 3n }))
+      .toEqual([{ businessId: b, kind: 'seqGap', expected: '2', actual: '3' }]);
+  });
+
+  it('reports both kinds at once, balance first', () => {
+    expect(accountDiscrepancies(acct(1n, 5n), { sum: 2n, entries: 4n, maxSeq: 4n }).map((d) => d.kind)).toEqual(['balanceMismatch', 'seqGap']);
   });
 });

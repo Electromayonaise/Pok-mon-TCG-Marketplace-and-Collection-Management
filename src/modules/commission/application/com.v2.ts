@@ -50,11 +50,11 @@ import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import { isAdmin, requireAdmin, requireBusinessAccount } from '../../identity/index.js';
 import {
-  commissionOf, commissionTrigger, crossing, decodeKeyset, encodeKeyset, isLowBalance, isTopUpProofUploadKey, isValidTopUpAmount, LOW_BALANCE_THRESHOLD_COP, MAX_PROOF_BYTES, neededToResume,
-  sniffProofType, topUpProofUploadPrefix,
+  accountDiscrepancies, commissionOf, commissionTrigger, crossing, decodeKeyset, encodeKeyset, isLowBalance, isTopUpProofUploadKey, isValidTopUpAmount, LOW_BALANCE_THRESHOLD_COP, MAX_PROOF_BYTES, neededToResume,
+  RECONCILE_BATCH_MS, sniffProofType, topUpProofUploadPrefix,
 } from '../domain/com.js';
 import type { LedgerLineDTO, TopUpRowDTO } from '../dto/com.v2.dto.js';
-import type { LedgerLineRow, TopUpRow } from '../ports/com.v2.js';
+import type { LedgerLineRow, ReconciliationDiscrepancy, TopUpRow } from '../ports/com.v2.js';
 
 const raise = raiserFor('commission');
 
@@ -259,8 +259,76 @@ export class ComServiceV2 implements ComV2UseCases {
     });
   }
 
-  async reconcile(_input: ReconcileRequest): Promise<ReconcileResponse> {
-    throw new NotImplementedError('commission.reconcile');
+  /**
+   * COM-3 (AD-COM-1 rule 4, AD-SYS-4 rule 7). The admin path checks the flag first (AD-16); the job
+   * path holds `job:commission-reconcile` in an outer transaction for the whole run and is a no-op when
+   * another run holds it (P2). Reconcile only reads accounts and ledgers: its one write is the run row
+   * and its audit row (Q2, Q3), in the lock's transaction on the job path. It never repairs.
+   */
+  async reconcile(input: ReconcileRequest): Promise<ReconcileResponse> {
+    const { repo, transactions } = this.deps;
+    const { businessId, actor } = input;
+    if (actor.kind === 'job') {
+      return transactions.run(async (lockTx) => {
+        if (!(await repo.tryReconcileJobLock(lockTx))) return { skipped: 'runInProgress' as const };
+        return this.reconcileRun(businessId, null, (work) => work(lockTx));
+      });
+    }
+    await this.reading((tx) => requireAdmin(repo, tx, actor.adminId));
+    return this.reconcileRun(businessId, actor.adminId, (work) => transactions.run(work));
+  }
+
+  /**
+   * COM-3 Q1–Q4: each account in scope in its own transaction (the account `FOR SHARE`, then its
+   * ledger), ascending `businessId`; the all-accounts run stops once 50 s of Clock time have passed
+   * and says so (decision log Impl-2 #13); then the run row and its audit row through `write`.
+   */
+  private async reconcileRun(businessId: CuidId | null, adminId: CuidId | null, write: <T>(work: (tx: Tx) => Promise<T>) => Promise<T>) {
+    const { repo, transactions, clock, ids, audit } = this.deps;
+    const started = clock.now();
+    const now = started.toISOString();
+    const scope = businessId !== null ? [businessId] : await transactions.run((tx) => repo.listAccountBusinessIds(tx), { readOnly: true });
+    let accountsChecked = 0;
+    let partial = false;
+    const discrepancies: ReconciliationDiscrepancy[] = [];
+    for (const b of scope) {
+      if (businessId === null && clock.now().getTime() - started.getTime() >= RECONCILE_BATCH_MS) {
+        partial = true;
+        break;
+      }
+      // Not read-only: Postgres refuses `FOR SHARE` in a read-only transaction.
+      const found = await transactions.run(async (tx) => {
+        const account = await repo.readAccountForShare(tx, b);
+        return account === null ? null : accountDiscrepancies(account, await repo.ledgerTotals(tx, b));
+      });
+      if (found === null) continue;
+      accountsChecked++;
+      discrepancies.push(...found);
+    }
+    const runId = ids.next();
+    const decision = this.reconcileDecision({ businessId, accountsChecked, partial, discrepancies }, now);
+    await write(async (tx) => {
+      await repo.insertReconciliationRun(tx, { id: runId, scope: businessId ?? 'all', accountsChecked, discrepancies, now });
+      await audit.record(tx, {
+        actorId: adminId, actorKind: adminId === null ? 'system' : 'admin', module: 'commission', action: 'commission.reconcile.ran',
+        aggregateType: 'ReconciliationRun', aggregateId: runId, decisionCode: decision.reasonCode,
+        data: { scope: businessId ?? 'all', accountsChecked, discrepancies: discrepancies.length, partial }, at: now,
+      });
+    });
+    return { runId, accountsChecked, discrepancies, decision };
+  }
+
+  /** COM-3 Q4 and the batch bound: every outcome is explained under FR-COM-8. */
+  private reconcileDecision(r: { businessId: CuidId | null; accountsChecked: number; partial: boolean; discrepancies: ReconciliationDiscrepancy[] }, now: IsoInstant): Decision {
+    const { businessId, accountsChecked, partial, discrepancies } = r;
+    const each = discrepancies.map(({ businessId: b, expected, actual }): Citation => ({ rule: 'FR-COM-8', inputs: { businessId: b, expected, actual } }));
+    if (partial) return explained('ReconciliationPartial', [{ rule: 'FR-COM-8', inputs: { accountsChecked, partial: true } }, ...each], now, 'allowedWithNotice');
+    if (businessId !== null && accountsChecked === 0) {
+      return explained('ReconciliationAccountNotFound', [{ rule: 'FR-COM-8', inputs: { businessId, accountFound: false } }], now, 'allowedWithNotice');
+    }
+    const [first, ...rest] = each;
+    if (first !== undefined) return explained('ReconciliationDiscrepancies', [first, ...rest], now, 'allowedWithNotice');
+    return explained('ReconciliationClean', [{ rule: 'FR-COM-8', inputs: { accountsChecked, discrepancies: 0 } }], now);
   }
 
   /**
@@ -419,7 +487,14 @@ export class ComServiceV2 implements ComV2UseCases {
     throw new NotImplementedError('commission.listCommissionRates');
   }
 
-  async getLastReconciliation(_input: GetLastReconciliationRequest): Promise<GetLastReconciliationResponse> {
-    throw new NotImplementedError('commission.getLastReconciliation');
+  /** COM-3.last (AD-COM-1 rule 4): the newest run for page 7.4, or null; admins only (AD-16). */
+  async getLastReconciliation(input: GetLastReconciliationRequest): Promise<GetLastReconciliationResponse> {
+    const { repo } = this.deps;
+    const run = await this.reading(async (tx) => {
+      await requireAdmin(repo, tx, input.adminId);
+      return repo.lastReconciliationRun(tx);
+    });
+    if (run === null) return { run: null };
+    return { run: { runId: run.id, scope: run.scope, accountsChecked: run.accountsChecked, discrepancies: run.discrepancies, at: run.createdAt.toISOString() } };
   }
 }

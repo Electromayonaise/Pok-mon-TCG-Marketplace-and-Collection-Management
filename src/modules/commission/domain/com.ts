@@ -86,3 +86,29 @@ export function decodeKeyset(cursor: string): { at: string; id: string } | null 
   const ms = Date.parse(at);
   return Number.isNaN(ms) || new Date(ms).toISOString() !== at ? null : { at, id };
 }
+
+/** COM-3: one reported difference; the values are decimal strings, so no `bigint` sum loses precision. */
+export interface Discrepancy { businessId: CuidId; kind: 'balanceMismatch' | 'seqGap'; expected: string; actual: string }
+
+/**
+ * COM-3 Q1 (AD-COM-1 rule 4): what an account's stored balance and `ledgerSeq` disagree with in its
+ * ledger, read under one share lock. `balanceMismatch`: expected Σ(top-ups − deductions), actual the
+ * stored balance. `seqGap`: the seqs (unique and ≥ 1 per business) must be exactly 1..ledgerSeq, so the
+ * count and the highest seq both equal `ledgerSeq`; actual is the count, or the highest seq when only
+ * that one differs. Reports, never repairs.
+ */
+export function accountDiscrepancies(
+  account: { businessId: CuidId; balanceCop: bigint; ledgerSeq: bigint },
+  ledger: { sum: bigint; entries: bigint; maxSeq: bigint },
+): Discrepancy[] {
+  const { businessId, balanceCop, ledgerSeq } = account;
+  const found: Discrepancy[] = [];
+  if (ledger.sum !== balanceCop) found.push({ businessId, kind: 'balanceMismatch', expected: ledger.sum.toString(), actual: balanceCop.toString() });
+  if (ledger.entries !== ledgerSeq || ledger.maxSeq !== ledgerSeq) {
+    found.push({ businessId, kind: 'seqGap', expected: ledgerSeq.toString(), actual: (ledger.entries !== ledgerSeq ? ledger.entries : ledger.maxSeq).toString() });
+  }
+  return found;
+}
+
+/** COM-3 batch bound (decision log Impl-2 #13): the all-accounts run stops checking after 50 s of Clock time. */
+export const RECONCILE_BATCH_MS = 50_000;

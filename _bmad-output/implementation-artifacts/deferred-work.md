@@ -100,7 +100,7 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 ## Deferred from: spec of Epic 8 (8.1–8.4) (2026-10-30)
 
 - The top-up proof uses the production `ObjectStorage` and `MalwareScanner`, which are still `UNWIRED_STORAGE` and `UNWIRED_SCANNER` (Story 3.1's item). In production the ticket, the request and the proof URL fail as NotImplemented (500).
-- Stories 8.5 (reconcile, `COM-3`, `COM-3.last`) and 8.6 (rates and the admin ledger, `S-FR-COM-7`, `S-FR-COM-7.list`, `S-FR-COM-8.ledger`) stay in `impl2_scope`; their five procedures stay unwired and their 10 tests red for NotImplemented. The `commission-reconcile` job (`daily-night`, `job:commission-reconcile`) also needs the jobs route (Story 4.1's item). Owner: Epic 8's Impl-2 completion.
+- Stories 8.5 (reconcile, `COM-3`, `COM-3.last`) and 8.6 (rates and the admin ledger, `S-FR-COM-7`, `S-FR-COM-7.list`, `S-FR-COM-8.ledger`) stay in `impl2_scope`; their five procedures stay unwired and their 10 tests red for NotImplemented. The `commission-reconcile` job (`daily-night`, `job:commission-reconcile`) also needs the jobs route (Story 4.1's item). Owner: Epic 8's Impl-2 completion. **Impl-2 note:** ~~Story 8.5's half (`COM-3`, `COM-3.last` and the `commission-reconcile` job)~~ Resolved by Story 8.5: `commission.reconcile` and `commission.admin.lastReconciliation` are wired and the job reconciles through Story 1.6's route. Story 8.6's three procedures remain.
 - The account page shows the 50 newest ledger lines, with no cursor (`GetMyCommissionAccountRequest` has none; decision log Impl-1 #33). Older lines are reachable only through the admin ledger, which is Story 8.6's. Owner: the account page story (UI 7.2).
 
 ## Deferred from: code review of Epic 8 (8.1–8.4) (2026-10-30)
@@ -187,3 +187,7 @@ Findings a code review chose not to fix now, with the reason. Each later review 
 - Better Auth's own `401` body on a wrong password passes through the guard unchanged (`{ code: 'INVALID_EMAIL_OR_PASSWORD', message }`), so it is not the platform's `ErrorBody`. The sign-in page maps it to its es-CO copy. Owner: the next contract revision, if the registry gains a credentials code.
 - Better Auth writes `ipAddress: ''` on every session write even with IP tracking off; `createAuth` strips it in a Prisma client extension (R-12). Revisit on a Better Auth upgrade.
 
+## Deferred from: Story 8.5 (2026-11-03)
+
+- The all-accounts run restarts from the first account after a 50 s partial run (decision log Impl-2 #13), so with enough accounts the last ones in `businessId` order are never checked by the job. The run row and its `ReconciliationPartial` decision say so; a persisted resume cursor needs a migration. Owner: the launch checklist, once the account count makes a run approach 50 s.
+- The admin path runs on the request, so an admin all-accounts run can take up to the 50 s bound; only the single-account call has the 800 ms budget (NFR-SYS-9). Page 7.4 should start the all-accounts run with a pending state. Owner: the reconcile page story (UI 7.4).

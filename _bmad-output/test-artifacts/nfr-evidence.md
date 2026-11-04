@@ -93,7 +93,7 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 | NFR-ORD-3 | Security / scope | 0 funds-held states or gateway calls | Schema check; network guard | `[ORD-1.I4]`, `[SYS-6.R4]` | Green — gate (`[SYS-6.R4]`); Green — ATDD (`[ORD-1.I4]`) |
 | NFR-ORD-4 | Usability | A paid order unconfirmed for 7 days shows the waiting state and the support contact | UI-state gate (page states backed by the order view); support-contact read; the page copy belongs to UI 6.2 | `[S-FR-ORD-10.h]`; `gate:ui:solu2` | Green — ATDD (the support contact and the 7-day notice, `OrderAwaitingBusiness`) |
 | NFR-COM-1 | Reliability (MEC) | 100 repetitions: each order charged once, Exhausted published once | Two orders at one instant plus a duplicate event | `[COM-1.MEC]`, `[COM-1.MEC2]` | Green — ATDD |
-| NFR-COM-2 | Correctness | Reconciliation difference 0 pesos over 10,000 operations, 20 % duplicates | Reconcile over the ledger; seq-gap detection | `[COM-3.Q1]`, `[COM-3.I1]` | Red — ATDD |
+| NFR-COM-2 | Correctness | Reconciliation difference 0 pesos over 10,000 operations, 20 % duplicates | Reconcile over the ledger; seq-gap detection; 10,000 seeded-random top-ups and deductions with redelivered orders, then one reconcile | `[COM-3.Q1]`, `[COM-3.I1]`, `[COM-3.C1]`, `[NFR-COM-2.drift]` (Story 8.5) | Green — ATDD (`[COM-3.Q1]`, `[COM-3.I1]` and `[COM-3.C1]` with Story 8.5); Green — benchmark (`[NFR-COM-2.drift]`, 2026-11-03, 10,000 operations: 1,988 top-ups, 6,480 orders and 1,532 duplicate deliveries, 19.1 % of deliveries, 0 discrepancies and a difference of 0 pesos, about 170 s on local Postgres 16) |
 | NFR-COM-3 | Performance | Deduction handler p95 ≤ 200 ms; top-up confirmation ≤ 800 ms | PRD §7 protocol on the §3 seed, the real identity | `[NFR-COM-3.deduction]` (Story 8.2), `[NFR-COM-3.topUp]` (Story 8.3) | Green — benchmark |
 | NFR-COM-4 | Correctness (money) | 0 floating-point operations on COP in commission | BigInt reference; rounding CHECK | `[COM-1.I3]` | Green — ATDD |
 | NFR-TRD-1 | Reliability (MEC) | 100 repetitions: one Accepted, one Unfulfillable | Two accepts for the last unit | `[TRD-1.MEC]` (Story 10.3) | Green — ATDD |
@@ -115,14 +115,14 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 
 ## Summary
 
-Refreshed as a whole at the Impl-1 close (2026-10-30, decision log Impl-1 #39), from the bound tests' results in that run: every row whose named tests all belong to done stories is green.
+Refreshed as a whole at the Impl-1 close (2026-10-30, decision log Impl-1 #39), from the bound tests' results in that run: every row whose named tests all belong to done stories is green. Impl-2 refreshes the rows its stories turn green: NFR-COM-2 with Story 8.5 (2026-11-03).
 
 | Status | NFRs |
 |---|---|
-| Green — ATDD (wholly or in part) | 34 (NFR-SYS-1, -5, -7, -8, -10, -13, -14, NFR-IDN-2, NFR-VER-1, -2, -4, NFR-CAT-2, -3, -4, NFR-INV-1, -2, -3, NFR-DSC-2, -3, NFR-ORD-1, -3, -4, NFR-COM-1, -4, NFR-TRD-1, -3, NFR-MSG-1, -2, -4, NFR-COL-1, NFR-VAL-1, -3, NFR-REP-1, -3; NFR-VER-4, NFR-ORD-3, NFR-MSG-1, -2 and NFR-REP-3 in part) |
-| Green — benchmark (wholly or in part) | 14 (NFR-SYS-2, -6, -9, NFR-VER-3, NFR-CAT-1, NFR-INV-4, NFR-DSC-1, NFR-COM-3, NFR-TRD-2, NFR-VAL-2; NFR-ORD-2, NFR-MSG-1, -2 and NFR-REP-2 in part) |
+| Green — ATDD (wholly or in part) | 35 (NFR-SYS-1, -5, -7, -8, -10, -13, -14, NFR-IDN-2, NFR-VER-1, -2, -4, NFR-CAT-2, -3, -4, NFR-INV-1, -2, -3, NFR-DSC-2, -3, NFR-ORD-1, -3, -4, NFR-COM-1, -2, -4, NFR-TRD-1, -3, NFR-MSG-1, -2, -4, NFR-COL-1, NFR-VAL-1, -3, NFR-REP-1, -3; NFR-VER-4, NFR-ORD-3, NFR-MSG-1, -2 and NFR-REP-3 in part) |
+| Green — benchmark (wholly or in part) | 15 (NFR-SYS-2, -6, -9, NFR-VER-3, NFR-CAT-1, NFR-INV-4, NFR-DSC-1, NFR-COM-2, -3, NFR-TRD-2, NFR-VAL-2; NFR-ORD-2, NFR-MSG-1, -2 and NFR-REP-2 in part) |
 | Green — gate (wholly or in part) | 8 (NFR-SYS-3, -4, -12, NFR-IDN-3, NFR-MSG-3; NFR-ORD-3, NFR-COL-3 and NFR-REP-3 in part) |
-| Red — ATDD (wholly or in part) | 3, all Impl-2 scope: NFR-COM-2 (Story 8.5), and in part NFR-COL-3 (`[S-FR-COL-3.h]`, Story 11.5) and NFR-REP-2 (`[S-FR-REP-7.h]`, Story 13.5) |
+| Red — ATDD (wholly or in part) | 2, all Impl-2 scope and in part: NFR-COL-3 (`[S-FR-COL-3.h]`, Story 11.5) and NFR-REP-2 (`[S-FR-REP-7.h]`, Story 13.5) |
 | Planned — story DoD (wholly or in part) | 3: NFR-IDN-1 and NFR-COL-2, which no story in `epics.md` names in its Traceability (`impl1-final-trace.md` §4). `deferred-work.md` gives them an owner: the Impl-2 test hardening and Story 11.5 (decision log Impl-1 #39). In part NFR-REP-2 (the profile benchmark, Story 13.5) |
 | Deferred — launch | 3: NFR-SYS-11 (WCAG audit), and the transfer times of NFR-VER-4 and NFR-ORD-2 on a shaped 10 Mbps link |
 

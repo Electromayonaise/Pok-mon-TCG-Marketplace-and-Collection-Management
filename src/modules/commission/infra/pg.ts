@@ -7,7 +7,7 @@ import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { CommissionAccountDTO } from '../dto/com.dto.js';
 import type { ICommissionAccountRepository, ICommissionLedgerRepository, ITopUpRepository } from '../ports/com.js';
 import type { CommissionTrigger } from '../domain/com.js';
-import type { AccountRow, ComTablesRepository, LedgerLineRow, TopUpRow } from '../ports/com.v2.js';
+import type { AccountRow, ComTablesRepository, LedgerLineRow, ReconciliationDiscrepancy, TopUpRow } from '../ports/com.v2.js';
 
 export class PgCommissionLedgerRepository implements ICommissionLedgerRepository {
   constructor(protected readonly sql: Sql) {}
@@ -168,6 +168,40 @@ export class PgComRepository implements ComTablesRepository {
   async topUpProofOf(tx: Tx, topUpRequestId: CuidId): Promise<{ businessId: CuidId; proofObjectKey: string } | null> {
     const { rows } = await tx.query<{ businessId: CuidId; proofObjectKey: string }>(
       `SELECT "businessId", "proofObjectKey" FROM "TopUpRequest" WHERE id = $1`, [topUpRequestId]);
+    return rows[0] ?? null;
+  }
+
+  async tryReconcileJobLock(tx: Tx): Promise<boolean> {
+    const { rows } = await tx.query<{ held: boolean }>(`SELECT pg_try_advisory_xact_lock(hashtextextended('job:commission-reconcile', 0)) AS held`);
+    return rows[0]?.held === true;
+  }
+
+  async listAccountBusinessIds(tx: Tx): Promise<CuidId[]> {
+    const { rows } = await tx.query<{ businessId: CuidId }>(`SELECT "businessId" FROM "CommissionAccount" ORDER BY "businessId"`);
+    return rows.map((r) => r.businessId);
+  }
+
+  async readAccountForShare(tx: Tx, businessId: CuidId): Promise<AccountRow | null> {
+    const { rows } = await tx.query<Raw<AccountRow, 'balanceCop' | 'ledgerSeq'>>(`SELECT ${ACCOUNT_COLUMNS} FROM "CommissionAccount" WHERE "businessId" = $1 FOR SHARE`, [businessId]);
+    return rows[0] ? account(rows[0]) : null;
+  }
+
+  async ledgerTotals(tx: Tx, businessId: CuidId): Promise<{ sum: bigint; entries: bigint; maxSeq: bigint }> {
+    const { rows } = await tx.query<{ sum: string; entries: string; maxSeq: string }>(
+      `SELECT COALESCE(SUM(CASE kind WHEN 'TopUp' THEN "amountCop" ELSE -"amountCop" END), 0)::text AS sum, COUNT(*)::text AS entries,
+              COALESCE(MAX(seq), 0)::text AS "maxSeq"
+         FROM "CommissionLedgerEntry" WHERE "businessId" = $1`, [businessId]);
+    return { sum: BigInt(rows[0]!.sum), entries: BigInt(rows[0]!.entries), maxSeq: BigInt(rows[0]!.maxSeq) };
+  }
+
+  async insertReconciliationRun(tx: Tx, r: { id: CuidId; scope: string; accountsChecked: number; discrepancies: ReconciliationDiscrepancy[]; now: IsoInstant }): Promise<void> {
+    await tx.query(`INSERT INTO "ReconciliationRun" (id, scope, "accountsChecked", discrepancies, "createdAt") VALUES ($1, $2, $3, $4, $5)`,
+      [r.id, r.scope, r.accountsChecked, JSON.stringify(r.discrepancies), r.now]);
+  }
+
+  async lastReconciliationRun(tx: Tx): Promise<{ id: CuidId; scope: string; accountsChecked: number; discrepancies: ReconciliationDiscrepancy[]; createdAt: Date } | null> {
+    const { rows } = await tx.query<{ id: CuidId; scope: string; accountsChecked: number; discrepancies: ReconciliationDiscrepancy[]; createdAt: Date }>(
+      `SELECT id, scope, "accountsChecked", discrepancies, "createdAt" FROM "ReconciliationRun" ORDER BY "createdAt" DESC, id DESC LIMIT 1`);
     return rows[0] ?? null;
   }
 }
