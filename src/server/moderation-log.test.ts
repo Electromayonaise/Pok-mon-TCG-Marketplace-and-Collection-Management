@@ -22,4 +22,10 @@ describe('mergeModerationLogs (AD-REP-3 rule 5)', () => {
     expect(mergeModerationLogs([], [listingRow('l1', 1)], 50).map((e) => e.row)).toEqual([listingRow('l1', 1)]);
     expect(mergeModerationLogs([reviewRow('same', 5)], [listingRow('same', 5)]).map((e) => e.kind).sort()).toEqual(['listing', 'review']);
   });
+
+  it('breaks a tie at one instant by the id across the two logs, and a smaller limit keeps the newest rows of both', () => {
+    const merged = mergeModerationLogs([reviewRow('m2', 7), reviewRow('m0', 7)], [listingRow('m3', 7), listingRow('m1', 7)]);
+    expect(merged.map((e) => [e.kind, e.logId])).toEqual([['listing', 'm3'], ['review', 'm2'], ['listing', 'm1'], ['review', 'm0']]);
+    expect(mergeModerationLogs([reviewRow('r9', 9), reviewRow('r1', 1)], [listingRow('l5', 5), listingRow('l2', 2)], 3).map((e) => e.logId)).toEqual(['r9', 'l5', 'l2']);
+  });
 });

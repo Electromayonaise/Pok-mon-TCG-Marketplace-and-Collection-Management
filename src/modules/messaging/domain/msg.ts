@@ -27,6 +27,11 @@ export function clampReadSeq(seq: number, lastSeq: number): number {
   return Math.min(seq, lastSeq);
 }
 
+/** AD-MSG-3 rule 1: a read mark at `seq` moves the reader's mark only forward; at or below the mark already read it writes nothing. */
+export function readMarkAdvances(seq: number, lastSeq: number, lastReadSeq: number): boolean {
+  return clampReadSeq(seq, lastSeq) > lastReadSeq;
+}
+
 /** AD-MSG-3 rule 2: unread per conversation, `lastSeq − lastReadSeq`, never negative. */
 export function unreadOf(lastSeq: number, lastReadSeq: number): number {
   return Math.max(0, lastSeq - lastReadSeq);

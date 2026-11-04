@@ -1,7 +1,7 @@
 // MSG-2 Q1's pure composer (AD-MSG-1 rules 4–5, FR-MSG-2): price formatting, RFC 3986 encoding, the FR-MSG-2
 // truncation order at grapheme boundaries, the maximal trade, and byte-identical output.
 import { describe, expect, it } from 'vitest';
-import { composeContactMessage, encodeRfc3986, formatCop, MAX_URL_LENGTH, type ContactInput } from './domain/contact.js';
+import { composeContactMessage, encodeRfc3986, formatCop, MAX_URL_LENGTH, waMeUrl, type ContactInput } from './domain/contact.js';
 
 const purchase = (o: Partial<ContactInput> = {}): ContactInput => ({
   kind: 'purchase', sellerName: 'Valentina', phoneE164: '+573001234567', productName: 'Charizard ex', condition: 'NM', priceCop: 45_000n, trade: null, ...o,
@@ -103,5 +103,12 @@ describe('composeContactMessage (MSG-2 Q1)', () => {
     expect(m.text).toContain('(LP)');
     expect(m.text).toContain('$45.000 COP');
     expect(m.copyText).toContain(family.repeat(40));
+  });
+});
+
+describe('waMeUrl (MSG-2, AD-MSG-2)', () => {
+  it('drops the + of the E.164 number and encodes the text as RFC 3986, so !, \', (, ) and * never pass raw', () => {
+    expect(waMeUrl('+573001234567', "Hola! ¿(1)* 'x'")).toBe('https://wa.me/573001234567?text=Hola%21%20%C2%BF%281%29%2A%20%27x%27');
+    expect(waMeUrl('573001234567', '')).toBe('https://wa.me/573001234567?text=');
   });
 });

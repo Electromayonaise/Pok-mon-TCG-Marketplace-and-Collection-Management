@@ -31,4 +31,15 @@ describe('destination after sign-in (?siguiente=)', () => {
     expect(destination('', ORIGIN)).toBe('/mensajes');
     expect(destination(undefined, ORIGIN)).toBe('/mensajes');
   });
+
+  it('refuses a NUL, a DEL and a C1 control character, which the parser would percent-encode and keep on this site', () => {
+    for (const control of ['\u0000', '\u007f', '\u0085', '\u009f']) {
+      expect(destination(`/${control}/coleccion`, ORIGIN)).toBe('/mensajes');
+    }
+  });
+
+  it('keeps the path on an origin with a port and refuses the same host on another port', () => {
+    expect(destination('/coleccion', 'http://localhost:3000')).toBe('/coleccion');
+    expect(destination('http://localhost:3001/coleccion', 'http://localhost:3000')).toBe('/mensajes');
+  });
 });

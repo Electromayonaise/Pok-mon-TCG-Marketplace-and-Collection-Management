@@ -1,7 +1,7 @@
 // MSG-1 P2: the body's NFC normalization and bounds, and the clientMessageId pattern (FR-MSG-5, Solu-1 GAP-3).
 // Story 9.6: the read-state rules (clamp, unread, mute) and the inbox cursor (AD-MSG-3, decision log Impl-2 #15).
 import { describe, expect, it } from 'vitest';
-import { clampReadSeq, CLIENT_MESSAGE_ID, decodeInboxCursor, encodeInboxCursor, isSeq, muteChange, normalizeBody, unreadOf } from './domain/msg.js';
+import { clampReadSeq, CLIENT_MESSAGE_ID, decodeInboxCursor, encodeInboxCursor, isSeq, muteChange, normalizeBody, readMarkAdvances, unreadOf } from './domain/msg.js';
 
 describe('normalizeBody (FR-MSG-5)', () => {
   it('normalizes to NFC and counts code points, as the schema does', () => {
@@ -35,6 +35,13 @@ describe('read state (AD-MSG-3 rules 1–2; Story 9.6)', () => {
   it('a read mark is clamped to lastSeq, and unread is lastSeq − lastReadSeq, never negative', () => {
     expect([clampReadSeq(3, 5), clampReadSeq(9, 5), clampReadSeq(5, 5)]).toEqual([3, 5, 5]);
     expect([unreadOf(5, 2), unreadOf(5, 5), unreadOf(3, 4)]).toEqual([3, 0, 0]);
+  });
+
+  it('a read mark moves only forward: a stale tab, the same seq or a seq past the last message already read writes nothing', () => {
+    // lastSeq 5, lastReadSeq 3: 4 and 5 move it, and 9 moves it to 5; 3 (the same) and 1 (a stale tab) do not.
+    expect([4, 5, 9, 3, 1, 0].map((seq) => readMarkAdvances(seq, 5, 3))).toEqual([true, true, true, false, false, false]);
+    // Everything read already (lastReadSeq = lastSeq): even a tab ahead of the server moves nothing.
+    expect([readMarkAdvances(7, 5, 5), readMarkAdvances(0, 0, 0)]).toEqual([false, false]);
   });
 
   it('a buyer mute sets or clears mutedAt; a business mute is a no-op (C-GAP-4)', () => {

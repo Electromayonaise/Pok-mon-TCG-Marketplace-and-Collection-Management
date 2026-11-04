@@ -1,7 +1,7 @@
 // COM domain (AD-SYS-3 rule 2, ADD-§2.6, AD-COM-1 rules 3 and 4, AD-COM-2 rule 6, AD-COM-3 rule 3): pure rules, no database.
 import { describe, expect, it } from 'vitest';
 import {
-  accountDiscrepancies, commissionOf, commissionTrigger, crossing, decodeLedgerCursor, encodeLedgerCursor, isLowBalance, isTopUpProofUploadKey, isValidRateBps, isValidTopUpAmount, neededToResume, rateInForce,
+  accountDiscrepancies, commissionOf, commissionTrigger, crossing, decodeKeyset, decodeLedgerCursor, encodeKeyset, encodeLedgerCursor, isLowBalance, isTopUpProofUploadKey, isValidRateBps, isValidTopUpAmount, neededToResume, rateInForce,
   scheduledEffectiveFrom, sniffProofType,
 } from './domain/com.js';
 
@@ -141,5 +141,19 @@ describe('the admin ledger cursor (S-FR-COM-8.ledger, decision log Impl-2 #13)',
       decodeLedgerCursor(enc(`ledger|${b}|5|x`), b),
       decodeLedgerCursor('not a cursor', b),
     ]).toEqual([null, null, null, null, null, null, null, null, null]);
+  });
+});
+
+describe('the top-up keyset cursor (S-FR-COM-2.mine, COM-2.queue)', () => {
+  const raw = (text: string) => Buffer.from(text, 'utf8').toString('base64url');
+  const id = 't1x000000000000000000000';
+
+  it('round-trips the (at, id) keyset of the last row of a page', () => {
+    expect(decodeKeyset(encodeKeyset('2026-10-01T15:00:00.000Z', id))).toEqual({ at: '2026-10-01T15:00:00.000Z', id });
+  });
+
+  it('refuses a non-canonical instant, a malformed id, a missing or extra part, a ledger cursor and noise', () => {
+    const refused = [raw(`2026-10-01T15:00:00Z|${id}`), raw('2026-10-01T15:00:00.000Z|T1'), raw('2026-10-01T15:00:00.000Z'), raw(`2026-10-01T15:00:00.000Z|${id}|x`), encodeLedgerCursor(id, 5n), 'not-a-cursor'];
+    expect(refused.map(decodeKeyset)).toEqual(refused.map(() => null));
   });
 });

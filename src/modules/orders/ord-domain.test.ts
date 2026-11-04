@@ -1,7 +1,7 @@
 // ORD domain (AD-ORD-1, AD-ORD-2, ADD-§4.2): pure rules, no database.
 import { describe, expect, it } from 'vitest';
 import {
-  AWAITING_BUSINESS_SUPPORT_MS, closedLines, decodeOrderCursor, deriveStatus, encodeOrderCursor, expiryUnmaterialized, itemReceivedLoserCode, openOrderOverflow, orderView, paidLoserCode,
+  AWAITING_BUSINESS_SUPPORT_MS, closedLines, comprobanteUploadPrefix, isComprobanteUploadKey, decodeOrderCursor, deriveStatus, encodeOrderCursor, expiryUnmaterialized, itemReceivedLoserCode, openOrderOverflow, orderView, paidLoserCode,
   paymentReceivedLoserCode, sniffComprobanteType, type OrderFacts,
 } from './domain/ord.js';
 
@@ -112,5 +112,19 @@ describe('the orders cursor', () => {
     const cursor = encodeOrderCursor('2026-10-01T15:00:00.000Z', 'c'.repeat(24));
     expect(decodeOrderCursor(cursor)).toEqual({ createdAt: '2026-10-01T15:00:00.000Z', id: 'c'.repeat(24) });
     expect(decodeOrderCursor('not-a-cursor')).toBeNull();
+  });
+});
+
+describe('the comprobante upload key (AD-SYS-8 rule 5.3)', () => {
+  const buyer = 'camilax00000000000000000';
+
+  it('is exactly the buyer\'s prefix and one id segment of 1–64 lowercase letters or digits, so no other object is named', () => {
+    expect(comprobanteUploadPrefix(buyer)).toBe(`comprobante/${buyer}/`);
+    expect([`comprobante/${buyer}/k1`, `comprobante/${buyer}/${'a'.repeat(64)}`].map((k) => isComprobanteUploadKey(k, buyer))).toEqual([true, true]);
+    const refused = [
+      `comprobante/julianx00000000000000000/k1`, `comprobante/${buyer}/`, `comprobante/${buyer}/k1/x`, `comprobante/${buyer}/K1`, `comprobante/${buyer}/${'a'.repeat(65)}`,
+      `comprobante/${buyer}/../k1`, `topup-proof/${buyer}/k1`, `order-comprobantes/${buyer}/k1`,
+    ];
+    expect(refused.filter((k) => isComprobanteUploadKey(k, buyer))).toEqual([]);
   });
 });

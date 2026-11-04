@@ -54,7 +54,7 @@ import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request
 import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { CatalogEntryDTO } from '../../catalog/index.js';
-import { AVAILABILITY_BATCH, binderOrder, bogotaDate, chunks, COLLECTION_LIMIT, completionPercent, entryQuantities, invalidLinkField, isAfterToday, isCalendarDate, isIsoInstant, isLayoutSize, MAX_SORT_KEYS, wishlistOrder } from '../domain/col.js';
+import { AVAILABILITY_BATCH, binderOrder, bogotaDate, chunks, COLLECTION_LIMIT, completionPercent, entryQuantities, invalidLinkField, isAfterToday, isBinderSort, isCalendarDate, isExactOrder, isIsoInstant, isLayoutSize, MAX_SORT_KEYS, wishlistOrder } from '../domain/col.js';
 import type { PromptRow } from '../ports/col.v2.js';
 
 const raise = raiserFor('collections');
@@ -331,7 +331,7 @@ export class ColServiceV2 implements ColV2UseCases {
    */
   async getBinder(input: GetBinderRequest): Promise<GetBinderResponse> {
     const { ownerId, collectionId, sort, setId } = input;
-    if (sort.length > MAX_SORT_KEYS || new Set(sort).size !== sort.length) {
+    if (!isBinderSort(sort)) {
       return rejectRequest([{ field: 'sort', issue: `debe tener hasta ${MAX_SORT_KEYS} criterios distintos` }]);
     }
     const read = await this.reading(async (tx) => {
@@ -398,9 +398,8 @@ export class ColServiceV2 implements ColV2UseCases {
     return transactions.run(async (tx) => {
       await repo.lockCollectionOwner(tx, ownerId);
       if (!await repo.ownsCollection(tx, collectionId, ownerId)) return collectionNotFound('FR-COL-5');
-      const current = new Set((await repo.readBinderEntries(tx, collectionId)).map((e) => e.entryId));
-      const named = new Set(orderedEntryIds);
-      if (named.size !== orderedEntryIds.length || named.size !== current.size || orderedEntryIds.some((e) => !current.has(e))) {
+      const current = (await repo.readBinderEntries(tx, collectionId)).map((e) => e.entryId);
+      if (!isExactOrder(orderedEntryIds, current)) {
         return rejectRequest([{ field: 'orderedEntryIds', issue: 'debe nombrar cada carta de la colección una sola vez' }]);
       }
       await repo.setManualPositions(tx, collectionId, orderedEntryIds, now);

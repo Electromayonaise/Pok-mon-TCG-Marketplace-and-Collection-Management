@@ -135,6 +135,18 @@ function compareBy(key: BinderOrderKey, a: BinderSortable, b: BinderSortable): n
   }
 }
 
+/** S-FR-COL-5 P: a binder sort of at most `MAX_SORT_KEYS` keys, none of them repeated. */
+export function isBinderSort(sort: readonly BinderOrderKey[]): boolean {
+  return sort.length <= MAX_SORT_KEYS && new Set(sort).size === sort.length;
+}
+
+/** S-FR-COL-5.reorder: a manual order that names every entry of the collection exactly once, and nothing else. */
+export function isExactOrder(ordered: readonly string[], current: readonly string[]): boolean {
+  const have = new Set(current);
+  const named = new Set(ordered);
+  return named.size === ordered.length && named.size === have.size && ordered.every((e) => have.has(e));
+}
+
 /**
  * S-FR-COL-5 (AD-COL-1 rule 5): the binder order, ascending on each key in turn, then `entryId`, so two reads of the
  * same entries give the same order whatever order they were read in. No keys means the manual order.

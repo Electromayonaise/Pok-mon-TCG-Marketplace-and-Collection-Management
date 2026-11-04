@@ -28,7 +28,7 @@ import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import { sellerKindOf } from '../../identity/index.js';
 import {
-  clampReadSeq, CLIENT_MESSAGE_ID, decodeInboxCursor, encodeInboxCursor, INBOX_PAGE_SIZE, isSeq, muteChange, normalizeBody, THREAD_PAGE_SIZE, unreadOf,
+  CLIENT_MESSAGE_ID, decodeInboxCursor, encodeInboxCursor, INBOX_PAGE_SIZE, isSeq, muteChange, normalizeBody, readMarkAdvances, THREAD_PAGE_SIZE, unreadOf,
 } from '../domain/msg.js';
 import type { InboxRowDTO } from '../dto/msg.v2.dto.js';
 import type { ParticipantView } from '../ports/msg.v2.js';
@@ -203,7 +203,7 @@ export class MsgServiceV2 implements MsgV2UseCases {
       const view = await repo.readParticipantView(tx, conversationId, actorId);
       if (view === null) return notVisible();
       // At or below the mark already read nothing can move: no write, the state read is the answer.
-      if (clampReadSeq(seq, view.lastSeq) <= view.lastReadSeq) return { lastReadSeq: view.lastReadSeq, unread: unreadOf(view.lastSeq, view.lastReadSeq) };
+      if (!readMarkAdvances(seq, view.lastSeq, view.lastReadSeq)) return { lastReadSeq: view.lastReadSeq, unread: unreadOf(view.lastSeq, view.lastReadSeq) };
       const after = await repo.advanceReadSeq(tx, conversationId, actorId, seq, clock.now().toISOString());
       return { lastReadSeq: after.lastReadSeq, unread: unreadOf(after.lastSeq, after.lastReadSeq) };
     });

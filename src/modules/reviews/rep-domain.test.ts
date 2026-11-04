@@ -2,7 +2,7 @@
 // admin search's LIKE escaping and keyset cursors (S-FR-REP-6, AD-REP-3 rules 4–5; Story 13.5).
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { averageTenths, decodeReviewCursor, encodeReviewCursor, escapeLike, reviewableKind } from './domain/rep.js';
+import { averageTenths, decodeReviewCursor, encodeReviewCursor, escapeLike, purchaseVerifiedFor, reviewableKind } from './domain/rep.js';
 
 describe('reviewableKind (AD-REP-1 rule 1)', () => {
   it('an individual seller and an Approved business are reviewable; an unverified business and no seller are not', () => {
@@ -86,5 +86,11 @@ describe('review keyset cursors (S-FR-REP-6)', () => {
     expect(decodeReviewCursor('log', raw(`log|${at}|NOT-A-CUID`))).toBeNull();
     expect(decodeReviewCursor('log', raw(`log|not-a-date|${rowId}`))).toBeNull();
     expect(decodeReviewCursor('log', raw(`log|2026-10-01T14:00:00Z|${rowId}`))).toBeNull();
+  });
+});
+
+describe('purchaseVerifiedFor (AD-REP-1 rule 2, REP-1 I1)', () => {
+  it('a business review is snapshotted verified, an individual seller\'s never is', () => {
+    expect([purchaseVerifiedFor('business'), purchaseVerifiedFor('individual')]).toEqual([true, false]);
   });
 });

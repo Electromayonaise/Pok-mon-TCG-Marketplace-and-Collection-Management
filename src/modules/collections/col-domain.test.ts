@@ -1,7 +1,10 @@
 // COL's pure rules: the Bogotá calendar date, the future-date check and the date shape; completion, the link rule,
 // the binder order and the wishlist order (Story 11.5).
 import { describe, expect, it } from 'vitest';
-import { AVAILABILITY_BATCH, binderOrder, type BinderSortable, bogotaDate, chunks, completionPercent, entryQuantities, invalidLinkField, isAfterToday, isCalendarDate, isIsoInstant, isLayoutSize, isSafeHttpsUrl, wishlistOrder } from './domain/col.js';
+import {
+  AVAILABILITY_BATCH, binderOrder, type BinderSortable, bogotaDate, chunks, completionPercent, entryQuantities, invalidLinkField, isAfterToday, isBinderSort, isCalendarDate,
+  isExactOrder, isIsoInstant, isLayoutSize, isSafeHttpsUrl, wishlistOrder,
+} from './domain/col.js';
 
 describe('bogotaDate (AD-COL-2 rule 2)', () => {
   it('is the UTC−5 calendar date, so an instant before 05:00 UTC is the previous day', () => {
@@ -138,5 +141,19 @@ describe('the layout bounds, the batch chunks and the wishlist order (S-FR-COL-5
   it('puts the cheapest first and unavailable cards last, ties by catalog id', () => {
     const rows = [{ catalogEntryId: 'c', lowestPriceCop: null }, { catalogEntryId: 'b', lowestPriceCop: 42_000 }, { catalogEntryId: 'a', lowestPriceCop: null }, { catalogEntryId: 'd', lowestPriceCop: 42_000 }, { catalogEntryId: 'e', lowestPriceCop: 9_000 }];
     expect(wishlistOrder(rows).map((r) => r.catalogEntryId)).toEqual(['e', 'b', 'd', 'a', 'c']);
+  });
+});
+
+describe('the binder sort and the manual reorder (S-FR-COL-5, S-FR-COL-5.reorder)', () => {
+  it('a sort holds at most three keys and never repeats one; no keys is the manual order', () => {
+    expect([isBinderSort([]), isBinderSort(['name']), isBinderSort(['setNumber', 'name', 'acquiredAt'])]).toEqual([true, true, true]);
+    expect([isBinderSort(['setNumber', 'name', 'acquiredAt', 'manual']), isBinderSort(['name', 'name']), isBinderSort(['name', 'acquiredAt', 'name'])]).toEqual([false, false, false]);
+  });
+
+  it('a reorder names every entry of the collection exactly once: none left out, repeated or foreign', () => {
+    const current = ['e1', 'e2', 'e3'];
+    expect([isExactOrder(['e3', 'e1', 'e2'], current), isExactOrder([], [])]).toEqual([true, true]);
+    expect([isExactOrder(['e1', 'e2'], current), isExactOrder(['e1', 'e2', 'e2'], current), isExactOrder(['e1', 'e2', 'e3', 'e4'], current), isExactOrder(['e1', 'e2', 'e4'], current), isExactOrder(['e1', 'e1', 'e2', 'e3'], current)])
+      .toEqual([false, false, false, false, false]);
   });
 });
