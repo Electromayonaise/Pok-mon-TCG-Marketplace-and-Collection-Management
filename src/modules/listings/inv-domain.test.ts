@@ -87,14 +87,23 @@ describe('the listing keyset cursor (S-FR-INV-10.mine, S-FR-REP-6.listing log)',
   const at = '2026-10-01T15:00:00.000Z';
   const id = 'lcharx000000000000000000';
 
-  it('round-trips the (createdAt, id) keyset of the last row of a page, and is opaque', () => {
-    const cursor = encodeListingCursor(at, id);
-    expect(decodeListingCursor(cursor)).toEqual({ createdAt: at, id });
-    expect(cursor).not.toContain(id);
+  it('round-trips the (createdAt, id) keyset of the last row of a page in each list, and is opaque', () => {
+    const mine = encodeListingCursor('mine', at, id);
+    const log = encodeListingCursor('log', at, id);
+    expect([decodeListingCursor('mine', mine), decodeListingCursor('log', log)]).toEqual([{ createdAt: at, id }, { createdAt: at, id }]);
+    expect([mine, log].filter((c) => c.includes(id) || c.includes(at))).toEqual([]);
+  });
+
+  it('refuses a cursor the other list issued, and an untagged one (decision log Impl-2 #25)', () => {
+    expect([decodeListingCursor('mine', encodeListingCursor('log', at, id)), decodeListingCursor('log', encodeListingCursor('mine', at, id))]).toEqual([null, null]);
+    expect([decodeListingCursor('mine', raw(`${at}|${id}`)), decodeListingCursor('log', raw(`${at}|${id}`))]).toEqual([null, null]);
   });
 
   it('refuses a non-canonical or impossible instant, a malformed id, a missing or extra part, and noise', () => {
-    const refused = [raw(`2026-10-01T15:00:00Z|${id}`), raw(`2026-02-30T15:00:00.000Z|${id}`), raw(`${at}|LCHAR`), raw(`${at}|`), raw(at), raw(`${at}|${id}|x`), 'not-a-cursor', ''];
-    expect(refused.map(decodeListingCursor)).toEqual(refused.map(() => null));
+    const refused = [
+      raw(`mine|2026-10-01T15:00:00Z|${id}`), raw(`mine|2026-02-30T15:00:00.000Z|${id}`), raw(`mine|${at}|LCHAR`), raw(`mine|${at}|`), raw(`mine|${at}`), raw(`mine||${id}`),
+      raw(`mine|${at}|${id}|x`), raw(`MINE|${at}|${id}`), 'not-a-cursor', '',
+    ];
+    expect(refused.map((c) => decodeListingCursor('mine', c))).toEqual(refused.map(() => null));
   });
 });

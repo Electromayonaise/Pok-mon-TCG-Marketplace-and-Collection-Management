@@ -11,7 +11,7 @@ import { InvServiceV2 } from './inv.v2.js';
 import { businessId, buyerId, individualId, seedMarketplace } from '../../../../test-support/solu2/seed-marketplace.js';
 import { useInvSuite } from '../../../../test-support/suites/inv.js';
 
-const { db, inventory, andres } = useInvSuite();
+const { db, inventory, andres, moderationLog } = useInvSuite();
 
 describe('managing listings (S-FR-INV-2, -9, -10)', () => {
   it('an update with no change, or opening a business listing to trade, is refused with zero writes', async () => {
@@ -57,6 +57,20 @@ describe('managing listings (S-FR-INV-2, -9, -10)', () => {
     expect(new Set([...first.items, ...second.items].map((i) => i.listingId)).size).toBe(27);
     expect(first.items[0]?.title).toBe(`Carta ${id('char').slice(0, 6)}`);
     expect(codeOf(await caught(() => inv.listMyListings({ sellerId: id('andres'), cursor: 'bm90LWEtY3Vyc29y' })))).toBe('RequestValidationFailed');
+  });
+
+  it('the owner list refuses a cursor the moderation log issued, and an untagged one (decision log Impl-2 #25)', async () => {
+    await user(db, { id: id('admin'), isAdmin: true });
+    await andres(1);
+    await moderationLog(51);
+    const inv = inventory();
+    const log = await inv.listListingModerationLog({ adminId: id('admin'), cursor: null });
+    expect(log.nextCursor).not.toBeNull();
+    const untagged = Buffer.from(`${T0}|${id('lchar')}`, 'utf8').toString('base64url');
+    for (const cursor of [log.nextCursor, untagged]) {
+      const foreign = await caught(() => inv.listMyListings({ sellerId: id('andres'), cursor }));
+      expect([codeOf(foreign), citedInputs(foreign)]).toEqual(['RequestValidationFailed', { field: 'cursor', issue: 'no es un cursor válido' }]);
+    }
   });
 
   it('a business listing is no trade unit: NotIndividualSellerListing, nothing moves', async () => {

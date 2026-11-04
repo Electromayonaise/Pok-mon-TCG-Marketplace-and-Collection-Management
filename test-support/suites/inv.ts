@@ -6,7 +6,7 @@ import { InvServiceV2 } from '../../src/modules/listings/index.js';
 import type { CatalogFeedSource, FxRateSource } from '../../src/shared-kernel/external.js';
 import type { TransactionRunner } from '../../src/shared-kernel/ports.js';
 import { useTestDatabase } from '../db.js';
-import { fake, id, purchasableListing, wiring } from '../solu2/fixtures.js';
+import { fake, id, purchasableListing, T0, wiring } from '../solu2/fixtures.js';
 
 export function useInvSuite() {
   const db = useTestDatabase();
@@ -19,5 +19,16 @@ export function useInvSuite() {
   }
   const andres = (quantity: number) => purchasableListing(db, { businessId: id('andres'), listingId: id('lchar'), unitId: id('uchar'), entryId: id('char'), quantity });
 
-  return { db, inventory, andres };
+  /** `n` moderation-log rows of andres's listing, two per minute from T0: hide and unhide alternate, every fourth Counterfeit. */
+  async function moderationLog(n: number): Promise<void> {
+    for (let i = 0; i < n; i++) {
+      await db.query(
+        `INSERT INTO "ListingModerationLog" (id, "listingId", action, "reasonCode", note, "adminId", "titleSnapshot", "sellerId", "createdAt")
+         VALUES ($1, $2, $3, $4, NULL, $5, 'Charizard ex', $6, $7)`,
+        [id(`lg${String(i).padStart(2, '0')}`), id('lchar'), i % 2 === 0 ? 'hide' : 'unhide', i % 4 === 0 ? 'Counterfeit' : 'Spam', id('admin'), id('andres'), new Date(Date.parse(T0) + Math.floor(i / 2) * 60_000).toISOString()],
+      );
+    }
+  }
+
+  return { db, inventory, andres, moderationLog };
 }

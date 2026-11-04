@@ -2,14 +2,14 @@
 // Split from inv.v2.test.ts by the Impl-2 test review (HIGH-3); the shared Given steps are in test-support/suites/inv.ts.
 import { describe, expect, it } from 'vitest';
 import { PgTransactionRunner } from '../../../../test-support/db.js';
-import { caught } from '../../../../test-support/errors.js';
+import { caught, citedInputs } from '../../../../test-support/errors.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
-import { id, listing, rows, T0, user } from '../../../../test-support/solu2/fixtures.js';
+import { id, listing, rows, user } from '../../../../test-support/solu2/fixtures.js';
 import { InvServiceV2 } from './inv.v2.js';
 import { singleConnectionPool } from '../../../../test-support/single-connection.js';
 import { useInvSuite } from '../../../../test-support/suites/inv.js';
 
-const { db, inventory, andres } = useInvSuite();
+const { db, inventory, andres, moderationLog } = useInvSuite();
 
 describe('listing moderation (S-FR-REP-5, S-FR-REP-6.listing; Story 13.5, decision log Impl-2 #18)', () => {
   const moderate = (inv: InvServiceV2, o: { hidden: boolean; listingId?: string; reasonCode?: 'Counterfeit' | 'Spam' | 'Other'; note?: string | null; adminId?: string }) =>
@@ -67,13 +67,7 @@ describe('listing moderation (S-FR-REP-5, S-FR-REP-6.listing; Story 13.5, decisi
   it('the log reads 50 per page newest first by (at desc, id), filters by reason, and refuses a cursor it did not issue', async () => {
     await user(db, { id: id('admin'), isAdmin: true });
     await andres(1);
-    for (let i = 0; i < 52; i++) {
-      await db.query(
-        `INSERT INTO "ListingModerationLog" (id, "listingId", action, "reasonCode", note, "adminId", "titleSnapshot", "sellerId", "createdAt")
-         VALUES ($1, $2, $3, $4, NULL, $5, 'Charizard ex', $6, $7)`,
-        [id(`lg${String(i).padStart(2, '0')}`), id('lchar'), i % 2 === 0 ? 'hide' : 'unhide', i % 4 === 0 ? 'Counterfeit' : 'Spam', id('admin'), id('andres'), new Date(Date.parse(T0) + Math.floor(i / 2) * 60_000).toISOString()],
-      );
-    }
+    await moderationLog(52);
     const inv = inventory();
     const first = await inv.listListingModerationLog({ adminId: id('admin'), cursor: null });
     const second = await inv.listListingModerationLog({ adminId: id('admin'), cursor: first.nextCursor });
@@ -85,5 +79,16 @@ describe('listing moderation (S-FR-REP-5, S-FR-REP-6.listing; Story 13.5, decisi
     expect((await inv.listListingModerationLog({ adminId: id('admin'), cursor: null, reasonCode: 'Counterfeit' })).rows).toHaveLength(13);
     expect(codeOf(await caught(() => inv.listListingModerationLog({ adminId: id('admin'), cursor: 'bm90LWEtY3Vyc29y' })))).toBe('RequestValidationFailed');
     expect(codeOf(await caught(() => inv.listListingModerationLog({ adminId: id('andres'), cursor: null })))).toBe('AdminOnly');
+  });
+
+  it('the log refuses a cursor the owner list issued (decision log Impl-2 #25)', async () => {
+    await user(db, { id: id('admin'), isAdmin: true });
+    await andres(1);
+    for (let k = 0; k < 25; k++) await listing(db, { id: id(`l${String(k).padStart(2, '0')}`), sellerId: id('andres'), unitId: id('uchar') });
+    const inv = inventory();
+    const mine = await inv.listMyListings({ sellerId: id('andres'), cursor: null });
+    expect(mine.nextCursor).not.toBeNull();
+    const foreign = await caught(() => inv.listListingModerationLog({ adminId: id('admin'), cursor: mine.nextCursor }));
+    expect([codeOf(foreign), citedInputs(foreign)]).toEqual(['RequestValidationFailed', { field: 'cursor', issue: 'no es un cursor de esta lista' }]);
   });
 });
