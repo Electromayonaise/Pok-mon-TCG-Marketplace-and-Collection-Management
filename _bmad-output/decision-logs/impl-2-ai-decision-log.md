@@ -430,3 +430,24 @@
 - **Evidence:** `evidence/impl2/30-test-remediation.log`: `test:ci` exit 0 (15.5 min), `solu2-atdd` 373 green, `solu2-nfr` 30 green, trace gate PASS, 97.48 % branches; `npx playwright test` 6 passed.
 - **Artifact changed:** `test-review.md`, `vitest.config.ts`, `test-support/` (`http-app.ts`, `suites/`, `fixtures.ts`), 23 split test files, 48 new unit tests, `src/modules/*/domain/` (`isBinderSort`, `isExactOrder`, `readMarkAdvances`), `epics.md`, `traceability-matrix.md`, `deferred-work.md`.
 - **Decided by:** Mateo.
+
+
+### 26. The listing cursor is tagged with its list; each list keeps its own refusal text (Implementation + Testing)
+
+- **Phase:** C (close), Flow A fix, in a subagent (`dc47a0d` red, `58aa73e` green); then a menu.
+- **Persona/Skill:** `bmad-dev-story` (Amelia).
+- **Prompt (summary):** tag INV's keyset cursor with its list, the way REP does. A cursor from the other list, or an untagged one, is refused with `RequestValidationFailed` on `cursor`. The red tests are committed first (decision #25).
+- **AI output (summary):**
+  - `encodeListingCursor` / `decodeListingCursor(tag, …)` take a list tag, `'mine' | 'log'`. `listMyListings` and `listListingModerationLog` each decode only their own tag.
+  - Three domain unit cases, plus one integration case per list that uses a real cursor issued by the other list (and an untagged one for the owner list).
+  - **Red, for the right reason:** 3 failed and 31 passed. The integration calls returned a page instead of an error, so each list accepted the other's cursor. The round-trip failed because the old decoder took no tag.
+  - **Agent self-correction:** the domain refusal tests passed while red, but only because the old one-argument decoder refuses anything carrying a tag. They only mean something once the fixed decoder exists. The agent said so in the evidence log instead of presenting them as red.
+- **Agent defaults:**
+  - The cursor is base64url of `tag|createdAt|id`, REP's idiom.
+  - Old untagged cursors are refused with no fallback; the client starts again from page 1.
+  - No new test ids (the cases sit beside the existing unit and integration tests).
+  - The 52-row moderation-log seeding became the shared `moderationLog(n)` suite helper.
+- **Human decision (menu):** **(recommended)** keep each list's existing refusal text: "no es un cursor válido" on the owner list and "no es un cursor de esta lista" on the moderation log. Both texts predate the fix, the code is `RequestValidationFailed` either way, and unifying them is a microcopy change with no functional gain. The alternative was unifying both to "de esta lista". ACCEPT.
+- **Evidence:** `evidence/impl2/31-cursor-list-tag.log`, red and green. `test:ci` exit 0: 729 unit tests (97.49 % branches; `listings/domain` 95.36 %), trace gate PASS, `solu2-atdd` 373 green, `solu2-nfr` 30 green. Playwright was not rerun because the UI never builds a cursor.
+- **Artifact changed:** `src/modules/listings/domain/inv.ts`, `application/inv.v2.ts`, `inv-domain.test.ts`, `inv.v2-manage.test.ts`, `inv.v2-moderation.test.ts`, `test-support/suites/inv.ts`, and `deferred-work.md` (the entry is struck through, kept, and cites this decision).
+- **Decided by:** Mateo.
