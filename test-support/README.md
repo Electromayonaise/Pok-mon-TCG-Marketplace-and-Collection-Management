@@ -32,6 +32,8 @@ Connection settings come from `TEZG_PG_*` (see `.env.example`). The defaults mat
 | concurrency | `concurrency.ts` | `race(n, fn)`: N calls released by one barrier, every outcome kept |
 | errors | `errors.ts` | `caught`, `httpOf`, `citedInputs`: extraction only; every `expect` stays in the test body |
 | wiring | `wiring.ts` | Fresh clock, ids and outbox per test |
+| composed app | `http-app.ts` | `useComposedApp()`: the production composition over HTTP for `src/server/composition-*.test.ts`, composed afresh before each test with the virtual clock back at T0 and an empty object store (test review HIGH-8) |
+| suites | `suites/*.ts` | `use<Module>Suite()`: the Given steps several split test files of one module share (`ver`, `inv`, `com`, `cat`, `rep`; test review HIGH-1 to HIGH-7) |
 
 ## Best practices (from the TEA knowledge base)
 

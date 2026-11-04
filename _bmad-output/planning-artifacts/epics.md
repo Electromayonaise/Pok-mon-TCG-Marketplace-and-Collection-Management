@@ -1484,7 +1484,7 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Binding invariants:** AD-REP-2 — Aggregates from the same snapshot as the list (One statement; `REPEATABLE READ` profile read); also cited by its clauses: AD-12
 - **Files:** `src/modules/reviews/application/rep.v2.ts` (`RepServiceV2.getAggregates`), `src/modules/reviews/ports/rep.v2.ts` (`RepRepository`), `src/modules/reviews/domain/rep.ts`, `src/modules/reviews/infra/pg.ts`
 - **Schema/DTO:** tables `"Review"`; DTOs `GetAggregatesRequest` → `GetAggregatesResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[REP-1.MEC]`, `[REP-3.Q1]`, `[REP-3.I1]`, `[REP-3.MEC]`, `[REP-3.P1]`; `_bmad-output/test-artifacts/nfr/rep2_latency.test.ts` › `[NFR-REP-2.aggregates]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[REP-1.MEC]`; `_bmad-output/test-artifacts/atdd/rep_reads.test.ts` › `[REP-3.Q1]`, `[REP-3.I1]`, `[REP-3.MEC]`, `[REP-3.P1]`; `_bmad-output/test-artifacts/nfr/rep2_latency.test.ts` › `[NFR-REP-2.aggregates]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** ratings 5, 4 and 4 for one seller, and one hidden 1-star. **When:** aggregates are read. **Then:** 4.3 (43 tenths, BigInt half-up), in input order, with the hidden review neither counted nor summed; a seller with no review reads `null`, never 0.0.
   - **Scenario (failure) — Given:** an order Paid but not closed, 100 review attempts; a hide racing a new post on one seller, 100 times; duplicate seller ids. **When:** the reviews, the race and the read run. **Then:** `NotVerifiedPurchaser` citing `latestState: 'Paid'` every time, with zero rows; after each race the aggregate counts exactly the visible committed set; `RequestValidationFailed`.
@@ -1516,7 +1516,7 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Binding invariants:** also cited by its clauses: AD-12, AD-REP-2, AD-REP-3
 - **Files:** `src/modules/listings/application/inv.v2.ts` (`InvServiceV2.setListingHidden`, `InvServiceV2.listListingModerationLog`), `src/modules/listings/ports/inv.v2.ts` (`InvRepository`), `src/modules/listings/domain/inv.ts`, `src/modules/listings/infra/pg.ts`, `src/modules/reviews/application/rep.v2.ts` (`RepServiceV2.searchReviews`, `RepServiceV2.listReviewModerationLog`, `RepServiceV2.getProfile`), `src/modules/reviews/ports/rep.v2.ts` (`RepRepository`), `src/modules/reviews/domain/rep.ts`, `src/modules/reviews/infra/pg.ts`
 - **Schema/DTO:** tables `"ListingModerationLog"`, `"Review"`; DTOs `SetListingHiddenRequest` → `SetListingHiddenResponse`, `ListListingModerationLogRequest` → `ListListingModerationLogResponse`, `SearchReviewsRequest` → `SearchReviewsResponse`, `ListReviewModerationLogRequest` → `ListReviewModerationLogResponse`, `GetProfileRequest` → `GetProfileResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.h]`; `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[S-FR-REP-6.h]`, `[S-FR-REP-7.h]`, `[S-FR-REP-7.C1]`; `_bmad-output/test-artifacts/nfr/rep2_latency.test.ts` › `[NFR-REP-2.profile]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.h]`; `_bmad-output/test-artifacts/atdd/rep_reads.test.ts` › `[S-FR-REP-6.h]`, `[S-FR-REP-7.h]`, `[S-FR-REP-7.C1]`; `_bmad-output/test-artifacts/nfr/rep2_latency.test.ts` › `[NFR-REP-2.profile]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a seller with a visible and a hidden review, and a listing to moderate. **When:** a buyer opens the profile, and an admin hides the listing and reads the log. **Then:** the profile lists and counts only the visible review; the listing leaves discovery with a title snapshot logged; the log reads newest first by `(at desc, id)`.
   - **Scenario (failure) — Given:** the profile read and a hide happen around the same instant. **When:** the profile is read. **Then:** the aggregate and the first page come from one snapshot, so they never disagree.
@@ -1532,7 +1532,7 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Binding invariants:** also cited by its clauses: AD-12, AD-REP-2, AD-REP-3
 - **Files:** —
 - **Schema/DTO:** tables `"ListingModerationLog"`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.f]`, `[S-FR-REP-5.C1]`; `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[S-FR-REP-6.f]`, `[S-FR-REP-7.f]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.f]`, `[S-FR-REP-5.C1]`; `_bmad-output/test-artifacts/atdd/rep_reads.test.ts` › `[S-FR-REP-6.f]`, `[S-FR-REP-7.f]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a listing hidden once, and a known seller's profile. **When:** an admin hides the listing, and a buyer opens the profile. **Then:** one hide with one log row, and the profile: the contrast cases.
   - **Scenario (failure) — Given:** a listing hidden twice; a search for "100%"; a profile for an unknown user. **When:** the command or read runs. **Then:** one log row and an explained no-op; only the literal "100%" text matches; `TargetNotFound` (404).

@@ -20,7 +20,6 @@ function setup(o: { kind?: 'business' | 'individual' } = {}) {
   return { w, com: new ComServiceV2({ ...w, identity }) };
 }
 const account = async () => (await rows<{ balanceCop: string; ledgerSeq: string; state: string }>(db, 'CommissionAccount', '"businessId" = $1', [id('andres')]))[0];
-const ledger = (where = 'TRUE') => rows<Record<string, unknown>>(db, 'CommissionLedgerEntry', where);
 const outbox = (type: string) => rows(db, 'OutboxEvent', 'type = $1', [type]);
 async function shop(balance: number, seq = 0): Promise<void> {
   await business(db, id('andres'), 'Approved');

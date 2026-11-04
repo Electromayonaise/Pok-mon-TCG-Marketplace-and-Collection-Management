@@ -2,7 +2,7 @@
 // S-9; contracts.md §15 S-SYS.sweep). Flow A, ATDD-first (decision log Impl-2 #11): written before the
 // route existed; every test fails on NotImplementedError until Story 1.6 is done. The app is composed as
 // the route composes it (`compose().jobs`), on the test database and the virtual clock.
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { compose } from '../../../src/server/composition.js';
 import { VirtualClock } from '../../../test-support/clock.js';
 import { race } from '../../../test-support/concurrency.js';
@@ -22,6 +22,10 @@ beforeAll(() => {
     pool: db.pool, clock, sessions: { userIdOf: async () => null }, handlers: { commission: ok, collections: ok },
     fx: new FixtureFxRateSource([{ valor: '4130.00', validFrom: '2026-10-01', validTo: '2026-10-01' }]), jobsSecret: SECRET,
   });
+});
+// The virtual clock is shared by the file and two tests advance it: each test starts at T0 (test review HIGH-8).
+beforeEach(() => {
+  clock.set(Date.parse(T0));
 });
 
 /** `POST /api/jobs/<job>?trigger=…` with the bearer, or without any `Authorization` header when `bearer` is null. */

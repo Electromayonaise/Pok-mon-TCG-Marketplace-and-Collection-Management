@@ -274,7 +274,7 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
 
 /**
  * The procedures `resolvers` wires, read without building a service: each entry is a closure that touches its service
- * only when called. Since Story 13.5 it is the whole registry (composition.test.ts proves it).
+ * only when called. Since Story 13.5 it is the whole registry (composition-access.test.ts proves it).
  */
 export const WIRED_PROCEDURES: readonly string[] = Object.keys(resolvers({} as Parameters<typeof resolvers>[0]));
 
