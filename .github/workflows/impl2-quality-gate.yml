@@ -7,9 +7,10 @@
 #           NFR benchmark green for a `done` story and red for the right reason otherwise.
 #   e2e   — `npx playwright test` against a production build: the Page Object journeys, with
 #           `trace: 'on-first-retry'`. The HTML report and every trace.zip are uploaded, pass or fail.
-#   nfr-k6 — `npm run nfr:k6` (Story 13.5, decision log Impl-2 #18): the PRD §3 seed in `tezg_k6`, the production
-#           build on port 3200, and grafana/k6 in Docker on the host network: 50 virtual users for a minute on
-#           `reputation.profile` and `catalog.browse`, failing on p95/p99, the error rate or any 5xx. The summary
+#   nfr-k6 — `npm run nfr:k6` (Story 13.5, decision log Impl-2 #18 and #21): the PRD §3 seed in `tezg_k6`, the
+#           production build on port 3200, and grafana/k6 in Docker on the host network: a fixed arrival rate of
+#           100 requests a second for 60 s on each of `reputation.profile` and `catalog.browse` (at most 50 VUs
+#           each), failing on p95/p99, the error rate, any 5xx or more than 1 % dropped iterations. The summary
 #           JSON is uploaded, pass or fail.
 #   release — the PASS / FAIL decision: it passes only when every job above passed.
 # The Solu-2 gate stays as manual (workflow_dispatch) evidence.
@@ -128,7 +129,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - name: k6 burst on the public profile and catalog reads (thresholds of test-design.md §7.4)
+      - name: k6 at a fixed arrival rate on the public profile and catalog reads (thresholds of test-design.md §7.4)
         run: npm run nfr:k6
       - name: Upload the k6 summary
         if: always()

@@ -1,9 +1,11 @@
-// `npm run nfr:k6` — the k6 load run of Flow D (Story 13.5, decision log Impl-2 #18; test-design.md §7.4). One command,
-// locally and in CI: it starts the Compose Postgres (skipped in CI, which has a service container), recreates and
-// migrates the dedicated `tezg_k6` database, seeds it with the PRD §3 marketplace through the `k6-seed` Vitest project
-// (whose one test also proves the seed's counts), builds the app (skipped with E2E_SKIP_BUILD) and serves the production
-// build on port 3200, waits for Next's "Ready" line, runs grafana/k6 in Docker against it, stops the server and exits
-// with k6's code, which is non-zero when a threshold of _bmad-output/test-artifacts/nfr/k6/reputation-profile.js fails.
+// `npm run nfr:k6` — the k6 load run of Flow D (Story 13.5, decision log Impl-2 #18 and #21; test-design.md §7.4).
+// One command, locally and in CI: it starts the Compose Postgres (skipped in CI, which has a service container),
+// recreates and migrates the dedicated `tezg_k6` database, seeds it with the PRD §3 marketplace through the `k6-seed`
+// Vitest project (whose one test also proves the seed's counts), builds the app (skipped with E2E_SKIP_BUILD) and
+// serves the production build on port 3200, waits for Next's "Ready" line, runs grafana/k6 in Docker against it (a
+// fixed arrival rate per endpoint, decision log Impl-2 #21), stops the server and exits with k6's code, which is
+// non-zero when a threshold of _bmad-output/test-artifacts/nfr/k6/reputation-profile.js fails (latency, errors, 5xx
+// or dropped iterations).
 // Usage: npm run nfr:k6
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
