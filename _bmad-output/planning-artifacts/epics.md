@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 407 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 409 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -1160,15 +1160,15 @@ Let buyers contact individual sellers through a generated WhatsApp handoff, and 
 - **Description:** As Camila, I want my inbox with unread counts, read marks and mute, so that I see what is new without exposing my reading to the business.
 - **Contracts:** `S-FR-MSG-7.inbox` listInbox, `S-FR-MSG-7.thread` getThread, `S-FR-MSG-7.read` markRead, `S-FR-MSG-8` setMuted
 - **Depends on:** Story 9.2
-- **Traceability:** FR-MSG-7, FR-MSG-8 · UI 12.2
+- **Traceability:** FR-MSG-7, FR-MSG-8 · Risk R-26 (P0) · UI 12.2
 - **Binding invariants:** AD-MSG-3 — Read state monotonic (`WHERE "lastReadSeq" < :seq`)
 - **Files:** `src/modules/messaging/application/msg.v2.ts` (`MsgServiceV2.listInbox`, `MsgServiceV2.getThread`, `MsgServiceV2.markRead`, `MsgServiceV2.setMuted`), `src/modules/messaging/ports/msg.v2.ts` (`MsgRepository`), `src/modules/messaging/domain/msg.ts`, `src/modules/messaging/infra/pg.ts`
 - **Schema/DTO:** DTOs `ListInboxRequest` → `ListInboxResponse`, `GetThreadRequest` → `GetThreadResponse`, `MarkReadRequest` → `MarkReadResponse`, `SetMutedRequest` → `SetMutedResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/msg_contracts.test.ts` › `[S-FR-MSG-7.h]`, `[S-FR-MSG-7.f]`, `[S-FR-MSG-8.h]`, `[S-FR-MSG-8.f]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/msg_contracts.test.ts` › `[S-FR-MSG-7.h]`, `[S-FR-MSG-7.f]`, `[S-FR-MSG-8.h]`, `[S-FR-MSG-8.f]`; `_bmad-output/test-artifacts/atdd/msg_inbox.test.ts` › `[S-FR-MSG-7.C1]`, `[S-FR-MSG-7.f2]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Camila has unread messages from Andrés. **When:** she reads the thread and mutes another conversation. **Then:** unread drops to 0 without exposing Andrés's read state, and the muted conversation leaves her total unread count.
   - **Scenario (failure) — Given:** a stale tab marks an older seq as read, and a business mutes. **When:** the commands run. **Then:** `lastReadSeq` stays unchanged, and the business gets an explained no-op with zero writes (R-11).
-- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ## Epic 10: Trade offer negotiation (TRD)
 

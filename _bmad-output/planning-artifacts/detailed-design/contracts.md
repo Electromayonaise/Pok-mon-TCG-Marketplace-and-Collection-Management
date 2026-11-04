@@ -1747,7 +1747,8 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
     - the other side's `lastReadSeq` is never returned.
   - *Errors:* `ConversationNotVisibleToCaller` (HTTP 403, messaging).
   - *I:* AD-MSG-3.
-  - *Tests:* `[S-FR-MSG-7.h]` reading a thread lowers unread to 0; `[S-FR-MSG-7.f]` `markRead` with an older `seq` from a stale tab leaves `lastReadSeq` unchanged.
+  - *Pages (decision log Impl-2 #15):* the inbox returns 20 conversations per page by `(lastMessageAt desc, id)`, with an opaque keyset cursor; a cursor this service did not issue is `RequestValidationFailed`. `thread` returns at most 100 messages with `seq > afterSeq` per call, ascending.
+  - *Tests:* `[S-FR-MSG-7.h]` reading a thread lowers unread to 0; `[S-FR-MSG-7.f]` `markRead` with an older `seq` from a stale tab leaves `lastReadSeq` unchanged; `[S-FR-MSG-7.C1]` 50 concurrent `markRead` calls with random seqs, 20 rounds: `lastReadSeq` ends at the highest seq sent, clamped to `lastSeq`, and never decreases; `[S-FR-MSG-7.f2]` a non-participant never sees the conversation in its inbox, and `thread`, `markRead` and `setMuted` are `ConversationNotVisibleToCaller` with zero writes (decision log Impl-2 #15).
 - **S-FR-MSG-8 — `messaging.setMuted({ conversationId, muted })`.** Inbound Port.
   - *P:* a participant.
   - *Q:* for the buyer, `mutedAt = now` or `null`, which removes the conversation from the unread total. For a business, an explained no-op: `allowedWithNotice`, zero writes (C-GAP-4).

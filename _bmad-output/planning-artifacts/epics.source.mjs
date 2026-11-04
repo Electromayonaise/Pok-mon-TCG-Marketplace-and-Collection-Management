@@ -476,7 +476,8 @@ export default {
         {
           title: 'Read the inbox, mark threads read and mute', kind: 'Supporting',
           as: 'As Camila, I want my inbox with unread counts, read marks and mute, so that I see what is new without exposing my reading to the business.',
-          ops: ['S-FR-MSG-7.inbox', 'S-FR-MSG-7.thread', 'S-FR-MSG-7.read', 'S-FR-MSG-8'], tests: ['S-FR-MSG-7.h', 'S-FR-MSG-7.f', 'S-FR-MSG-8.h', 'S-FR-MSG-8.f'], depends: ['9.2'],
+          // Impl-2 (decision log Impl-2 #15): Flow A + D adds the stale-tab hammer and the non-participant proof.
+          ops: ['S-FR-MSG-7.inbox', 'S-FR-MSG-7.thread', 'S-FR-MSG-7.read', 'S-FR-MSG-8'], tests: ['S-FR-MSG-7.h', 'S-FR-MSG-7.f', 'S-FR-MSG-8.h', 'S-FR-MSG-8.f', 'S-FR-MSG-7.C1', 'S-FR-MSG-7.f2'], depends: ['9.2'],
           happy: ['Camila has unread messages from Andrés.', 'she reads the thread and mutes another conversation.', 'unread drops to 0 without exposing Andrés\'s read state, and the muted conversation leaves her total unread count.'],
           failure: ['a stale tab marks an older seq as read, and a business mutes.', 'the commands run.', '`lastReadSeq` stays unchanged, and the business gets an explained no-op with zero writes (R-11).'],
         },

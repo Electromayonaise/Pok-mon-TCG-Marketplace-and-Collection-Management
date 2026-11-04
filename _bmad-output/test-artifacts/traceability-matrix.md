@@ -18,15 +18,15 @@
 |---|---|
 | FRs traced to a contract clause and a test | 96 / 96 |
 | ADs of §14 with a test that turns red on violation | 61 / 61 |
-| P0 risks with a red test | 18 / 18 |
-| P0 risks linked to a story and a red test (final trace) | 18 / 18 |
+| P0 risks with a red test | 19 / 19 |
+| P0 risks linked to a story and a red test (final trace) | 19 / 19 |
 | §14 ADs linked to a story and a red test | 61 / 61 |
 | FRs linked to a story | 96 / 96 |
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test today | 52 / 56 |
 | NFR evidence status | Green — ATDD: 35; Green — benchmark: 15; Green — gate: 8; Deferred — launch: 3; Planned — story DoD: 3; Red — ATDD: 2 |
-| Contract clauses / test ids | 114 / 407 (395 red, 12 green) |
+| Contract clauses / test ids | 114 / 409 (397 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -108,8 +108,8 @@
 | FR-MSG-4 | In-app messaging eligibility (CAP-18) | MSG-3 | AD-IDN-1, AD-MSG-2 | 3 — `MSG-3.MEC`, `MSG-3.Q1`, `MSG-3.QF1` | 9.1 (done) | red |
 | FR-MSG-5 | Send a message (CAP-18) | MSG-1 | AD-SYS-8, AD-MSG-2, AD-MSG-3 | 7 — `MSG-1.I3`, `MSG-1.P3`, `MSG-1.P4` +4 | 9.2 (done), 9.4 (done) | red |
 | FR-MSG-6 | Verification changes between compose and send (CAP-18) | MSG-1, MSG-3 | AD-SYS-8, AD-MSG-2, AD-MSG-3, AD-IDN-1 | 10 — `MSG-1.I3`, `MSG-1.P3`, `MSG-1.P4` +7 | 9.1 (done), 9.2 (done), 9.4 (done) | red |
-| FR-MSG-7 | Inbox and read state (CAP-18) | S-FR-MSG-7 | AD-MSG-3 | 2 — `S-FR-MSG-7.f`, `S-FR-MSG-7.h` | 9.6 (backlog) | red |
-| FR-MSG-8 | Mute a conversation (buyer side) (CAP-18) | S-FR-MSG-8 | AD-MSG-3 | 2 — `S-FR-MSG-8.f`, `S-FR-MSG-8.h` | 9.6 (backlog) | red |
+| FR-MSG-7 | Inbox and read state (CAP-18) | S-FR-MSG-7 | AD-MSG-3 | 4 — `S-FR-MSG-7.C1`, `S-FR-MSG-7.f`, `S-FR-MSG-7.f2` +1 | 9.6 (in-progress) | red |
+| FR-MSG-8 | Mute a conversation (buyer side) (CAP-18) | S-FR-MSG-8 | AD-MSG-3 | 2 — `S-FR-MSG-8.f`, `S-FR-MSG-8.h` | 9.6 (in-progress) | red |
 | FR-COL-1 | Named collections (CAP-11) | COL-3, S-FR-COL-1, S-FR-COL-1.list | AD-SYS-1, AD-COL-1, AD-7 | 11 — `COL-3.I2`, `COL-3.P2`, `COL-3.P3` +8 | 11.1 (done), 11.2 (done), 11.4 (done) | red |
 | FR-COL-2 | Add an entry manually (CAP-8, CAP-12) | COL-3 | AD-SYS-1, AD-COL-1, AD-7 | 7 — `COL-3.I2`, `COL-3.P2`, `COL-3.P3` +4 | 11.2 (done), 11.4 (done) | red |
 | FR-COL-3 | Add an entry by link (CAP-24) | S-FR-COL-3 | AD-COL-1, AD-7, AD-8 | 2 — `S-FR-COL-3.f`, `S-FR-COL-3.h` | 11.5 (backlog), 11.6 (backlog) | red |
@@ -249,7 +249,7 @@
 | AD-TRD-3 | Completion computed; cancel releases once | `WHERE status='Accepted' AND no confirmation` | `TRD-3.I1` | 10.5 (done) | red |
 | AD-MSG-1 | Contact messages deterministic and rate-limited | Pure composer; fixed-order advisory locks | `MSG-2.I1`, `MSG-2.MEC` | 9.3 (done) | red |
 | AD-MSG-2 | One conversation per pair; idempotent send | Unique keys; `lastSeq` allocation | `MSG-1.I3` | 9.2 (done) | red |
-| AD-MSG-3 | Read state monotonic | `WHERE "lastReadSeq" < :seq` | `S-FR-MSG-7.f` | 9.6 (backlog) | red |
+| AD-MSG-3 | Read state monotonic | `WHERE "lastReadSeq" < :seq` | `S-FR-MSG-7.f` | 9.6 (in-progress) | red |
 | AD-COL-1 | Tagged-union entries; collections capped under an owner lock | CHECKs; `col:owner` lock | `COL-3.I2`, `S-FR-COL-1.f` | 11.1 (done), 11.2 (done) | red |
 | AD-COL-2 | One prompt per closed order; entries once | `UNIQUE orderId`; `WHERE status='Pending'` | `COL-1.MEC` | 11.3 (done) | red |
 | AD-VAL-1 | Valuation is a pure BigInt function | Pure function; brand types | `VAL-1.I1`, `VAL-1.MEC` | 12.1 (done), 12.3 (done) | red |
@@ -286,6 +286,7 @@
 | R-21 A job runs without the `JOBS_SECRET` bearer, or two runs of one job… | P0 | SYS | Integration (race) | `S-SYS.jobs.C1` | 1.6 (done) | red |
 | R-22 The 11th failed sign-in in 15 min is not refused, a sign-up burst f… | P0 | IDN | Integration | `S-FR-IDN-7.signin.throttle`, `S-FR-IDN-7.signup.throttle`, `S-FR-IDN-7.signin.unknown` | 2.6 (done) | red |
 | R-23 Reconcile reports a false discrepancy while deductions commit, writ… | P0 | COM | Integration (race) + NFR | `COM-3.C1`, `COM-3.C2`, `NFR-COM-2.drift`, `COM-3.Q2` | 8.5 (done) | red |
+| R-26 Concurrent or stale `markRead` calls lower `lastReadSeq`, a reader … | P0 | MSG | Integration (race) | `S-FR-MSG-7.f`, `S-FR-MSG-7.C1`, `S-FR-MSG-7.f2` | 9.6 (in-progress) | red |
 
 ## 6. Contract clauses
 
@@ -357,7 +358,7 @@
 | S-FR-TRD-3 | supporting | FR-TRD-3 | AD-TRD-1 | 3 | red |
 | S-FR-TRD-7 | supporting | FR-TRD-7 | AD-TRD-3 | 2 | red |
 | S-FR-TRD-9 | supporting | FR-TRD-9 | AD-TRD-1, AD-SYS-6 | 2 | red |
-| S-FR-MSG-7 | supporting | FR-MSG-7 | AD-MSG-3 | 2 | red |
+| S-FR-MSG-7 | supporting | FR-MSG-7 | AD-MSG-3 | 4 | red |
 | S-FR-MSG-8 | supporting | FR-MSG-8 | AD-MSG-3 | 2 | red |
 | S-FR-COL-1 | supporting | FR-COL-1 | AD-COL-1 | 4 | red |
 | S-FR-COL-3 | supporting | FR-COL-3 | AD-COL-1, AD-7, AD-8 | 2 | red |
