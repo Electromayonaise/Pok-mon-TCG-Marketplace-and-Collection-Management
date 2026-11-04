@@ -477,3 +477,19 @@
 - **Evidence:** link check 117 / 0; `gate:trace:solu2` PASS; `gate:epics:solu2` 13 epics, 71 stories.
 - **Artifact changed:** `walkthrough-impl2.md`, `docs/impl-2/README.md`, `docs/README.md`, `README.md`, `_bmad-output/README.md`, `project-context.md` (the subagent's commits); this log's index and #8 heading, `sprint-status.yaml` (71 stories, `last_updated`), `test-review.md` (Recommendation 1 fixed by #26), and walkthrough §16 and README row 6 (the #8 authorship).
 - **Decided by:** Mateo.
+
+
+### 28. The first CI run fails on a connection limit the local stack never hit; the CI Postgres is set to match docker-compose.yml (Testing + CI)
+
+- **Phase:** C (close), CI, after the push of #27.
+- **Persona/Skill:** `bmad-testarch-ci` (Murat), main agent.
+- **AI output (summary):**
+  - **Run 1** ([41901553179](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41901553179), `ef77c50`): `e2e` and `nfr-k6` passed, `gate` failed, and `release` printed `Quality gate: FAIL`.
+  - **Reproduction:** a clean clone, run in `node:22` on Linux, passed every step of `test:ci`, including the red gate against a Postgres at the default 100 connections. The failing line was only in the job log. GitHub serves job logs to signed-in users, so the agent asked how to read it.
+  - **Cause, from the log:** `[S-FR-MSG-7.C1]` (50 concurrent `markRead`, done story) got `sorry, too many clients already`. The CI service runs Postgres at its default `max_connections = 100`. `solu2-atdd` runs 3 files at once, with pools of up to 60 connections each. The `vitest.config.ts` comment relied on the 200 of `docker-compose.yml`, which CI never had. The red gate did its job: a done story's test must pass, and it did not on CI.
+- **Human decisions (menus):**
+  - **Reading the log:** **(recommended)** use the stored git credential once, in memory, for the read-only job-log endpoint of Mateo's own repository, without printing or saving it. The alternatives were Mateo pasting the log, or re-running as a possible flake. ACCEPT.
+  - **The fix:** **(recommended)** make CI match the dev stack. In the `gate` and `nfr-k6` jobs, a step runs `ALTER SYSTEM SET max_connections = 200`, restarts the service container, waits for `pg_isready` under a bounded `timeout` (no sleep), and asserts `SHOW max_connections` = 200. The tests are unchanged. The alternatives were running ATDD one file at a time (several minutes slower), or shrinking the pools to 30, which would queue the 50-way races instead of running them truly concurrently. ACCEPT.
+- **Evidence:** `evidence/impl2/32-ci-run.log`, with the excerpt of run 1 and the cause; run 2 is recorded in #29.
+- **Artifact changed:** `.github/workflows/impl2-quality-gate.yml`, the comment in `vitest.config.ts`, `evidence/impl2/32-ci-run.log`.
+- **Decided by:** Mateo.

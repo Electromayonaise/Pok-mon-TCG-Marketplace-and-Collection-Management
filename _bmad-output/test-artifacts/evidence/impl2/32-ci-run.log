@@ -1,0 +1,17 @@
+# Impl-2 CI, run 1: https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41901553179 (commit ef77c50)
+# jobs: gate failure, e2e success, nfr-k6 success, release failure (Quality gate: FAIL)
+# excerpt of the gate job log (job 126825012434), step 'npm test without db:up':
+2026-11-04T19:57:37.8162762Z    Start at  19:57:23
+2026-11-04T19:57:37.8166991Z    Duration  14.74s (tests 94%, transform 4%, import 1%)
+2026-11-04T19:57:37.8178846Z 
+2026-11-04T19:57:37.9473911Z 
+2026-11-04T19:57:37.9474687Z > tezg@0.0.0 gate:atdd-red:impl1
+2026-11-04T19:57:37.9476107Z > node scripts/check-atdd-red.mjs solu2-atdd 352 --status _bmad-output/implementation-artifacts/sprint-status.yaml --epics _bmad-output/planning-artifacts/epics.md
+2026-11-04T19:57:37.9476937Z 
+2026-11-04T19:58:27.2243812Z solu2-atdd: 373 tests in 25 files; 0 red for the right reason; 372 green for done stories (419 contracts or test ids done); 1 not as expected
+2026-11-04T19:58:27.2247448Z   ✗ atdd/msg_inbox.test.ts › [S-FR-MSG-7.C1] 50 concurrent markRead calls with random seqs, 20 rounds: lastReadSeq ends at the highest seq sent, clamped to lastSeq, and never decreases: the story binding S-FR-MSG-7.C1 is done, so this test must pass — error: sorry, too many clients already
+2026-11-04T19:58:27.2547219Z ##[error]Process completed with exit code 1.
+
+# cause: the CI Postgres service runs at the default max_connections = 100; solu2-atdd runs 3 files at once with pools of up to 60 (vitest.config.ts).
+# local reproduction attempts (a clean clone in node:22 on Linux): every step of test:ci passed, also against a 100-connection Postgres, where the files happened not to overlap.
+# fix (decision log #28): the gate and nfr-k6 jobs set max_connections = 200, as docker-compose.yml, and restart the service.

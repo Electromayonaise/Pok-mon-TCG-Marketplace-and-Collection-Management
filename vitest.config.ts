@@ -22,7 +22,7 @@ export default defineConfig({
           name: 'solu2-atdd',
           include: ['_bmad-output/test-artifacts/atdd/**/*.test.ts'],
           // Each file's pool holds up to 60 connections for the 50-way races (test-support/db.ts), and Postgres allows 200
-          // (docker-compose.yml): 3 files at a time stay under it on any machine, as on a 4-core CI runner (Story 13.5).
+          // (docker-compose.yml, and the CI service set to match, decision log Impl-2 #28): 3 files at a time stay under it on any machine, as on a 4-core CI runner (Story 13.5).
           maxWorkers: 3,
           globalSetup: ['test-support/global-setup.ts'],
           setupFiles: ['test-support/solu2/network-guard.ts'],

@@ -55,6 +55,14 @@ jobs:
           cache: npm
       - name: Install (postinstall also installs the isolated tools/lint toolchain)
         run: npm ci
+      - name: Postgres allows 200 connections, as docker-compose.yml (decision log Impl-2 #28)
+        # A service container takes no server flags, so the setting is written and the container restarted.
+        # Each ATDD file's pool holds up to 60 connections and 3 files run at once (vitest.config.ts).
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U tezg -d tezg -c "ALTER SYSTEM SET max_connections = 200"
+          docker restart ${{ job.services.postgres.id }}
+          timeout 60 bash -c 'until docker exec ${{ job.services.postgres.id }} pg_isready -U tezg -d tezg; do :; done'
+          test "$(docker exec ${{ job.services.postgres.id }} psql -U tezg -d tezg -tAc 'SHOW max_connections')" = 200
       - name: npm test without db:up
         run: npm run test:ci
       - name: The Solu-2 workflow and its docs mirror are identical
@@ -129,6 +137,14 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Postgres allows 200 connections, as docker-compose.yml (decision log Impl-2 #28)
+        # A service container takes no server flags, so the setting is written and the container restarted.
+        # Each ATDD file's pool holds up to 60 connections and 3 files run at once (vitest.config.ts).
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U tezg -d tezg -c "ALTER SYSTEM SET max_connections = 200"
+          docker restart ${{ job.services.postgres.id }}
+          timeout 60 bash -c 'until docker exec ${{ job.services.postgres.id }} pg_isready -U tezg -d tezg; do :; done'
+          test "$(docker exec ${{ job.services.postgres.id }} psql -U tezg -d tezg -tAc 'SHOW max_connections')" = 200
       - name: k6 at a fixed arrival rate on the public profile and catalog reads (thresholds of test-design.md §7.4)
         run: npm run nfr:k6
       - name: Upload the k6 summary
