@@ -1,0 +1,13 @@
+# Flow E — Story 11.5 (decision log Impl-2 #17). Captured 2026-11-04T05:02:37Z on branch impl-2 at 7c78cb1 + the green working tree.
+# npx playwright test: the web server recreates and migrates tezg_e2e, builds and serves the app (routes /coleccion,
+# /coleccion/[collectionId] and /coleccion/[collectionId]/agregar are new); the list reporter's output. First run green.
+$ npx playwright test
+Running 4 tests using 1 worker
+
+  ✓  1 [chromium] › _bmad-output\test-artifacts\e2e\binder.spec.ts:16:1 › Julián re-sorts his binder, the order survives a reload, and a promo added by an https link lands in a pocket after an http:// link is refused (1.4s)
+  ✓  2 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:14:1 › Camila reads a conversation, its badge clears, and muting another takes it out of her unread total (717ms)
+  ✓  3 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:49:1 › a wrong password keeps Camila on the sign-in page with the es-CO error (464ms)
+  ✓  4 [chromium] › _bmad-output\test-artifacts\e2e\smoke.spec.ts:6:1 › a visitor opens TEZG and sees the service ready (188ms)
+
+  4 passed (17.8s)
+EXIT 0

@@ -45,7 +45,7 @@ export interface ColV2UseCases {
 
 import type { Citation, Decision } from '../../../shared-kernel/decision.js';
 import { ambientTx } from '../../../shared-kernel/db.js';
-import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { UnexpectedError } from '../../../shared-kernel/errors.js';
 import type { OrderClosedLineV1 } from '../../../shared-kernel/events.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
@@ -53,10 +53,14 @@ import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest, type RequestIssue } from '../../../shared-kernel/request.js';
 import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import { bogotaDate, COLLECTION_LIMIT, entryQuantities, isAfterToday, isCalendarDate, isIsoInstant } from '../domain/col.js';
+import type { CatalogEntryDTO } from '../../catalog/index.js';
+import { AVAILABILITY_BATCH, binderOrder, bogotaDate, chunks, COLLECTION_LIMIT, completionPercent, entryQuantities, invalidLinkField, isAfterToday, isCalendarDate, isIsoInstant, isLayoutSize, MAX_SORT_KEYS, wishlistOrder } from '../domain/col.js';
 import type { PromptRow } from '../ports/col.v2.js';
 
 const raise = raiserFor('collections');
+
+/** The binder title of a catalog entry the catalog no longer resolves (its card was merged or removed). */
+const MISSING_CARD_TITLE = 'Carta fuera del catálogo';
 
 /** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
 function explained(code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
@@ -86,7 +90,7 @@ function checkClosedPayload(input: OnOrderClosedRequest): void {
   }
 }
 
-/** COL's use cases (contracts.md §10, §15); the binder, external entries, moves and the wishlist throw NotImplementedError until Story 11.5. */
+/** COL's use cases (contracts.md §10, §15): prompts, collections, entries, the binder and the wishlist. */
 export class ColServiceV2 implements ColV2UseCases {
   constructor(protected readonly deps: ColV2Deps) {}
 
@@ -263,36 +267,200 @@ export class ColServiceV2 implements ColV2UseCases {
       return { ...removed, decision: explained('CollectionDeleted', [{ rule: 'FR-COL-1', inputs: removed }], now) };
     });
   }
-  async addExternalEntry(_input: AddExternalEntryRequest): Promise<AddExternalEntryResponse> {
-    throw new NotImplementedError('collections.addExternalEntry');
+  /**
+   * S-FR-COL-3 (AD-COL-1 rule 4, R-28): the pure link rule and the field checks first, so a refusal reads and writes
+   * nothing; then under `col:owner` the owner's collection and one `cardKind = 'external'` entry at the end of the
+   * binder. No server fetch of either link, and no `"CatalogEntry"` write (AD-7, AD-8).
+   */
+  async addExternalEntry(input: AddExternalEntryRequest): Promise<AddExternalEntryResponse> {
+    const { repo, transactions, clock, ids } = this.deps;
+    const { ownerId, collectionId, url, title, imageUrl, qty, acquiredAt } = input;
+    const badLink = invalidLinkField({ url, imageUrl });
+    if (badLink !== null) return raise('InvalidExternalLink', [{ rule: 'FR-COL-3', inputs: { field: badLink } }]);
+    if (textIssue(title, 1, 120) !== null) return raise('InvalidExternalLink', [{ rule: 'FR-COL-3', inputs: { field: 'title' } }]);
+    const at = clock.now();
+    const issues: RequestIssue[] = [];
+    if (!isInteger(qty, 1, 999)) issues.push({ field: 'qty', issue: 'debe ser un entero entre 1 y 999' });
+    if (!isCalendarDate(acquiredAt)) issues.push({ field: 'acquiredAt', issue: 'debe ser una fecha AAAA-MM-DD' });
+    else if (isAfterToday(acquiredAt, at)) issues.push({ field: 'acquiredAt', issue: 'no puede ser posterior a hoy' });
+    if (issues.length > 0) return rejectRequest(issues as [RequestIssue, ...RequestIssue[]]);
+    const now = at.toISOString();
+    return transactions.run(async (tx) => {
+      await repo.lockCollectionOwner(tx, ownerId);
+      if (!await repo.ownsCollection(tx, collectionId, ownerId)) return collectionNotFound('FR-COL-3');
+      const entryId = ids.next();
+      await repo.insertExternalEntry(tx, collectionId, { id: entryId, url, title, imageUrl, qty, acquiredAt }, now);
+      await this.audit(tx, ownerId, 'collections.entry.linked', { type: 'CollectionEntry', id: entryId }, 'CollectionEntryAdded', { collectionId, cardKind: 'external' }, now);
+      return { entryId, decision: explained('CollectionEntryAdded', [{ rule: 'FR-COL-3', inputs: { entryId, cardKind: 'external', source: 'Manual' } }], now) };
+    });
   }
 
-  async moveOrCopyEntry(_input: MoveOrCopyEntryRequest): Promise<MoveOrCopyEntryResponse> {
-    throw new NotImplementedError('collections.moveOrCopyEntry');
+  /**
+   * S-FR-COL-4: under `col:owner`, the owner's entry (`FOR UPDATE`; a foreign one reads as an unknown one), then the
+   * owner's target. Move puts the entry last in the target; copy inserts a new entry with every field of the source,
+   * `source` and `orderId` included, so the `source`/`orderId` CHECK holds on the copy.
+   */
+  async moveOrCopyEntry(input: MoveOrCopyEntryRequest): Promise<MoveOrCopyEntryResponse> {
+    const { repo, transactions, clock, ids } = this.deps;
+    const { ownerId, entryId, targetCollectionId, mode } = input;
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      await repo.lockCollectionOwner(tx, ownerId);
+      const owned = await repo.lockOwnedEntry(tx, entryId, ownerId);
+      if (owned === null) return raise('CollectionEntryNotFound', [{ rule: 'FR-COL-4', inputs: { owned: false } }]);
+      if (!await repo.ownsCollection(tx, targetCollectionId, ownerId)) return collectionNotFound('FR-COL-4');
+      if (mode === 'move') {
+        await repo.moveEntry(tx, { entryId, targetCollectionId, now });
+        const inputs = { entryId, fromCollectionId: owned.collectionId, toCollectionId: targetCollectionId };
+        await this.audit(tx, ownerId, 'collections.entry.moved', { type: 'CollectionEntry', id: entryId }, 'CollectionEntryMoved', inputs, now);
+        return { entryId, collectionId: targetCollectionId, decision: explained('CollectionEntryMoved', [{ rule: 'FR-COL-4', inputs }], now) };
+      }
+      const copyId = ids.next();
+      await repo.copyEntry(tx, { entryId, newId: copyId, targetCollectionId, now });
+      const inputs = { entryId: copyId, copiedFromEntryId: entryId, toCollectionId: targetCollectionId, source: owned.source };
+      await this.audit(tx, ownerId, 'collections.entry.copied', { type: 'CollectionEntry', id: copyId }, 'CollectionEntryCopied', inputs, now);
+      return { entryId: copyId, collectionId: targetCollectionId, decision: explained('CollectionEntryCopied', [{ rule: 'FR-COL-4', inputs }], now) };
+    });
   }
 
-  async getBinder(_input: GetBinderRequest): Promise<GetBinderResponse> {
-    throw new NotImplementedError('collections.getBinder');
+  /**
+   * S-FR-COL-5.binder (AD-COL-1 rule 5): the owner's entries with their catalog attributes (one `catalog.getEntries` per
+   * 500 ids), filtered to `setId` when given, in `binderOrder` (at most 3 keys, then `entryId`). With a set, the
+   * completion is the distinct owned `kind = card` entries of the set over its card count from `catalog.getSetSummaries`,
+   * null when that count is 0; an unknown set has no completion. Zero writes.
+   */
+  async getBinder(input: GetBinderRequest): Promise<GetBinderResponse> {
+    const { ownerId, collectionId, sort, setId } = input;
+    if (sort.length > MAX_SORT_KEYS || new Set(sort).size !== sort.length) {
+      return rejectRequest([{ field: 'sort', issue: `debe tener hasta ${MAX_SORT_KEYS} criterios distintos` }]);
+    }
+    const read = await this.reading(async (tx) => {
+      const layout = await this.deps.repo.readBinderLayout(tx, collectionId, ownerId);
+      return layout === null ? null : { layout, rows: await this.deps.repo.readBinderEntries(tx, collectionId) };
+    });
+    if (read === null) return collectionNotFound('FR-COL-5');
+    const catalogIds = [...new Set(read.rows.flatMap((r) => (r.catalogEntryId === null ? [] : [r.catalogEntryId])))];
+    const cards = new Map<CuidId, CatalogEntryDTO>();
+    for (const batch of chunks(catalogIds, AVAILABILITY_BATCH)) {
+      for (const e of (await this.deps.catalog.getEntries({ catalogEntryIds: batch })).entries) cards.set(e.catalogEntryId, e);
+    }
+    const shown = read.rows
+      .map((row) => {
+        const card = row.catalogEntryId === null ? undefined : cards.get(row.catalogEntryId);
+        return {
+          row, card, entryId: row.entryId, cardKind: row.cardKind, title: row.externalTitle ?? card?.name ?? MISSING_CARD_TITLE,
+          setId: card?.setId ?? null, number: card?.number ?? null, acquiredAt: row.acquiredAt, acquiredPriceCop: row.acquiredPriceCop, manualPosition: row.manualPosition,
+        };
+      })
+      .filter((e) => setId === null || e.setId === setId);
+    let completion: GetBinderResponse['completion'] = null;
+    if (setId !== null) {
+      const [set] = (await this.deps.catalog.getSetSummaries({ setIds: [setId] })).sets;
+      if (set !== undefined) {
+        const ownedDistinct = new Set(shown.filter((e) => e.card?.kind === 'card').map((e) => e.row.catalogEntryId)).size;
+        completion = { setId, ownedDistinct, cardEntryCount: set.cardEntryCount, completionPercent: completionPercent(ownedDistinct, set.cardEntryCount) };
+      }
+    }
+    return {
+      rows: read.layout.rows, cols: read.layout.cols, completion,
+      entries: binderOrder(shown, sort).map(({ row, card, title }) => ({
+        entryId: row.entryId, cardKind: row.cardKind, catalogEntryId: row.catalogEntryId, title, source: row.source, qty: row.qty,
+        acquiredAt: row.acquiredAt, manualPosition: row.manualPosition, externalUrl: row.externalUrl,
+        imageUrl: row.cardKind === 'external' ? row.externalImageUrl : card?.imageUrl ?? null, orderId: row.orderId,
+      })),
+    };
   }
 
-  async setBinderLayout(_input: SetBinderLayoutRequest): Promise<CollectionChangeResponse> {
-    throw new NotImplementedError('collections.setBinderLayout');
+  /** S-FR-COL-5.layout: rows and cols each 1–5, on the owner's collection only. Audit row. */
+  async setBinderLayout(input: SetBinderLayoutRequest): Promise<CollectionChangeResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { ownerId, collectionId, rows, cols } = input;
+    const issues: RequestIssue[] = [];
+    if (!isLayoutSize(rows)) issues.push({ field: 'rows', issue: 'debe ser un entero entre 1 y 5' });
+    if (!isLayoutSize(cols)) issues.push({ field: 'cols', issue: 'debe ser un entero entre 1 y 5' });
+    if (issues.length > 0) return rejectRequest(issues as [RequestIssue, ...RequestIssue[]]);
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      if (!await repo.updateBinderLayout(tx, { collectionId, ownerId, rows, cols, now })) return collectionNotFound('FR-COL-5');
+      await this.audit(tx, ownerId, 'collections.binder.layout', { type: 'Collection', id: collectionId }, null, { rows, cols }, now);
+      return { collectionId, updatedAt: now };
+    });
   }
 
-  async reorderEntries(_input: ReorderEntriesRequest): Promise<CollectionChangeResponse> {
-    throw new NotImplementedError('collections.reorderEntries');
+  /**
+   * S-FR-COL-5.reorder: under `col:owner` (positions are assigned under it, COL-1 Q1), `orderedEntryIds` names each
+   * entry of the owner's collection exactly once, and each gets its index as `manualPosition`. Audit row.
+   */
+  async reorderEntries(input: ReorderEntriesRequest): Promise<CollectionChangeResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { ownerId, collectionId, orderedEntryIds } = input;
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      await repo.lockCollectionOwner(tx, ownerId);
+      if (!await repo.ownsCollection(tx, collectionId, ownerId)) return collectionNotFound('FR-COL-5');
+      const current = new Set((await repo.readBinderEntries(tx, collectionId)).map((e) => e.entryId));
+      const named = new Set(orderedEntryIds);
+      if (named.size !== orderedEntryIds.length || named.size !== current.size || orderedEntryIds.some((e) => !current.has(e))) {
+        return rejectRequest([{ field: 'orderedEntryIds', issue: 'debe nombrar cada carta de la colección una sola vez' }]);
+      }
+      await repo.setManualPositions(tx, collectionId, orderedEntryIds, now);
+      await this.audit(tx, ownerId, 'collections.binder.reordered', { type: 'Collection', id: collectionId }, null, { entryCount: orderedEntryIds.length }, now);
+      return { collectionId, updatedAt: now };
+    });
   }
 
-  async addWishlist(_input: AddWishlistRequest): Promise<ListWishlistResponse> {
-    throw new NotImplementedError('collections.addWishlist');
+  /**
+   * S-FR-COL-6.add: the catalog id must exist (`InvalidCatalogEntry`, AD-COL-1 rule 3), then
+   * `INSERT … ON CONFLICT ("ownerId", "catalogEntryId") DO NOTHING`: a second add of a card keeps the first. Audit on insert.
+   */
+  async addWishlist(input: AddWishlistRequest): Promise<ListWishlistResponse> {
+    const { repo, transactions, clock, ids, catalog } = this.deps;
+    const { ownerId, catalogEntryId, maxPriceCop, note } = input;
+    const issues: RequestIssue[] = [];
+    if (maxPriceCop !== null && !isInteger(maxPriceCop, 1_000, 100_000_000)) issues.push({ field: 'maxPriceCop', issue: 'debe ser un entero entre 1.000 y 100.000.000' });
+    const noteIssue = note === null ? null : textIssue(note, 0, 200);
+    if (noteIssue !== null) issues.push({ field: 'note', issue: noteIssue === 'nul' ? NUL_ISSUE : 'debe tener hasta 200 caracteres' });
+    if (issues.length > 0) return rejectRequest(issues as [RequestIssue, ...RequestIssue[]]);
+    const { missing } = await catalog.getEntries({ catalogEntryIds: [catalogEntryId] });
+    if (missing.includes(catalogEntryId)) return raise('InvalidCatalogEntry', [{ rule: 'AD-COL-1 rule 3', inputs: { catalogEntryId } }]);
+    const now = clock.now().toISOString();
+    await transactions.run(async (tx) => {
+      const wishId = ids.next();
+      if (await repo.insertWishlistEntry(tx, { id: wishId, ownerId, catalogEntryId, maxPriceCop, note, now })) {
+        await this.audit(tx, ownerId, 'collections.wishlist.added', { type: 'WishlistEntry', id: wishId }, null, { catalogEntryId }, now);
+      }
+    });
+    return this.listWishlist({ ownerId });
   }
 
-  async removeWishlist(_input: RemoveWishlistRequest): Promise<ListWishlistResponse> {
-    throw new NotImplementedError('collections.removeWishlist');
+  /** S-FR-COL-6.remove: the owner's entry of the card, if any; removing an absent card changes nothing. Audit on delete. */
+  async removeWishlist(input: RemoveWishlistRequest): Promise<ListWishlistResponse> {
+    const { repo, transactions, clock } = this.deps;
+    const { ownerId, catalogEntryId } = input;
+    const now = clock.now().toISOString();
+    await transactions.run(async (tx) => {
+      const removed = await repo.deleteWishlistEntry(tx, ownerId, catalogEntryId);
+      if (removed !== null) await this.audit(tx, ownerId, 'collections.wishlist.removed', { type: 'WishlistEntry', id: removed }, null, { catalogEntryId }, now);
+    });
+    return this.listWishlist({ ownerId });
   }
 
-  async listWishlist(_input: ListWishlistRequest): Promise<ListWishlistResponse> {
-    throw new NotImplementedError('collections.listWishlist');
+  /**
+   * S-FR-COL-6.list (AD-1 `collections → listings`): the owner's wishlist with each card's lowest purchasable price and
+   * available count from `listings.getAvailabilitySummary`, at most 500 ids per call; by price, unavailable last. Zero writes.
+   */
+  async listWishlist(input: ListWishlistRequest): Promise<ListWishlistResponse> {
+    const wishes = await this.reading((tx) => this.deps.repo.readWishlist(tx, input.ownerId));
+    const available = new Map<CuidId, { lowestPriceCop: number | null; availableCount: number }>();
+    for (const batch of chunks(wishes.map((w) => w.catalogEntryId), AVAILABILITY_BATCH)) {
+      for (const item of (await this.deps.listings.getAvailabilitySummary({ catalogEntryIds: batch, area: null })).items) available.set(item.catalogEntryId, item);
+    }
+    return {
+      rows: wishlistOrder(wishes.map((w) => {
+        const a = available.get(w.catalogEntryId);
+        return { catalogEntryId: w.catalogEntryId, maxPriceCop: w.maxPriceCop, lowestPriceCop: a?.lowestPriceCop ?? null, availableCount: a?.availableCount ?? 0 };
+      })),
+    };
   }
 
   /** COL-1.list (§15.12): the buyer's prompts, optionally by status, newest first; no page (decision log Impl-1 #36, D4). Zero writes. */

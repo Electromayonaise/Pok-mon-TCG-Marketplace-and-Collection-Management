@@ -12,6 +12,7 @@ import type { CatalogForInv, IdentityForInv } from '../ports/inv.v2.js';
 import { InvServiceV2 } from './inv.v2.js';
 import { untilBlockedOnLock } from '../../../../test-support/locks.js';
 import { singleConnectionPool } from '../../../../test-support/single-connection.js';
+import { businessId, buyerId, individualId, seedMarketplace } from '../../../../test-support/solu2/seed-marketplace.js';
 
 const db = useTestDatabase();
 
@@ -313,4 +314,39 @@ describe('free text (contracts.md §0.3, decision log Impl-1 #38)', () => {
       components: [{ itemRef: id('char'), condition: 'NM', perBundleQty: 1, quantity: 1 }] })))).toBe('RequestValidationFailed');
     expect(await rows(db, 'Listing')).toHaveLength(1);
   });
+});
+
+describe('AD-INV-3 rule 2 parity: the batch and the single verification forms agree (Story 11.5, decision log Impl-2 #17)', () => {
+  it('over the seed, P-INV.availability (one getSellerKinds per page) counts exactly the listings getSellerVerification admits one by one', async () => {
+    await seedMarketplace(db);
+    // Given: a Pending shop that is funded and unpaused, so only the verification term keeps its listings out.
+    await commissionState(db, businessId(8));
+    await db.query(`UPDATE "Listing" SET "pausedAt" = NULL WHERE "sellerId" = $1`, [businessId(8)]);
+    const listed = await db.query<{ c: string }>(
+      `SELECT DISTINCT u."catalogEntryId" AS c FROM "Listing" l JOIN "InventoryUnit" u ON u.id = l."inventoryUnitId" WHERE l.kind = 'single' ORDER BY 1 LIMIT 500`,
+    );
+    const ids = listed.map((r) => r.c);
+    const w = wiring(db);
+    const idn = new IdnServiceV2(w);
+    const batch = await inventory().getAvailabilitySummary({ catalogEntryIds: ids, area: null });
+    // The single form (AD-INV-3 rule 1): the same SQL twin, then getSellerVerification for each business listing's seller.
+    const candidates = await db.transactions.run((tx) => w.repo.availabilityCandidates(tx, ids, null), { readOnly: true });
+    const verification = new Map<string, string>();
+    const prices = new Map<string, number[]>();
+    for (const c of candidates) {
+      if (c.sellerKindAtCreation === 'business' && !verification.has(c.sellerId)) verification.set(c.sellerId, (await idn.getSellerVerification({ sellerId: c.sellerId })).status);
+      if (c.sellerKindAtCreation === 'individual' || verification.get(c.sellerId) === 'Approved') prices.set(c.catalogEntryId, [...(prices.get(c.catalogEntryId) ?? []), c.priceCop]);
+    }
+    expect(batch.items).toEqual(ids.map((catalogEntryId) => {
+      const p = prices.get(catalogEntryId) ?? [];
+      return { catalogEntryId, lowestPriceCop: p.length ? Math.min(...p) : null, availableCount: p.length };
+    }));
+    // The case is real: the Pending shop's listings are candidates that neither form counts, and Approved shops' are counted.
+    expect([verification.get(businessId(8)), verification.get(businessId(0))]).toEqual(['Pending', 'Approved']);
+    // And the two identity forms agree seller by seller, over every kind of account the seed has.
+    const sellers = [...Array.from({ length: 14 }, (_, b) => businessId(b)), individualId(0), buyerId(5)];
+    const kinds = await idn.getSellerKinds({ userIds: sellers });
+    const single = await Promise.all(sellers.map(async (s) => (await idn.getSellerVerification({ sellerId: s })).status === 'Approved'));
+    expect(kinds.sellers.map((k) => k.verified)).toEqual(single);
+  }, 120_000);
 });

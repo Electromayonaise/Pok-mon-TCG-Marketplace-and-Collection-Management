@@ -6,7 +6,7 @@ import type { OrderClosedLineV1 } from '../../../shared-kernel/events.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import { GENERAL_COLLECTION, type PromptStatus } from '../domain/col.js';
-import type { CollectionRow, ColRepository, NewEntry, PromptRow } from '../ports/col.v2.js';
+import type { BinderEntryRow, CollectionRow, ColRepository, NewEntry, NewExternalEntry, PromptRow, WishlistRow } from '../ports/col.v2.js';
 import type { ICollectionRepository, IPromptRepository } from '../ports/collections.js';
 import type { ValRepository, ValuationEntryRow } from '../ports/val.v2.js';
 
@@ -54,8 +54,101 @@ async function uniqueViolation(tx: Tx, savepoint: string, constraint: string, er
   await tx.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
 }
 
-/** COL's own tables (AD-8): `"Collection"`, `"CollectionEntry"`, `"PostPurchasePrompt"`. */
-export class PgColRepository implements ColRepository {
+/** The next free binder position of a collection: `max("manualPosition") + 1`, 0 for an empty one (caller holds `col:owner`). */
+const NEXT_POSITION = `(SELECT COALESCE(MAX("manualPosition"), -1) + 1 FROM "CollectionEntry" WHERE "collectionId" = $TARGET)`;
+
+/** COL's binder, link, move/copy and wishlist reads and writes (Story 11.5), on its own tables only (AD-8); PgColRepository extends it. */
+class PgColBinderRepository {
+  async insertExternalEntry(tx: Tx, collectionId: CuidId, e: NewExternalEntry, now: IsoInstant): Promise<void> {
+    await tx.query(
+      `INSERT INTO "CollectionEntry" (id, "collectionId", "cardKind", "catalogEntryId", "externalUrl", "externalTitle", "externalImageUrl", source, "orderId", qty, "acquiredAt", "acquiredPriceCop", "manualPosition", "createdAt", "updatedAt")
+       VALUES ($1, $2, 'external', NULL, $3, $4, $5, 'Manual', NULL, $6, $7::date, NULL, ${NEXT_POSITION.replace('$TARGET', '$2')}, $8, $8)`,
+      [e.id, collectionId, e.url, e.title, e.imageUrl, e.qty, e.acquiredAt, now],
+    );
+  }
+
+  async lockOwnedEntry(tx: Tx, entryId: CuidId, ownerId: CuidId): Promise<{ collectionId: CuidId; source: 'Manual' | 'PlatformPurchase' } | null> {
+    const { rows } = await tx.query<{ collectionId: CuidId; source: 'Manual' | 'PlatformPurchase' }>(
+      `SELECT e."collectionId", e.source FROM "CollectionEntry" e JOIN "Collection" c ON c.id = e."collectionId"
+        WHERE e.id = $1 AND c."ownerId" = $2 FOR UPDATE OF e`,
+      [entryId, ownerId],
+    );
+    return rows[0] ?? null;
+  }
+
+  async moveEntry(tx: Tx, c: { entryId: CuidId; targetCollectionId: CuidId; now: IsoInstant }): Promise<void> {
+    await tx.query(
+      `UPDATE "CollectionEntry" SET "collectionId" = $2, "manualPosition" = ${NEXT_POSITION.replace('$TARGET', '$2')}, "updatedAt" = $3 WHERE id = $1`,
+      [c.entryId, c.targetCollectionId, c.now],
+    );
+  }
+
+  async copyEntry(tx: Tx, c: { entryId: CuidId; newId: CuidId; targetCollectionId: CuidId; now: IsoInstant }): Promise<void> {
+    await tx.query(
+      `INSERT INTO "CollectionEntry" (id, "collectionId", "cardKind", "catalogEntryId", "externalUrl", "externalTitle", "externalImageUrl", source, "orderId", qty, "acquiredAt", "acquiredPriceCop", "manualPosition", "createdAt", "updatedAt")
+       SELECT $2, $3, "cardKind", "catalogEntryId", "externalUrl", "externalTitle", "externalImageUrl", source, "orderId", qty, "acquiredAt", "acquiredPriceCop", ${NEXT_POSITION.replace('$TARGET', '$3')}, $4, $4
+         FROM "CollectionEntry" WHERE id = $1`,
+      [c.entryId, c.newId, c.targetCollectionId, c.now],
+    );
+  }
+
+  async readBinderLayout(tx: Tx, collectionId: CuidId, ownerId: CuidId): Promise<{ rows: number; cols: number } | null> {
+    const { rows } = await tx.query<{ rows: number; cols: number }>(`SELECT "binderRows" AS rows, "binderCols" AS cols FROM "Collection" WHERE id = $1 AND "ownerId" = $2`, [collectionId, ownerId]);
+    return rows[0] ?? null;
+  }
+
+  async readBinderEntries(tx: Tx, collectionId: CuidId): Promise<BinderEntryRow[]> {
+    const { rows } = await tx.query<Omit<BinderEntryRow, 'acquiredPriceCop'> & { acquiredPriceCop: string | null }>(
+      `SELECT id AS "entryId", "cardKind", "catalogEntryId", "externalUrl", "externalTitle", "externalImageUrl", source, "orderId", qty,
+              to_char("acquiredAt", 'YYYY-MM-DD') AS "acquiredAt", "acquiredPriceCop"::text AS "acquiredPriceCop", "manualPosition"
+         FROM "CollectionEntry" WHERE "collectionId" = $1 ORDER BY "manualPosition", id`,
+      [collectionId],
+    );
+    return rows.map((r) => ({ ...r, acquiredPriceCop: r.acquiredPriceCop === null ? null : Number(r.acquiredPriceCop) }));
+  }
+
+  async updateBinderLayout(tx: Tx, c: { collectionId: CuidId; ownerId: CuidId; rows: number; cols: number; now: IsoInstant }): Promise<boolean> {
+    const { rowCount } = await tx.query(
+      `UPDATE "Collection" SET "binderRows" = $3, "binderCols" = $4, "updatedAt" = $5 WHERE id = $1 AND "ownerId" = $2`,
+      [c.collectionId, c.ownerId, c.rows, c.cols, c.now],
+    );
+    return rowCount === 1;
+  }
+
+  async setManualPositions(tx: Tx, collectionId: CuidId, orderedEntryIds: CuidId[], now: IsoInstant): Promise<void> {
+    await tx.query(
+      `UPDATE "CollectionEntry" e SET "manualPosition" = o.n - 1, "updatedAt" = $3
+         FROM unnest($2::text[]) WITH ORDINALITY AS o(id, n)
+        WHERE e.id = o.id AND e."collectionId" = $1`,
+      [collectionId, orderedEntryIds, now],
+    );
+  }
+
+  async insertWishlistEntry(tx: Tx, w: { id: CuidId; ownerId: CuidId; catalogEntryId: CuidId; maxPriceCop: number | null; note: string | null; now: IsoInstant }): Promise<boolean> {
+    const { rowCount } = await tx.query(
+      `INSERT INTO "WishlistEntry" (id, "ownerId", "catalogEntryId", "maxPriceCop", note, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $6)
+       ON CONFLICT ("ownerId", "catalogEntryId") DO NOTHING`,
+      [w.id, w.ownerId, w.catalogEntryId, w.maxPriceCop, w.note, w.now],
+    );
+    return rowCount === 1;
+  }
+
+  async deleteWishlistEntry(tx: Tx, ownerId: CuidId, catalogEntryId: CuidId): Promise<CuidId | null> {
+    const { rows } = await tx.query<{ id: CuidId }>(`DELETE FROM "WishlistEntry" WHERE "ownerId" = $1 AND "catalogEntryId" = $2 RETURNING id`, [ownerId, catalogEntryId]);
+    return rows[0]?.id ?? null;
+  }
+
+  async readWishlist(tx: Tx, ownerId: CuidId): Promise<WishlistRow[]> {
+    const { rows } = await tx.query<Omit<WishlistRow, 'maxPriceCop'> & { maxPriceCop: string | null }>(
+      `SELECT "catalogEntryId", "maxPriceCop"::text AS "maxPriceCop", "createdAt" FROM "WishlistEntry" WHERE "ownerId" = $1 ORDER BY "createdAt", id`,
+      [ownerId],
+    );
+    return rows.map((r) => ({ ...r, maxPriceCop: r.maxPriceCop === null ? null : Number(r.maxPriceCop) }));
+  }
+}
+
+/** COL's own tables (AD-8): `"Collection"`, `"CollectionEntry"`, `"WishlistEntry"`, `"PostPurchasePrompt"`. */
+export class PgColRepository extends PgColBinderRepository implements ColRepository {
   async lockCollectionOwner(tx: Tx, ownerId: CuidId): Promise<void> {
     await tx.query(`SELECT pg_advisory_xact_lock(hashtextextended('col:owner:' || $1, 0))`, [ownerId]);
   }

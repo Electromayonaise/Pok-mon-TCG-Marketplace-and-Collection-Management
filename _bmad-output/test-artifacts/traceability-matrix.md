@@ -24,9 +24,9 @@
 | FRs linked to a story | 96 / 96 |
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
-| NFRs with a test today | 52 / 56 |
-| NFR evidence status | Green — ATDD: 35; Green — benchmark: 15; Green — gate: 8; Deferred — launch: 3; Planned — story DoD: 3; Red — ATDD: 2 |
-| Contract clauses / test ids | 114 / 410 (398 red, 12 green) |
+| NFRs with a test today | 53 / 56 |
+| NFR evidence status | Green — ATDD: 36; Green — benchmark: 16; Green — gate: 8; Deferred — launch: 3; Planned — story DoD: 2; Red — ATDD: 1 |
+| Contract clauses / test ids | 114 / 412 (400 red, 12 green) |
 | Gate problems | 0 |
 
 ## 2. Functional requirements
@@ -112,10 +112,10 @@
 | FR-MSG-8 | Mute a conversation (buyer side) (CAP-18) | S-FR-MSG-8 | AD-MSG-3 | 2 — `S-FR-MSG-8.f`, `S-FR-MSG-8.h` | 9.6 (done) | red |
 | FR-COL-1 | Named collections (CAP-11) | COL-3, S-FR-COL-1, S-FR-COL-1.list | AD-SYS-1, AD-COL-1, AD-7 | 11 — `COL-3.I2`, `COL-3.P2`, `COL-3.P3` +8 | 11.1 (done), 11.2 (done), 11.4 (done) | red |
 | FR-COL-2 | Add an entry manually (CAP-8, CAP-12) | COL-3 | AD-SYS-1, AD-COL-1, AD-7 | 7 — `COL-3.I2`, `COL-3.P2`, `COL-3.P3` +4 | 11.2 (done), 11.4 (done) | red |
-| FR-COL-3 | Add an entry by link (CAP-24) | S-FR-COL-3 | AD-COL-1, AD-7, AD-8 | 3 — `S-FR-COL-3.f`, `S-FR-COL-3.f2`, `S-FR-COL-3.h` | 11.5 (in-progress), 11.6 (in-progress) | red |
-| FR-COL-4 | Move and copy between collections (CAP-11) | S-FR-COL-4 | AD-COL-1 | 2 — `S-FR-COL-4.f`, `S-FR-COL-4.h` | 11.5 (in-progress), 11.6 (in-progress) | red |
-| FR-COL-5 | Binder layout, sorting and completion (CAP-10) | S-FR-COL-5 | AD-COL-1 | 2 — `S-FR-COL-5.f`, `S-FR-COL-5.h` | 11.5 (in-progress), 11.6 (in-progress) | red |
-| FR-COL-6 | Wishlist, separate from collections (CAP-13, CAP-14) | S-FR-COL-6 | AD-1, AD-7 | 2 — `S-FR-COL-6.f`, `S-FR-COL-6.h` | 11.5 (in-progress), 11.6 (in-progress) | red |
+| FR-COL-3 | Add an entry by link (CAP-24) | S-FR-COL-3 | AD-COL-1, AD-7, AD-8 | 3 — `S-FR-COL-3.f`, `S-FR-COL-3.f2`, `S-FR-COL-3.h` | 11.5 (done), 11.6 (done) | red |
+| FR-COL-4 | Move and copy between collections (CAP-11) | S-FR-COL-4 | AD-COL-1 | 2 — `S-FR-COL-4.f`, `S-FR-COL-4.h` | 11.5 (done), 11.6 (done) | red |
+| FR-COL-5 | Binder layout, sorting and completion (CAP-10) | S-FR-COL-5 | AD-COL-1 | 2 — `S-FR-COL-5.f`, `S-FR-COL-5.h` | 11.5 (done), 11.6 (done) | red |
+| FR-COL-6 | Wishlist, separate from collections (CAP-13, CAP-14) | S-FR-COL-6 | AD-1, AD-7 | 2 — `S-FR-COL-6.f`, `S-FR-COL-6.h` | 11.5 (done), 11.6 (done) | red |
 | FR-COL-7 | Exactly one post-purchase prompt per closed order (CAP-27) | COL-1, COL-2, COL-1.list | AD-COL-2, AD-SYS-5, AD-COL-1, AD-SYS-2 | 11 — `COL-1.MEC`, `COL-1.P1`, `COL-1.P2` +8 | 11.3 (done), 11.4 (done) | red |
 | FR-VAL-1 | Current value in integer COP (CAP-9) | VAL-1 | AD-VAL-1, AD-SYS-7 | 5 — `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | 12.1 (done), 12.3 (done), 12.4 (done) | red |
 | FR-VAL-2 | Period trend with a defined zero baseline (CAP-9, CAP-3) | VAL-2 | AD-VAL-2, AD-SYS-7 | 4 — `VAL-2.I1`, `VAL-2.I3`, `VAL-2.P2` +1 | 12.2 (done), 12.3 (done), 12.4 (done), 12.5 (done) | red |
@@ -186,8 +186,8 @@
 | NFR-MSG-1 | contact-message generation takes p95 ≤ 200 ms | MSG-2 | `MSG-2.I1`, `NFR-MSG-1.contact` | 8 | Green — ATDD (determinism); Green — benchmark (latency) |
 | NFR-MSG-2 | in-app freshness through polling | MSG-1 | `MSG-1.R1`, `NFR-MSG-2.send` | 8 | Green — ATDD (ordering); Green — benchmark (send) |
 | NFR-MSG-3 | 0 outbound calls to external messaging services (NFR-SYS-3 guard). | MSG-2 | `SYS-6.R4` | 8 | Green — gate |
-| NFR-COL-2 | a binder page render (sorted | — | — | 0 | Planned — story DoD |
-| NFR-COL-3 | there are 0 CatalogEntry writes from collections | — | `SYS-AD8`, `S-FR-COL-3.h` | 2 | Green — gate (`[SYS-AD8]`); Red — ATDD (`[S-FR-COL-3.h]`, Story 11.5 in Impl-2) |
+| NFR-COL-2 | a binder page render (sorted | — | `NFR-COL-2.binder`, `NFR-COL-2.wishlist` | 2 | Green — benchmark (p95: binder 20.7 ms, wishlist 24.4 ms, local Postgres 16) |
+| NFR-COL-3 | there are 0 CatalogEntry writes from collections | — | `SYS-AD8`, `S-FR-COL-3.h` | 2 | Green — gate (`[SYS-AD8]`); Green — ATDD (`[S-FR-COL-3.h]` with Story 11.5) |
 | NFR-VAL-2 | current value plus the 30-day trend for 500 entries takes p95 ≤ 1,500 ms | VAL-1, VAL-3 | `NFR-VAL-2.current`, `NFR-VAL-2.trend`, `NFR-VAL-2.history` | 12 | Green — benchmark (p95: current 74 ms, current + 30-day trend 281 ms, 365-point history 262 ms, local Postgres 16) |
 | NFR-VAL-3 | 0 floating-point operations on COP in valuation code | VAL-1, VAL-2 | `VAL-1.I1`, `VAL-2.I3` | 9 | Green — ATDD (`[VAL-1.I1]` with Story 12.1, `[VAL-2.I3]` with Story 12.5) |
 | NFR-REP-2 | a profile read (aggregate plus the first page) takes p95 ≤ 300 ms | REP-2, REP-3 | `NFR-REP-2.nextRead`, `NFR-REP-2.aggregates`, `S-FR-REP-7.h` | 14 | Green — benchmark (the next read and the aggregates, p95 0.7 ms and 1.8 ms, local Postgres 16); Red — ATDD (`[S-FR-REP-7.h]`, the profile read, Story 13.5 in Impl-2, decision log Impl-1 #38); Planned — story DoD (the profile benchmark, Story 13.5) |
@@ -204,7 +204,7 @@
 | AD-5 | One location query path | One SQL builder with no seller-kind branch | `DSC-1.I1` | 6.2 (done) | red |
 | AD-6 | `InventoryUnit` is the sole quantity owner | `CHECK (quantity >= 0)`; conditional decrement | `INV-1.I1`, `INV-1.MEC` | 5.2 (done) | red |
 | AD-7 | Catalog, listing and binder records are independent | Upsert `SET` list without `id`/`kind`; tagged-union CHECKs | `CAT-2.I3`, `COL-3.I2` | 4.2 (done), 11.2 (done) | red |
-| AD-8 | Table ownership | No module writes another's tables; static scan of `infra/` SQL; shared-kernel owns only infra tables (+ `audit_events`, R-2) | `SYS-AD8`, `S-FR-COL-3.h` | 1.4 (done), 11.5 (in-progress) | green + red |
+| AD-8 | Table ownership | No module writes another's tables; static scan of `infra/` SQL; shared-kernel owns only infra tables (+ `audit_events`, R-2) | `SYS-AD8`, `S-FR-COL-3.h` | 1.4 (done), 11.5 (done) | green + red |
 | AD-9 | Snapshot payloads | Payload = ADD-§5 exactly; subscribers read only the payload | `SYS-AD9`, `COL-2.I2` | 1.3 (done), 11.3 (done) | green + red |
 | AD-10 | Post-commit, in-process dispatch with an outbox | `outbox.enqueue(tx)` + sweeper | `SYS-2.R6` | 1.3 (done) | red |
 | AD-11 | One owner per error code | Registry `owner`; `raise` checks the caller module | `SYS-1.R2` | 1.1 (done) | red |
@@ -287,7 +287,7 @@
 | R-22 The 11th failed sign-in in 15 min is not refused, a sign-up burst f… | P0 | IDN | Integration | `S-FR-IDN-7.signin.throttle`, `S-FR-IDN-7.signup.throttle`, `S-FR-IDN-7.signin.unknown` | 2.6 (done) | red |
 | R-23 Reconcile reports a false discrepancy while deductions commit, writ… | P0 | COM | Integration (race) + NFR | `COM-3.C1`, `COM-3.C2`, `NFR-COM-2.drift`, `COM-3.Q2` | 8.5 (done) | red |
 | R-26 Concurrent or stale `markRead` calls lower `lastReadSeq`, a reader … | P0 | MSG | Integration (race) | `S-FR-MSG-7.f`, `S-FR-MSG-7.C1`, `S-FR-MSG-7.f2` | 9.6 (done) | red |
-| R-28 A non-https or scripted link (`javascript:`, `data:`, an `HTTP://` … | P0 | COL | Integration + pure | `S-FR-COL-3.f`, `S-FR-COL-3.f2` | 11.6 (in-progress) | red |
+| R-28 A non-https or scripted link (`javascript:`, `data:`, an `HTTP://` … | P0 | COL | Integration + pure | `S-FR-COL-3.f`, `S-FR-COL-3.f2` | 11.6 (done) | red |
 
 ## 6. Contract clauses
 

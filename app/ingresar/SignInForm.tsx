@@ -3,7 +3,7 @@
 // The sign-in form (Story 9.6, decision log Impl-2 #15): email and password posted to Better Auth's
 // `/api/auth/sign-in/email` through the AD-IDN-3 guard (Story 2.6, src/server/auth-routes.ts). A wrong password is
 // Better Auth's 401; the guard's 429 carries the retry instant in its ErrorBody citation. On success the user goes
-// to the inbox.
+// to the page that sent them here (`?siguiente=`, a path on this site only; Story 11.5), else to the inbox.
 import { useState, type FormEvent } from 'react';
 import type { ErrorBody } from '../../src/shared-kernel/explanation.js';
 import { hora } from '../_client/api.js';
@@ -25,7 +25,12 @@ function refusalText(status: number, error: ErrorBody | null): string {
   return status === 0 ? NOT_CONFIRMED : SERVER_ERROR;
 }
 
-export function SignInForm() {
+/** Where a signed-in user goes: `next` when it is a path on this site (never `//host` or `/\host`), else the inbox. */
+function destination(next: string | undefined): string {
+  return next !== undefined && /^\/(?![/\\])/.test(next) ? next : '/mensajes';
+}
+
+export function SignInForm({ next }: { next?: string | undefined }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -49,8 +54,8 @@ export function SignInForm() {
       status = 0;
     }
     if (status === 200) {
-      // A full navigation, so the inbox renders on the server with the new session cookie.
-      window.location.assign('/mensajes');
+      // A full navigation, so the next page renders on the server with the new session cookie.
+      window.location.assign(destination(next));
       return;
     }
     setPending(false);

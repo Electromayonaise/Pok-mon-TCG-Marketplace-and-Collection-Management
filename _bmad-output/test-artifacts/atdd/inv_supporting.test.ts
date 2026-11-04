@@ -24,6 +24,8 @@ function setup(o: { eligibility?: Eligibility; verification?: 'Approved' | 'Pend
         decision: { outcome: 'allowed', reasonCode: 'ListingUnverified', humanMessage: 'Puedes publicar.', citations: [{ rule: 'FR-IDN-3', inputs: {} }], occurredAt: T0 } };
     },
     getSellerVerification: async () => ({ status: o.verification ?? 'Approved' }),
+    // The batch form of the same fact (AD-INV-3 rule 2): P-INV.availability reads it once per page (Story 11.5).
+    getSellerKinds: async ({ userIds }) => ({ sellers: userIds.map((userId) => ({ userId, sellerKind: 'business' as const, verified: (o.verification ?? 'Approved') === 'Approved' })) }),
   });
   return new InvServiceV2({ ...wiring(db), catalog, identity });
 }

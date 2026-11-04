@@ -561,7 +561,8 @@ export default {
         {
           title: 'Use the binder, add external cards, move entries and wishlist cards', kind: 'Supporting',
           as: 'As Julián, I want a stable binder view, promo cards by link, moves and a wishlist with the lowest available price, so that I can manage cards outside the catalog too.',
-          ops: ['S-FR-COL-3', 'S-FR-COL-4', 'S-FR-COL-5.binder', 'S-FR-COL-5.layout', 'S-FR-COL-5.reorder', 'S-FR-COL-6.add', 'S-FR-COL-6.remove', 'S-FR-COL-6.list'], tests: ['S-FR-COL-3.h', 'S-FR-COL-4.h', 'S-FR-COL-5.h', 'S-FR-COL-6.h'], depends: ['11.2', '5.6'],
+          // Impl-2 (decision log Impl-2 #17): Flow B + D adds the NFR-COL-2 benchmark, written with the code.
+          ops: ['S-FR-COL-3', 'S-FR-COL-4', 'S-FR-COL-5.binder', 'S-FR-COL-5.layout', 'S-FR-COL-5.reorder', 'S-FR-COL-6.add', 'S-FR-COL-6.remove', 'S-FR-COL-6.list'], tests: ['S-FR-COL-3.h', 'S-FR-COL-4.h', 'S-FR-COL-5.h', 'S-FR-COL-6.h', 'NFR-COL-2.binder', 'NFR-COL-2.wishlist'], depends: ['11.2', '5.6'],
           happy: ['Julián\'s collection and a wishlist.', 'he adds two promos by link, copies a purchase entry, sorts the binder twice and wishlists a card.', 'the catalog is untouched; the copy keeps its source and order id; both sorts give the same order with `entryId` as the last tie-break; the wishlisted card shows its lowest purchasable price.'],
           failure: ['the binder is read twice with equal ties.', 'the sort runs.', 'the order is identical both times: no unstable ordering.'],
         },

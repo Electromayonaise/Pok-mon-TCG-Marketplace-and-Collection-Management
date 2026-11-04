@@ -21,7 +21,7 @@
     { "id": "IDN-1.ingress", "module": "IDN", "method": "completeIndividualProfile", "request": "CompleteIndividualProfileRequest", "response": "CompleteIndividualProfileResponse", "layer": "Inbound Port", "consumers": [] },
     { "id": "IDN-2", "module": "IDN", "method": "requireListingEligibility", "request": "RequireListingEligibilityRequest", "response": "RequireListingEligibilityResponse", "layer": "Outbound Port", "consumers": ["INV"] },
     { "id": "IDN-3", "module": "IDN", "method": "traceCapabilities", "request": "TraceCapabilitiesRequest", "response": "TraceCapabilitiesResponse", "layer": "Inbound Port", "consumers": [] },
-    { "id": "S-FR-IDN-6.kinds", "module": "IDN", "method": "getSellerKinds", "request": "GetSellerKindsRequest", "response": "GetSellerKindsResponse", "layer": "Outbound Port", "consumers": ["DSC"] },
+    { "id": "S-FR-IDN-6.kinds", "module": "IDN", "method": "getSellerKinds", "request": "GetSellerKindsRequest", "response": "GetSellerKindsResponse", "layer": "Outbound Port", "consumers": ["DSC", "INV"] },
     { "id": "S-FR-IDN-6.target", "module": "IDN", "method": "getReviewTarget", "request": "GetReviewTargetRequest", "response": "GetReviewTargetResponse", "layer": "Outbound Port", "consumers": ["REP"] },
     { "id": "S-FR-IDN-7.canBuy", "module": "IDN", "method": "requireCanBuy", "request": "RequireCanBuyRequest", "response": "RequireCanBuyResponse", "layer": "Outbound Port", "consumers": [] },
     { "id": "S-FR-IDN-7.throttle", "module": "IDN", "method": "checkAuthThrottle", "request": "CheckAuthThrottleRequest", "response": "CheckAuthThrottleResponse", "layer": "Outbound Port", "consumers": [] },

@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 410 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 412 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -1328,15 +1328,15 @@ Let collectors keep collections of catalog cards and external promos, organize t
 - **Description:** As Julián, I want a stable binder view, promo cards by link, moves and a wishlist with the lowest available price, so that I can manage cards outside the catalog too.
 - **Contracts:** `S-FR-COL-3` addExternalEntry, `S-FR-COL-4` moveOrCopyEntry, `S-FR-COL-5.binder` getBinder, `S-FR-COL-5.layout` setBinderLayout, `S-FR-COL-5.reorder` reorderEntries, `S-FR-COL-6.add` addWishlist, `S-FR-COL-6.remove` removeWishlist, `S-FR-COL-6.list` listWishlist
 - **Depends on:** Story 11.2, Story 5.6
-- **Traceability:** FR-COL-3, FR-COL-4, FR-COL-5, FR-COL-6 · UI 9.1, 9.2, 9.3
+- **Traceability:** FR-COL-3, FR-COL-4, FR-COL-5, FR-COL-6 · NFR-COL-2 · UI 9.1, 9.2, 9.3
 - **Binding invariants:** AD-8 — Table ownership (No module writes another's tables; static scan of `infra/` SQL; shared-kernel owns only infra tables (+ `audit_events`, R-2)); also cited by its clauses: AD-1, AD-7, AD-COL-1
 - **Files:** `src/modules/collections/application/col.v2.ts` (`ColServiceV2.addExternalEntry`, `ColServiceV2.moveOrCopyEntry`, `ColServiceV2.getBinder`, `ColServiceV2.setBinderLayout`, `ColServiceV2.reorderEntries`, `ColServiceV2.addWishlist`, `ColServiceV2.removeWishlist`, `ColServiceV2.listWishlist`), `src/modules/collections/ports/col.v2.ts` (`ColRepository`), `src/modules/collections/domain/col.ts`, `src/modules/collections/infra/pg.ts`
 - **Schema/DTO:** tables `"CatalogEntry"`; DTOs `AddExternalEntryRequest` → `AddExternalEntryResponse`, `MoveOrCopyEntryRequest` → `MoveOrCopyEntryResponse`, `GetBinderRequest` → `GetBinderResponse`, `SetBinderLayoutRequest` → `CollectionChangeResponse`, `ReorderEntriesRequest` → `CollectionChangeResponse`, `AddWishlistRequest` → `ListWishlistResponse`, `RemoveWishlistRequest` → `ListWishlistResponse`, `ListWishlistRequest` → `ListWishlistResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/col_supporting.test.ts` › `[S-FR-COL-3.h]`, `[S-FR-COL-4.h]`, `[S-FR-COL-5.h]`, `[S-FR-COL-6.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/col_supporting.test.ts` › `[S-FR-COL-3.h]`, `[S-FR-COL-4.h]`, `[S-FR-COL-5.h]`, `[S-FR-COL-6.h]`; `_bmad-output/test-artifacts/nfr/col2_latency.test.ts` › `[NFR-COL-2.binder]`, `[NFR-COL-2.wishlist]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Julián's collection and a wishlist. **When:** he adds two promos by link, copies a purchase entry, sorts the binder twice and wishlists a card. **Then:** the catalog is untouched; the copy keeps its source and order id; both sorts give the same order with `entryId` as the last tie-break; the wishlisted card shows its lowest purchasable price.
   - **Scenario (failure) — Given:** the binder is read twice with equal ties. **When:** the sort runs. **Then:** the order is identical both times: no unstable ordering.
-- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 11.6: Refuse unsafe links, foreign entries and unknown wishlist cards
 

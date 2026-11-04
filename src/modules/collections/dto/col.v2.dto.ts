@@ -82,6 +82,12 @@ export interface BinderEntryDTO {
   qty: number;
   acquiredAt: IsoDate;
   manualPosition: number;
+  /** The link of a link-added entry (FR-COL-3: its badge names the domain); null for a catalog entry. Never fetched by the server. */
+  externalUrl: string | null;
+  /** The catalog image, or the link's https `imageUrl`, loaded by the browser only (S-12); null when there is none. */
+  imageUrl: string | null;
+  /** The order of a PlatformPurchase entry ("Ver pedido"), else null. */
+  orderId: CuidId | null;
 }
 export interface GetBinderResponse { rows: number; cols: number; entries: BinderEntryDTO[]; completion: SetCompletionDTO | null }
 export interface SetBinderLayoutRequest {

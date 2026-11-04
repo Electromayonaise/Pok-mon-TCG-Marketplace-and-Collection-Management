@@ -13,6 +13,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <header className="app-header">
           <nav aria-label="Principal">
             <a className="brand" href="/">TEZG</a>
+            <a href="/coleccion">Mi colección</a>
             <a href="/mensajes">Mensajes</a>
             <a href="/ingresar">Ingresar</a>
           </nav>

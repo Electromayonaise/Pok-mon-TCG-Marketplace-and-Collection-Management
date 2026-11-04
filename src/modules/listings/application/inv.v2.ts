@@ -480,7 +480,8 @@ export class InvServiceV2 implements InvV2UseCases {
 
   /**
    * P-INV.availability (AD-INV-3 rule 2): per id, the visible single listings with stock that are
-   * individual, or business and purchasable; the verification term once per distinct seller.
+   * individual, or business and purchasable. The verification term is the batch form: one
+   * `identity.getSellerKinds(…).verified` for the distinct business sellers (Story 11.5, decision log Impl-2 #17).
    */
   async getAvailabilitySummary(input: GetAvailabilitySummaryRequest): Promise<GetAvailabilitySummaryResponse> {
     const ids = input.catalogEntryIds;
@@ -490,8 +491,12 @@ export class InvServiceV2 implements InvV2UseCases {
     return this.reading(async (tx) => {
       const candidates = await this.deps.repo.availabilityCandidates(tx, ids, input.area);
       const sellers = [...new Set(candidates.filter((c) => c.sellerKindAtCreation === 'business').map((c) => c.sellerId))];
+      // S-FR-IDN-6.kinds takes at most 500 ids, so a page with more distinct business sellers asks in 500s.
       const approved = new Set<CuidId>();
-      for (const sellerId of sellers) if ((await this.deps.identity.getSellerVerification({ sellerId })).status === 'Approved') approved.add(sellerId);
+      for (let i = 0; i < sellers.length; i += MAX_IDS) {
+        const { sellers: kinds } = await this.deps.identity.getSellerKinds({ userIds: sellers.slice(i, i + MAX_IDS) });
+        for (const k of kinds) if (k.verified) approved.add(k.userId);
+      }
       const counted = candidates.filter((c) => c.sellerKindAtCreation === 'individual' || approved.has(c.sellerId));
       return {
         items: ids.map((catalogEntryId) => {

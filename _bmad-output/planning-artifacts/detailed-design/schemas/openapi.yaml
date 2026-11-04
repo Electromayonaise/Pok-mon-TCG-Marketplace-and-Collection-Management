@@ -12777,6 +12777,19 @@ components:
           format: "date"
         manualPosition:
           type: "number"
+        externalUrl:
+          anyOf:
+            - type: "string"
+            - type: "null"
+        imageUrl:
+          anyOf:
+            - type: "string"
+            - type: "null"
+        orderId:
+          anyOf:
+            - type: "string"
+              pattern: "^[a-z][0-9a-z]{23}$"
+            - type: "null"
       required:
         - "entryId"
         - "cardKind"
@@ -12786,6 +12799,9 @@ components:
         - "qty"
         - "acquiredAt"
         - "manualPosition"
+        - "externalUrl"
+        - "imageUrl"
+        - "orderId"
     BinderSortKey:
       type: "string"
       enum:

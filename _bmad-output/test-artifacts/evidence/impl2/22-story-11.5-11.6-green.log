@@ -1,0 +1,18 @@
+# Flow A + B + D + E green phase — Stories 11.5 and 11.6 together (decision log Impl-2 #17): npm run test:ci, exit 0
+# The 8 bound tests of 11.5/11.6 and [S-FR-COL-3.f2] pass; [NFR-COL-2.binder] p95 20.7 ms, [NFR-COL-2.wishlist] p95 24.4 ms;
+# domain/col.ts branch coverage 100 %; AD-INV-3 rule 2 parity test green. First full run green.
+# Playwright: evidence/impl2/21-story-11.5-e2e.log (4 passed).
+✖ 3 problems (0 errors, 3 warnings)
+no-sleep: 304 files checked, 7 rules proven on planted violations, 0 problems
+55 models, each tagged with its owning module; prisma/schema.prisma is current
+      Tests  653 passed (653)
+143 operations, 112 ingress procedures, 159 schemas, 37 core operations checked against contracts.md; surface is current
+43 pages, 327 states (138 data, 77 refusal, 112 client), 0 problems
+204 code citations checked, 0 problems
+trace: 96 FRs, 56 NFRs, 61 AD rows, 25 risks, 114 clauses, 412 tests; 0 problems
+_bmad-output/planning-artifacts/epics.md is current: 13 epics, 71 stories
+13 domain files checked, 0 problems
+      Tests  12 passed (12)
+solu2-atdd: 370 tests in 24 files; 6 red for the right reason; 364 green for done stories (406 contracts or test ids done); 0 not as expected
+solu2-nfr: 26 tests in 14 files; 0 red for the right reason; 26 green for done stories (406 contracts or test ids done); 0 not as expected
+EXIT 0

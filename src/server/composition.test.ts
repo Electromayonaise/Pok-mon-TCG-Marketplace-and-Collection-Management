@@ -824,7 +824,7 @@ describe('trading over HTTP (S-FR-TRD-1, S-FR-TRD-2w, S-FR-TRD-3; Story 10.1)', 
   });
 });
 
-describe('collections over HTTP (S-FR-COL-1, COL-3, COL-1, COL-2; Stories 11.1–11.3)', () => {
+describe('collections over HTTP (S-FR-COL-1, COL-3, COL-1, COL-2, S-FR-COL-3..6; Stories 11.1–11.3, 11.5)', () => {
   it('an owner creates, lists, renames and deletes collections; a taken name is CollectionNameTaken 409 and a foreign id is CollectionNotFound 404 (Story 11.1)', async () => {
     await user(db, { id: id('valentina') });
     await user(db, { id: id('julian') });
@@ -883,6 +883,43 @@ describe('collections over HTTP (S-FR-COL-1, COL-3, COL-1, COL-2; Stories 11.1�
     const again = await post('collections.prompts.dismiss', { promptId: prompts[0]!.promptId }, camila);
     expect([again.status, again.json.error?.code]).toEqual([409, 'PromptAlreadyResolved']);
     expect(await rows(db, 'CollectionEntry')).toMatchObject([{ source: 'PlatformPurchase', orderId: id('o1'), acquiredPriceCop: '45000' }]);
+  });
+
+  it('the binder, a link, a copy and the wishlist through the real catalog and listings; spoofed links, foreign ids and unknown cards are refused (Story 11.5)', async () => {
+    await user(db, { id: id('julian') });
+    await user(db, { id: id('camila') });
+    await catalogEntry(db, id('char'), { name: 'Charizard ex', number: '006' });
+    await ins(db, 'Collection', { id: id('coll1'), ownerId: id('julian'), name: 'General' });
+    await ins(db, 'Collection', { id: id('coll2'), ownerId: id('julian'), name: 'Intercambio' });
+    await ins(db, 'CollectionEntry', { id: id('e1'), collectionId: id('coll1'), cardKind: 'catalog', catalogEntryId: id('char'), source: 'Manual', qty: 1, acquiredAt: '2026-09-01', manualPosition: 0 });
+    const julian = await signIn(id('julian'));
+    const link = { collectionId: id('coll1'), url: 'https://promos.example/pikachu', title: 'Pikachu promo', imageUrl: null, qty: 1, acquiredAt: '2026-09-02' };
+    const added = await post('collections.addExternal', link, julian);
+    expect([added.status, added.json.result?.data.decision]).toEqual([200, expect.objectContaining({ reasonCode: 'CollectionEntryAdded' })]);
+    // The parser refuses a non-https link on its pattern; a userinfo spoof that passes it is the service's InvalidExternalLink.
+    const http = await post('collections.addExternal', { ...link, url: 'http://promos.example/pikachu' }, julian);
+    expect([http.status, http.json.error?.code]).toEqual([400, 'RequestValidationFailed']);
+    const spoof = await post('collections.addExternal', { ...link, url: 'https://user:pass@promos.example/pikachu' }, julian);
+    expect([spoof.status, spoof.json.error?.code]).toEqual([400, 'InvalidExternalLink']);
+    const binder = await get('collections.binder', { collectionId: id('coll1'), sort: ['acquiredAt'], setId: null }, julian);
+    expect(binder.json.result?.data).toMatchObject({ rows: 3, cols: 3, completion: null, entries: [{ entryId: id('e1'), title: 'Charizard ex' }, { cardKind: 'external', title: 'Pikachu promo', externalUrl: link.url }] });
+    const copied = await post('collections.copyEntry', { entryId: id('e1'), targetCollectionId: id('coll2') }, julian);
+    expect(copied.json.result?.data).toMatchObject({ collectionId: id('coll2'), decision: { reasonCode: 'CollectionEntryCopied' } });
+    expect((await post('collections.moveEntry', { entryId: id('e1'), targetCollectionId: id('coll2') }, julian)).json.result?.data).toMatchObject({ entryId: id('e1') });
+    expect((await post('collections.setLayout', { collectionId: id('coll1'), rows: 2, cols: 4 }, julian)).status).toBe(200);
+    expect((await post('collections.reorder', { collectionId: id('coll1'), orderedEntryIds: [added.json.result?.data.entryId] }, julian)).status).toBe(200);
+    const camila = await signIn(id('camila'));
+    const foreign = await get('collections.binder', { collectionId: id('coll1'), sort: [], setId: null }, camila);
+    expect([foreign.status, foreign.json.error?.code]).toEqual([404, 'CollectionNotFound']);
+    const notHers = await post('collections.moveEntry', { entryId: id('e1'), targetCollectionId: id('coll1') }, camila);
+    expect([notHers.status, notHers.json.error?.code]).toEqual([404, 'CollectionEntryNotFound']);
+    const wished = await post('collections.wishlist.add', { catalogEntryId: id('char'), maxPriceCop: 50_000, note: null }, camila);
+    expect(wished.json.result?.data).toEqual({ rows: [{ catalogEntryId: id('char'), maxPriceCop: 50_000, lowestPriceCop: null, availableCount: 0 }] });
+    const ghost = await post('collections.wishlist.add', { catalogEntryId: id('ghost'), maxPriceCop: null, note: null }, camila);
+    expect([ghost.status, ghost.json.error?.code]).toEqual([400, 'InvalidCatalogEntry']);
+    expect((await get('collections.wishlist.list', {}, camila)).json.result?.data).toEqual(wished.json.result?.data);
+    expect((await post('collections.wishlist.remove', { catalogEntryId: id('char') }, camila)).json.result?.data).toEqual({ rows: [] });
+    expect(await rows(db, 'CatalogEntry')).toHaveLength(1);
   });
 });
 

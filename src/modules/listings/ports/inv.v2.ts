@@ -4,7 +4,7 @@ import type { AuditLog } from '../../../shared-kernel/audit.js';
 import type { OutboxV2 } from '../../../shared-kernel/events.js';
 import type { Clock, IdGenerator, TransactionRunner } from '../../../shared-kernel/ports.js';
 import type { GetEntriesRequest, GetEntriesResponse, ResolveItemRefsRequest, ResolveItemRefsResponse } from '../../catalog/index.js';
-import type { GetSellerVerificationRequest, GetSellerVerificationResponse, RequireListingEligibilityRequest, RequireListingEligibilityResponse } from '../../identity/index.js';
+import type { GetSellerKindsRequest, GetSellerKindsResponse, GetSellerVerificationRequest, GetSellerVerificationResponse, RequireListingEligibilityRequest, RequireListingEligibilityResponse } from '../../identity/index.js';
 
 /** Neighbour port: `catalog`, as consumed by INV. Declared by the consumer and bound to the provider's
  * application service in the composition root, or to a fake in tests (Plan-2 §3, AD-1). */
@@ -20,6 +20,8 @@ export interface CatalogForInv {
 export interface IdentityForInv {
   /** IDN-2 */
   requireListingEligibility(input: RequireListingEligibilityRequest): Promise<RequireListingEligibilityResponse>;
+  /** S-FR-IDN-6.kinds */
+  getSellerKinds(input: GetSellerKindsRequest): Promise<GetSellerKindsResponse>;
   /** P-IDN.verification */
   getSellerVerification(input: GetSellerVerificationRequest): Promise<GetSellerVerificationResponse>;
 }
