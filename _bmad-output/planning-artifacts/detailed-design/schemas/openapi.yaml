@@ -8442,7 +8442,6 @@ paths:
                   pattern: "^[a-z][0-9a-z]{23}$"
                 url:
                   type: "string"
-                  pattern: "^https://"
                   maxLength: 2048
                 title:
                   type: "string"
@@ -8451,7 +8450,6 @@ paths:
                 imageUrl:
                   anyOf:
                     - type: "string"
-                      pattern: "^https://"
                     - type: "null"
                 qty:
                   type: "integer"

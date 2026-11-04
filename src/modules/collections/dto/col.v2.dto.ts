@@ -48,11 +48,11 @@ export interface DeleteCollectionResponse { entriesRemoved: number; platformPurc
 export interface AddExternalEntryRequest {
   ownerId: CuidId;
   collectionId: CuidId;
-  /** @pattern ^https:// @maxLength 2048 */
+  /** @maxLength 2048. The https rule is the service's, so an unsafe link is InvalidExternalLink, not the parser's RequestValidationFailed (S-FR-COL-3; decision log Impl-2 #20). */
   url: string;
   /** @minLength 1 @maxLength 120 */
   title: string;
-  /** @pattern ^https:// */
+  /** https or null: the service's rule, like `url` (decision log Impl-2 #20). */
   imageUrl: string | null;
   /** @minimum 1 @maximum 999 */
   qty: number;

@@ -35,7 +35,7 @@ export const INPUTS = {
   'catalog.fx.retry': z.strictObject({}),
   'catalog.provenance': z.strictObject({ catalogEntryIds: z.array(z.string().regex(new RegExp("^[a-z][0-9a-z]{23}$"))).min(1).max(500), period: z.union([z.literal(7), z.literal(30), z.literal(90)]) }),
   'collections.addEntry': z.strictObject({ collectionId: z.string().regex(new RegExp("^[a-z][0-9a-z]{23}$")).nullable(), catalogEntryId: z.string().regex(new RegExp("^[a-z][0-9a-z]{23}$")), qty: z.number().int().min(1).max(999), acquiredAt: z.iso.date(), acquiredPriceCop: z.number().int().min(0).max(100000000).nullable() }),
-  'collections.addExternal': z.strictObject({ collectionId: z.string().regex(new RegExp("^[a-z][0-9a-z]{23}$")), url: z.string().max(2048).regex(new RegExp("^https://")), title: z.string().min(1).max(120), imageUrl: z.string().regex(new RegExp("^https://")).nullable(), qty: z.number().int().min(1).max(999), acquiredAt: z.iso.date() }),
+  'collections.addExternal': z.strictObject({ collectionId: z.string().regex(new RegExp("^[a-z][0-9a-z]{23}$")), url: z.string().max(2048), title: z.string().min(1).max(120), imageUrl: z.string().nullable(), qty: z.number().int().min(1).max(999), acquiredAt: z.iso.date() }),
   'collections.binder': z.strictObject({ collectionId: z.string().regex(new RegExp("^[a-z][0-9a-z]{23}$")), sort: z.array(BinderSortKey).max(3), setId: z.string().regex(new RegExp("^[a-z][0-9a-z]{23}$")).nullable() }),
   'collections.copyEntry': z.strictObject({ entryId: z.string().regex(new RegExp("^[a-z][0-9a-z]{23}$")), targetCollectionId: z.string().regex(new RegExp("^[a-z][0-9a-z]{23}$")) }),
   'collections.create': z.strictObject({ name: z.string().min(1).max(60) }),

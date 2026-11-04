@@ -293,3 +293,20 @@
 - **Deferred:** no inbox preview, verification markers or per-message Pending notice (DTO fields); no composer, filters or deep link; the business sees the mute toggle; one identity call per shop for names; no return-to page, sign-out or sign-up on `/ingresar`.
 - **Artifact changed:** the messaging module, `composition.ts` (+ test), `app/` (`_client/api.ts`, `_server/runtime.ts` `callProcedure`, `ingresar/`, `mensajes/`, `layout.tsx`), `_bmad-output/test-artifacts/e2e/` (`inbox.spec.ts`, `pages/SignInPage.ts`, `pages/InboxPage.ts`, `support/inbox-seed.ts`), `contracts.md`, `epics.source.mjs` and `epics.md`, `test-design.md` (R-26), `deferred-work.md`, `nfr-evidence.md`, `sprint-status.yaml` (9.6 and Epic 9 `done`), `traceability-matrix.md`, Story 9.6's file (commits `0291b05`, `90db9da`); `domain/msg.ts` and `ports-and-adapters.md` (this entry's commit).
 - **Decided by:** Mateo (#15 and the dead stub); agent defaults within #15.
+
+### 20. Stories 11.5 and 11.6 are green with the binder pages; an unsafe link answers its registry code over HTTP too (Implementation + Architecture)
+
+- **Phase:** B (Stories 11.5 and 11.6 together; Flow A for 11.6's red test `7c78cb1`, then Flow B + D + E), in a story subagent; then a menu on the contract mismatch it reported.
+- **Persona/Skill:** `bmad-dev-story` (Amelia), `bmad-testarch-atdd` and `-nfr` (Murat), reading S-FR-COL-3..6, AD-COL-1, S-12 and #17.
+- **AI output (summary):** the link rule, the binder order (`entryId` as the last tie-break), completion (`null` for 0 cards), move/copy, layout, reorder and the wishlist; listings' availability now reads verification through batch `getSellerKinds` calls of at most 500 ids, with AD-INV-3 rule 2's parity test (a deliberate bad change made it fail, then it was reverted); 9 procedures; NFR-COL-2 green (a 500-entry sorted binder at p95 20.7 ms; a 200-card wishlist at 24.4 ms); the pages `/coleccion`, `/coleccion/[id]` and `/coleccion/[id]/agregar`, and `/ingresar?siguiente=` (same-site paths only); page objects `BinderPage` and `AddLinkPage`, and a binder journey.
+- **Agent defaults (no menu):**
+  - The sort is ascending, with missing values last; `setNumber` orders by set, then by card number as written.
+  - `BinderEntryDTO` gained `externalUrl`, `imageUrl` and `orderId`.
+  - A reorder names every entry exactly once.
+  - Layout, reorder and real wishlist changes are audited.
+  - The wishlist is ordered by lowest price, with unavailable cards last.
+  - Routes follow the UX spec, `/coleccion/<id>`.
+- **Mismatch put to Mateo:** the DTO's `@pattern ^https://` made the tRPC parser refuse `http://`, `javascript:`, `data:` and `//host` with the generic `RequestValidationFailed`, before the service ran. So over HTTP, S-FR-COL-3's own `InvalidExternalLink` appeared only for userinfo or over-long links. Options: **(recommended)** drop the `@pattern` so every unsafe link reaches the service and answers the registry code; or keep two codes for one rule. **Human decision:** ACCEPT the recommendation: `@pattern` removed from `url` and `imageUrl`, the zod inputs and OpenAPI regenerated, and the HTTP test now expects `InvalidExternalLink`.
+- **Evidence:** `evidence/impl2/20-story-11.6-red.log`, `21-story-11.5-e2e.log` (Playwright 4 passed, 17.8 s), `22-story-11.5-11.6-green.log` (`test:ci` exit 0, `solu2-atdd` 364 green and 6 red for the right reason, `solu2-nfr` 26 green, `domain/col.ts` 100 % branches).
+- **Artifact changed:** the collections module, listings' `inv.v2.ts` (+ test), `operations.json`, `openapi.yaml`, `composition.ts` (+ test), the ATDD and NFR files, the E2E files (`binder.spec.ts`, `BinderPage.ts`, `AddLinkPage.ts`, `support/binder-seed.ts`, `support/db.ts`), `contracts.md`, `test-design.md` (R-28), `epics.source.mjs` and `epics.md`, `nfr-evidence.md`, `deferred-work.md`, `sprint-status.yaml` (11.5, 11.6 and Epic 11 `done`), both story files (commits `7c78cb1`, `7162354`); `col.v2.dto.ts`, the generated inputs, OpenAPI and `composition.test.ts` (this entry's commit).
+- **Decided by:** Mateo (#17 and the mismatch); agent defaults within #17.

@@ -896,9 +896,9 @@ describe('collections over HTTP (S-FR-COL-1, COL-3, COL-1, COL-2, S-FR-COL-3..6;
     const link = { collectionId: id('coll1'), url: 'https://promos.example/pikachu', title: 'Pikachu promo', imageUrl: null, qty: 1, acquiredAt: '2026-09-02' };
     const added = await post('collections.addExternal', link, julian);
     expect([added.status, added.json.result?.data.decision]).toEqual([200, expect.objectContaining({ reasonCode: 'CollectionEntryAdded' })]);
-    // The parser refuses a non-https link on its pattern; a userinfo spoof that passes it is the service's InvalidExternalLink.
+    // Every unsafe link reaches the service and is S-FR-COL-3's own InvalidExternalLink citing url (decision log Impl-2 #20).
     const http = await post('collections.addExternal', { ...link, url: 'http://promos.example/pikachu' }, julian);
-    expect([http.status, http.json.error?.code]).toEqual([400, 'RequestValidationFailed']);
+    expect([http.status, http.json.error?.code]).toEqual([400, 'InvalidExternalLink']);
     const spoof = await post('collections.addExternal', { ...link, url: 'https://user:pass@promos.example/pikachu' }, julian);
     expect([spoof.status, spoof.json.error?.code]).toEqual([400, 'InvalidExternalLink']);
     const binder = await get('collections.binder', { collectionId: id('coll1'), sort: ['acquiredAt'], setId: null }, julian);
