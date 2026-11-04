@@ -2,6 +2,7 @@
 // conversation, sees its unread badge clear and the total drop, and mutes another conversation so the total leaves
 // it out. The rules themselves (the clamp, monotonic read marks, mute) are proven below this level (ATDD); this
 // journey proves the pages wire them together.
+// Traces: FR-MSG-7, FR-MSG-8, FR-IDN-7 (read by scripts/gen-solu2-trace.mjs into traceability-matrix.md).
 import { expect, test } from '@playwright/test';
 import { InboxPage } from './pages/InboxPage.js';
 import { SignInPage } from './pages/SignInPage.js';

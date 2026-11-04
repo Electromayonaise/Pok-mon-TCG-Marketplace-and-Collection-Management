@@ -3,6 +3,7 @@
 // pocket with its "Agregado por enlace" badge) after an http:// link is refused on its field in es-CO. The rules
 // themselves (the entryId tie-break, the link rule, R-28) are proven below this level (ATDD and the domain tests); this
 // journey proves the pages wire them together.
+// Traces: FR-COL-3, FR-COL-5, FR-IDN-7 (read by scripts/gen-solu2-trace.mjs into traceability-matrix.md).
 import { expect, test } from '@playwright/test';
 import { AddLinkPage } from './pages/AddLinkPage.js';
 import { BinderPage } from './pages/BinderPage.js';

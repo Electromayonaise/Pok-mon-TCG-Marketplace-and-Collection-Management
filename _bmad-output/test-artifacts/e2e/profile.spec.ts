@@ -2,6 +2,7 @@
 // profile and reads the rating, the count and the first page of visible reviews; a review an admin hid is neither shown
 // nor counted; an id that is no seller gets the es-CO Not-available page. The one-snapshot rule and the hide itself are
 // proven below this level ([S-FR-REP-7.h], [S-FR-REP-7.C1]); this journey proves the public page wires them together.
+// Traces: FR-REP-7, FR-REP-4 (read by scripts/gen-solu2-trace.mjs into traceability-matrix.md).
 import { expect, test } from '@playwright/test';
 import { SellerProfilePage } from './pages/SellerProfilePage.js';
 import { HIDDEN_TEXT, NOBODY, SELLER, seedProfile, VISIBLE } from './support/profile-seed.js';

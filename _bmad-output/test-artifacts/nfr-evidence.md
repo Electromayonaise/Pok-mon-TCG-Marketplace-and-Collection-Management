@@ -70,7 +70,7 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 
 | NFR | Category | Metric (threshold) | Measurement | Artifact | Status |
 |---|---|---|---|---|---|
-| NFR-IDN-1 | Performance | Capability reads (500 ids) p95 ≤ 50 ms | PRD §7 protocol on `getCapabilities` / `getSellerKinds` | — | Planned — story DoD |
+| NFR-IDN-1 | Performance | Capability reads (500 ids) p95 ≤ 50 ms | PRD §7 protocol on `getCapabilities`, `requireListingEligibility` and `getSellerKinds` (500 known ids) over the §3 seed's accounts | `[NFR-IDN-1.capabilities]`, `[NFR-IDN-1.eligibility]` (Story 2.3), `[NFR-IDN-1.sellerKinds]` (Story 2.5) | Green — benchmark (the Impl-2 test hardening, 2026-11-04) |
 | NFR-IDN-2 | Reliability (MEC) | 100 repetitions: one success, one explained rejection | Race on a fresh account each repetition | `[IDN-1.MEC]`, `[IDN-1.I1]` | Green — ATDD |
 | NFR-IDN-3 | Security | 0 procedures accept a role, seller-kind or capability field | Schema scan of every tRPC input | `[SYS-8.R2.static]`, `[SYS-8.R2]` | Green — gate |
 | NFR-VER-1 | Reliability (MEC) | 100 repetitions: one transition, one event, no half state | Approve and reject raced by two admins | `[VER-1.MEC]` | Green — ATDD |
@@ -115,15 +115,15 @@ All three were red when this plan was written (`npm run gate:nfr-red:solu2`). NF
 
 ## Summary
 
-Refreshed as a whole at the Impl-1 close (2026-10-30, decision log Impl-1 #39), from the bound tests' results in that run: every row whose named tests all belong to done stories is green. Impl-2 refreshes the rows its stories turn green: NFR-COM-2 with Story 8.5, NFR-COL-2 and NFR-COL-3 with Story 11.5 (2026-11-03), and NFR-REP-2 with Story 13.5 (2026-11-04), which leaves no row red.
+Refreshed as a whole at the Impl-1 close (2026-10-30, decision log Impl-1 #39), from the bound tests' results in that run: every row whose named tests all belong to done stories is green. Impl-2 refreshes the rows its stories turn green: NFR-COM-2 with Story 8.5, NFR-COL-2 and NFR-COL-3 with Story 11.5 (2026-11-03), and NFR-REP-2 with Story 13.5 (2026-11-04), which leaves no row red; NFR-IDN-1 with the Impl-2 test hardening (2026-11-04), which leaves no row planned.
 
 | Status | NFRs |
 |---|---|
 | Green — ATDD (wholly or in part) | 37 (NFR-SYS-1, -5, -7, -8, -10, -13, -14, NFR-IDN-2, NFR-VER-1, -2, -4, NFR-CAT-2, -3, -4, NFR-INV-1, -2, -3, NFR-DSC-2, -3, NFR-ORD-1, -3, -4, NFR-COM-1, -2, -4, NFR-TRD-1, -3, NFR-MSG-1, -2, -4, NFR-COL-1, NFR-VAL-1, -3, NFR-REP-1, -3; NFR-VER-4, NFR-ORD-3, NFR-MSG-1, -2, NFR-COL-3, NFR-REP-2 and NFR-REP-3 in part) |
-| Green — benchmark (wholly or in part) | 16 (NFR-SYS-2, -6, -9, NFR-VER-3, NFR-CAT-1, NFR-INV-4, NFR-DSC-1, NFR-COM-2, -3, NFR-TRD-2, NFR-COL-2, NFR-VAL-2; NFR-ORD-2, NFR-MSG-1, -2 and NFR-REP-2 in part) |
+| Green — benchmark (wholly or in part) | 17 (NFR-SYS-2, -6, -9, NFR-IDN-1, NFR-VER-3, NFR-CAT-1, NFR-INV-4, NFR-DSC-1, NFR-COM-2, -3, NFR-TRD-2, NFR-COL-2, NFR-VAL-2; NFR-ORD-2, NFR-MSG-1, -2 and NFR-REP-2 in part) |
 | Green — gate (wholly or in part) | 8 (NFR-SYS-3, -4, -12, NFR-IDN-3, NFR-MSG-3; NFR-ORD-3, NFR-COL-3 and NFR-REP-3 in part) |
 | Red — ATDD (wholly or in part) | 0: NFR-REP-2's `[S-FR-REP-7.h]` turned green with Story 13.5, the last Impl-2 story |
-| Planned — story DoD (wholly or in part) | 1: NFR-IDN-1, which no story in `epics.md` names in its Traceability (`impl1-final-trace.md` §4). `deferred-work.md` gives it an owner: the Impl-2 test hardening (decision log Impl-1 #39). NFR-COL-2 turned green with Story 11.5, and NFR-REP-2's profile benchmark with Story 13.5 |
+| Planned — story DoD (wholly or in part) | 0: NFR-IDN-1, the last one, turned green with the Impl-2 test hardening (its owner since decision log Impl-1 #39), bound to Stories 2.3 and 2.5. NFR-COL-2 turned green with Story 11.5, and NFR-REP-2's profile benchmark with Story 13.5 |
 | Deferred — launch | 3: NFR-SYS-11 (WCAG audit), and the transfer times of NFR-VER-4 and NFR-ORD-2 on a shaped 10 Mbps link |
 
 Rows marked "in part" are counted under each of their statuses, so the summary adds up to more than 56. No NFR is left without a named artifact or an owner phase. The *Measured* table keeps each benchmark's figures from its own epic; the close's run is in `walkthrough-impl1.md` §17. Each status cell is one or more `Status (detail)` parts separated by semicolons, with no semicolon inside a detail, because `gen-solu2-trace.mjs` counts the parts.
@@ -134,6 +134,9 @@ Each benchmark writes its figures (milliseconds, n = 500) to `.vitest-results/`.
 
 | NFR | Benchmark | Result file | p50 | p95 | Threshold | Measured |
 |---|---|---|---|---|---|---|
+| NFR-IDN-1 | `[NFR-IDN-1.capabilities]` | `nfr-idn-1-capabilities.json` | 1.8 | 4.8 | p95 ≤ 50 | 2026-11-04, the Impl-2 test hardening, `getCapabilities` of the §3 seed's 300 accounts in turn, the real identity, local Postgres 16 |
+| NFR-IDN-1 | `[NFR-IDN-1.eligibility]` | `nfr-idn-1-eligibility.json` | 1.9 | 4.2 | p95 ≤ 50 | 2026-11-04, the same, `requireListingEligibility` of the seed's 71 sellers who may list (60 individuals, 8 Approved and 3 Pending businesses) in turn |
+| NFR-IDN-1 | `[NFR-IDN-1.sellerKinds]` | `nfr-idn-1-seller-kinds.json` | 4.8 | 13.1 | p95 ≤ 50 | 2026-11-04, the same, `getSellerKinds` of 500 known ids (the seed's 300 accounts and 200 more buyers), the interface maximum |
 | NFR-VER-3 | `[NFR-VER-3.queue]` | `nfr-ver-3-queue.json` | 3.3 | 6.1 | p95 ≤ 1,000 | 2026-10-26, Epic 3 review, local Docker Postgres 16 |
 | NFR-VER-3 | `[NFR-VER-3.sign]` | `nfr-ver-3-sign.json` | 4.9 | 8.2 | p95 ≤ 300 | 2026-10-26, Epic 3 review (signing inside the grant transaction), local Docker Postgres 16, in-memory storage |
 | NFR-CAT-1 | `[NFR-CAT-1.provenance]` | `nfr-cat-1-provenance.json` | 4.9 | 11.9 | p95 ≤ 300 | 2026-10-27, Story 4.4, 48 priced ids over 30 days, local Postgres 16 |

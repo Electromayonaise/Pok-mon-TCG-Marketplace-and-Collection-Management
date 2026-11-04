@@ -1,5 +1,6 @@
 // E2E smoke (bmad-testarch-framework): the production build serves the app shell in es-CO, and the
 // home page reads the readiness probe through the real database and its migrations.
+// Traces: NFR-SYS-3 (read by scripts/gen-solu2-trace.mjs into traceability-matrix.md).
 import { expect, test } from '@playwright/test';
 import { HomePage } from './pages/HomePage.js';
 

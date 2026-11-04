@@ -10,6 +10,7 @@
 // `setup()` warms the freshly started server first (its first requests and its database pool), with 25 concurrent
 // reads of each endpoint five times over, tagged `endpoint:warmup` so the per-endpoint figures leave them out: without
 // it the first second's cold answers hold all 50 VUs and drop about 60 iterations per endpoint at the start alone.
+// Traces: NFR-REP-2, NFR-SYS-9, NFR-CAT-1 (read by scripts/gen-solu2-trace.mjs into traceability-matrix.md).
 /* global __ENV -- k6's runtime global: the environment. */
 import http from 'k6/http';
 import { check } from 'k6';

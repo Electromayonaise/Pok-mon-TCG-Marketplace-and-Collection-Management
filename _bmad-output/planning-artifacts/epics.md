@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 416 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 419 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -492,15 +492,15 @@ Give every account exactly one seller track and derive its capabilities from fac
 - **Description:** As Andrés, whose application was rejected, I want the listing form to tell me why I cannot list and when I may reapply, so that I never fill in a form I cannot submit.
 - **Contracts:** `IDN-2` requireListingEligibility, `P-IDN.capabilities` getCapabilities, `P-IDN.verification` getSellerVerification
 - **Depends on:** Story 2.1
-- **Traceability:** FR-IDN-1, FR-IDN-3 · UI 1.1 (dev), 1.2, 4.1
+- **Traceability:** FR-IDN-1, FR-IDN-3 · NFR-IDN-1 · UI 1.1 (dev), 1.2, 4.1
 - **Binding invariants:** AD-16 — Roles derived server-side (`deriveCapabilities`; no role-like input key); AD-SYS-4 — Transaction handles, pooler-safe state, global lock order (`tx` first; `db()` ambient client; ascending unit locks); also cited by its clauses: AD-IDN-1
 - **Files:** `src/modules/identity/application/idn.v2.ts` (`IdnServiceV2.requireListingEligibility`, `IdnServiceV2.getCapabilities`, `IdnServiceV2.getSellerVerification`), `src/modules/identity/ports/idn.v2.ts` (`IdnRepository`), `src/modules/identity/domain/idn.ts`, `src/modules/identity/infra/pg.ts`
 - **Schema/DTO:** tables `"BusinessApplication"`, `"User"`; DTOs `RequireListingEligibilityRequest` → `RequireListingEligibilityResponse`, `GetCapabilitiesRequest` → `GetCapabilitiesResponse`, `GetSellerVerificationRequest` → `GetSellerVerificationResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_contracts.test.ts` › `[IDN-2.Q1]`, `[IDN-2.QF1]`, `[IDN-2.QF2]`, `[IDN-2.I1]`, `[P-IDN.capabilities.h]`, `[P-IDN.verification.h]`; `_bmad-output/test-artifacts/atdd/sys_contracts.test.ts` › `[SYS-4.R9]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_contracts.test.ts` › `[IDN-2.Q1]`, `[IDN-2.QF1]`, `[IDN-2.QF2]`, `[IDN-2.I1]`, `[P-IDN.capabilities.h]`, `[P-IDN.verification.h]`; `_bmad-output/test-artifacts/atdd/sys_contracts.test.ts` › `[SYS-4.R9]`; `_bmad-output/test-artifacts/nfr/idn1_latency.test.ts` › `[NFR-IDN-1.capabilities]`, `[NFR-IDN-1.eligibility]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Andrés's application is Pending. **When:** `listings` asks `requireListingEligibility`. **Then:** he may list, unverified, with the `ListingUnverified` notice citing FR-IDN-3; the verification port answers inside the caller's transaction even with a pool of one connection.
   - **Scenario (failure) — Given:** Andrés's latest application is Rejected with a reapply date, and another account has no track. **When:** the eligibility check runs for each. **Then:** `SellerNotVerified` (409) citing the application and `reapplyNotBefore`, and `IndividualSellerProfileIncomplete` citing `sellerKind: 'none'`; an admin flag never turns an individual into a business.
-- **DoD:** the shared DoD, plus: the 7 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 9 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 2.4: Refuse unverified buyers and throttle failed sign-ins
 
@@ -524,15 +524,15 @@ Give every account exactly one seller track and derive its capabilities from fac
 - **Description:** As an admin, I want to trace why an account holds each capability, audited, so that support can explain access without reading legal data.
 - **Contracts:** `IDN-3` traceCapabilities, `S-FR-IDN-6.kinds` getSellerKinds, `S-FR-IDN-6.target` getReviewTarget, `P-IDN.contact` getContactCard, `P-IDN.names` getDisplayNames
 - **Depends on:** Story 2.3
-- **Traceability:** FR-IDN-1, FR-IDN-5, FR-IDN-6 · NFR-SYS-8 · UI 1.3
+- **Traceability:** FR-IDN-1, FR-IDN-5, FR-IDN-6 · NFR-IDN-1, NFR-SYS-8 · UI 1.3
 - **Binding invariants:** AD-13 — `legalIdentity` under Ley 1581 (Split table; one repository reader); AD-IDN-1 — Capabilities from one pure function (`deriveCapabilities`; trace = projection); also cited by its clauses: AD-SYS-8, AD-VER-2
 - **Files:** `src/modules/identity/application/idn.v2.ts` (`IdnServiceV2.traceCapabilities`, `IdnServiceV2.getSellerKinds`, `IdnServiceV2.getReviewTarget`, `IdnServiceV2.getContactCard`, `IdnServiceV2.getDisplayNames`), `src/modules/identity/ports/idn.v2.ts` (`IdnRepository`), `src/modules/identity/domain/idn.ts`, `src/modules/identity/infra/pg.ts`
 - **Schema/DTO:** tables `"BusinessApplicationLegalIdentity"`, `"CapabilityAuditRead"`, `"User"`; DTOs `TraceCapabilitiesRequest` → `TraceCapabilitiesResponse`, `GetSellerKindsRequest` → `GetSellerKindsResponse`, `GetReviewTargetRequest` → `GetReviewTargetResponse`, `GetContactCardRequest` → `GetContactCardResponse`, `GetDisplayNamesRequest` → `GetDisplayNamesResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_contracts.test.ts` › `[IDN-3.Q1]`, `[IDN-3.Q2]`, `[IDN-3.P2]`, `[IDN-3.I1]`, `[IDN-3.I3]`, `[S-FR-IDN-6.h]`, `[S-FR-IDN-6.f]`, `[P-IDN.contact.h]`, `[P-IDN.names.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_contracts.test.ts` › `[IDN-3.Q1]`, `[IDN-3.Q2]`, `[IDN-3.P2]`, `[IDN-3.I1]`, `[IDN-3.I3]`, `[S-FR-IDN-6.h]`, `[S-FR-IDN-6.f]`, `[P-IDN.contact.h]`, `[P-IDN.names.h]`; `_bmad-output/test-artifacts/nfr/idn1_latency.test.ts` › `[NFR-IDN-1.sellerKinds]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Andrés is an Approved business. **When:** an admin traces his capabilities. **Then:** six capabilities in fixed order, each citing its source facts and equal to `getCapabilities`; one `CapabilityAuditRead` and one admin audit row.
   - **Scenario (failure) — Given:** the target id is unknown. **When:** an admin traces it. **Then:** `AccountNotFound` (404) with zero writes; no trace ever carries a legal-identity value.
-- **DoD:** the shared DoD, plus: the 9 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 10 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 2.6: Sign up, sign in and throttle failed attempts
 
@@ -1044,7 +1044,7 @@ Keep each business's prepaid commission balance exact. Each order is charged exa
 - **Description:** As an admin, I want reconciliation to report every balance mismatch and sequence gap without changing anything, so that I can investigate (NFR-COM-2).
 - **Contracts:** `COM-3` reconcile, `COM-3.last` getLastReconciliation
 - **Depends on:** Story 8.2, Story 1.6
-- **Traceability:** FR-COM-8 · NFR-COM-2 · Risk R-23 (P0) · UI 7.4, 7.5 (dev)
+- **Traceability:** FR-COM-8 · NFR-COM-2 · Risk R-23 (P0), R-24 (P1) · UI 7.4, 7.5 (dev)
 - **Binding invariants:** AD-COM-1 — One atomic account update + one ledger entry (`UPDATE … RETURNING`; `UNIQUE (businessId, seq)`); also cited by its clauses: AD-19, AD-ORD-2, AD-SYS-1, AD-SYS-4
 - **Files:** `src/modules/commission/application/com.v2.ts` (`ComServiceV2.reconcile`, `ComServiceV2.getLastReconciliation`), `src/modules/commission/ports/com.v2.ts` (`ComRepository`), `src/modules/commission/domain/com.ts`, `src/modules/commission/infra/pg.ts`
 - **Schema/DTO:** tables `"CommissionAccount"`, `"CommissionLedgerEntry"`, `"ReconciliationRun"`, `"TopUpRequest"`; DTOs `ReconcileRequest` → `ReconcileResponse`, `GetLastReconciliationRequest` → `GetLastReconciliationResponse`
@@ -1060,7 +1060,7 @@ Keep each business's prepaid commission balance exact. Each order is charged exa
 - **Description:** As an admin, I want future-dated commission rates and a filterable ledger, so that pricing changes never apply retroactively.
 - **Contracts:** `S-FR-COM-7` setCommissionRate, `S-FR-COM-7.list` listCommissionRates, `S-FR-COM-8.ledger` getAccountLedger
 - **Depends on:** Story 8.2
-- **Traceability:** FR-COM-7, FR-COM-8 · UI 7.2, 7.4
+- **Traceability:** FR-COM-7, FR-COM-8 · Risk R-25 (P0) · UI 7.2, 7.4
 - **Binding invariants:** also cited by its clauses: AD-COM-1, AD-COM-2
 - **Files:** `src/modules/commission/application/com.v2.ts` (`ComServiceV2.setCommissionRate`, `ComServiceV2.listCommissionRates`, `ComServiceV2.getAccountLedger`), `src/modules/commission/ports/com.v2.ts` (`ComRepository`), `src/modules/commission/domain/com.ts`, `src/modules/commission/infra/pg.ts`
 - **Schema/DTO:** tables `"CommissionRateSetting"`; DTOs `SetCommissionRateRequest` → `SetCommissionRateResponse`, `ListCommissionRatesRequest` → `ListCommissionRatesResponse`, `GetAccountLedgerRequest` → `GetAccountLedgerResponse`
@@ -1328,7 +1328,7 @@ Let collectors keep collections of catalog cards and external promos, organize t
 - **Description:** As Julián, I want a stable binder view, promo cards by link, moves and a wishlist with the lowest available price, so that I can manage cards outside the catalog too.
 - **Contracts:** `S-FR-COL-3` addExternalEntry, `S-FR-COL-4` moveOrCopyEntry, `S-FR-COL-5.binder` getBinder, `S-FR-COL-5.layout` setBinderLayout, `S-FR-COL-5.reorder` reorderEntries, `S-FR-COL-6.add` addWishlist, `S-FR-COL-6.remove` removeWishlist, `S-FR-COL-6.list` listWishlist
 - **Depends on:** Story 11.2, Story 5.6
-- **Traceability:** FR-COL-3, FR-COL-4, FR-COL-5, FR-COL-6 · NFR-COL-2 · UI 9.1, 9.2, 9.3
+- **Traceability:** FR-COL-3, FR-COL-4, FR-COL-5, FR-COL-6 · NFR-COL-2 · Risk R-27 (P2) · UI 9.1, 9.2, 9.3
 - **Binding invariants:** AD-8 — Table ownership (No module writes another's tables; static scan of `infra/` SQL; shared-kernel owns only infra tables (+ `audit_events`, R-2)); also cited by its clauses: AD-1, AD-7, AD-COL-1
 - **Files:** `src/modules/collections/application/col.v2.ts` (`ColServiceV2.addExternalEntry`, `ColServiceV2.moveOrCopyEntry`, `ColServiceV2.getBinder`, `ColServiceV2.setBinderLayout`, `ColServiceV2.reorderEntries`, `ColServiceV2.addWishlist`, `ColServiceV2.removeWishlist`, `ColServiceV2.listWishlist`), `src/modules/collections/ports/col.v2.ts` (`ColRepository`), `src/modules/collections/domain/col.ts`, `src/modules/collections/infra/pg.ts`
 - **Schema/DTO:** tables `"CatalogEntry"`; DTOs `AddExternalEntryRequest` → `AddExternalEntryResponse`, `MoveOrCopyEntryRequest` → `MoveOrCopyEntryResponse`, `GetBinderRequest` → `GetBinderResponse`, `SetBinderLayoutRequest` → `CollectionChangeResponse`, `ReorderEntriesRequest` → `CollectionChangeResponse`, `AddWishlistRequest` → `ListWishlistResponse`, `RemoveWishlistRequest` → `ListWishlistResponse`, `ListWishlistRequest` → `ListWishlistResponse`
@@ -1344,7 +1344,7 @@ Let collectors keep collections of catalog cards and external promos, organize t
 - **Description:** As Julián, I want unsafe or foreign actions on entries refused with the field, so that nothing unsafe enters my collection.
 - **Contracts:** — (no registry operation of its own) · **Also proves:** `S-FR-COL-3` (operation owned by Story 11.5), `S-FR-COL-4` (operation owned by Story 11.5), `S-FR-COL-5` (§15 clause), `S-FR-COL-6` (§15 clause)
 - **Depends on:** Story 11.5
-- **Traceability:** FR-COL-3, FR-COL-4, FR-COL-5, FR-COL-6 · Risk R-28 (P0)
+- **Traceability:** FR-COL-3, FR-COL-4, FR-COL-5, FR-COL-6 · Risk R-27 (P2), R-28 (P0)
 - **Binding invariants:** also cited by its clauses: AD-1, AD-7, AD-8, AD-COL-1
 - **Files:** —
 - **Schema/DTO:** tables `"CatalogEntry"`

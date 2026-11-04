@@ -141,7 +141,7 @@ export default {
         {
           title: 'Explain why an account may not list', kind: 'Failure-state',
           as: 'As Andrés, whose application was rejected, I want the listing form to tell me why I cannot list and when I may reapply, so that I never fill in a form I cannot submit.',
-          ops: ['IDN-2', 'P-IDN.capabilities', 'P-IDN.verification'], tests: ['IDN-2.Q1', 'IDN-2.QF1', 'IDN-2.QF2', 'IDN-2.I1', 'P-IDN.capabilities.h', 'P-IDN.verification.h', 'SYS-4.R9'], depends: ['2.1'],
+          ops: ['IDN-2', 'P-IDN.capabilities', 'P-IDN.verification'], tests: ['IDN-2.Q1', 'IDN-2.QF1', 'IDN-2.QF2', 'IDN-2.I1', 'P-IDN.capabilities.h', 'P-IDN.verification.h', 'SYS-4.R9', 'NFR-IDN-1.capabilities', 'NFR-IDN-1.eligibility'], depends: ['2.1'],
           happy: ['Andrés\'s application is Pending.', '`listings` asks `requireListingEligibility`.', 'he may list, unverified, with the `ListingUnverified` notice citing FR-IDN-3; the verification port answers inside the caller\'s transaction even with a pool of one connection.'],
           failure: ['Andrés\'s latest application is Rejected with a reapply date, and another account has no track.', 'the eligibility check runs for each.', '`SellerNotVerified` (409) citing the application and `reapplyNotBefore`, and `IndividualSellerProfileIncomplete` citing `sellerKind: \'none\'`; an admin flag never turns an individual into a business.'],
         },
@@ -155,7 +155,7 @@ export default {
         {
           title: 'Trace capabilities for admins and answer neighbours\' identity queries', kind: 'Supporting',
           as: 'As an admin, I want to trace why an account holds each capability, audited, so that support can explain access without reading legal data.',
-          ops: ['IDN-3', 'S-FR-IDN-6.kinds', 'S-FR-IDN-6.target', 'P-IDN.contact', 'P-IDN.names'], tests: ['IDN-3.Q1', 'IDN-3.Q2', 'IDN-3.P2', 'IDN-3.I1', 'IDN-3.I3', 'S-FR-IDN-6.h', 'S-FR-IDN-6.f', 'P-IDN.contact.h', 'P-IDN.names.h'], depends: ['2.3'],
+          ops: ['IDN-3', 'S-FR-IDN-6.kinds', 'S-FR-IDN-6.target', 'P-IDN.contact', 'P-IDN.names'], tests: ['IDN-3.Q1', 'IDN-3.Q2', 'IDN-3.P2', 'IDN-3.I1', 'IDN-3.I3', 'S-FR-IDN-6.h', 'S-FR-IDN-6.f', 'P-IDN.contact.h', 'P-IDN.names.h', 'NFR-IDN-1.sellerKinds'], depends: ['2.3'],
           happy: ['Andrés is an Approved business.', 'an admin traces his capabilities.', 'six capabilities in fixed order, each citing its source facts and equal to `getCapabilities`; one `CapabilityAuditRead` and one admin audit row.'],
           failure: ['the target id is unknown.', 'an admin traces it.', '`AccountNotFound` (404) with zero writes; no trace ever carries a legal-identity value.'],
         },
