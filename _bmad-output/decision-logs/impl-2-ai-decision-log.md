@@ -310,3 +310,29 @@
 - **Evidence:** `evidence/impl2/20-story-11.6-red.log`, `21-story-11.5-e2e.log` (Playwright 4 passed, 17.8 s), `22-story-11.5-11.6-green.log` (`test:ci` exit 0, `solu2-atdd` 364 green and 6 red for the right reason, `solu2-nfr` 26 green, `domain/col.ts` 100 % branches).
 - **Artifact changed:** the collections module, listings' `inv.v2.ts` (+ test), `operations.json`, `openapi.yaml`, `composition.ts` (+ test), the ATDD and NFR files, the E2E files (`binder.spec.ts`, `BinderPage.ts`, `AddLinkPage.ts`, `support/binder-seed.ts`, `support/db.ts`), `contracts.md`, `test-design.md` (R-28), `epics.source.mjs` and `epics.md`, `nfr-evidence.md`, `deferred-work.md`, `sprint-status.yaml` (11.5, 11.6 and Epic 11 `done`), both story files (commits `7c78cb1`, `7162354`); `col.v2.dto.ts`, the generated inputs, OpenAPI and `composition.test.ts` (this entry's commit).
 - **Decided by:** Mateo (#17 and the mismatch); agent defaults within #17.
+
+### 21. Stories 13.5 and 13.6 close the backlog: every ATDD and NFR test is green, k6 passes, and CI drives k6 at a fixed rate (Implementation + Testing)
+
+- **Phase:** B (Stories 13.5 and 13.6, Flow A + D + E), in a story subagent; then a menu on the k6 risk it reported.
+- **Persona/Skill:** `bmad-dev-story` (Amelia), `bmad-testarch-atdd` and `bmad-testarch-nfr` (Murat), reading S-FR-REP-5..7, AD-12, AD-REP-2, AD-REP-3, NFR-REP-2 and #18.
+- **AI output (summary):** red commit `f8f2b62` (`[S-FR-REP-7.C1]`, `[S-FR-REP-5.C1]`), then green `23d0157`:
+  - listing hide and unhide with their log;
+  - review search with `\`, `%` and `_` escaped, and the review log;
+  - a public profile read in one `REPEATABLE READ` transaction;
+  - the two logs merged for the 11.4 view, and four stored-only codes;
+  - every registry procedure now has a resolver;
+  - `[NFR-REP-2.profile]`;
+  - `npm run nfr:k6` (the §3 seed in `tezg_k6`, the production build, `grafana/k6:1.4.2` in Docker) and an `nfr-k6` CI job that `release` requires;
+  - the public page `/perfil/[userId]` with its page object and journey.
+- **Test problems the subagent found and fixed itself:**
+  - **A race test that could not fail:** the first version of `[S-FR-REP-7.C1]` still passed when the profile read was deliberately broken to `READ COMMITTED`, so it could not catch the defect it names, the Blindly Green trap. It was strengthened to 4 admins hiding and unhiding while 4 readers read 3 times per round, and now fails 3 of 3 runs on the broken code. Its id and claim are unchanged.
+  - **"Too many clients" (53300):** with 16 local workers, the ATDD files' 60-connection pools exceeded Postgres's 200 connections, which failed race tests of done stories (on `HEAD` as well). `solu2-atdd` now runs 3 files at a time (`maxWorkers: 3`).
+- **Agent defaults (no menu):**
+  - `GetProfileResponse` gained `seller { userId, kind, displayName }` for the header, read in the same snapshot.
+  - A listing hide bumps its `version`.
+  - Search queries are 1–200 characters, and profile pages run 1–1,000.
+  - The route follows the UX spec, `/perfil/`.
+- **Risk put to Mateo:** the local k6 run passed (profile p95 177.4 ms, p99 292.7 ms; browse p95 176.7 ms; 0 % errors and 0 5xx over 11,981 requests each), but two earlier runs gave profile p95 235.9 and 279.1 ms against 300 ms. The unthrottled 50-VU burst measures how fast one runner can spin, so a slower CI runner could fail the blocking job on noise. Options: **(recommended)** keep the job blocking but drive k6 at a fixed arrival rate with the same thresholds; keep the burst as is; or make CI report-only. **Human decision:** ACCEPT the recommendation (applied in the next commit).
+- **Evidence:** `evidence/impl2/23-story-13.5-13.6-red.log`, `24-k6.log`, `k6-summary.json`, `25-story-13.5-e2e.log` (Playwright 6 passed, 16.3 s), `26-story-13.5-13.6-green.log` (`test:ci` exit 0, `solu2-atdd` 372 green and 0 red, `solu2-nfr` 27 green).
+- **Artifact changed:** listings and reviews modules, `src/server/moderation-log.ts`, `composition.ts` (+ tests), `rep2_latency.test.ts`, `nfr/k6/`, `scripts/nfr-k6.mjs`, `vitest.config.ts`, `package.json`, the E2E files, `.github/workflows/impl2-quality-gate.yml`, `contracts.md`, `epics.source.mjs` and `epics.md`, `test-design.md` (R-29, R-30, R-31), `nfr-evidence.md`, `deferred-work.md`, `sprint-status.yaml` (all 71 stories `done`), both story files.
+- **Decided by:** Mateo (#18 and the k6 rate); agent defaults within #18.
