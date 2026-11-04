@@ -382,3 +382,26 @@
 - **Artifact changed:** `app/ingresar/` (`destination.ts` + test, `SignInForm.tsx`), `src/server/auth.ts`, `auth-routes.ts`, `composition.ts`, `src/modules/messaging/application/msg.v2.ts`, `src/shared-kernel/jobs.ts` (+ test), `infra/pg-jobs.ts`, `atdd/idn_auth.test.ts`, `contracts.md`, `epics.source.mjs` and `epics.md`, `traceability-matrix.md`, `deferred-work.md` (commit `cd50fa1`).
 - **Decided by:** Mateo.
 
+
+### 24. The final trace passes; the test review's F becomes a remediation, and the pyramid deviation is documented and narrowed (Governance + Testing)
+
+- **Phase:** C (close), in a subagent (`ff6b103`, `478e3c6`, `d777941`); then menus.
+- **Persona/Skill:** `bmad-testarch-trace` and `bmad-testarch-test-review` (Murat).
+- **AI output (summary):**
+  - **Final trace (#5):** `traceability-matrix.md` is generated as the Impl-2 final trace: PRD requirement → story → test files → CI evidence → verdict, with the gate rule in its §1. **Gate decision: PASS.** FRs 96 / 96, NFRs 55 / 56 (NFR-SYS-11, WCAG, waived as "Deferred — launch"), risks 31 / 31, §14 ADs 61 / 61, stories 71 / 71 `done`, 419 / 419 test ids enforced green, 0 unmapped. `impl1-final-trace.md` is removed (readable with `git show 31999bc:<path>`). The trace's test state now comes from `sprint-status.yaml`.
+  - **Gaps the trace closed (agent defaults):** NFR-IDN-1 had no artifact (Impl-1 #39 R3 gave it to the Impl-2 hardening), so `nfr/idn1_latency.test.ts` was added (p95 4.8, 4.2 and 13.1 ms against 50 ms). R-24, R-25 and R-27 were planned in §7.2 but missing from the §2 register, and were added. The trace's id pattern missed ids with no digit (`[S-SYS.jobs.auth]`), which was fixed. Lint broke after a traced Playwright run, so the lint config now ignores `playwright-report/`.
+  - **Trace evidence (#10):** one `trace.zip` per journey from `npx playwright test --trace on` (6 passed) in `evidence/impl2/traces/`.
+  - **Test review:** 59 / 100 (F, Request Changes) under the skill's fixed severities:
+    - seven files over 300 lines (HIGH; the Impl-1 review had graded this LOW, which the registry does not allow);
+    - `composition.test.ts` depends on test order: a shuffled run fails 3 of 67, because Story 13.5's test advances the shared clock (HIGH);
+    - inline rows where a factory exists (MEDIUM);
+    - no test that cannot fail, no hard waits, no conditional assertions.
+
+    The Impl-1 MEDIUM-1 to MEDIUM-3 are confirmed fixed by Flow C.
+  - **Pyramid:** tests added by Impl-2, unit / integration / E2E: 43 % / 52 % / 5 % (+9 NFR); whole suite 24 % / 76 % / 0.6 % (+32 NFR). Neither meets 70 / 20 / 10. The suite is integration-heavy by design (test-design §3) and is not an ice-cream cone.
+- **Human decisions (menus):**
+  - **Test review:** **(recommended)** split the seven long files by procedure (moving tests, not changing them), reset the shared clock in a `beforeEach`, verify with a shuffled run, then re-review. The alternatives were fixing only the order bug, or deferring all. ACCEPT.
+  - **Pyramid:** **(recommended)** add pure unit tests where domain rules are still proven only through the database, and document the deliberate deviation with both counts in `test-review.md` and the walkthrough. The alternatives were documenting only, or reclassifying only. ACCEPT.
+- **Evidence:** `evidence/impl2/28-final-trace.log` (`test:ci` exit 0: 678 unit tests, `solu2-atdd` 373 green, `solu2-nfr` 30 green), `29-playwright-traces.log`.
+- **Artifact changed:** `scripts/gen-solu2-trace.mjs`, `traceability-matrix.md`, `test-review.md` (renamed from `impl1-test-review.md`), `impl1-final-trace.md` (removed), `nfr/idn1_latency.test.ts`, `test-design.md` §2, `tools/lint/base.mjs`, `nfr-evidence.md`, `deferred-work.md`, `_bmad-output/README.md`, `docs/impl-1/README.md`, the root `README.md`, `walkthrough-impl1.md`'s header, `evidence/impl2/traces/`.
+- **Decided by:** Mateo.
