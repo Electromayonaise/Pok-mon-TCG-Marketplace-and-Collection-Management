@@ -41,7 +41,7 @@ export interface ComV2UseCases {
 
 import type { Citation, Decision } from '../../../shared-kernel/decision.js';
 import { ambientTx } from '../../../shared-kernel/db.js';
-import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
@@ -50,8 +50,8 @@ import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import { isAdmin, requireAdmin, requireBusinessAccount } from '../../identity/index.js';
 import {
-  accountDiscrepancies, commissionOf, commissionTrigger, crossing, decodeKeyset, encodeKeyset, isLowBalance, isTopUpProofUploadKey, isValidTopUpAmount, LOW_BALANCE_THRESHOLD_COP, MAX_PROOF_BYTES, neededToResume,
-  RECONCILE_BATCH_MS, sniffProofType, topUpProofUploadPrefix,
+  accountDiscrepancies, commissionOf, commissionTrigger, crossing, decodeKeyset, decodeLedgerCursor, encodeKeyset, encodeLedgerCursor, isLowBalance, isTopUpProofUploadKey, isValidRateBps, isValidTopUpAmount,
+  LOW_BALANCE_THRESHOLD_COP, MAX_PROOF_BYTES, MAX_RATE_BPS, neededToResume, rateInForce, RECONCILE_BATCH_MS, scheduledEffectiveFrom, sniffProofType, topUpProofUploadPrefix,
 } from '../domain/com.js';
 import type { LedgerLineDTO, TopUpRowDTO } from '../dto/com.v2.dto.js';
 import type { LedgerLineRow, ReconciliationDiscrepancy, TopUpRow } from '../ports/com.v2.js';
@@ -64,6 +64,8 @@ const SIGNED_URL_TTL = 600;
 const TOP_UPS_PAGE = 25;
 /** S-FR-COM-9: the newest ledger lines the account page shows (decision log Impl-1 #33). */
 const ACCOUNT_LEDGER_LINES = 50;
+/** S-FR-COM-8.ledger: the admin ledger's page, the same 50 lines newest first, with a cursor (decision log Impl-2 #13). */
+const ADMIN_LEDGER_PAGE = 50;
 /** COM-1 Q2.1: the savepoint a lost race rolls back to. */
 const DEDUCTION_SAVEPOINT = 'apply_deduction';
 /** The `"TopUpRequest"` CHECK on `transferReference`, repeated for in-process callers. */
@@ -411,8 +413,38 @@ export class ComServiceV2 implements ComV2UseCases {
     return { topUpRequestId, status: 'Pending', submittedAt: now, decision };
   }
 
-  async setCommissionRate(_input: SetCommissionRateRequest): Promise<SetCommissionRateResponse> {
-    throw new NotImplementedError('commission.setCommissionRate');
+  /**
+   * S-FR-COM-7 (AD-COM-2 rule 6, FR-COM-7), in one transaction: the admin check first (AD-16), the
+   * rate's CHECK repeated for in-process callers, the 60 s tolerance, then the append-only setting from
+   * `max(effectiveFrom, now)` and its audit row. A rate is never retroactive: COM-1 prices each
+   * deduction at its `commissionTriggeredAt`, which is already past. A second setting from the same
+   * instant breaks `UNIQUE ("effectiveFrom")` and is refused with zero writes.
+   */
+  async setCommissionRate(input: SetCommissionRateRequest): Promise<SetCommissionRateResponse> {
+    const { repo, transactions, clock, ids, audit } = this.deps;
+    const { adminId, rateBps } = input;
+    return transactions.run(async (tx) => {
+      await requireAdmin(repo, tx, adminId);
+      if (!isValidRateBps(rateBps)) rejectRequest([{ field: 'rateBps', issue: `debe ser un número entero entre 0 y ${MAX_RATE_BPS}` }]);
+      const requested = new Date(input.effectiveFrom);
+      if (Number.isNaN(requested.getTime())) rejectRequest([{ field: 'effectiveFrom', issue: 'no es un instante válido' }]);
+      const at = clock.now();
+      const now = at.toISOString();
+      const from = scheduledEffectiveFrom(requested, at);
+      if (from === null) return raise('CommissionRateNotFutureDated', [{ rule: 'FR-COM-7', inputs: { effectiveFrom: requested.toISOString(), now } }]);
+      const effectiveFrom = from.toISOString();
+      const settingId = ids.next();
+      if (!(await repo.insertRateSetting(tx, { id: settingId, rateBps, effectiveFrom, setBy: adminId, now }))) {
+        rejectRequest([{ field: 'effectiveFrom', issue: 'ya hay una tarifa que rige desde ese instante; elige otro' }]);
+      }
+      const inputs = { rateBps, effectiveFrom };
+      await audit.record(tx, {
+        actorId: adminId, actorKind: 'admin', module: 'commission', action: 'commission.rate.set',
+        aggregateType: 'CommissionRateSetting', aggregateId: settingId, decisionCode: 'CommissionRateScheduled',
+        data: { ...inputs, requestedEffectiveFrom: requested.toISOString() }, at: now,
+      });
+      return { rateBps, effectiveFrom, decision: explained('CommissionRateScheduled', [{ rule: 'FR-COM-7', inputs }], now) };
+    });
   }
 
   /**
@@ -479,12 +511,41 @@ export class ComServiceV2 implements ComV2UseCases {
     return storage.sign('topup-proofs', key, SIGNED_URL_TTL);
   }
 
-  async getAccountLedger(_input: GetAccountLedgerRequest): Promise<GetAccountLedgerResponse> {
-    throw new NotImplementedError('commission.getAccountLedger');
+  /**
+   * S-FR-COM-8.ledger (AD-COM-1, FR-COM-8): any account's balance, state and ledger for an admin
+   * (AD-16), 50 lines per page newest first by `seq DESC`, optionally only one `trigger`'s deductions,
+   * with an opaque cursor bound to the account (decision log Impl-2 #13). An unknown business reads as
+   * no account and no lines. Zero writes.
+   */
+  async getAccountLedger(input: GetAccountLedgerRequest): Promise<GetAccountLedgerResponse> {
+    const { repo } = this.deps;
+    const { adminId, businessId, cursor } = input;
+    const trigger = input.trigger ?? null;
+    const { account, lines } = await this.reading(async (tx) => {
+      await requireAdmin(repo, tx, adminId);
+      const beforeSeq = cursor === null ? null : decodeLedgerCursor(cursor, businessId) ?? rejectRequest([{ field: 'cursor', issue: 'no es un cursor de esta lista' }]);
+      const row = await repo.readAccount(tx, businessId);
+      return { account: row, lines: row === null ? [] : await repo.newestLedgerLines(tx, businessId, ADMIN_LEDGER_PAGE, { trigger, beforeSeq }) };
+    });
+    const last = lines.length === ADMIN_LEDGER_PAGE ? lines[lines.length - 1] : undefined;
+    return {
+      balanceCop: account === null ? null : cop(account.balanceCop),
+      state: account?.state ?? null,
+      lines: lines.map(lineDto),
+      nextCursor: last ? encodeLedgerCursor(businessId, last.seq) : null,
+    };
   }
 
-  async listCommissionRates(_input: ListCommissionRatesRequest): Promise<ListCommissionRatesResponse> {
-    throw new NotImplementedError('commission.listCommissionRates');
+  /** S-FR-COM-7.list (AD-COM-2 rule 6): every setting, newest start first, and the rate in force at the Clock's now; admins only (AD-16). */
+  async listCommissionRates(input: ListCommissionRatesRequest): Promise<ListCommissionRatesResponse> {
+    const { repo, clock } = this.deps;
+    const settings = await this.reading(async (tx) => {
+      await requireAdmin(repo, tx, input.adminId);
+      return repo.listRateSettings(tx);
+    });
+    const current = rateInForce(settings, clock.now());
+    if (current === null) throw new UnexpectedError('Unexpected: no "CommissionRateSetting" is in force now; the seed row is missing (AD-COM-2 rule 6)');
+    return { rates: settings.map((r) => ({ rateBps: r.rateBps, effectiveFrom: r.effectiveFrom.toISOString(), setBy: r.setBy })), currentRateBps: current.rateBps };
   }
 
   /** COM-3.last (AD-COM-1 rule 4): the newest run for page 7.4, or null; admins only (AD-16). */

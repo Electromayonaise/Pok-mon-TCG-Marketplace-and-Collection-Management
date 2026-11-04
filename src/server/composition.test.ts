@@ -3,7 +3,7 @@
 // VER contracts, the CAT feed (CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine), the CAT prices
 // (CAT-3, S-FR-CAT-8.fetch), the catalog browse (S-FR-CAT-1), the listing create (INV-2), the seller's inventory (S-FR-INV-2, -9, -10), the discovery reads (DSC-1, DSC-2),
 // the order, its comprobante, its three facts and its supporting reads (ORD-1 to ORD-4, S-FR-ORD-2, -6, -7, -10), the business's
-// commission account, its deductions and its top-ups (S-FR-COM-1 and COM-1 through a replay, S-FR-COM-2, -9), the in-app send (MSG-1), the contact handoff (MSG-2) and S-SYS.replay,
+// commission account, its deductions and its top-ups (S-FR-COM-1 and COM-1 through a replay, S-FR-COM-2, -9), the rates and the admin ledger (S-FR-COM-7, -7.list, -8.ledger), the in-app send (MSG-1), the contact handoff (MSG-2) and S-SYS.replay,
 // all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -668,6 +668,27 @@ describe('the commission account and top-ups over HTTP (S-FR-COM-1, -2, -9, COM-
     expect(ran).toMatchObject({ accountsChecked: 1, discrepancies: [], decision: { outcome: 'allowed', reasonCode: 'ReconciliationClean' } });
     expect((await get('commission.admin.lastReconciliation', {}, adminCookie)).json.result?.data).toMatchObject({ run: { runId: ran.runId, scope: 'all', accountsChecked: 1 } });
     expect(await rows(db, 'audit_events', `action = 'commission.reconcile.ran'`)).toMatchObject([{ actorKind: 'admin', actorId: id('admin') }]);
+  });
+
+  it('an admin schedules a rate, reads the rates and filters a ledger; a past rate is CommissionRateNotFutureDated 400 and a business is AdminOnly 403 (S-FR-COM-7, -7.list, -8.ledger; Story 8.6)', async () => {
+    await admin(db);
+    await business(db, id('andres'), 'Approved');
+    await commissionAccount(db, id('andres'), 42_800, 2);
+    await ins(db, 'CommissionLedgerEntry', { id: id('l1'), businessId: id('andres'), seq: 1, kind: 'Deduction', amountCop: 3_600, orderId: id('o1'), rateBps: 800, baseCop: 45_000, trigger: 'buyerClosed', commissionTriggeredAt: T0, balanceAfter: 46_400 }, 'created');
+    await ins(db, 'CommissionLedgerEntry', { id: id('l2'), businessId: id('andres'), seq: 2, kind: 'Deduction', amountCop: 3_600, orderId: id('o2'), rateBps: 800, baseCop: 45_000, trigger: 'businessConfirmed', commissionTriggeredAt: T0, balanceAfter: 42_800 }, 'created');
+    const adminCookie = await signIn(id('admin'));
+    const nowMs = clock.now().getTime();
+    const tomorrow = new Date(nowMs + DAY).toISOString();
+    const refused = await post('commission.admin.setRate', { rateBps: 1_000, effectiveFrom: tomorrow }, await signIn(id('andres')));
+    expect([refused.status, refused.json.error?.code]).toEqual([403, 'AdminOnly']);
+    const past = await post('commission.admin.setRate', { rateBps: 1_000, effectiveFrom: new Date(nowMs - 61_000).toISOString() }, adminCookie);
+    expect([past.status, past.json.error?.code]).toEqual([400, 'CommissionRateNotFutureDated']);
+    expect((await post('commission.admin.setRate', { rateBps: 1_000, effectiveFrom: tomorrow }, adminCookie)).json.result?.data)
+      .toMatchObject({ rateBps: 1_000, effectiveFrom: tomorrow, decision: { outcome: 'allowed', reasonCode: 'CommissionRateScheduled' } });
+    expect((await get('commission.admin.rates', {}, adminCookie)).json.result?.data).toMatchObject({ currentRateBps: 800, rates: [{ rateBps: 1_000, setBy: id('admin') }, { rateBps: 800, setBy: null }] });
+    const ledger = (await get('commission.admin.ledger', { businessId: id('andres'), trigger: 'buyerClosed', cursor: null }, adminCookie)).json.result?.data as { lines: { orderId: string }[] };
+    expect(ledger).toMatchObject({ balanceCop: 42_800, state: 'Funded', nextCursor: null });
+    expect(ledger.lines.map((l) => l.orderId)).toEqual([id('o1')]);
   });
 
   it('an individual account is NotBusinessAccount 409, and a foreign proof is the unknown-id body', async () => {

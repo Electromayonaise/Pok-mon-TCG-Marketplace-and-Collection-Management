@@ -90,8 +90,8 @@
 | FR-COM-4 | Deduct commission exactly once per order (CAP-21) | COM-1 | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 8 — `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +5 | 8.2 (done), 8.4 (done) | red |
 | FR-COM-5 | Commission amount and rounding rule (CAP-21) | COM-1 | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 8 — `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +5 | 8.2 (done), 8.4 (done) | red |
 | FR-COM-6 | Threshold events without flapping (CAP-21) | COM-1, COM-2, COM-2.queue | AD-COM-1, AD-SYS-3, AD-SYS-2, AD-19 | 16 — `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +13 | 8.2 (done), 8.3 (done), 8.4 (done) | red |
-| FR-COM-7 | Configure the commission rate (CAP-21) | S-FR-COM-7, S-FR-COM-7.list | AD-COM-2 | 3 — `S-FR-COM-7.f`, `S-FR-COM-7.h`, `S-FR-COM-7.list.h` | 8.6 (backlog) | red |
-| FR-COM-8 | Ledger views and reconciliation (CAP-21) | COM-3, S-FR-COM-8.ledger, COM-3.last | AD-SYS-4, AD-SYS-1, AD-COM-1, AD-19 | 9 — `COM-3.C1`, `COM-3.C2`, `COM-3.I1` +6 | 8.5 (done), 8.6 (backlog) | red |
+| FR-COM-7 | Configure the commission rate (CAP-21) | S-FR-COM-7, S-FR-COM-7.list | AD-COM-2 | 3 — `S-FR-COM-7.f`, `S-FR-COM-7.h`, `S-FR-COM-7.list.h` | 8.6 (done) | red |
+| FR-COM-8 | Ledger views and reconciliation (CAP-21) | COM-3, S-FR-COM-8.ledger, COM-3.last | AD-SYS-4, AD-SYS-1, AD-COM-1, AD-19 | 9 — `COM-3.C1`, `COM-3.C2`, `COM-3.I1` +6 | 8.5 (done), 8.6 (done) | red |
 | FR-COM-9 | Low-balance notice (CAP-21) | S-FR-COM-9 | AD-COM-3 | 2 — `S-FR-COM-9.f`, `S-FR-COM-9.h` | 8.1 (done), 8.4 (done) | red |
 | FR-TRD-1 | Make an offer on an open-to-trade listing (CAP-25) | TRD-2, S-FR-TRD-1 | AD-TRD-1, AD-SYS-5 | 9 — `TRD-2.I3`, `TRD-2.P2`, `TRD-2.P5` +6 | 10.1 (done), 10.2 (done), 10.4 (done) | red |
 | FR-TRD-2 | Turn-taking: reject, counter, withdraw (CAP-25) | TRD-2, S-FR-TRD-2w | AD-TRD-1, AD-SYS-5 | 9 — `TRD-2.I3`, `TRD-2.P2`, `TRD-2.P5` +6 | 10.1 (done), 10.2 (done), 10.4 (done) | red |

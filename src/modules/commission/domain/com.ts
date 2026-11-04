@@ -112,3 +112,54 @@ export function accountDiscrepancies(
 
 /** COM-3 batch bound (decision log Impl-2 #13): the all-accounts run stops checking after 50 s of Clock time. */
 export const RECONCILE_BATCH_MS = 50_000;
+
+/** S-FR-COM-7 (FR-COM-7): a rate is an integer number of basis points, 0–10,000, as the `"CommissionRateSetting"` CHECK states. */
+export const MAX_RATE_BPS = 10_000;
+export function isValidRateBps(rateBps: number): boolean {
+  return Number.isInteger(rateBps) && rateBps >= 0 && rateBps <= MAX_RATE_BPS;
+}
+
+/** S-FR-COM-7 P (AD-COM-2 rule 6): an `effectiveFrom` up to 60 s before now is still accepted, for the admin's clock skew. */
+export const RATE_BACKDATE_TOLERANCE_MS = 60_000;
+
+/**
+ * S-FR-COM-7 (AD-COM-2 rule 6): the instant a new setting is stored from, `max(requested, now)`, so a
+ * rate never applies to a trigger already past; null when `requested` is earlier than `now − 60 s`
+ * (`CommissionRateNotFutureDated`).
+ */
+export function scheduledEffectiveFrom(requested: Date, now: Date): Date | null {
+  if (requested.getTime() < now.getTime() - RATE_BACKDATE_TOLERANCE_MS) return null;
+  return requested.getTime() > now.getTime() ? requested : now;
+}
+
+/**
+ * S-FR-COM-7.list (AD-COM-2 rule 6, AD-SYS-3 rule 2): the setting in force at `at`, the one with the
+ * greatest `effectiveFrom ≤ at` (COM-1's `rateAt` rule); null when none has started.
+ */
+export function rateInForce<T extends { effectiveFrom: Date }>(settings: readonly T[], at: Date): T | null {
+  let current: T | null = null;
+  for (const s of settings) {
+    if (s.effectiveFrom.getTime() > at.getTime()) continue;
+    if (current === null || s.effectiveFrom.getTime() > current.effectiveFrom.getTime()) current = s;
+  }
+  return current;
+}
+
+/** The largest seq Postgres' BIGINT holds. */
+const MAX_SEQ = 9_223_372_036_854_775_807n;
+
+/**
+ * S-FR-COM-8.ledger (decision log Impl-2 #13): the admin ledger's opaque cursor, the account and the
+ * seq of a page's last line; the next page holds the lines with a smaller seq.
+ */
+export function encodeLedgerCursor(businessId: CuidId, seq: bigint): string {
+  return Buffer.from(`ledger|${businessId}|${seq}`, 'utf8').toString('base64url');
+}
+
+/** The cursor's seq, or null when it is not one this service issued for `businessId`'s ledger. */
+export function decodeLedgerCursor(cursor: string, businessId: CuidId): bigint | null {
+  const [tag, owner, seq, ...rest] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
+  if (rest.length > 0 || tag !== 'ledger' || owner !== businessId || seq === undefined || !/^[1-9][0-9]{0,18}$/.test(seq)) return null;
+  const n = BigInt(seq);
+  return n <= MAX_SEQ ? n : null;
+}

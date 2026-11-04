@@ -53,6 +53,15 @@ export interface LedgerLineRow {
   createdAt: Date;
 }
 
+/** One `"CommissionRateSetting"` (S-FR-COM-7.list); `setBy` is null only for the migration's seed row. */
+export interface RateSettingRow {
+  id: CuidId;
+  rateBps: number;
+  effectiveFrom: Date;
+  setBy: CuidId | null;
+  createdAt: Date;
+}
+
 /** A top-up request as the lists and the decisions read it; the proof key never leaves the service (AD-17). */
 export interface TopUpRow {
   id: CuidId;
@@ -81,10 +90,20 @@ export interface ComTablesRepository {
   openAccount(tx: Tx, a: { businessId: CuidId; openedAt: IsoInstant; now: IsoInstant }): Promise<boolean>;
   /** The account, or null before it is opened. */
   readAccount(tx: Tx, businessId: CuidId): Promise<AccountRow | null>;
-  /** S-FR-COM-9: the newest ledger lines first, at most `limit`. */
-  newestLedgerLines(tx: Tx, businessId: CuidId, limit: number): Promise<LedgerLineRow[]>;
+  /**
+   * S-FR-COM-9 and S-FR-COM-8.ledger: the newest ledger lines first by `seq DESC`, at most `limit`;
+   * only those of `trigger` when given, and only those below `beforeSeq` when given (the admin cursor).
+   */
+  newestLedgerLines(tx: Tx, businessId: CuidId, limit: number, filter?: { trigger: CommissionTrigger | null; beforeSeq: bigint | null }): Promise<LedgerLineRow[]>;
   /** COM-1 Q1 (AD-COM-2 rule 6): the rate of the setting with the greatest `"effectiveFrom" <= at`; the seed row guarantees one. */
   rateAt(tx: Tx, at: IsoInstant): Promise<number>;
+  /**
+   * S-FR-COM-7 Q (AD-COM-2 rule 6): the append-only setting, `ON CONFLICT ("effectiveFrom") DO NOTHING`;
+   * false when a setting already starts at that instant (`UNIQUE ("effectiveFrom")`).
+   */
+  insertRateSetting(tx: Tx, r: { id: CuidId; rateBps: number; effectiveFrom: IsoInstant; setBy: CuidId; now: IsoInstant }): Promise<boolean>;
+  /** S-FR-COM-7.list: every setting, the seed row included, newest start first. */
+  listRateSettings(tx: Tx): Promise<RateSettingRow[]>;
   /** COM-1 Q2 (AD-COM-2 rule 2): the non-locking check for the order's deduction. */
   deductionExists(tx: Tx, orderId: CuidId): Promise<boolean>;
   /** COM-1 Q2.1: `SAVEPOINT`, and its rollback or release, inside the handler's `tx`. */

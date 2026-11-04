@@ -1691,8 +1691,8 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *Tests:* `[S-FR-COM-2.h]` a pending request is created and the balance is unchanged; `[S-FR-COM-2.f]` 19,999 → `TopUpAmountInvalid`, with zero rows.
 - **S-FR-COM-7 — `commission.admin.setRate({ rateBps, effectiveFrom })`.** Inbound Port.
   - *P:* admin; `rateBps` 0–10,000; `effectiveFrom ≥ now − 60 s`.
-  - *Q:* append a `"CommissionRateSetting"` with `effectiveFrom = max(effectiveFrom, now)`, plus an audit row.
-  - *Errors:* `AdminOnly` (HTTP 403, identity), `CommissionRateNotFutureDated` (HTTP 400, commission).
+  - *Q:* append a `"CommissionRateSetting"` with `effectiveFrom = max(effectiveFrom, now)`, plus an audit row. The decision is `CommissionRateScheduled`, citing `{ rateBps, effectiveFrom }` (Story 8.6).
+  - *Errors:* `AdminOnly` (HTTP 403, identity), `CommissionRateNotFutureDated` (HTTP 400, commission), citing `{ effectiveFrom, now }`. A second setting from the same stored instant breaks `UNIQUE (effectiveFrom)` and is `RequestValidationFailed` (HTTP 400, shared-kernel) on `effectiveFrom`, with zero writes (Story 8.6).
   - *I:* AD-COM-2 rule 6; `UNIQUE (effectiveFrom)`; append-only grants.
   - *Tests:* `[S-FR-COM-7.h]` a new rate applies only to triggers after its `effectiveFrom`; `[S-FR-COM-7.f]` `effectiveFrom = now − 61 s` → `CommissionRateNotFutureDated`.
 - **S-FR-COM-9 — `commission.myAccount` / `myLedger` (low-balance notice).** Inbound Port.
@@ -1848,8 +1848,8 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
 | COM-2.queue | `commission.admin.topUpQueue` (7.3) | admin | `Pending` requests oldest first | AD-COM-3 | `[COM-2.queue.h]` |
 | S-FR-COM-2.mine | `commission.myTopUps` (7.1) | a business, else `NotBusinessAccount` (HTTP 409, identity, propagated) | own requests only, newest first | AD-COM-3 rule 4 | `[S-FR-COM-2.mine.h]` |
 | S-FR-COM-2.url | `commission.topUpProofUrl` (7.1, 7.3) | the owner or an admin; otherwise `TopUpNotVisibleToCaller` (HTTP 403, commission) | a signed URL for the sanitized rendition (600 s) | AD-14, AD-COM-3 rule 4 | `[S-FR-COM-2.url.h]` another business gets a body identical to an unknown id |
-| S-FR-COM-8.ledger | `commission.admin.ledger` (7.2) | admin | any account's ledger, newest first, filterable by `trigger` | AD-COM-1, FR-COM-8 | `[S-FR-COM-8.ledger.h]` `trigger=buyerClosed` shows only those deductions |
-| S-FR-COM-7.list | `commission.admin.rates` (7.4) | admin | every rate setting plus the rate in force at `now` | AD-COM-2 rule 6 | `[S-FR-COM-7.list.h]` the seed rate of 800 bps is current with no other row |
+| S-FR-COM-8.ledger | `commission.admin.ledger` (7.2) | admin | any account's balance, state and ledger, 50 lines per page newest first by `seq DESC`, filterable by `trigger`, with an opaque cursor bound to the account; a cursor this service did not issue for that account is `RequestValidationFailed` (HTTP 400, shared-kernel); an unknown account reads `balanceCop: null` and no lines (decision log Impl-2 #13) | AD-COM-1, FR-COM-8 | `[S-FR-COM-8.ledger.h]` `trigger=buyerClosed` shows only those deductions |
+| S-FR-COM-7.list | `commission.admin.rates` (7.4) | admin | every rate setting, newest `effectiveFrom` first, plus the rate in force at `now` | AD-COM-2 rule 6 | `[S-FR-COM-7.list.h]` the seed rate of 800 bps is current with no other row |
 | COM-3.last | `commission.admin.lastReconciliation` (7.4) | admin | the latest `ReconciliationRun`, or `null` | AD-COM-1 rule 4 | `[COM-3.last.h]` |
 | S-FR-TRD-3.mine | `trading.mine` (8.1, 8.3) | a session | offers where the actor is the proposer or the seller, status derived at read, 20 per page by the immutable `(createdAt DESC, id)` (decision log Impl-1 #35) | AD-TRD-1 rules 4–5 | `[S-FR-TRD-3.mine.h]` an expired `Open` offer reads `Expired` without the job |
 | COL-1.list | `collections.prompts.list` (9.4, 6.2) | a session | the actor's prompts, optionally by status | AD-COL-2 | `[COL-1.list.h]` |

@@ -7,7 +7,7 @@ import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { CommissionAccountDTO } from '../dto/com.dto.js';
 import type { ICommissionAccountRepository, ICommissionLedgerRepository, ITopUpRepository } from '../ports/com.js';
 import type { CommissionTrigger } from '../domain/com.js';
-import type { AccountRow, ComTablesRepository, LedgerLineRow, ReconciliationDiscrepancy, TopUpRow } from '../ports/com.v2.js';
+import type { AccountRow, ComTablesRepository, LedgerLineRow, RateSettingRow, ReconciliationDiscrepancy, TopUpRow } from '../ports/com.v2.js';
 
 export class PgCommissionLedgerRepository implements ICommissionLedgerRepository {
   constructor(protected readonly sql: Sql) {}
@@ -64,10 +64,27 @@ export class PgComRepository implements ComTablesRepository {
     return rows[0] ? account(rows[0]) : null;
   }
 
-  async newestLedgerLines(tx: Tx, businessId: CuidId, limit: number): Promise<LedgerLineRow[]> {
+  async newestLedgerLines(tx: Tx, businessId: CuidId, limit: number, filter: { trigger: CommissionTrigger | null; beforeSeq: bigint | null } = { trigger: null, beforeSeq: null }): Promise<LedgerLineRow[]> {
     const { rows } = await tx.query<Raw<LedgerLineRow, 'seq' | 'amountCop' | 'balanceAfter'>>(
-      `SELECT ${LINE_COLUMNS} FROM "CommissionLedgerEntry" WHERE "businessId" = $1 ORDER BY seq DESC LIMIT $2`, [businessId, limit]);
+      `SELECT ${LINE_COLUMNS} FROM "CommissionLedgerEntry"
+        WHERE "businessId" = $1 AND ($3::text IS NULL OR trigger = $3) AND ($4::bigint IS NULL OR seq < $4)
+        ORDER BY "CommissionLedgerEntry".seq DESC LIMIT $2`,
+      [businessId, limit, filter.trigger, filter.beforeSeq?.toString() ?? null]);
     return rows.map(line);
+  }
+
+  async insertRateSetting(tx: Tx, r: { id: CuidId; rateBps: number; effectiveFrom: IsoInstant; setBy: CuidId; now: IsoInstant }): Promise<boolean> {
+    const { rows } = await tx.query(
+      `INSERT INTO "CommissionRateSetting" (id, "rateBps", "effectiveFrom", "setBy", "createdAt") VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT ("effectiveFrom") DO NOTHING RETURNING id`,
+      [r.id, r.rateBps, r.effectiveFrom, r.setBy, r.now]);
+    return rows.length === 1;
+  }
+
+  async listRateSettings(tx: Tx): Promise<RateSettingRow[]> {
+    const { rows } = await tx.query<RateSettingRow>(
+      `SELECT id, "rateBps", "effectiveFrom", "setBy", "createdAt" FROM "CommissionRateSetting" ORDER BY "effectiveFrom" DESC`);
+    return rows;
   }
 
   async rateAt(tx: Tx, at: IsoInstant): Promise<number> {

@@ -1,6 +1,9 @@
-// COM domain (AD-SYS-3 rule 2, ADD-§2.6, AD-COM-1 rules 3 and 4, AD-COM-3 rule 3): pure rules, no database.
+// COM domain (AD-SYS-3 rule 2, ADD-§2.6, AD-COM-1 rules 3 and 4, AD-COM-2 rule 6, AD-COM-3 rule 3): pure rules, no database.
 import { describe, expect, it } from 'vitest';
-import { accountDiscrepancies, commissionOf, commissionTrigger, crossing, isLowBalance, isTopUpProofUploadKey, isValidTopUpAmount, neededToResume, sniffProofType } from './domain/com.js';
+import {
+  accountDiscrepancies, commissionOf, commissionTrigger, crossing, decodeLedgerCursor, encodeLedgerCursor, isLowBalance, isTopUpProofUploadKey, isValidRateBps, isValidTopUpAmount, neededToResume, rateInForce,
+  scheduledEffectiveFrom, sniffProofType,
+} from './domain/com.js';
 
 const at = (m: number) => new Date(Date.UTC(2026, 9, 1, 15, m));
 
@@ -86,5 +89,57 @@ describe('accountDiscrepancies (COM-3 Q1, AD-COM-1 rule 4)', () => {
 
   it('reports both kinds at once, balance first', () => {
     expect(accountDiscrepancies(acct(1n, 5n), { sum: 2n, entries: 4n, maxSeq: 4n }).map((d) => d.kind)).toEqual(['balanceMismatch', 'seqGap']);
+  });
+});
+
+describe('rate settings (S-FR-COM-7, S-FR-COM-7.list, AD-COM-2 rule 6)', () => {
+  const now = at(30);
+  const ms = (offset: number) => new Date(now.getTime() + offset);
+
+  it('a rate is an integer from 0 to 10,000 basis points', () => {
+    expect([0, 800, 10_000, -1, 10_001, 850.5, Number.NaN].map(isValidRateBps)).toEqual([true, true, true, false, false, false, false]);
+  });
+
+  it('accepts an effectiveFrom up to 60 s in the past and stores it from now; a later one is kept as asked', () => {
+    expect([scheduledEffectiveFrom(ms(-60_000), now), scheduledEffectiveFrom(ms(-1), now), scheduledEffectiveFrom(now, now), scheduledEffectiveFrom(ms(86_400_000), now)])
+      .toEqual([now, now, now, ms(86_400_000)]);
+  });
+
+  it('refuses an effectiveFrom more than 60 s in the past (CommissionRateNotFutureDated)', () => {
+    expect([scheduledEffectiveFrom(ms(-60_001), now), scheduledEffectiveFrom(ms(-61_000), now)]).toEqual([null, null]);
+  });
+
+  it('the rate in force is the greatest effectiveFrom at or before the instant, in any input order', () => {
+    const seed = { rateBps: 800, effectiveFrom: new Date(0) };
+    const sep = { rateBps: 900, effectiveFrom: at(0) };
+    const later = { rateBps: 1_000, effectiveFrom: at(60) };
+    expect(rateInForce([later, seed, sep], now)).toBe(sep);
+    expect(rateInForce([sep, later, seed], at(0))).toBe(sep);
+    expect(rateInForce([seed, sep, later], at(60))).toBe(later);
+    expect(rateInForce([later, sep], new Date(0))).toBeNull();
+    expect(rateInForce([], now)).toBeNull();
+  });
+});
+
+describe('the admin ledger cursor (S-FR-COM-8.ledger, decision log Impl-2 #13)', () => {
+  const b = 'b'.repeat(24);
+  const enc = (text: string) => Buffer.from(text, 'utf8').toString('base64url');
+
+  it('round-trips the account and the seq, up to the BIGINT maximum', () => {
+    expect([decodeLedgerCursor(encodeLedgerCursor(b, 51n), b), decodeLedgerCursor(encodeLedgerCursor(b, 9_223_372_036_854_775_807n), b)]).toEqual([51n, 9_223_372_036_854_775_807n]);
+  });
+
+  it('refuses a cursor of another account, another list, or a malformed seq', () => {
+    expect([
+      decodeLedgerCursor(encodeLedgerCursor('c'.repeat(24), 51n), b),
+      decodeLedgerCursor(enc(`${new Date(0).toISOString()}|${b}`), b),
+      decodeLedgerCursor(enc(`ledger|${b}`), b),
+      decodeLedgerCursor(enc(`ledger|${b}|0`), b),
+      decodeLedgerCursor(enc(`ledger|${b}|-3`), b),
+      decodeLedgerCursor(enc(`ledger|${b}|051`), b),
+      decodeLedgerCursor(enc(`ledger|${b}|9223372036854775808`), b),
+      decodeLedgerCursor(enc(`ledger|${b}|5|x`), b),
+      decodeLedgerCursor('not a cursor', b),
+    ]).toEqual([null, null, null, null, null, null, null, null, null]);
   });
 });
