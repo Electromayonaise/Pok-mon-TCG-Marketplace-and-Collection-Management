@@ -214,3 +214,37 @@
 - **Deferred:** a restart-from-the-first-account run can keep missing the last accounts at large volume (owner: the launch checklist); an admin all-accounts run happens inside the request and can take up to 50 s (owner: the UI 7.4 story).
 - **Artifact changed:** the commission module, `composition.ts` (+ test), `messages.test.ts`, `contracts.md` §13, `nfr-evidence.md`, `deferred-work.md`, `sprint-status.yaml`, `traceability-matrix.md`, Story 8.5's file. Commit `30e2654`.
 - **Decided by:** agent default within #13.
+
+### 15. Story 9.6 specs: bounded inbox and thread reads, a stale-tab hammer, and a real sign-in page for the E2E journeys (Scope)
+
+- **Phase:** B (spec approval of Story 9.6 and its Flow E slice), asked while Story 8.6 ran in its subagent.
+- **Persona/Skill:** `bmad-create-story`, `bmad-testarch-atdd` (Murat), `bmad-ux` (page 12.2), reading S-FR-MSG-7, S-FR-MSG-8, AD-MSG-3 and the messaging DTOs.
+- **Prompt (summary):** Four choices the contracts and the UX left open: the page sizes (`ListInbox` has a cursor and `GetThread` an `afterSeq`, neither with a size); the new red tests for Flow A + D; how the inbox and binder journeys sign in, since Story 2.6 built only the API; and when a thread becomes read on page 12.2.
+- **AI output (summary):**
+  - **Page sizes:** **(recommended)** 20 conversations per inbox page by `(lastMessageAt desc, id)` with a keyset cursor, and at most 100 messages per thread call. The alternatives were inbox 50 with an unbounded thread, or inbox 20 with an unbounded thread.
+  - **New red tests:** **(recommended)** `[S-FR-MSG-7.C1]` (50 concurrent `markRead` calls with random seqs, 20 repetitions: `lastReadSeq` ends at the highest seq and never goes down) and `[S-FR-MSG-7.f2]` (a non-participant is refused on inbox, thread, `markRead` and mute with zero writes). The alternatives were the hammer only, or no new tests.
+  - **Sign-in:** **(recommended)** 9.6's UI slice adds `/ingresar` (email and password, es-CO errors, a 429 shown with its retry time) and `/mensajes`, and the journey signs in through the page with a seeded, verified user. The alternatives were adding a sign-up page too, or injecting a signed session cookie.
+  - **Read marks:** **(recommended)** opening a conversation calls `markRead` with the last seq shown, and mute is a toggle. The alternative was an explicit "mark as read" button.
+- **Human decision:** ACCEPT all four recommendations.
+- **Reason:** Bounded reads keep the inbox fast at any volume; the hammer is the Flow D proof of AD-MSG-3; a real sign-in page keeps the E2E journey honest end to end.
+- **Artifact changed:** none yet (Story 9.6's red and green commits).
+- **Decided by:** Mateo.
+
+### 16. Story 8.6 is green; a mistaken future rate is corrected by a later one, and page 7.4's text is fixed (Implementation + Scope)
+
+- **Phase:** B (Story 8.6 green, Flow B test-along), in a story subagent; then a menu for the open decision it reported.
+- **Persona/Skill:** `bmad-dev-story` (Amelia), reading S-FR-COM-7, S-FR-COM-7.list, S-FR-COM-8.ledger, AD-COM-2 rule 6 and #13.
+- **Prompt (summary):** Implement the three operations test-along until the 4 bound tests pass, with #13's 50-line ledger and a seq keyset.
+- **AI output (summary):** pure rate rules in the domain (the 60 s tolerance, the `max(effectiveFrom, now)` clamp, the rate in force); an append-only setting with its audit row; an account-bound ledger cursor; the admin procedures `commission.admin.setRate`, `.rates` and `.ledger`; 5 domain and 6 integration tests, plus one HTTP test.
+- **Agent defaults (no menu):**
+  - A second setting at the same instant is `RequestValidationFailed` on `effectiveFrom`, with zero writes, so no new code was invented. `ON CONFLICT DO NOTHING` makes a concurrent pair get the refusal, never a 500.
+  - Exactly 60 s in the past is accepted and stored as now.
+  - A cursor from another account or another list is refused.
+  - The rate list is ordered newest `effectiveFrom` first.
+- **Defect found and fixed (Impl-1 code):** `newestLedgerLines` sorted by `seq::text`, so the business's own account page (S-FR-COM-9, Story 8.1) listed seq 9 before 52 and showed the wrong 50 lines once a ledger passed 9 entries. It now sorts by the numeric column, and a new test fails on the old SQL.
+- **Open decision put to Mateo:** page 7.4 said a mistaken future rate "is replaced by scheduling another row with the same or an earlier start", but `UNIQUE (effectiveFrom)` refuses the same start and an earlier start never overrides a later one. Options: **(recommended)** keep the contract and fix page 7.4's text: correct with a later start, and the mistaken rate applies in between; drop the unique key so the newest row wins at an instant (a migration and a contract change); or allow a same-start replacement while still in the future (a migration and a contract change).
+- **Human decision:** ACCEPT the recommendation: page 7.4's Editing row now describes the correction by a later start.
+- **Evidence:** `evidence/impl2/16-story-8.6-green.log`: `test:ci` exit 0, `solu2-atdd` 349 green and 18 red for the right reason, `domain/com.ts` 98.57 % branches.
+- **Deferred:** page 7.4's "Registrada" column and its worked example have no field in `ListCommissionRatesResponse`; `listCommissionRates` has no paging (owner: the UI 7.4 story).
+- **Artifact changed:** the commission module, `composition.ts` (+ test), `contracts.md` §15 and §15.12, `deferred-work.md`, `sprint-status.yaml` (8.6 and Epic 8 `done`), `traceability-matrix.md`, Story 8.6's file (commit `ecd8ca6`); `ux/C-UX-Scenarios/…/7.4-rate-settings-reconciliation.md` (this entry's commit).
+- **Decided by:** Mateo (the open decision); agent defaults within #13.
