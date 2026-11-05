@@ -12,7 +12,7 @@ export const base = tseslint.config(
       '_bmad-output/*', '!_bmad-output/test-artifacts/', '!_bmad-output/planning-artifacts/',
       '_bmad-output/planning-artifacts/ux/',
       // Playwright's outputs (git-ignored): a report holding a trace bundles the trace viewer's minified assets.
-      'playwright-report/**', 'test-results/**',
+      'playwright-report/**', 'test-results/**', 'test-results-forensic/**',
     ],
   },
   js.configs.recommended,

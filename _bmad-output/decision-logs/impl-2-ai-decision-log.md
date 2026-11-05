@@ -493,3 +493,19 @@
 - **Evidence:** `evidence/impl2/32-ci-run.log`, with the excerpt of run 1 and the cause; run 2 is recorded in #29.
 - **Artifact changed:** `.github/workflows/impl2-quality-gate.yml`, the comment in `vitest.config.ts`, `evidence/impl2/32-ci-run.log`.
 - **Decided by:** Mateo.
+
+
+### 29. CI run 2 passes the release gate; a second, traced Playwright run puts one trace.zip per journey on CI (Testing + CI)
+
+- **Phase:** C (close), CI.
+- **Persona/Skill:** `bmad-testarch-ci` (Murat), main agent.
+- **AI output (summary):**
+  - **Run 2** ([41922563597](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41922563597), `5bc619f`): every job succeeded, and `release` printed `gate=success e2e=success nfr-k6=success`, `Quality gate: PASS`.
+    - **gate:** `ALTER SYSTEM` took effect; `no-sleep` 0 problems; 729 unit tests, 97.49 % branches; trace gate PASS; `solu2-atdd` 373 green and 0 not as expected; `solu2-nfr` 30 green.
+    - **e2e:** 6 passed on one worker.
+    - **nfr-k6:** profile p95 27.68 ms and p99 169.2 ms; browse p95 47.58 ms; `http_req_failed` 0.00 %; 3 dropped iterations, under the limit of 120.
+  - **Gap found:** the `playwright` artifact held only `playwright-report/index.html`. With `trace: 'on-first-retry'`, a green run records no trace, so no `trace.zip` had been captured on CI, which is what the rubric's top band asks for.
+- **Human decision (menu):** **(recommended)** keep `trace: 'on-first-retry'` in `playwright.config.ts`, as the statement asks. After the gating run, the `e2e` job runs `npx playwright test --trace on --output test-results-forensic` and uploads one `trace.zip` per journey as the `playwright-traces` artifact (`if-no-files-found: error`). The alternatives were running the gating step itself with `--trace on`, which would make CI differ from the stated config, or keeping traces on retry only. ACCEPT.
+- **Evidence:** `evidence/impl2/32-ci-run.log` (runs 1–3); run 3 is linked in #30.
+- **Artifact changed:** `.github/workflows/impl2-quality-gate.yml`, `.gitignore` and `tools/lint/base.mjs` (ignore `test-results-forensic/`).
+- **Decided by:** Mateo.

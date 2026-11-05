@@ -18,5 +18,6 @@ tools/lint/node_modules/
 # Impl-2 test outputs (decision log Impl-2 #8, #10): Playwright report and traces, V8 coverage
 /playwright-report/
 /test-results/
+/test-results-forensic/
 /.coverage/
 /.coverage-baseline/

@@ -6,7 +6,8 @@
 #           Solu-2 generated surface, citations, trace and fitness functions; every ATDD test and
 #           NFR benchmark green for a `done` story and red for the right reason otherwise.
 #   e2e   — `npx playwright test` against a production build: the Page Object journeys, with
-#           `trace: 'on-first-retry'`. The HTML report and every trace.zip are uploaded, pass or fail.
+#           `trace: 'on-first-retry'`. The HTML report and every trace.zip are uploaded, pass or fail; a
+#           second run with `--trace on` uploads one trace.zip per journey as `playwright-traces` (#29).
 #   nfr-k6 — `npm run nfr:k6` (Story 13.5, decision log Impl-2 #18 and #21): the PRD §3 seed in `tezg_k6`, the
 #           production build on port 3200, and grafana/k6 in Docker on the host network: a fixed arrival rate of
 #           100 requests a second for 60 s on each of `reputation.profile` and `catalog.browse` (at most 50 VUs
@@ -103,6 +104,10 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Playwright E2E (Page Objects, web-first assertions, trace on first retry)
         run: npx playwright test
+      - name: Forensic traces of the green journeys (decision log Impl-2 #29)
+        # The gating run above keeps `trace: 'on-first-retry'`, so a green run records no trace. This second
+        # run records one trace.zip per journey (`--trace on`) as CI evidence; it does not gate on its own.
+        run: npx playwright test --trace on --output test-results-forensic
       - name: Upload the Playwright report and traces
         if: always()
         uses: actions/upload-artifact@v4
@@ -112,6 +117,13 @@ jobs:
             playwright-report/
             test-results/
           if-no-files-found: ignore
+      - name: Upload the forensic traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results-forensic/**/trace.zip
+          if-no-files-found: error
 
   nfr-k6:
     runs-on: ubuntu-24.04
