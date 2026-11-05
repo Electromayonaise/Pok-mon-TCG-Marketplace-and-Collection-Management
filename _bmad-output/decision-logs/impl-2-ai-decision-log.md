@@ -509,3 +509,27 @@
 - **Evidence:** `evidence/impl2/32-ci-run.log` (runs 1–3); run 3 is linked in #30.
 - **Artifact changed:** `.github/workflows/impl2-quality-gate.yml`, `.gitignore` and `tools/lint/base.mjs` (ignore `test-results-forensic/`).
 - **Decided by:** Mateo.
+
+
+### 30. Close: Impl-2 is done, with the release gate passing on CI and the traces captured there (Governance)
+
+- **Phase:** C (close).
+- **Persona/Skill:** main agent; `bmad-testarch-ci` (Murat).
+- **AI output (summary):**
+  - **Run 3** ([41964862300](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41964862300), `cdb295b`): every job succeeded, and `release` printed `gate=success e2e=success nfr-k6=success`, `Quality gate: PASS`.
+    - **gate:** 729 unit tests, 97.49 % branches; trace gate PASS; fitness 12; `solu2-atdd` 373 green; `solu2-nfr` 30 green; 0 not as expected.
+    - **e2e:** the gating run had 6 passed (16.8 s), then the forensic run 6 passed (7.7 s).
+    - **nfr-k6:** profile p95 8.29 ms and p99 15.33 ms, browse p95 24.02 ms, 0.00 % errors, 0 5xx and 0 dropped iterations.
+    - **Artifacts:** `playwright`, `playwright-traces` (6 `trace.zip`) and `k6-summary`.
+  - The six CI traces are committed in `evidence/impl2/traces-ci/`, beside the six local ones in `traces/`. `32-ci-run.log` holds the excerpts of the three runs.
+  - The walkthrough §13 and §15 and `docs/impl-2/README.md` (the rubric rows 4 and 5, the CI table, the runs table, the commits and the evidence row) now cite the CI runs in place of "no CI run exists". This log is at 30 entries.
+- **State at the close:**
+  - 71 / 71 stories and 13 / 13 epics `done`.
+  - The final trace is PASS: FRs 96 / 96, NFRs 55 / 56 with WCAG waived to launch, risks 31 / 31, ADs 61 / 61, 419 / 419 test ids green.
+  - The test review scores 100 / 100.
+  - Three human corrections of AI tests are logged (#8, #9, #23) and indexed with `[CORRECTED]`. The CI connection limit (#28) was a CI-configuration finding that the red gate caught.
+  - Open items, each with an owner, are in `deferred-work.md`: the launch checklist, the UI phase, F5–F7, and the serial benchmarks.
+- **Human decision:** none new; this entry records the outcome of #27–#29.
+- **Evidence:** `evidence/impl2/32-ci-run.log`, `evidence/impl2/traces-ci/`.
+- **Artifact changed:** `walkthrough-impl2.md`, `docs/impl-2/README.md`, `32-ci-run.log`, `traces-ci/` (new).
+- **Decided by:** Mateo (#27–#29).

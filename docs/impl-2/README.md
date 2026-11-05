@@ -8,7 +8,7 @@
 - **Flows.** Flow A (ATDD-first) for 1.6, 2.6, 8.5, 9.6, 11.6, 13.5 and 13.6, with the red run committed before any code; Flow B (test-along) for 8.6 and 11.5; Flow C (test-after) to harden the Impl-1 tests; Flow D (k6 and concurrency hammers) for 8.5, 9.6, 11.5 and 13.5; Flow E (Playwright) for 9.6, 11.5 and 13.5. The plan is [`test-design.md`](../../_bmad-output/test-artifacts/test-design.md) §7.
 - **Shift-left (Phase A).** Before any story: Flow C removed every sleep from the suite and enforced 90 % branch coverage per domain file (#8, #9). Playwright, a three-page UI slice and the Impl-2 CI gate came next (#2, #10).
 - **Stories (Phase B).** One story subagent per story, with a spec menu per epic (#11–#22).
-- **Close (Phase C).** A fresh-context code review of all of Impl-2 (#23). The final trace, `traceability-matrix.md`, has gate decision **PASS** (#24). The test review went from 59 / 100 to 100 / 100 after a remediation (#24, #25). A cursor defect was fixed under Flow A (#26). Then the walkthrough and this README.
+- **Close (Phase C).** A fresh-context code review of all of Impl-2 (#23). The final trace, `traceability-matrix.md`, has gate decision **PASS** (#24). The test review went from 59 / 100 to 100 / 100 after a remediation (#24, #25). A cursor defect was fixed under Flow A (#26). Then the walkthrough and this README (#27), and the branch's CI runs on GitHub Actions: the first failed on a connection limit and was fixed (#28), and the third passed with the traces captured on CI (#29, #30).
 
 ## Deliverable map (task statement §5)
 
@@ -21,7 +21,7 @@ The task statement is a course document and is kept outside the repository, like
 | 3 | `sprint-status.yaml` | [`_bmad-output/implementation-artifacts/sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml) | 71 stories and 13 epics `done` |
 | 4 | `traceability-matrix.md` (`bmad-testarch-trace`): requirement → story → test files → CI evidence → verdict | [`_bmad-output/test-artifacts/traceability-matrix.md`](../../_bmad-output/test-artifacts/traceability-matrix.md) | Gate **PASS**: 96 / 96 FRs, 56 / 56 NFRs (1 waived to launch), 31 / 31 risks, 419 / 419 test ids green, 0 unmapped |
 | 5 | `walkthrough-impl2.md` | [`_bmad-output/implementation-artifacts/walkthrough-impl2.md`](../../_bmad-output/implementation-artifacts/walkthrough-impl2.md) | Hardening summary, all 9 stories, red-phase evidence, k6 table, Playwright log and traces, pyramid, AI corrections |
-| 6 | AI decision log: ≥ 8 interactions, ≥ 2 corrections of AI testing mistakes | [`_bmad-output/decision-logs/impl-2-ai-decision-log.md`](../../_bmad-output/decision-logs/impl-2-ai-decision-log.md) (asked for as `ai-decision-log.md`; the repository keeps one log per task, named after it) | 26 entries; corrections of AI tests #8 and #9, plus #23 and #25 (all in walkthrough §16; #8, #9 and #23 tagged `[CORRECTED]`) |
+| 6 | AI decision log: ≥ 8 interactions, ≥ 2 corrections of AI testing mistakes | [`_bmad-output/decision-logs/impl-2-ai-decision-log.md`](../../_bmad-output/decision-logs/impl-2-ai-decision-log.md) (asked for as `ai-decision-log.md`; the repository keeps one log per task, named after it) | 30 entries; corrections of AI tests #8 and #9, plus #23 and #25 (all in walkthrough §16; #8, #9 and #23 tagged `[CORRECTED]`) |
 | 7 | All BMad-related files: specs, planning and solutioning | [`_bmad-output/`](../../_bmad-output/README.md), `_bmad/` (the BMM and TEA configuration) | Present; the table "Artifacts" below lists what Impl-2 changed |
 
 ## Student checklist (task statement §5, DoR)
@@ -33,7 +33,7 @@ The task statement is a course document and is kept outside the repository, like
 - [x] **NFR load proof.** `npm run nfr:k6`: 12,002 measured requests at 100 per second per endpoint, profile p95 38.3 ms (budget 300 ms) and p99 113.7 ms (800 ms), browse p95 39.4 ms (1,000 ms), 0.00 % errors and 0 5xx (`evidence/impl2/24-k6.log`, `k6-summary.json`).
 - [x] **Page Object Model.** The 4 specs use only the 7 page objects in `_bmad-output/test-artifacts/e2e/pages/`; `gate:no-sleep` refuses any locator built in a spec. The fresh-context review confirmed it (#23).
 - [x] **Traceability signed off.** `traceability-matrix.md` §1: "**PASS.** … 0 requirements are unmapped" (`evidence/impl2/28-final-trace.log`).
-- [x] **AI governance.** The decision log records each prompt, the AI output, the menu and Mateo's decision, and every agent default the agent applied without asking (26 entries).
+- [x] **AI governance.** The decision log records each prompt, the AI output, the menu and Mateo's decision, and every agent default the agent applied without asking (30 entries).
 
 ## Rubric mapping (task statement §6)
 
@@ -42,8 +42,8 @@ The task statement is a course document and is kept outside the repository, like
 | 1. Architecture, hardening and concurrency | 20 % | Ports and adapters kept in every module (`gate:purity` 0 problems); advisory-lock single-flight jobs; `FOR SHARE` / `FOR UPDATE` / `REPEATABLE READ` / conditional-update defenses, each hammered; idempotent hides and read marks; graceful degradation: failed runs stay visible, reconcile is bounded at 50 s, sign-up is refused rather than half-done, the scheduler is optional | Walkthrough §2; `src/shared-kernel/jobs.ts`, `src/shared-kernel/infra/pg-jobs.ts`, `src/server/auth-routes.ts`; decision log #11–#13, #21, #23 |
 | 2. Functional delivery of the complex stories | 25 % | 9 stories `done`, each with its bound tests green and its ADs upheld (§14 AD rows 61 / 61 PASS) | Walkthrough §4–§10; the 9 story files in `_bmad-output/implementation-artifacts/`; `traceability-matrix.md` §7 |
 | 3. Testing alternatives and flows | 25 % | All five flows: A with gate-enforced red runs, B, C (Flow C hardening), D (k6 and hammers, thresholds met), E (POM, web-first assertions, no timeouts) | Walkthrough §2.2, §3, §11–§13; `test-design.md` §7; `scripts/check-atdd-red.mjs`, `scripts/check-no-sleep.mjs` |
-| 4. Traceability, quality gate and CI/CD | 15 % | Generated matrix with a computed PASS; a CI workflow whose `release` job passes only when `gate`, `e2e` and `nfr-k6` pass; single commands `npm test`, `npx playwright test`, `npm run nfr:k6` | `traceability-matrix.md`; `.github/workflows/impl2-quality-gate.yml`; this README, "How to run everything" |
-| 5. Code craft, forensic traces and AI governance | 15 % | TypeScript 7 with no emit and lint at 0 warnings; test review 100 / 100; one committed `trace.zip` per journey and CI upload of retry traces; decision log with human corrections of AI tests | `test-review.md`; `evidence/impl2/traces/`, `29-playwright-traces.log`; walkthrough §16; decision log #8, #9, #23, #25 |
+| 4. Traceability, quality gate and CI/CD | 15 % | Generated matrix with a computed PASS; a CI workflow whose `release` job passes only when `gate`, `e2e` and `nfr-k6` pass; single commands `npm test`, `npx playwright test`, `npm run nfr:k6` | `traceability-matrix.md`; `.github/workflows/impl2-quality-gate.yml`; CI run [41964862300](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41964862300) `Quality gate: PASS` (`evidence/impl2/32-ci-run.log`); this README, "How to run everything" |
+| 5. Code craft, forensic traces and AI governance | 15 % | TypeScript 7 with no emit and lint at 0 warnings; test review 100 / 100; one `trace.zip` per journey captured on CI (the `playwright-traces` artifact of run 41964862300, committed in `traces-ci/`) and locally; decision log with human corrections of AI tests | `test-review.md`; `evidence/impl2/traces-ci/`, `32-ci-run.log`, `evidence/impl2/traces/`, `29-playwright-traces.log`; walkthrough §16; decision log #8, #9, #23, #25 |
 
 ## Artifacts: where each one is and what changed
 
@@ -51,7 +51,7 @@ Each artifact is overwritten in place; nothing is duplicated (#5). The table cov
 
 | Artifact | Path | What changed in Impl-2 | Commits · decision log |
 |---|---|---|---|
-| Impl-2 AI decision log | [`decision-logs/impl-2-ai-decision-log.md`](../../_bmad-output/decision-logs/impl-2-ai-decision-log.md) | New: 26 entries and an index of tagged proposals | `fbf6dfe` … `09b7380` (16 commits) |
+| Impl-2 AI decision log | [`decision-logs/impl-2-ai-decision-log.md`](../../_bmad-output/decision-logs/impl-2-ai-decision-log.md) | New: 30 entries and an index of tagged proposals | `fbf6dfe` … this close |
 | Sprint status | [`implementation-artifacts/sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml) | Impl-2 header (`impl2_scope`, `impl2_flows`); rows for 1.6 and 2.6; every story and epic `done` | `fbf6dfe`, then each red and green commit up to `23d0157` · #1, #7 |
 | Story files (9 new) | `implementation-artifacts/1-6-…`, `2-6-…`, `8-5-…`, `8-6-…`, `9-6-…`, `11-5-…`, `11-6-…`, `13-5-…`, `13-6-….md` | One per Impl-2 story: intent, code map, tasks, red and green evidence | each story's red and green commits · #11–#21 |
 | Deferred work | [`implementation-artifacts/deferred-work.md`](../../_bmad-output/implementation-artifacts/deferred-work.md) | Resolved items struck through and cited; new sections from Story 1.6 to the test-review remediation | 13 commits, `7ac39a2` … `58aa73e` |
@@ -72,7 +72,7 @@ Each artifact is overwritten in place; nothing is duplicated (#5). The table cov
 | Playwright journeys | [`test-artifacts/e2e/`](../../_bmad-output/test-artifacts/e2e/) | New: 4 specs, 7 page objects in `pages/`, seed helpers in `support/` | `c3996a5`, `90db9da`, `7162354`, `23d0157` · #2, #10, #15, #17, #18 |
 | Fitness suite | [`test-artifacts/fitness/sys_fitness.test.ts`](../../_bmad-output/test-artifacts/fitness/sys_fitness.test.ts) | The ingress count 113 → 114 (4 job endpoints) | `86aaa8e` · #11 |
 | CI mirror | [`test-artifacts/ci/quality-gate.yml`](../../_bmad-output/test-artifacts/ci/quality-gate.yml) | Its comment names `impl2-quality-gate` (it must stay byte-identical to `.github/workflows/solu2-quality-gate.yml`) | `c3996a5` · #10 |
-| Run evidence | [`test-artifacts/evidence/impl2/`](../../_bmad-output/test-artifacts/evidence/impl2/) | New: logs `00`–`31`, `k6-summary.json`, `traces/` (6 `trace.zip`) | from `fbf6dfe` to `58aa73e` |
+| Run evidence | [`test-artifacts/evidence/impl2/`](../../_bmad-output/test-artifacts/evidence/impl2/) | New: logs `00`–`32` (`32-ci-run.log`: the three GitHub Actions runs), `k6-summary.json`, `traces/` (6 local `trace.zip`), `traces-ci/` (6 `trace.zip` captured on CI run 41964862300) | from `fbf6dfe` to this close · #27–#30 |
 | BMAD output index | [`_bmad-output/README.md`](../../_bmad-output/README.md) | `test-artifacts/` row (the final trace, `test-review.md`, `e2e/`, `evidence/`); this close adds `walkthrough-impl2.md`, `nfr/k6/` and `evidence/impl2/` | `ff6b103`, this close |
 | Project context | [`_bmad-output/project-context.md`](../../_bmad-output/project-context.md) | This close: the Impl-2 testing rules (no sleeps, Page Objects only, web-first assertions, lock waits on a condition, serial benchmarks) | this close · #8, #10, #25 |
 
@@ -117,14 +117,20 @@ npm run nfr:k6         # seeds tezg_k6, serves the build on :3200, runs k6 in Do
 
 | Job | Command | Uploads | Timeout |
 |---|---|---|---|
-| `gate` | `npm run test:ci`, then `cmp` of the Solu-2 workflow and its mirror | `.coverage/` | 30 min |
-| `e2e` | `npx playwright install --with-deps chromium`, then `npx playwright test` (`retries: 2`, `trace: 'on-first-retry'`) | `playwright-report/`, `test-results/` (the traces), pass or fail | 30 min |
+| `gate` | sets Postgres `max_connections` to 200, as `docker-compose.yml` (#28); `npm run test:ci`, then `cmp` of the Solu-2 workflow and its mirror | `.coverage/` | 30 min |
+| `e2e` | `npx playwright install --with-deps chromium`, then `npx playwright test` (`retries: 2`, `trace: 'on-first-retry'`) | `playwright-report/`, `test-results/` (retry traces), pass or fail; then `npx playwright test --trace on` uploads `playwright-traces`, one `trace.zip` per journey (#29) | 30 min |
 | `nfr-k6` | `npm run nfr:k6` | `k6-summary.json`, pass or fail | 30 min |
 | `release` | needs all three; prints `Quality gate: PASS` only when all three succeeded, otherwise `Quality gate: FAIL` and exit 1 | — | — |
 
 [`.github/workflows/jobs-tick.yml`](../../.github/workflows/jobs-tick.yml) is the job scheduler. It runs by hand (`workflow_dispatch`, trigger `tick`, `daily-morning` or `daily-night`), and its hourly `schedule:` stays commented until a deployment exists (#11). `solu2-quality-gate.yml` stays as manual Solu-2 evidence.
 
-The branch has not been pushed (#4), so no CI run exists yet; every figure in the walkthrough is from local runs.
+The branch was pushed at the close (#27). The runs are in [`32-ci-run.log`](../../_bmad-output/test-artifacts/evidence/impl2/32-ci-run.log):
+
+| Run | Commit | Result | What it showed |
+|---|---|---|---|
+| [41901553179](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41901553179) | `ef77c50` | `Quality gate: FAIL` | The red gate caught `[S-FR-MSG-7.C1]` failing with `too many clients` at CI's default 100 connections (#28) |
+| [41922563597](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41922563597) | `5bc619f` | `Quality gate: PASS` | A green run records no trace under `on-first-retry` (#29) |
+| [41964862300](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41964862300) | `cdb295b` | `Quality gate: PASS` | Every job green; 6 `trace.zip` in the `playwright-traces` artifact, committed in `evidence/impl2/traces-ci/` |
 
 ## Commits
 
@@ -147,7 +153,7 @@ git log --reverse --format='%h %ad %s' --date=short main..impl-2
 | C. Final trace and test review | `ff6b103` (the final trace), `478e3c6` (the test review), `d777941` (trace evidence), `5f445dc` (log #24) |
 | C. Test-review remediation | `276c280` (independent tests, split files), `2501bf6` (pure unit tests), `727c74f` (re-review), `f1f1351` (log #25) |
 | C. Cursor list tag | `dc47a0d` red → `58aa73e` green, `09b7380` (log #26) |
-| C. Documentation | this close: `walkthrough-impl2.md`, this README, `docs/README.md`, the root `README.md`, `_bmad-output/README.md`, `project-context.md` |
+| C. Documentation and CI | `3f2632d` (walkthrough), `787a0e1` (this README), `ef77c50` (log #27), `5bc619f` (CI Postgres at 200, log #28), `cdb295b` (CI traces, log #29), and this close: `walkthrough-impl2.md`, this README, `docs/README.md`, the root `README.md`, `_bmad-output/README.md`, `project-context.md` |
 
 ## Known deferrals
 

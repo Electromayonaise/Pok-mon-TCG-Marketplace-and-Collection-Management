@@ -1,4 +1,6 @@
-# Impl-2 CI, run 1: https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41901553179 (commit ef77c50)
+# Impl-2 CI on GitHub Actions (impl2-quality-gate), runs 1-3. Excerpts of the job logs, ANSI colours stripped.
+
+## Run 1: https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41901553179 (commit ef77c50)
 # jobs: gate failure, e2e success, nfr-k6 success, release failure (Quality gate: FAIL)
 # excerpt of the gate job log (job 126825012434), step 'npm test without db:up':
 2026-11-04T19:57:37.8162762Z    Start at  19:57:23
@@ -15,3 +17,88 @@
 # cause: the CI Postgres service runs at the default max_connections = 100; solu2-atdd runs 3 files at once with pools of up to 60 (vitest.config.ts).
 # local reproduction attempts (a clean clone in node:22 on Linux): every step of test:ci passed, also against a 100-connection Postgres, where the files happened not to overlap.
 # fix (decision log #28): the gate and nfr-k6 jobs set max_connections = 200, as docker-compose.yml, and restart the service.
+
+## Run 2: https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41922563597 (commit 5bc619f; decision log #28)
+# jobs: gate success, e2e success, nfr-k6 success, release success. The playwright artifact held only playwright-report/index.html: on-first-retry records no trace on a green run (#29).
+2026-11-04T22:08:59.4116770Z ALTER SYSTEM
+2026-11-04T22:09:33.3004826Z no-sleep: 346 files checked, 7 rules proven on planted violations, 0 problems
+2026-11-04T22:10:25.1553908Z       Tests  729 passed (729)
+2026-11-04T22:10:25.1625192Z All files          |   99.05 |    97.49 |     100 |     100 |                   
+2026-11-04T22:10:28.4728543Z trace: 96 FRs, 56 NFRs, 61 AD rows, 31 risks, 114 clauses, 419 test ids (419 enforced green), 4 journeys, 1 k6 scripts; gate PASS; 0 problems
+2026-11-04T22:10:41.9386885Z       Tests  12 passed (12)
+2026-11-04T22:11:39.1931364Z solu2-atdd: 373 tests in 25 files; 0 red for the right reason; 373 green for done stories (419 contracts or test ids done); 0 not as expected
+2026-11-04T22:19:41.3287935Z solu2-nfr: 30 tests in 15 files; 0 red for the right reason; 30 green for done stories (419 contracts or test ids done); 0 not as expected
+2026-11-04T22:19:49.4383537Z gate=success e2e=success nfr-k6=success
+2026-11-04T22:19:49.4384627Z Quality gate: PASS
+
+## Run 3: https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41964862300 (commit cdb295b; decision log #29)
+# jobs: gate success, e2e success, nfr-k6 success, release success; artifacts playwright, playwright-traces (6 trace.zip, copied to traces-ci/), k6-summary.
+# gate:
+2026-11-05T03:59:37.7561920Z no-sleep: 346 files checked, 7 rules proven on planted violations, 0 problems
+2026-11-05T04:00:32.0309055Z       Tests  729 passed (729)
+2026-11-05T04:00:32.0411922Z All files          |   99.05 |    97.49 |     100 |     100 |                   
+2026-11-05T04:00:36.5726161Z trace: 96 FRs, 56 NFRs, 61 AD rows, 31 risks, 114 clauses, 419 test ids (419 enforced green), 4 journeys, 1 k6 scripts; gate PASS; 0 problems
+2026-11-05T04:00:52.3350925Z       Tests  12 passed (12)
+2026-11-05T04:01:42.2251048Z solu2-atdd: 373 tests in 25 files; 0 red for the right reason; 373 green for done stories (419 contracts or test ids done); 0 not as expected
+2026-11-05T04:11:35.5634181Z solu2-nfr: 30 tests in 15 files; 0 red for the right reason; 30 green for done stories (419 contracts or test ids done); 0 not as expected
+# e2e (the gating run, then the forensic run with --trace on):
+2026-11-05T03:59:18.4720216Z Running 6 tests using 1 worker
+2026-11-05T03:59:20.2413462Z   ✓  1 [chromium] › _bmad-output/test-artifacts/e2e/binder.spec.ts:17:1 › Julián re-sorts his binder, the order survives a reload, and a promo added by an https link lands in a pocket after an http:// link is refused (1.3s)
+2026-11-05T03:59:21.0613511Z   ✓  2 [chromium] › _bmad-output/test-artifacts/e2e/inbox.spec.ts:15:1 › Camila reads a conversation, its badge clears, and muting another takes it out of her unread total (805ms)
+2026-11-05T03:59:21.4428651Z   ✓  3 [chromium] › _bmad-output/test-artifacts/e2e/inbox.spec.ts:50:1 › a wrong password keeps Camila on the sign-in page with the es-CO error (374ms)
+2026-11-05T03:59:21.6485509Z   ✓  4 [chromium] › _bmad-output/test-artifacts/e2e/profile.spec.ts:14:1 › a visitor with no session reads Lucía’s rating and reviews, without the review moderation hid (195ms)
+2026-11-05T03:59:21.8403132Z   ✓  5 [chromium] › _bmad-output/test-artifacts/e2e/profile.spec.ts:31:1 › an id that is no seller shows the es-CO Not-available page (185ms)
+2026-11-05T03:59:22.0268697Z   ✓  6 [chromium] › _bmad-output/test-artifacts/e2e/smoke.spec.ts:7:1 › a visitor opens TEZG and sees the service ready (177ms)
+2026-11-05T03:59:22.0869399Z   6 passed (16.8s)
+2026-11-05T03:59:26.6704758Z Running 6 tests using 1 worker
+2026-11-05T03:59:28.4323750Z   ✓  1 [chromium] › _bmad-output/test-artifacts/e2e/binder.spec.ts:17:1 › Julián re-sorts his binder, the order survives a reload, and a promo added by an https link lands in a pocket after an http:// link is refused (1.4s)
+2026-11-05T03:59:29.1665390Z   ✓  2 [chromium] › _bmad-output/test-artifacts/e2e/inbox.spec.ts:15:1 › Camila reads a conversation, its badge clears, and muting another takes it out of her unread total (707ms)
+2026-11-05T03:59:29.6057365Z   ✓  3 [chromium] › _bmad-output/test-artifacts/e2e/inbox.spec.ts:50:1 › a wrong password keeps Camila on the sign-in page with the es-CO error (422ms)
+2026-11-05T03:59:29.8535302Z   ✓  4 [chromium] › _bmad-output/test-artifacts/e2e/profile.spec.ts:14:1 › a visitor with no session reads Lucía’s rating and reviews, without the review moderation hid (231ms)
+2026-11-05T03:59:30.0653551Z   ✓  5 [chromium] › _bmad-output/test-artifacts/e2e/profile.spec.ts:31:1 › an id that is no seller shows the es-CO Not-available page (199ms)
+2026-11-05T03:59:30.2611394Z   ✓  6 [chromium] › _bmad-output/test-artifacts/e2e/smoke.spec.ts:7:1 › a visitor opens TEZG and sees the service ready (180ms)
+2026-11-05T03:59:30.3329090Z   6 passed (7.7s)
+# nfr-k6 (thresholds):
+2026-11-05T04:00:20.2212549Z   █ THRESHOLDS 
+2026-11-05T04:00:20.2213352Z 
+2026-11-05T04:00:20.2214008Z     dropped_iterations
+2026-11-05T04:00:20.2214784Z     ✓ 'count<120' count=0
+2026-11-05T04:00:20.2215138Z 
+2026-11-05T04:00:20.2215355Z       {scenario:browse}
+2026-11-05T04:00:20.2215908Z       ✓ 'count<60' count=0
+2026-11-05T04:00:20.2216135Z 
+2026-11-05T04:00:20.2216269Z       {scenario:profile}
+2026-11-05T04:00:20.2216651Z       ✓ 'count<60' count=0
+2026-11-05T04:00:20.2216864Z 
+2026-11-05T04:00:20.2217064Z     http_req_duration{endpoint:browse}
+2026-11-05T04:00:20.2217560Z     ✓ 'p(95)<1000' p(95)=24.02ms
+2026-11-05T04:00:20.2217800Z 
+2026-11-05T04:00:20.2217991Z     http_req_duration{endpoint:profile}
+2026-11-05T04:00:20.2218458Z     ✓ 'p(95)<300' p(95)=8.29ms
+2026-11-05T04:00:20.2218874Z     ✓ 'p(99)<800' p(99)=15.33ms
+2026-11-05T04:00:20.2219106Z 
+2026-11-05T04:00:20.2219233Z     http_req_failed
+2026-11-05T04:00:20.2219580Z     ✓ 'rate<0.01' rate=0.00%
+2026-11-05T04:00:20.2219804Z 
+2026-11-05T04:00:20.2219934Z       {endpoint:browse}
+2026-11-05T04:00:20.2220329Z       ✓ 'rate<0.01' rate=0.00%
+2026-11-05T04:00:20.2220555Z 
+2026-11-05T04:00:20.2221043Z       {endpoint:profile}
+2026-11-05T04:00:20.2221458Z       ✓ 'rate<0.01' rate=0.00%
+2026-11-05T04:00:20.2221678Z 
+2026-11-05T04:00:20.2221840Z     http_reqs{endpoint:browse}
+2026-11-05T04:00:20.2222228Z     ✓ 'count>0' count=6001
+2026-11-05T04:00:20.2222439Z 
+2026-11-05T04:00:20.2222601Z     http_reqs{endpoint:profile}
+2026-11-05T04:00:20.2222994Z     ✓ 'count>0' count=6001
+2026-11-05T04:00:20.2223206Z 
+2026-11-05T04:00:20.2223337Z     server_errors_5xx
+2026-11-05T04:00:20.2223992Z     ✓ 'count==0' count=0
+2026-11-05T04:00:20.2224202Z 
+2026-11-05T04:00:20.2224337Z       {endpoint:browse}
+2026-11-05T04:00:20.2224700Z       ✓ 'count==0' count=0
+2026-11-05T04:00:20.2224896Z 
+2026-11-05T04:00:20.2225031Z       {endpoint:profile}
+# release:
+2026-11-05T04:11:42.1409382Z gate=success e2e=success nfr-k6=success
+2026-11-05T04:11:42.1410149Z Quality gate: PASS
