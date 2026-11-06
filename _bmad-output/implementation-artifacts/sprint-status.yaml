@@ -79,13 +79,13 @@ development_status:
   3-4-guard-and-audit-every-legal-identity-read: done
   3-5-run-the-review-queue-the-rejection-policy-and-payment-instructions: done
   epic-3-retrospective: optional
-  epic-4: in-progress
+  epic-4: done
   4-1-start-and-continue-a-catalog-feed-run: done
   4-2-keep-a-card-s-id-through-renames-and-reprints: done
   4-3-refuse-a-second-live-run-and-quarantine-changed-kinds: done
   4-4-never-fabricate-a-price: done
   4-5-browse-the-catalog-and-answer-neighbours-catalog-queries: done
-  4-6-open-a-circuit-breaker-when-the-trm-source-keeps-failing: in-progress
+  4-6-open-a-circuit-breaker-when-the-trm-source-keeps-failing: done
   epic-4-retrospective: optional
   epic-5: done
   5-1-list-a-card-and-share-one-stock-pool: done

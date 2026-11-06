@@ -114,3 +114,45 @@ NotImplementedError: NotImplemented: catalog.getFxSourceBreaker
 
 $ npm run gate:atdd-red:impl1   (tail)
 solu2-atdd: 379 tests in 26 files; 6 red for the right reason; 373 green for done stories (419 contracts or test ids done); 0 not as expected
+
+# ===== GREEN =====
+# Captured 2026-11-06T18:12:12Z on branch impl-2 at 4a84964 (the red commit) + the green commit's working tree. Story 4.6 done in sprint-status.yaml.
+$ npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/cat_breaker.test.ts
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+
+$ npx vitest run --project impl1-unit src/modules/catalog/breaker-domain.test.ts (pure, no I/O)
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Duration  276ms (import 32%, transform 25%, setup 19%, tests 12%, worker 12%)
+
+# Mutation check (not committed): FOR UPDATE removed from lockFxSourceBreaker's SELECT, then the two hammers run; the source restored after.
+     × [S-FR-CAT-8.breaker.C1] 50 concurrent fetches on an open breaker whose cool-down has passed: exactly one probe reaches the source, and the other 49 answer circuitOpen 165ms
+     × [S-FR-CAT-8.breaker.C2] 3 concurrent failing fetches from closed (a tick racing two admin retries), 20 rounds: all 3 reach the source and the breaker opens with exactly 3 failures counted 46ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected 42 to be 1 // Object.is equality
+AssertionError: expected { state: 'closed', …(5) } to match object { state: 'open', …(1) }
+      Tests  2 failed | 4 skipped (6)
+
+$ npm run test:ci   (key lines; exit code last)
+23 dependencies in 2 manifests: exact, approved, no high or critical advisory
+no-sleep: 349 files checked, 7 rules proven on planted violations, 0 problems
+56 models, each tagged with its owning module; prisma/schema.prisma is current
+ Test Files  71 passed (71)
+      Tests  743 passed (743)
+All files          |   99.07 |    97.56 |     100 |     100 |                   
+ catalog/domain    |   96.72 |    94.92 |     100 |     100 |                   
+144 operations, 113 ingress procedures, 162 schemas, 37 core operations checked against contracts.md; surface is current
+43 pages, 327 states (138 data, 77 refusal, 112 client), 0 problems
+204 code citations checked, 0 problems
+217 test ids cited by contracts.md; 425 defined under _bmad-output/test-artifacts; 37 core operations
+trace: 96 FRs, 56 NFRs, 61 AD rows, 32 risks, 115 clauses, 425 test ids (425 enforced green), 4 journeys, 1 k6 scripts; gate PASS; 0 problems
+_bmad-output/planning-artifacts/epics.md is current: 13 epics, 72 stories
+14 domain files checked, 0 problems
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+solu2-atdd: 379 tests in 26 files; 0 red for the right reason; 379 green for done stories (425 contracts or test ids done); 0 not as expected
+solu2-nfr: 30 tests in 15 files; 0 red for the right reason; 30 green for done stories (425 contracts or test ids done); 0 not as expected
+EXIT 0
+# Lint: 0 errors, 0 warnings. domain/breaker.ts is 100 % statements/branches (omitted from the table, which lists only files below 100 %).
+# Playwright not run: no page changed (catalog.fx.breaker is a procedure; page 2.3 is not built).

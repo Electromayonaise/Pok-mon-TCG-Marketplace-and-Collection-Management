@@ -52,6 +52,7 @@ import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest } from '../../../shared-kernel/request.js';
 import type { FeedSourceRow } from '../../../shared-kernel/external.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import { admit, CLOSED_BREAKER, record, TRM_BREAKER_POLICY } from '../domain/breaker.js';
 import {
   bogotaDate, changePercent, copFromUsd, decodeQuarantineCursor, decodeRunCursor, diffAttributes, encodeQuarantineCursor, encodeRunCursor, isStale, numberSort, observedAtOf, parseTrm, validateRow, type FeedRowPrice,
 } from '../domain/cat.js';
@@ -402,6 +403,13 @@ export class CatServiceV2 implements CatV2UseCases {
     return this.deps.transactions.run((tx) => this.deps.repo.browse(tx, filters, pageSize, (page - 1) * pageSize));
   }
 
+  /**
+   * S-FR-CAT-8.fetch, AD-CAT-3 and Story 4.6. A covered day is a no-op. Otherwise the circuit breaker
+   * admits the call in one transaction under its row lock; the source runs outside any transaction; a
+   * failure moves the breaker in a second locked transaction, and a success moves it in the transaction
+   * that stores the delivered row. While the breaker is open the answer is `circuitOpen`: no source call,
+   * no write, and `getFxRate` keeps carrying the last stored rate forward.
+   */
   async fetchTrm(input: FetchTrmRequest): Promise<FetchTrmResponse> {
     const { repo, transactions, clock, ids, audit, fx } = this.deps;
     const now = clock.now().toISOString();
@@ -410,8 +418,21 @@ export class CatServiceV2 implements CatV2UseCases {
     if ((await transactions.run((tx) => repo.readRateCovering(tx, today))) !== null) {
       return { outcome: 'alreadyCovered', decision: explained('allowed', 'FxRateAlreadyCovered', rule, { today, trigger: input.trigger }, now) };
     }
-    const unavailable = (): FetchTrmResponse =>
-      ({ outcome: 'sourceUnavailable', decision: explained('allowedWithNotice', 'FxRateSourceUnavailable', rule, { today, trigger: input.trigger }, now) });
+    const admission = await transactions.run(async (tx) => {
+      const breaker = await repo.lockFxSourceBreaker(tx, now);
+      const verdict = admit(breaker, now, ids.next(), TRM_BREAKER_POLICY);
+      if (verdict.call && verdict.next !== breaker) await repo.saveFxSourceBreaker(tx, verdict.next, now);
+      return verdict;
+    });
+    if (!admission.call) {
+      const inputs = { consecutiveFailures: admission.consecutiveFailures, retryAt: admission.retryAt, trigger: input.trigger };
+      return { outcome: 'circuitOpen', decision: explained('allowedWithNotice', 'FxRateCircuitOpen', 'NFR-CAT-4', inputs, now) };
+    }
+    const { probeToken } = admission;
+    const unavailable = async (): Promise<FetchTrmResponse> => {
+      await transactions.run((tx) => this.recordSourceResult(tx, 'failure', probeToken));
+      return { outcome: 'sourceUnavailable', decision: explained('allowedWithNotice', 'FxRateSourceUnavailable', rule, { today, trigger: input.trigger }, now) };
+    };
     let delivered: Awaited<ReturnType<typeof fx.getRateCovering>>;
     try {
       delivered = await fx.getRateCovering(today);
@@ -424,6 +445,8 @@ export class CatServiceV2 implements CatV2UseCases {
     if (delivered === null || centavos === null || !coversDay(delivered, today)) return unavailable();
     const row = { copPerUsdCentavos: centavos, validFrom: delivered.validFrom, validTo: delivered.validTo };
     return transactions.run(async (tx) => {
+      // The source answered with a rate covering today: a success for the breaker, whatever the insert finds.
+      await this.recordSourceResult(tx, 'success', probeToken);
       const id = ids.next();
       const inputs = { validFrom: row.validFrom, validTo: row.validTo, copPerUsdCentavos: centavos };
       if (await repo.insertFxRate(tx, { ...row, id, source: delivered.source }, now)) {
@@ -448,6 +471,15 @@ export class CatServiceV2 implements CatV2UseCases {
     });
   }
 
+  /** Story 4.6: moves the locked breaker by one call's result, at the Clock's instant after the call. */
+  private async recordSourceResult(tx: Tx, outcome: 'success' | 'failure', probeToken: string | null): Promise<void> {
+    const { repo, clock } = this.deps;
+    const at = clock.now().toISOString();
+    const breaker = await repo.lockFxSourceBreaker(tx, at);
+    const next = record(breaker, outcome, probeToken, at, TRM_BREAKER_POLICY);
+    if (next !== breaker) await repo.saveFxSourceBreaker(tx, next, at);
+  }
+
   /** S-FR-CAT-8.rate, AD-CAT-3 rule 5: the covering rate, else the latest earlier one, stale. Never writes. */
   async getFxRate(input: GetFxRateRequest): Promise<GetFxRateResponse> {
     const { repo, transactions, clock } = this.deps;
@@ -466,7 +498,15 @@ export class CatServiceV2 implements CatV2UseCases {
 
   /** S-FR-CAT-8.breaker (Story 4.6): the TRM source's circuit breaker, as page 2.3 shows it. Zero writes. */
   async getFxSourceBreaker(_input: GetFxSourceBreakerRequest): Promise<GetFxSourceBreakerResponse> {
-    throw new NotImplementedError('catalog.getFxSourceBreaker');
+    const { repo, transactions, clock } = this.deps;
+    const now = clock.now().toISOString();
+    const breaker = (await transactions.run((tx) => repo.readFxSourceBreaker(tx), { readOnly: true })) ?? CLOSED_BREAKER;
+    const { state, consecutiveFailures, openedAt, retryAt } = breaker;
+    const { failureThreshold } = TRM_BREAKER_POLICY;
+    const decision = state === 'closed'
+      ? explained('allowed', 'FxSourceHealthy', 'NFR-CAT-4', { consecutiveFailures, failureThreshold }, now)
+      : explained('allowedWithNotice', state === 'open' ? 'FxRateCircuitOpen' : 'FxSourceProbing', 'NFR-CAT-4', { consecutiveFailures, retryAt }, now);
+    return { state, consecutiveFailures, failureThreshold, openedAt, retryAt, decision };
   }
 
   /** P-CAT.entry (AD-CAT-1 rule 5): the entry by its stable id, else CatalogEntryNotFound. */

@@ -1,5 +1,5 @@
 // The production composition over HTTP (decision log Impl-1 #24): catalog, inventory and discovery.
-// Covers CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine, CAT-3, S-FR-CAT-8.fetch, S-FR-CAT-1, INV-2, S-FR-INV-2, -9, -10, DSC-1 and DSC-2, all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
+// Covers CAT-1, CAT-2.ingress, CAT-1.runs, CAT-2.quarantine, CAT-3, S-FR-CAT-8.fetch, S-FR-CAT-8.breaker, S-FR-CAT-1, INV-2, S-FR-INV-2, -9, -10, DSC-1 and DSC-2, all through serveTrpc as app/api/trpc/[trpc]/route.ts calls it.
 // One of the composition-*.test.ts files split from composition.test.ts (test review HIGH-1); the harness,
 // test-support/http-app.ts, composes a fresh app per test at T0 (HIGH-8).
 import { describe, expect, it } from 'vitest';
@@ -72,6 +72,18 @@ describe('the reference prices over HTTP (CAT-3, S-FR-CAT-8.fetch; Story 4.4)', 
     expect((await post('catalog.fx.retry', {}, cookie)).json.result?.data).toMatchObject({ outcome: 'stored' });
     expect((await post('catalog.fx.retry', {}, cookie)).json.result?.data).toMatchObject({ outcome: 'alreadyCovered' });
     expect(await rows(db, 'FxRate')).toHaveLength(1);
+  });
+
+  it('an admin reads the TRM source breaker on page 2.3 (S-FR-CAT-8.breaker; Story 4.6), and an open one answers the retry circuitOpen; a non-admin is AdminOnly 403', async () => {
+    await admin(db);
+    await user(db, { id: id('camila') });
+    expect((await get('catalog.fx.breaker', {}, await signIn(id('camila')))).status).toBe(403);
+    const cookie = await signIn(id('admin'));
+    expect((await get('catalog.fx.breaker', {}, cookie)).json.result?.data).toMatchObject({ state: 'closed', consecutiveFailures: 0, failureThreshold: 3, decision: { reasonCode: 'FxSourceHealthy' } });
+    await ins(db, 'FxSourceBreaker', { port: 'FxRateSource', state: 'open', consecutiveFailures: 3, openedAt: at(-10 * 60_000), retryAt: at(20 * 60_000), probeToken: null });
+    expect((await get('catalog.fx.breaker', {}, cookie)).json.result?.data).toMatchObject({ state: 'open', retryAt: at(20 * 60_000), decision: { reasonCode: 'FxRateCircuitOpen' } });
+    expect((await post('catalog.fx.retry', {}, cookie)).json.result?.data).toMatchObject({ outcome: 'circuitOpen', decision: { reasonCode: 'FxRateCircuitOpen' } });
+    expect(await rows(db, 'FxRate')).toHaveLength(0);
   });
 });
 

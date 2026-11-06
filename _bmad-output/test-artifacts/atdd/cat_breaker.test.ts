@@ -149,7 +149,7 @@ describe('Story 4.6 — every instance shares one breaker row, moved atomically 
     await isLocked;
     const racing = race(N, () => cat.fetchTrm({ trigger: 'tick' }).finally(() => { settled++; progress(); }));
     try {
-      await untilBlockedOnLock(db, 'FROM "FxSourceBreaker"', { orSettled: racing });
+      await untilBlockedOnLock(db, '"FxSourceBreaker"', { orSettled: racing });
     } finally {
       release();
       await holder;

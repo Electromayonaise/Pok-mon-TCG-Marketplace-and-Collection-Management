@@ -2,7 +2,7 @@
 title: 'Story 4.6: Open a circuit breaker when the TRM source keeps failing'
 type: 'feature'
 created: '2026-11-06'
-status: 'in-progress'
+status: 'done'
 baseline_commit: '0a29548'
 review_loop_iteration: 0
 flow: 'Impl-2 Flow A, ATDD-first (test-design.md §7.1): red tests committed before any breaker code (decision log Impl-2 #31)'
@@ -69,8 +69,8 @@ context:
 
 **Execution:**
 - [x] red: the 6 bound tests, the contract clause and the codes, the registry row, the DTOs, the migration, the `getFxSourceBreaker` stub; R-32 in `test-design.md` §2; red run in `evidence/impl2/33-story-4.6.log`
-- [ ] green: the domain machine and its unit tests, the repository, `fetchTrm` behind the breaker, the read
-- [ ] `npm run test:ci` green with 4.6 `done`
+- [x] green: the domain machine and its unit tests, the repository, `fetchTrm` behind the breaker, the read, an HTTP case
+- [x] `npm run test:ci` green with 4.6 `done`
 
 **Acceptance Criteria:**
 - Given a down source, when 3 hourly fetches fail, then the breaker opens. A fetch 10 min later answers `circuitOpen`, with no source call and no write, and today's rate stays yesterday's, stale.
@@ -83,4 +83,37 @@ context:
 - `npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/cat_breaker.test.ts` -- expected: 6 passed
 - `npm run test:ci` -- expected: exit 0
 
-**Red phase (Flow A):** `evidence/impl2/33-story-4.6.log` (red section).
+**Red phase (Flow A):** `evidence/impl2/33-story-4.6.log`, red section. All 6 failed on `NotImplemented: catalog.getFxSourceBreaker`. `gate:atdd-red:impl1`: 6 red for the right reason, 373 green, 0 not as expected. Each test reads the breaker through the admin read before it asserts a breaker effect, so the red reason is the missing read, not a wrong outcome of Story 4.4's `fetchTrm`. In the red state `gate:trace:solu2` reports FAIL by design, because FR-CAT-8, NFR-CAT-4 and R-32 map to a story that is not done.
+
+**Green phase:** `evidence/impl2/33-story-4.6.log`, green section.
+- The 6 bound tests pass, and so do the 13 unit tests. `domain/breaker.ts` has 100 % branch coverage.
+- A mutation check took `FOR UPDATE` off the breaker read. `[S-FR-CAT-8.breaker.C1]` then failed with 42 probes instead of 1, and `[S-FR-CAT-8.breaker.C2]` failed with a breaker still `closed`, because failure counts were lost. So the hammers prove the lock.
+- One test change came after the red commit: `[S-FR-CAT-8.breaker.C1]` waits on a lock for any statement naming `"FxSourceBreaker"`, no longer only on `FROM "FxSourceBreaker"`. In the mutation, the blocked statement was the `UPDATE`, and the narrower fragment made the condition wait end on its probe limit. The fail reason then hid the double probe. The assertions did not change.
+
+## Implementation Notes
+
+- **Domain** (`domain/breaker.ts`, pure): `admit(breaker, now, token, policy)` runs before the source call, and `record(breaker, outcome, probeToken, now, policy)` runs after it.
+  - A result moves only the state it was admitted in. A closed-state call that returns after the breaker opened moves nothing, and neither does a probe whose lease another probe took over.
+  - An unchanged breaker is returned as the same object, so the service skips the `UPDATE`.
+- **Persistence:** the one `"FxSourceBreaker"` row is keyed by `port = 'FxRateSource'`.
+  - `lockFxSourceBreaker` first inserts the row closed (`ON CONFLICT DO NOTHING`), then reads it `FOR UPDATE`.
+  - The CHECKs tie the state to its columns: `retryAt` and `openedAt` are null only while closed, and `probeToken` is set only while half-open.
+  - Every instant is bound from `Clock`. `readFxSourceBreaker` is a read-only read, and no row reads `CLOSED_BREAKER`.
+- **Service** (`fetchTrm`):
+  - covered day → `alreadyCovered`, as before;
+  - admission → one transaction under the row lock. A short-circuit answers `circuitOpen`, with `FxRateCircuitOpen` citing `NFR-CAT-4` and `{ consecutiveFailures, retryAt, trigger }`;
+  - the source call → outside any transaction, as in Story 4.4;
+  - a failure (thrown, `null`, or a row that does not cover today) → a second locked transaction records it;
+  - a success → recorded in the transaction that inserts the row, whatever the insert then finds (`stored`, `alreadyCovered` or `mismatchKept`).
+  - `NotImplementedError` from `UNWIRED_FX` is still rethrown and never counted. If it hits a probe, the 60 s lease frees the breaker again.
+- **Read** (`getFxSourceBreaker`, `catalog.fx.breaker`, admin): it returns the stored row, with `failureThreshold`, and explains it with one of three codes: `FxSourceHealthy` (`allowed`), `FxRateCircuitOpen` or `FxSourceProbing` (`allowedWithNotice`).
+- **Schema readers:** three readers took only `001_tezg_schema.sql` and now read every migration of the folder: `tools/lint/tezg-plugin.mjs` (`readSchemaSql`, which feeds `tezg/table-owner`), the `SYS-AD8` fitness scan and `gen-solu2-epics.mjs`. Without this change, the catalog's write to the new table would be "an unknown table". `prisma/schema.prisma` is regenerated, and its `FxSourceBreaker` model is tagged `@owner catalog`.
+- **Tests:**
+  - 6 ATDD tests in `atdd/cat_breaker.test.ts`;
+  - 13 pure unit tests in `src/modules/catalog/breaker-domain.test.ts`;
+  - one HTTP case in `composition-catalog-listings.test.ts`: a non-admin gets 403, an admin reads `closed` and then `open`, and the retry answers `circuitOpen` with no row written.
+- **Deferred** (`deferred-work.md`, Story 4.6): the policy in configuration; an AD-CAT-3 rule 7 in ARCHITECTURE.md; the production adapter, whose transport retries form one breaker call.
+- **Two registry-wide unit tests followed the new surface.** The first full gate stopped at `test:unit`, on two tests the red commit had left stale:
+  - `router.test.ts` counts the non-job procedures, now 109 with catalog 8;
+  - `messages.test.ts` allow-lists placeholders, and now also lists `consecutiveFailures` and `failureThreshold`, which are numbers.
+  The second run of `npm run test:ci` exited 0: 743 unit tests, `solu2-atdd` 379 green with 0 not as expected, `solu2-nfr` 30 green, and the trace PASS with 425 of 425 ids enforced green.

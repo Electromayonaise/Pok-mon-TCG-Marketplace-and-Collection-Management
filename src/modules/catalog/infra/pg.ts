@@ -4,6 +4,7 @@
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoDate, IsoInstant } from '../../../shared-kernel/types.js';
+import type { Breaker, BreakerState } from '../domain/breaker.js';
 import type { RunKey } from '../domain/cat.js';
 import type { BrowseCatalogResponse, CatalogEntryDTO, CatalogFilters, FeedRunDTO, ObservedPriceDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
 import type { BatchCounts, CatRepository, FeedRunStatus, FxRateRow, ObservationRow, QuarantineListRow, QuarantineRow, RunState, StoredEntry } from '../ports/cat.v2.js';
@@ -355,4 +356,35 @@ export class PgCatRepository implements CatRepository {
       [o.id, o.catalogEntryId, o.source, o.observedAt, o.usdCents, o.cop, o.copDerivation, o.fxRateDate, o.runId, now],
     );
   }
+
+  async lockFxSourceBreaker(tx: Tx, now: IsoInstant): Promise<Breaker> {
+    // A concurrent first insert waits on the unique key and then does nothing, so both callers lock the one row.
+    await tx.query(
+      `INSERT INTO "FxSourceBreaker" (port, state, "consecutiveFailures", "openedAt", "retryAt", "probeToken", "createdAt", "updatedAt")
+       VALUES ($1, 'closed', 0, NULL, NULL, NULL, $2, $2) ON CONFLICT (port) DO NOTHING`,
+      [FX_PORT, now],
+    );
+    const { rows } = await tx.query<BreakerRow>(`SELECT ${BREAKER_COLUMNS} FROM "FxSourceBreaker" WHERE port = $1 FOR UPDATE`, [FX_PORT]);
+    return breakerOf(rows[0]!);
+  }
+
+  async saveFxSourceBreaker(tx: Tx, b: Breaker, now: IsoInstant): Promise<void> {
+    await tx.query(
+      `UPDATE "FxSourceBreaker" SET state = $2, "consecutiveFailures" = $3, "openedAt" = $4, "retryAt" = $5, "probeToken" = $6, "updatedAt" = $7 WHERE port = $1`,
+      [FX_PORT, b.state, b.consecutiveFailures, b.openedAt, b.retryAt, b.probeToken, now],
+    );
+  }
+
+  async readFxSourceBreaker(tx: Tx): Promise<Breaker | null> {
+    const { rows } = await tx.query<BreakerRow>(`SELECT ${BREAKER_COLUMNS} FROM "FxSourceBreaker" WHERE port = $1`, [FX_PORT]);
+    return rows[0] ? breakerOf(rows[0]) : null;
+  }
 }
+
+/** Story 4.6: the one port the breaker guards in V1 (the table's CHECK). */
+const FX_PORT = 'FxRateSource';
+const BREAKER_COLUMNS = `state, "consecutiveFailures", "openedAt", "retryAt", "probeToken"`;
+type BreakerRow = { state: BreakerState; consecutiveFailures: number; openedAt: Date | null; retryAt: Date | null; probeToken: string | null };
+const breakerOf = (r: BreakerRow): Breaker => ({
+  state: r.state, consecutiveFailures: r.consecutiveFailures, openedAt: r.openedAt?.toISOString() ?? null, retryAt: r.retryAt?.toISOString() ?? null, probeToken: r.probeToken,
+});

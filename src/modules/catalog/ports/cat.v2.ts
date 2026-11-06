@@ -20,6 +20,7 @@ export interface CatV2Deps {
 
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoDate, IsoInstant } from '../../../shared-kernel/types.js';
+import type { Breaker } from '../domain/breaker.js';
 import type { CatalogKind, CopDerivation, QuarantineReason, RunKey } from '../domain/cat.js';
 import type { BrowseCatalogResponse, CatalogEntryDTO, CatalogFilters, FeedRunDTO, ObservedPriceDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
 
@@ -160,4 +161,13 @@ export interface CatRepository {
   setSummaries(tx: Tx, setIds: CuidId[]): Promise<{ setId: CuidId; name: string; cardEntryCount: number }[]>;
   /** AD-CAT-2: `ON CONFLICT DO NOTHING` on `reference_price_once`. */
   insertObservation(tx: Tx, row: ObservationRow, now: IsoInstant): Promise<void>;
+  /**
+   * Story 4.6: the TRM source's breaker, locked `FOR UPDATE` until `tx` ends, so every instance moves it
+   * one at a time. A missing row is first inserted closed (`ON CONFLICT DO NOTHING`).
+   */
+  lockFxSourceBreaker(tx: Tx, now: IsoInstant): Promise<Breaker>;
+  /** Story 4.6: stores the state the domain moved the locked breaker to. */
+  saveFxSourceBreaker(tx: Tx, breaker: Breaker, now: IsoInstant): Promise<void>;
+  /** Story 4.6: the breaker as stored, with no lock and no write; null when no row exists yet (it reads closed). */
+  readFxSourceBreaker(tx: Tx): Promise<Breaker | null>;
 }
