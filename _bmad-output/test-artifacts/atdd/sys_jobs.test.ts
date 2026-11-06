@@ -8,7 +8,8 @@ import { VirtualClock } from '../../../test-support/clock.js';
 import { race } from '../../../test-support/concurrency.js';
 import { useTestDatabase } from '../../../test-support/db.js';
 import { FixtureFxRateSource } from '../../../test-support/simulated/index.js';
-import { at, HOUR, id, ins, order, purchasableListing, rows, T0, user } from '../../../test-support/solu2/fixtures.js';
+import { boundedPool } from '../../../test-support/single-connection.js';
+import { at, business, commissionAccount, HOUR, id, ins, order, purchasableListing, rows, T0, topUp, user } from '../../../test-support/solu2/fixtures.js';
 
 const db = useTestDatabase();
 const SECRET = 'jobs-test-secret-0123456789abcdef0123456789';
@@ -136,5 +137,60 @@ describe('Story 1.6 — single-flight under job:<name> (AD-SYS-4 rule 7)', () =>
     expect(await jobRuns()).toHaveLength(20);
     expect(await unitQuantity()).toBe(1);
     expect(await rows(db, 'Order', '"expiredAt" IS NOT NULL')).toHaveLength(1);
+  });
+});
+
+// Architecture audit F1 (decision log Impl-2 #34): AD-SYS-4 and §4 fix the runtime pool at `max: 2`, one connection
+// for a job's `job:<name>` and one for its work. Each job runs through the real runner and route on a pool that refuses
+// a third checkout at once (test-support/single-connection.ts), so a job that needed a third connection fails the test
+// at once instead of waiting forever; no timer is involved.
+describe('Architecture audit F1 — every job runs on the runtime pool of 2 connections (AD-SYS-4 rules 7 and 9)', () => {
+  it('[S-SYS.jobs.pool] trm-fetch, expiry-materialize, outbox-sweep and the nightly commission-reconcile each succeed on a pool of exactly 2 connections, and use both; on a pool of 1 a job is refused at once', async () => {
+    await dueOrder();
+    await business(db, id('tienda'), 'Approved');
+    await commissionAccount(db, id('tienda'), 50_000, 1);
+    await topUp(db, { id: id('t1'), businessId: id('tienda'), amountCop: 50_000, status: 'Confirmed' });
+    await ins(db, 'CommissionLedgerEntry', { id: id('l1'), businessId: id('tienda'), seq: 1, kind: 'TopUp', amountCop: 50_000, topUpRequestId: id('t1'), balanceAfter: 50_000 }, 'created');
+    await ins(db, 'OutboxEvent', { id: id('ev1'), type: 'CommissionBalanceExhausted', aggregateId: id('tienda'), schemaVersion: 1, payload: JSON.stringify({ businessId: id('tienda'), ledgerSeq: 1, balanceAfter: 0 }) }, 'created');
+    await ins(db, 'EventDelivery', { eventId: id('ev1'), subscriber: 'commission', status: 'pending', attempts: 0, createdAt: at(-120_000) }, 'both');
+    const ok = async () => undefined;
+    const fx = new FixtureFxRateSource([{ valor: '4130.00', validFrom: '2026-10-01', validTo: '2026-10-01' }]);
+    const runOn = async (pool: ReturnType<typeof boundedPool>, job: string, trigger: string) => {
+      const small = compose({ pool, clock, sessions: { userIdOf: async () => null }, handlers: { commission: ok, collections: ok }, fx, jobsSecret: SECRET });
+      const res = await small.jobs(new Request(`http://localhost/api/jobs/${job}?trigger=${trigger}`, { method: 'POST', headers: { authorization: `Bearer ${SECRET}` } }));
+      return { status: res.status, outcome: ((await res.json()) as { outcome?: string }).outcome, peak: pool.peak() };
+    };
+    const runs = [];
+    for (const [job, trigger] of [['trm-fetch', 'tick'], ['expiry-materialize', 'tick'], ['outbox-sweep', 'tick'], ['commission-reconcile', 'daily-night']] as const) {
+      const pool = boundedPool(db, 2);
+      try {
+        runs.push({ job, ...(await runOn(pool, job, trigger)) });
+      } finally {
+        await pool.end();
+      }
+      clock.advance(1);
+    }
+    expect(runs).toEqual([
+      { job: 'trm-fetch', status: 200, outcome: 'succeeded', peak: 2 },
+      { job: 'expiry-materialize', status: 200, outcome: 'succeeded', peak: 2 },
+      { job: 'outbox-sweep', status: 200, outcome: 'succeeded', peak: 2 },
+      { job: 'commission-reconcile', status: 200, outcome: 'succeeded', peak: 2 },
+    ]);
+    // The work really ran: the TRM is stored, the order expired, the delivery delivered, the account reconciled.
+    expect(await rows(db, 'FxRate')).toHaveLength(1);
+    expect(await unitQuantity()).toBe(1);
+    expect(await rows(db, 'EventDelivery')).toMatchObject([{ status: 'delivered' }]);
+    expect(await rows(db, 'ReconciliationRun')).toMatchObject([{ accountsChecked: 1 }]);
+    // The bound is real: with one connection the runner holds it for job:<name>, and the run's first row is refused at once.
+    const single = boundedPool(db, 1);
+    try {
+      const small = compose({ pool: single, clock, sessions: { userIdOf: async () => null }, fx, jobsSecret: SECRET });
+      const res = await small.jobs(new Request('http://localhost/api/jobs/outbox-sweep?trigger=tick', { method: 'POST', headers: { authorization: `Bearer ${SECRET}` } }));
+      expect([res.status, ((await res.json()) as { error?: { code: string } }).error?.code, single.peak()]).toEqual([500, 'Unexpected', 1]);
+    } finally {
+      await single.end();
+    }
+    // No fifth row: the refused run never wrote its `running` row.
+    expect((await jobRuns()).map((r) => r.job)).toEqual(['trm-fetch', 'expiry-materialize', 'outbox-sweep', 'commission-reconcile']);
   });
 });

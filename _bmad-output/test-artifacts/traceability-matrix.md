@@ -37,7 +37,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | P1 risks PASS | 100 % | 7 / 7 | MET |
 | P2 risks PASS | 100 % | 1 / 1 | MET |
 | §14 AD rows PASS | 100 % | 62 / 62 | MET |
-| Test ids enforced green | 100 % | 427 / 427 | MET |
+| Test ids enforced green | 100 % | 428 / 428 | MET |
 | Unmapped requirements (no test or no story; a waived NFR maps to its waiver) | 0 | 0 | MET |
 | Static checks (ids defined, risks registered, statuses known) | 0 problems | 0 | MET |
 
@@ -72,8 +72,8 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | NFRs with a test | 55 / 56 |
 | NFR evidence status (an NFR with two statuses counts under each) | Green — ATDD: 37; Green — gate: 9; Green — benchmark: 17; Deferred — launch: 3 |
 | Contract clauses | 115 |
-| Test ids (Vitest) / enforced green / red | 427 / 427 / 0 |
-| `solu2-atdd`: files / `it` blocks | 26 / 381 |
+| Test ids (Vitest) / enforced green / red | 428 / 428 / 0 |
+| `solu2-atdd`: files / `it` blocks | 26 / 382 |
 | `solu2-nfr`: files / `it` blocks | 15 / 30 |
 | `solu2-fitness`: files / `it` blocks | 2 / 12 |
 | Playwright journeys: specs / tests | 4 / 6 |
@@ -323,7 +323,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | AD-CAT-1 | Resumable leased ingestion | Partial unique `Running`; lease token | `CAT-1.I1`, `CAT-2.I1` | `atdd/cat_contracts.test.ts` | 4.1 (done), 4.2 (done) | `gate:atdd-red:impl1` › gate | green 2/2 | PASS |
 | AD-CAT-2 | Observations immutable, aged at read | Append-only observations; `stale` computed | `CAT-3.I1` | `atdd/cat_contracts.test.ts` | 4.4 (done) | `gate:atdd-red:impl1` › gate | green 1/1 | PASS |
 | AD-CAT-3 | TRM never invented | `EXCLUDE` on validity ranges; no gap row | `S-FR-CAT-8.f` | `atdd/cat_contracts.test.ts` | 4.4 (done) | `gate:atdd-red:impl1` › gate | green 1/1 | PASS |
-| AD-CAT-3 rule 7 | TRM source circuit breaker: closed, open after 3 failures in a row, one half-open probe after 30 min | One `"FxSourceBreaker"` row read `FOR UPDATE` per transition; pure `admit` / `record` (`catalog/domain/breaker.ts`, unit-tested in `breaker-domain.test.ts`); `circuitOpen` with no source call | `S-FR-CAT-8.breaker.h`, `S-FR-CAT-8.breaker.open`, `S-FR-CAT-8.breaker.halfOpen`, `S-FR-CAT-8.breaker.reset`, `S-FR-CAT-8.breaker.C1` +1 | `atdd/cat_breaker.test.ts` | 4.6 (done) | `gate:atdd-red:impl1` › gate | green 6/6 | PASS |
+| AD-CAT-3 rule 7 | TRM source circuit breaker: closed, open after 3 failures in a row, one half-open probe after 30 min | One `"FxSourceBreaker"` row read `FOR UPDATE` per transition and moved by one `WHERE state = :from AND version = :v` UPDATE (AD-SYS-5 rule 1; `cat.v2-breaker.test.ts`); pure `admit` / `record` (`catalog/domain/breaker.ts`, unit-tested in `breaker-domain.test.ts`); `circuitOpen` with no source call | `S-FR-CAT-8.breaker.h`, `S-FR-CAT-8.breaker.open`, `S-FR-CAT-8.breaker.halfOpen`, `S-FR-CAT-8.breaker.reset`, `S-FR-CAT-8.breaker.C1` +1 | `atdd/cat_breaker.test.ts` | 4.6 (done) | `gate:atdd-red:impl1` › gate | green 6/6 | PASS |
 | AD-INV-1 | One unit per (seller, item, condition) | `UNIQUE (sellerId, catalogEntryId, condition)` | `INV-2.I1` | `atdd/inv_contracts.test.ts` | 5.1 (done) | `gate:atdd-red:impl1` › gate | green 1/1 | PASS |
 | AD-INV-2 | Reserve and release in the caller's transaction | `tx` parameter; ascending conditional decrement | `INV-1.MEC` | `atdd/inv_contracts.test.ts` | 5.2 (done) | `gate:atdd-red:impl1` › gate | green 1/1 | PASS |
 | AD-INV-3 | Fail-closed purchasability, newer facts only | Seq gate; `AppliedApplicationDecision` | `INV-3.I1`, `S-FR-INV-8.f` | `atdd/inv_contracts.test.ts`, `atdd/inv_supporting.test.ts` | 5.5 (done) | `gate:atdd-red:impl1` › gate | green 2/2 | PASS |
@@ -410,7 +410,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | S-FR-VER-8 | supporting | FR-VER-8 | AD-VER-1 | 3 | green 3/3 |
 | S-FR-VER-9 | supporting | FR-VER-9 | AD-9 | 2 | green 2/2 |
 | S-FR-CAT-1 | supporting | FR-CAT-1 | AD-1 | 2 | green 2/2 |
-| S-FR-CAT-8 | supporting | FR-CAT-8 | AD-CAT-3 | 8 | green 8/8 |
+| S-FR-CAT-8 | supporting | FR-CAT-8 | AD-CAT-3, AD-SYS-5 | 8 | green 8/8 |
 | S-FR-INV-2 | supporting | FR-INV-2 | AD-INV-1 | 2 | green 2/2 |
 | S-FR-INV-4 | supporting | FR-INV-4 | AD-INV-1, AD-6 | 2 | green 2/2 |
 | S-FR-INV-5 | supporting | FR-INV-5 | AD-INV-2 | 2 | green 2/2 |
@@ -479,7 +479,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | S-FR-CAT-8.breaker | read model / mirror | FR-CAT-8 | AD-CAT-3 | 6 | green 6/6 |
 | S-SYS.tick | read model / mirror | — | — | 1 | green 1/1 |
 | S-SYS.deliveries | read model / mirror | — | AD-SYS-2 | 1 | green 1/1 |
-| S-SYS.jobs | read model / mirror | — | AD-SYS-4 | 6 | green 6/6 |
+| S-SYS.jobs | read model / mirror | — | AD-SYS-4 | 7 | green 7/7 |
 | S-SYS.sweep | read model / mirror | — | AD-SYS-2 | 1 | green 1/1 |
 
 ## 10. Real run

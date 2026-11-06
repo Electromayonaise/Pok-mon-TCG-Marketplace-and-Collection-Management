@@ -126,7 +126,7 @@ describe('Supporting COL contracts (contracts.md §15, §15.12)', () => {
       for (let e = 0; e < 3; e++) await entry(db, { id: id(`b${r}e${e}`), collectionId: c1, catalogEntryId: id('char'), position: e });
       for (let e = 0; e < 7; e++) await entry(db, { id: id(`f${r}e${e}`), collectionId: c2, catalogEntryId: id('char'), position: e });
       const reordered = [2, 0, 1].map((e) => id(`b${r}e${e}`));
-      const outcome = await race(20, (i) => {
+      const outcome = await race<unknown>(20, (i) => {
         if (i < 12) return col.addExternalEntry({ ownerId, collectionId: c1, url: 'https://promos.example/a', title: `Promo ${i}`, imageUrl: null, qty: 1, acquiredAt: '2026-09-01' });
         if (i < 16) return col.moveOrCopyEntry({ ownerId, entryId: id(`f${r}e${i - 12}`), targetCollectionId: c1, mode: 'move' });
         if (i < 19) return col.moveOrCopyEntry({ ownerId, entryId: id(`f${r}e${i - 12}`), targetCollectionId: c1, mode: 'copy' });

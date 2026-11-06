@@ -7,7 +7,7 @@ import type { CuidId, IsoDate, IsoInstant } from '../../../shared-kernel/types.j
 import type { Breaker, BreakerState } from '../domain/breaker.js';
 import type { RunKey } from '../domain/cat.js';
 import type { BrowseCatalogResponse, CatalogEntryDTO, CatalogFilters, FeedRunDTO, ObservedPriceDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
-import type { BatchCounts, CatRepository, FeedRunStatus, FxRateRow, ObservationRow, QuarantineListRow, QuarantineRow, RunState, StoredEntry } from '../ports/cat.v2.js';
+import type { BatchCounts, CatRepository, FeedRunStatus, FxRateRow, LockedBreaker, ObservationRow, QuarantineListRow, QuarantineRow, RunState, StoredEntry } from '../ports/cat.v2.js';
 import type { ReferencePriceDTO } from '../dto/cat.dto.js';
 import type { ICatalogEntryRepository, IFeedRunRepository, IReferencePriceRepository } from '../ports/cat.js';
 
@@ -357,22 +357,25 @@ export class PgCatRepository implements CatRepository {
     );
   }
 
-  async lockFxSourceBreaker(tx: Tx, now: IsoInstant): Promise<Breaker> {
+  async lockFxSourceBreaker(tx: Tx, now: IsoInstant): Promise<LockedBreaker> {
     // A concurrent first insert waits on the unique key and then does nothing, so both callers lock the one row.
     await tx.query(
       `INSERT INTO "FxSourceBreaker" (port, state, "consecutiveFailures", "openedAt", "retryAt", "probeToken", "createdAt", "updatedAt")
        VALUES ($1, 'closed', 0, NULL, NULL, NULL, $2, $2) ON CONFLICT (port) DO NOTHING`,
       [FX_PORT, now],
     );
-    const { rows } = await tx.query<BreakerRow>(`SELECT ${BREAKER_COLUMNS} FROM "FxSourceBreaker" WHERE port = $1 FOR UPDATE`, [FX_PORT]);
-    return breakerOf(rows[0]!);
+    const { rows } = await tx.query<BreakerRow & { version: number }>(`SELECT ${BREAKER_COLUMNS}, version FROM "FxSourceBreaker" WHERE port = $1 FOR UPDATE`, [FX_PORT]);
+    return { breaker: breakerOf(rows[0]!), version: rows[0]!.version };
   }
 
-  async saveFxSourceBreaker(tx: Tx, b: Breaker, now: IsoInstant): Promise<void> {
-    await tx.query(
-      `UPDATE "FxSourceBreaker" SET state = $2, "consecutiveFailures" = $3, "openedAt" = $4, "retryAt" = $5, "probeToken" = $6, "updatedAt" = $7 WHERE port = $1`,
-      [FX_PORT, b.state, b.consecutiveFailures, b.openedAt, b.retryAt, b.probeToken, now],
+  async saveFxSourceBreaker(tx: Tx, from: LockedBreaker, b: Breaker, now: IsoInstant): Promise<boolean> {
+    // AD-SYS-5 rule 1 (architecture audit F2): the from-state and version predicate, under the row lock; the version bumps.
+    const { rows } = await tx.query(
+      `UPDATE "FxSourceBreaker" SET state = $2, "consecutiveFailures" = $3, "openedAt" = $4, "retryAt" = $5, "probeToken" = $6, "updatedAt" = $7, version = version + 1
+       WHERE port = $1 AND state = $8 AND version = $9 RETURNING version`,
+      [FX_PORT, b.state, b.consecutiveFailures, b.openedAt, b.retryAt, b.probeToken, now, from.breaker.state, from.version],
     );
+    return rows.length === 1;
   }
 
   async readFxSourceBreaker(tx: Tx): Promise<Breaker | null> {

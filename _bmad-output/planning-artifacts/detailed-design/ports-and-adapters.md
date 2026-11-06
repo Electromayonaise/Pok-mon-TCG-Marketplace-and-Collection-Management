@@ -35,7 +35,7 @@ Every component of the detailed design appears **exactly once** below, in exactl
 |---|---|---|---|
 | `Clock` (`ports.ts`) | **Outbound Port** (time) | `shared-kernel/clock/system.ts`, the only file allowed to read the system clock | `VirtualClock` (`test-support/clock.ts`), seeded at `2026-10-01T15:00:00Z` |
 | `IdGenerator` (`ports.ts`) | **Outbound Port** (ids) | cuid2 | `SequentialIds` plus `id(name)` (`test-support/ids.ts`) |
-| `Sql`, `Tx`, `TransactionRunner` (`ports.ts`) | **Outbound Port** (persistence transport) | pg `Pool` (max 1) behind the Supabase pooler, with `db()` ambient-transaction resolution (AD-SYS-4 rule 9) | per-file Docker Postgres database (`test-support/db.ts`) |
+| `Sql`, `Tx`, `TransactionRunner` (`ports.ts`) | **Outbound Port** (persistence transport) | pg `Pool` (`max: 2`, `src/server/db.ts`: one connection for a job's `job:<name>` lock, one for its work; AD-SYS-4 rule 7, architecture audit F1) behind the Supabase pooler, with `db()` ambient-transaction resolution (AD-SYS-4 rule 9) | per-file Docker Postgres database (`test-support/db.ts`) |
 | `OutboxV2` + `EventEnvelope` (`events.ts`) | **Outbound Port** (events) | `outbox.enqueue(tx, type, aggregateId, payload)` into `OutboxEvent`/`EventDelivery`, returning the R-1 envelope (R-14, review S-1) | `SqlOutboxV2 implements OutboxV2`, plus the `SubscriberFaults` fault injector |
 | `AuditLog` (`audit.ts`) | **Outbound Port** (audit, R-2) | an insert into `audit_events` in the writer's transaction | `SqlAuditLog` (the same SQL on the test database) |
 | `ObjectStorage` (`external.ts`) | **Outbound Port** (external: Supabase Storage) | Supabase signed upload URLs; private buckets | `InMemoryObjectStorage`: refuses to sign `upload-quarantine` and records every signed read |

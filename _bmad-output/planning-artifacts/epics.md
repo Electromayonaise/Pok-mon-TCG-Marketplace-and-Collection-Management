@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 72 stories. They bind 144 registry operations and 427 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 72 stories. They bind 144 registry operations and 428 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -444,11 +444,11 @@ Build the cross-module platform every story stands on: one typed error body, an 
 - **Binding invariants:** also cited by its clauses: AD-SYS-2, AD-SYS-4
 - **Files:** `src/shared-kernel/admin-events.ts` (`AdminEventsServiceV2.sweep`)
 - **Schema/DTO:** DTOs `SweepDeliveriesRequest` → `SweepDeliveriesResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/sys_jobs.test.ts` › `[S-SYS.jobs.auth]`, `[S-SYS.jobs.trigger]`, `[S-SYS.jobs.h]`, `[S-SYS.jobs.failed]`, `[S-SYS.sweep.h]`, `[S-SYS.jobs.single]`, `[S-SYS.jobs.C1]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/sys_jobs.test.ts` › `[S-SYS.jobs.auth]`, `[S-SYS.jobs.trigger]`, `[S-SYS.jobs.h]`, `[S-SYS.jobs.failed]`, `[S-SYS.sweep.h]`, `[S-SYS.jobs.single]`, `[S-SYS.jobs.C1]`, `[S-SYS.jobs.pool]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a due unpaid order and a delivery stuck `pending` for 120 s. **When:** the hourly tick calls `jobs/expiry-materialize` and `jobs/outbox-sweep` with the `JOBS_SECRET` bearer. **Then:** the order expires and releases its unit once, the delivery is delivered, and each run leaves one `succeeded` JobRun row with the tick trigger, which tick health reads.
   - **Scenario (failure) — Given:** a request without the bearer, and another run already holding `job:expiry-materialize`. **When:** each calls the route. **Then:** the first is 401 `NotAuthenticated` with no JobRun row; the second is a `skipped` no-op with its row; 20 concurrent runs release the unit exactly once.
-- **DoD:** the shared DoD, plus: the 7 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; `JOBS_SECRET` is validated at start-up like `IP_HMAC_KEY`, and `.env.example`, `docker-compose.yml`, the Playwright web server and CI set a local value.
+- **DoD:** the shared DoD, plus: the 8 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; `JOBS_SECRET` is validated at start-up like `IP_HMAC_KEY`, and `.env.example`, `docker-compose.yml`, the Playwright web server and CI set a local value.
 
 ## Epic 2: User, role and seller-type access (IDN)
 
@@ -693,7 +693,7 @@ Ingest the card catalog with stable ids and serve reference prices that are alwa
 - **Contracts:** `CAT-3` getPriceProvenance, `S-FR-CAT-8.fetch` fetchTrm, `S-FR-CAT-8.rate` getFxRate
 - **Depends on:** Story 4.2
 - **Traceability:** FR-CAT-5, FR-CAT-6, FR-CAT-7, FR-CAT-8 · NFR-CAT-1, NFR-CAT-3 · UI 2.3
-- **Binding invariants:** AD-CAT-2 — Observations immutable, aged at read (Append-only observations; `stale` computed); AD-CAT-3 — TRM never invented (`EXCLUDE` on validity ranges; no gap row); also cited by its clauses: AD-SYS-6, AD-SYS-7
+- **Binding invariants:** AD-CAT-2 — Observations immutable, aged at read (Append-only observations; `stale` computed); AD-CAT-3 — TRM never invented (`EXCLUDE` on validity ranges; no gap row); also cited by its clauses: AD-SYS-5, AD-SYS-6, AD-SYS-7
 - **Files:** `src/modules/catalog/application/cat.v2.ts` (`CatServiceV2.getPriceProvenance`, `CatServiceV2.fetchTrm`, `CatServiceV2.getFxRate`), `src/modules/catalog/ports/cat.v2.ts` (`CatRepository`), `src/modules/catalog/domain/cat.ts`, `src/modules/catalog/infra/pg.ts`
 - **Schema/DTO:** tables `"FxRate"`, `"FxSourceBreaker"`; DTOs `GetPriceProvenanceRequest` → `GetPriceProvenanceResponse`, `FetchTrmRequest` → `FetchTrmResponse`, `GetFxRateRequest` → `GetFxRateResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/cat_contracts.test.ts` › `[CAT-3.Q1]`, `[CAT-3.Q4]`, `[CAT-3.Q5]`, `[CAT-3.P2]`, `[CAT-3.I1]`, `[S-FR-CAT-8.h]`, `[S-FR-CAT-8.f]`; `_bmad-output/test-artifacts/nfr/cat1_latency.test.ts` › `[NFR-CAT-1.provenance]`
@@ -725,7 +725,7 @@ Ingest the card catalog with stable ids and serve reference prices that are alwa
 - **Contracts:** `S-FR-CAT-8.breaker` getFxSourceBreaker · **Also proves:** `S-FR-CAT-8` (§15 clause)
 - **Depends on:** Story 4.4, Story 1.6
 - **Traceability:** FR-CAT-8 · NFR-CAT-4 · Risk R-32 (P0) · UI 2.3
-- **Binding invariants:** AD-CAT-3 rule 7 — TRM source circuit breaker: closed, open after 3 failures in a row, one half-open probe after 30 min (One `"FxSourceBreaker"` row read `FOR UPDATE` per transition; pure `admit` / `record` (`catalog/domain/breaker.ts`, unit-tested in `breaker-domain.test.ts`); `circuitOpen` with no source call)
+- **Binding invariants:** AD-CAT-3 rule 7 — TRM source circuit breaker: closed, open after 3 failures in a row, one half-open probe after 30 min (One `"FxSourceBreaker"` row read `FOR UPDATE` per transition and moved by one `WHERE state = :from AND version = :v` UPDATE (AD-SYS-5 rule 1; `cat.v2-breaker.test.ts`); pure `admit` / `record` (`catalog/domain/breaker.ts`, unit-tested in `breaker-domain.test.ts`); `circuitOpen` with no source call); also cited by its clauses: AD-SYS-5
 - **Files:** `src/modules/catalog/application/cat.v2.ts` (`CatServiceV2.getFxSourceBreaker`), `src/modules/catalog/ports/cat.v2.ts` (`CatRepository`), `src/modules/catalog/domain/cat.ts`, `src/modules/catalog/infra/pg.ts`
 - **Schema/DTO:** tables `"FxRate"`, `"FxSourceBreaker"`; DTOs `GetFxSourceBreakerRequest` → `GetFxSourceBreakerResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/cat_breaker.test.ts` › `[S-FR-CAT-8.breaker.h]`, `[S-FR-CAT-8.breaker.open]`, `[S-FR-CAT-8.breaker.halfOpen]`, `[S-FR-CAT-8.breaker.reset]`, `[S-FR-CAT-8.breaker.C1]`, `[S-FR-CAT-8.breaker.C2]`

@@ -11,7 +11,9 @@ const cache = globalThis as typeof globalThis & { tezgDb?: Handles };
 
 export function db(): Handles {
   if (!cache.tezgDb) {
-    const pool = new pg.Pool({ connectionString: loadConfig().databaseUrl });
+    // AD-SYS-4 rule 7, ARCH §4 (architecture audit F1, decision log Impl-2 #34): two connections per instance, because
+    // a job holds `job:<name>` on one connection for its whole run while its work runs its transactions on the other.
+    const pool = new pg.Pool({ connectionString: loadConfig().databaseUrl, max: 2 });
     cache.tezgDb = { pool, prisma: new PrismaClient({ adapter: new PrismaPg(pool) }) };
   }
   return cache.tezgDb;

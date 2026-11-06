@@ -424,6 +424,7 @@ model FxSourceBreaker {
   probeToken          String?
   createdAt           DateTime  @db.Timestamptz(6)
   updatedAt           DateTime  @db.Timestamptz(6)
+  version             Int       @default(0)
 }
 
 /// @owner identity

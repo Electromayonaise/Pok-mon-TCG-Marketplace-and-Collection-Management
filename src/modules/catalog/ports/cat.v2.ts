@@ -24,6 +24,12 @@ import type { Breaker } from '../domain/breaker.js';
 import type { CatalogKind, CopDerivation, QuarantineReason, RunKey } from '../domain/cat.js';
 import type { BrowseCatalogResponse, CatalogEntryDTO, CatalogFilters, FeedRunDTO, ObservedPriceDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
 
+/** A breaker read under its row lock, with the row's version: the from-state of the next transition (AD-SYS-5 rule 1). */
+export interface LockedBreaker {
+  breaker: Breaker;
+  version: number;
+}
+
 export type FeedRunStatus = 'Running' | 'Completed' | 'Failed';
 
 /** AD-CAT-1: what a refusal or a claim reads back about a run. */
@@ -163,11 +169,14 @@ export interface CatRepository {
   insertObservation(tx: Tx, row: ObservationRow, now: IsoInstant): Promise<void>;
   /**
    * Story 4.6: the TRM source's breaker, locked `FOR UPDATE` until `tx` ends, so every instance moves it
-   * one at a time. A missing row is first inserted closed (`ON CONFLICT DO NOTHING`).
+   * one at a time, with the row's `version`. A missing row is first inserted closed (`ON CONFLICT DO NOTHING`).
    */
-  lockFxSourceBreaker(tx: Tx, now: IsoInstant): Promise<Breaker>;
-  /** Story 4.6: stores the state the domain moved the locked breaker to. */
-  saveFxSourceBreaker(tx: Tx, breaker: Breaker, now: IsoInstant): Promise<void>;
+  lockFxSourceBreaker(tx: Tx, now: IsoInstant): Promise<LockedBreaker>;
+  /**
+   * Story 4.6, AD-SYS-5 rule 1 (architecture audit F2): moves the locked breaker to `next` with one conditional
+   * `UPDATE … WHERE state = from.state AND version = from.version`, bumping `version`. False when 0 rows moved.
+   */
+  saveFxSourceBreaker(tx: Tx, from: LockedBreaker, next: Breaker, now: IsoInstant): Promise<boolean>;
   /** Story 4.6: the breaker as stored, with no lock and no write; null when no row exists yet (it reads closed). */
   readFxSourceBreaker(tx: Tx): Promise<Breaker | null>;
 }

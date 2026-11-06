@@ -52,12 +52,12 @@ import { raiserFor } from '../../../shared-kernel/raise.js';
 import { rejectRequest } from '../../../shared-kernel/request.js';
 import type { FeedSourceRow } from '../../../shared-kernel/external.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
-import { admit, CLOSED_BREAKER, record, TRM_BREAKER_POLICY } from '../domain/breaker.js';
+import { admit, CLOSED_BREAKER, record, TRM_BREAKER_POLICY, type Breaker } from '../domain/breaker.js';
 import {
   bogotaDate, changePercent, copFromUsd, decodeQuarantineCursor, decodeRunCursor, diffAttributes, encodeQuarantineCursor, encodeRunCursor, isStale, numberSort, observedAtOf, parseTrm, validateRow, type FeedRowPrice,
 } from '../domain/cat.js';
 import type { PriceProvenanceDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
-import type { BatchCounts, RunState } from '../ports/cat.v2.js';
+import type { BatchCounts, LockedBreaker, RunState } from '../ports/cat.v2.js';
 
 const raise = raiserFor('catalog');
 
@@ -419,9 +419,9 @@ export class CatServiceV2 implements CatV2UseCases {
       return { outcome: 'alreadyCovered', decision: explained('allowed', 'FxRateAlreadyCovered', rule, { today, trigger: input.trigger }, now) };
     }
     const admission = await transactions.run(async (tx) => {
-      const breaker = await repo.lockFxSourceBreaker(tx, now);
-      const verdict = admit(breaker, now, ids.next(), TRM_BREAKER_POLICY);
-      if (verdict.call && verdict.next !== breaker) await repo.saveFxSourceBreaker(tx, verdict.next, now);
+      const locked = await repo.lockFxSourceBreaker(tx, now);
+      const verdict = admit(locked.breaker, now, ids.next(), TRM_BREAKER_POLICY);
+      if (verdict.call && verdict.next !== locked.breaker) await this.moveBreaker(tx, locked, verdict.next, now);
       return verdict;
     });
     if (!admission.call) {
@@ -475,9 +475,20 @@ export class CatServiceV2 implements CatV2UseCases {
   private async recordSourceResult(tx: Tx, outcome: 'success' | 'failure', probeToken: string | null): Promise<void> {
     const { repo, clock } = this.deps;
     const at = clock.now().toISOString();
-    const breaker = await repo.lockFxSourceBreaker(tx, at);
-    const next = record(breaker, outcome, probeToken, at, TRM_BREAKER_POLICY);
-    if (next !== breaker) await repo.saveFxSourceBreaker(tx, next, at);
+    const locked = await repo.lockFxSourceBreaker(tx, at);
+    const next = record(locked.breaker, outcome, probeToken, at, TRM_BREAKER_POLICY);
+    if (next !== locked.breaker) await this.moveBreaker(tx, locked, next, at);
+  }
+
+  /**
+   * AD-SYS-5 rule 1 (architecture audit F2, decision log Impl-2 #34): one conditional UPDATE on the from-state and
+   * version read under the row lock. Under `FOR UPDATE` it always moves one row; 0 rows means the lock did not hold
+   * the row (an invariant breach), so it is raised as a conflict and the transaction rolls back, never ignored.
+   */
+  private async moveBreaker(tx: Tx, from: LockedBreaker, next: Breaker, at: IsoInstant): Promise<void> {
+    if (!(await this.deps.repo.saveFxSourceBreaker(tx, from, next, at))) {
+      throw new UnexpectedError(`FxSourceBreaker conflict: the row left state ${from.breaker.state} version ${from.version} while locked`);
+    }
   }
 
   /** S-FR-CAT-8.rate, AD-CAT-3 rule 5: the covering rate, else the latest earlier one, stale. Never writes. */
