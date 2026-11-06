@@ -593,3 +593,34 @@
   - Planning and tracking: `epics.source.mjs`, `epics.md`, `sprint-status.yaml`, the story file 4-6, `contracts.md`, `operations.json`, `ui-states.json`, `openapi.yaml`.
   - Test and trace artifacts: `test-design.md` (R-32), `nfr-evidence.md`, `traceability-matrix.md`, `deferred-work.md`.
 - **Decided by:** Mateo.
+
+
+### 33. axe-core WCAG scans in every journey; NFR-SYS-11 passes for the automated rules, with the manual audit kept for launch (Testing + Usability)
+
+- **Phase:** C (close-phase hardening, after #31), Flow E, in a subagent (`c8b896b`, `57d5cf4`); then a menu.
+- **Persona/Skill:** `bmad-testarch-nfr` and `bmad-testarch-trace` (Murat), dev agent.
+- **Prompt (summary):** add `@axe-core/playwright` and make the journeys assert 0 WCAG 2.x A / AA violations on every page that exists. NFR-SYS-11 becomes PASS for the automated rules, with the manual audit deferred to launch.
+- **AI output (summary):**
+  - **Dependency:** `@axe-core/playwright` 4.14.0, exact-pinned (the latest stable). It is approved in the `scripts/check-deps.mjs` APPROVED map with "Impl-2 #31, #33". `gate:deps`: 24 dependencies, no high or critical advisory. This is the dependency approval `gate:deps` requires.
+  - **Check:** `BasePage.expectNoA11yViolations()` runs AxeBuilder with the tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa` and `wcag22aa`. On failure it prints each violation's id, impact, help text and targets, so it cannot be blindly green. The 6 journeys make 14 scans, each after a web-first assertion. They cover home, sign-in and its refusal, the inbox (3 states), the binder (3 states), the add-link page and its field error, the collections list (a new `CollectionsPage` page object), and the seller profile with its Not-available page.
+  - **The check can fail:** a planted `<img>` without `alt` and an unlabelled `<input>` failed the smoke journey with `image-alt (critical)` and `label (critical)`. The plant was reverted and never committed.
+  - **Findings:**
+    - The real scans had 0 violations.
+    - One "needs review" item was fixed: the profile average was a `<p aria-label="4,5 de 5">`, and a paragraph may not carry a name, so a screen reader could drop "de 5". It is now a `<span role="img">` with the same look.
+    - Three `color-contrast` "needs review" items remain, on the decorative star glyphs (aria-hidden, dark on white).
+  - **Trace:** NFR-SYS-11 now reads "Green — gate (the automated WCAG 2.x A and AA rules); Deferred — launch (the manual audit: screen reader, keyboard walk-through, contrast of dynamic states)". The trace gives it PASS with a part deferred, 0 NFRs waived, and the gate PASS.
+  - **Run:** `npx playwright test` reported `6 passed (30.6s)`.
+- **Agent defaults:**
+  - The check fails on a violation of any impact, not only serious or critical.
+  - The `// Traces:` lines of the 4 specs carry NFR-SYS-11; no bracketed ids were added.
+  - The binder journey now ends on `/coleccion`, so that page is scanned too.
+  - A §7.4 threshold row was added, with no new risk.
+- **Human decision (menu):** **(recommended)** the check asserts definite violations only. axe's "needs review" items, such as the 3 decorative star glyphs, go to the manual launch audit, because asserting them would fail on cases axe itself cannot decide. The alternative was failing on them too. ACCEPT.
+- **Evidence:** `evidence/impl2/34-a11y-axe.log`: the passing run, the planted-violation failure and the fix.
+- **Artifact changed:**
+  - Dependencies: `package.json` and the lockfile, `scripts/check-deps.mjs`.
+  - Page objects and specs: `e2e/pages/BasePage.ts`, `CollectionsPage.ts` (new), the 4 specs.
+  - App: `app/perfil/[userId]/page.tsx`.
+  - Test and trace artifacts: `nfr-evidence.md`, `test-design.md` §7.4, `traceability-matrix.md`.
+  - Docs: `docs/impl-2/README.md`, `walkthrough-impl2.md`.
+- **Decided by:** Mateo.
