@@ -2,8 +2,13 @@
 // 365-day history p95 ≤ 2,500 ms, at N = 1 (contracts.md §11). PRD §7
 // protocol: Postgres, the §3 seed's 500-entry collection (480 catalog entries with 90 days of history, 20 link-added), 50
 // warm-up and 500 measured calls, server-side service time. The service is composed as the composition root binds it (the
-// real catalog, no fakes), so the measured path is the real one. The trend and history runs take 550 × 200–300 ms locally,
-// so their timeout leaves room for a slower CI runner.
+// real catalog, no fakes), so the measured path is the real one.
+// Where the time goes (decision log Impl-2 #35; evidence/impl2/36-pool-timeout-and-bench.log): the seed is set-based
+// (`generate_series` for the 187,700 price observations) and takes about 5 s; the protocol's 550 calls take the rest. A
+// trend call pair runs three as-of price reads, each sorting the 43,200 observations of 480 entries to keep 480 (a sort
+// that spills about 1.8 MB to disk at the test database's 4 MB `work_mem`), so a pair costs about 170 ms and the test
+// about 105 s, the history about 115 s, alone or inside the serial solu2-nfr run. Their 600 s bound is about 5.5 times that: a gate run
+// slow enough to reach it (test:ci run 1 of #35 took 79 min instead of 13) measures a loaded machine, not the product.
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CatServiceV2 } from '../../../src/modules/catalog/index.js';
