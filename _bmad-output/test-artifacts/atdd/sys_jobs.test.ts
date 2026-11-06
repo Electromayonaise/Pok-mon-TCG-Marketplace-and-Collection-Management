@@ -9,6 +9,9 @@ import { race } from '../../../test-support/concurrency.js';
 import { useTestDatabase } from '../../../test-support/db.js';
 import { FixtureFxRateSource } from '../../../test-support/simulated/index.js';
 import { boundedPool } from '../../../test-support/single-connection.js';
+import { PG } from '../../../test-support/env.js';
+import { RUNTIME_POOL, runtimePool } from '../../../src/server/db.js';
+import { PgJobLocks } from '../../../src/shared-kernel/infra/pg-jobs.js';
 import { at, business, commissionAccount, HOUR, id, ins, order, purchasableListing, rows, T0, topUp, user } from '../../../test-support/solu2/fixtures.js';
 
 const db = useTestDatabase();
@@ -145,7 +148,7 @@ describe('Story 1.6 — single-flight under job:<name> (AD-SYS-4 rule 7)', () =>
 // a third checkout at once (test-support/single-connection.ts), so a job that needed a third connection fails the test
 // at once instead of waiting forever; no timer is involved.
 describe('Architecture audit F1 — every job runs on the runtime pool of 2 connections (AD-SYS-4 rules 7 and 9)', () => {
-  it('[S-SYS.jobs.pool] trm-fetch, expiry-materialize, outbox-sweep and the nightly commission-reconcile each succeed on a pool of exactly 2 connections, and use both; on a pool of 1 a job is refused at once', async () => {
+  it('[S-SYS.jobs.pool] trm-fetch, expiry-materialize, outbox-sweep and the nightly commission-reconcile each succeed on a pool of exactly 2 connections, and use both; on a pool of 1 a job is refused at once and its run is failed', async () => {
     await dueOrder();
     await business(db, id('tienda'), 'Approved');
     await commissionAccount(db, id('tienda'), 50_000, 1);
@@ -190,7 +193,52 @@ describe('Architecture audit F1 — every job runs on the runtime pool of 2 conn
     } finally {
       await single.end();
     }
-    // No fifth row: the refused run never wrote its `running` row.
-    expect((await jobRuns()).map((r) => r.job)).toEqual(['trm-fetch', 'expiry-materialize', 'outbox-sweep', 'commission-reconcile']);
+    // A fifth row, failed: the refused run wrote its row and its end on the lock's own connection (decision log Impl-2 #35).
+    expect((await jobRuns()).map((r) => [r.job, r.outcome, r.errorCode])).toEqual([
+      ['trm-fetch', 'succeeded', null], ['expiry-materialize', 'succeeded', null], ['outbox-sweep', 'succeeded', null], ['commission-reconcile', 'succeeded', null],
+      ['outbox-sweep', 'failed', 'Unexpected'],
+    ]);
+  });
+
+  it('[S-SYS.jobs.starved] on the runtime pool (max 2, a checkout timeout), a job whose second connection another run holds fails within the timeout as a failed JobRun; one refused its first connection answers 500 and writes nothing', async () => {
+    await dueOrder();
+    // The runtime pool as src/server/db.ts builds it, with its checkout timeout shortened to 200 ms: the test is bounded by
+    // the timeout, not by a timer of its own.
+    const { database } = db.pool.options as { database: string };
+    const pool = runtimePool(`postgres://${PG.user}:${PG.password}@${PG.host}:${PG.port}/${database}`, { connectionTimeoutMillis: 200 });
+    const small = compose({ pool, clock, sessions: { userIdOf: async () => null }, fx: new FixtureFxRateSource([]), jobsSecret: SECRET });
+    const post = async (job: string) => {
+      const res = await small.jobs(new Request(`http://localhost/api/jobs/${job}?trigger=tick`, { method: 'POST', headers: { authorization: `Bearer ${SECRET}` } }));
+      return [res.status, ((await res.json()) as { error?: { code: string } }).error?.code];
+    };
+    try {
+      expect([pool.options.max, RUNTIME_POOL.max, RUNTIME_POOL.connectionTimeoutMillis]).toEqual([2, 2, 10_000]);
+      // Given: another job's run holds job:trm-fetch on one of the two connections, as a second job request on the same
+      // instance does (the starvation of decision log Impl-2 #35).
+      const other = await new PgJobLocks(pool).tryHold('trm-fetch');
+      expect(other).not.toBeNull();
+      try {
+        // When: expiry-materialize holds its lock on the other connection, and its running row waits for a third.
+        expect(await post('expiry-materialize')).toEqual([500, 'Unexpected']);
+        // Then: the run did not hang; it is failed with its code, written on its lock's connection, and the work never ran.
+        expect((await jobRuns()).map((r) => [r.job, r.outcome, r.errorCode, r.finishedAt === null])).toEqual([['expiry-materialize', 'failed', 'Unexpected', false]]);
+        expect(await unitQuantity()).toBe(0);
+      } finally {
+        await other!.release();
+      }
+      // And: with both connections held, a run cannot even take its lock; it answers 500 within the timeout and writes nothing.
+      const held = [await pool.connect(), await pool.connect()];
+      try {
+        expect(await post('outbox-sweep')).toEqual([500, 'Unexpected']);
+      } finally {
+        for (const client of held) client.release();
+      }
+      expect(await rows(db, 'JobRun')).toHaveLength(1);
+      // Once the pool is free again the same job runs: the timeout failed runs, it never broke the pool.
+      expect(await post('expiry-materialize')).toEqual([200, undefined]);
+      expect(await unitQuantity()).toBe(1);
+    } finally {
+      await pool.end();
+    }
   });
 });

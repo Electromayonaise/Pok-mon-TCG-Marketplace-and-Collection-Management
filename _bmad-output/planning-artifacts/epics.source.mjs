@@ -112,7 +112,7 @@ export default {
           title: 'Run scheduled jobs single-flight behind JOBS_SECRET', kind: 'Skeleton',
           as: 'As the platform operator, I want every scheduled job to run only for the scheduler, once at a time, and to leave one JobRun row, so that expiries, the TRM, reconciliation and stuck deliveries are processed without anyone else triggering them (S-9, AD-SYS-4 rule 7).',
           ops: ['S-SYS.sweep'], contracts: ['S-SYS.jobs'],
-          tests: ['S-SYS.jobs.auth', 'S-SYS.jobs.trigger', 'S-SYS.jobs.h', 'S-SYS.jobs.failed', 'S-SYS.sweep.h', 'S-SYS.jobs.single', 'S-SYS.jobs.C1', 'S-SYS.jobs.pool'], depends: ['1.3', '1.5'],
+          tests: ['S-SYS.jobs.auth', 'S-SYS.jobs.trigger', 'S-SYS.jobs.h', 'S-SYS.jobs.failed', 'S-SYS.sweep.h', 'S-SYS.jobs.single', 'S-SYS.jobs.C1', 'S-SYS.jobs.pool', 'S-SYS.jobs.starved'], depends: ['1.3', '1.5'],
           happy: ['a due unpaid order and a delivery stuck `pending` for 120 s.', 'the hourly tick calls `jobs/expiry-materialize` and `jobs/outbox-sweep` with the `JOBS_SECRET` bearer.', 'the order expires and releases its unit once, the delivery is delivered, and each run leaves one `succeeded` JobRun row with the tick trigger, which tick health reads.'],
           failure: ['a request without the bearer, and another run already holding `job:expiry-materialize`.', 'each calls the route.', 'the first is 401 `NotAuthenticated` with no JobRun row; the second is a `skipped` no-op with its row; 20 concurrent runs release the unit exactly once.'],
           dod: ['`JOBS_SECRET` is validated at start-up like `IP_HMAC_KEY`, and `.env.example`, `docker-compose.yml`, the Playwright web server and CI set a local value'],

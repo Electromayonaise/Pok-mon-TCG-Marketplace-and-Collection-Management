@@ -37,7 +37,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | P1 risks PASS | 100 % | 7 / 7 | MET |
 | P2 risks PASS | 100 % | 1 / 1 | MET |
 | §14 AD rows PASS | 100 % | 62 / 62 | MET |
-| Test ids enforced green | 100 % | 429 / 429 | MET |
+| Test ids enforced green | 100 % | 430 / 430 | MET |
 | Unmapped requirements (no test or no story; a waived NFR maps to its waiver) | 0 | 0 | MET |
 | Static checks (ids defined, risks registered, statuses known) | 0 problems | 0 | MET |
 
@@ -72,8 +72,8 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | NFRs with a test | 55 / 56 |
 | NFR evidence status (an NFR with two statuses counts under each) | Green — ATDD: 37; Green — gate: 9; Green — benchmark: 17; Deferred — launch: 3 |
 | Contract clauses | 115 |
-| Test ids (Vitest) / enforced green / red | 429 / 429 / 0 |
-| `solu2-atdd`: files / `it` blocks | 26 / 383 |
+| Test ids (Vitest) / enforced green / red | 430 / 430 / 0 |
+| `solu2-atdd`: files / `it` blocks | 26 / 384 |
 | `solu2-nfr`: files / `it` blocks | 15 / 30 |
 | `solu2-fitness`: files / `it` blocks | 2 / 12 |
 | Playwright journeys: specs / tests | 4 / 6 |
@@ -309,7 +309,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | AD-SYS-1 | One Decision shape and one code registry | `codes.ts`; error formatter; `explain_assert` | `SYS-1.R6` | `atdd/sys_contracts.test.ts` | 1.1 (done) | `gate:atdd-red:impl1` › gate | green 1/1 | PASS |
 | AD-SYS-2 | Transactional outbox; at most 3 automatic attempts | `EventDelivery` attempt procedure | `SYS-2.R4` | `atdd/sys_contracts.test.ts` | 1.3 (done) | `gate:atdd-red:impl1` › gate | green 1/1 | PASS |
 | AD-SYS-3 | Commission triggered by the first of two order events | `commissionTrigger(facts)`; partial unique on deductions | `COM-1.I4` | `atdd/com_contracts.test.ts` | 8.2 (done) | `gate:atdd-red:impl1` › gate | green 1/1 | PASS |
-| AD-SYS-4 | Transaction handles, pooler-safe state, global lock order | `tx` first; `db()` ambient client; ascending unit locks; `job:<name>` held for the run on one of the pool's 2 connections (rule 7) | `INV-1.I3`, `SYS-4.R9`, `S-SYS.jobs.C1`, `S-SYS.jobs.pool`, `COM-3.C2` | `atdd/com_reconcile.test.ts`, `atdd/inv_contracts.test.ts`, `atdd/sys_contracts.test.ts`, `atdd/sys_jobs.test.ts` | 1.6 (done), 2.3 (done), 5.2 (done), 8.5 (done) | `gate:atdd-red:impl1` › gate | green 5/5 | PASS |
+| AD-SYS-4 | Transaction handles, pooler-safe state, global lock order | `tx` first; `db()` ambient client; ascending unit locks; `job:<name>` held for the run on one of the pool's 2 connections (rule 7) | `INV-1.I3`, `SYS-4.R9`, `S-SYS.jobs.C1`, `S-SYS.jobs.pool`, `S-SYS.jobs.starved` +1 | `atdd/com_reconcile.test.ts`, `atdd/inv_contracts.test.ts`, `atdd/sys_contracts.test.ts`, `atdd/sys_jobs.test.ts` | 1.6 (done), 2.3 (done), 5.2 (done), 8.5 (done) | `gate:atdd-red:impl1` › gate | green 6/6 | PASS |
 | AD-SYS-5 | Every transition is one conditional UPDATE | `WHERE <from-state>` + loser re-read | `VER-1.MEC`, `TRD-2.I3` | `atdd/trd_contracts.test.ts`, `atdd/ver_contracts.test.ts` | 3.2 (done), 10.2 (done) | `gate:atdd-red:impl1` › gate | green 2/2 | PASS |
 | AD-SYS-6 | Determinism boundary (Clock, IdGenerator, no network) | `Clock` port; network guard; no SQL `now()` | `SYS-6.R1`, `SYS-6.R4` | `fitness/sys_fitness.test.ts` | 1.4 (done) | `test:fitness:solu2` › gate | green 2/2 | PASS |
 | AD-SYS-7 | Branded money, one set of formulas | BigInt helpers; rounding CHECK on deductions | `COM-1.I3`, `VAL-2.I3` | `atdd/com_contracts.test.ts`, `atdd/val_contracts.test.ts` | 8.2 (done), 12.5 (done) | `gate:atdd-red:impl1` › gate | green 2/2 | PASS |
@@ -479,7 +479,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | S-FR-CAT-8.breaker | read model / mirror | FR-CAT-8 | AD-CAT-3 | 6 | green 6/6 |
 | S-SYS.tick | read model / mirror | — | AD-SYS-2 | 2 | green 2/2 |
 | S-SYS.deliveries | read model / mirror | — | AD-SYS-2 | 1 | green 1/1 |
-| S-SYS.jobs | read model / mirror | — | AD-SYS-4 | 7 | green 7/7 |
+| S-SYS.jobs | read model / mirror | — | AD-SYS-4 | 8 | green 8/8 |
 | S-SYS.sweep | read model / mirror | — | AD-SYS-2 | 1 | green 1/1 |
 
 ## 10. Real run

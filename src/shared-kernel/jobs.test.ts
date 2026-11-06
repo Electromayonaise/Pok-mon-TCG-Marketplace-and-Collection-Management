@@ -39,6 +39,27 @@ describe('PgJobLocks release (F4)', () => {
     expect(released).toEqual([broken]);
   });
 
+  it('release(last) writes in the lock\'s transaction: the write commits with the unlock, and a last that throws is rolled back, frees the lock and is rethrown (decision log Impl-2 #35)', async () => {
+    const locks = new PgJobLocks(db.pool);
+    const repo = new PgJobRunRepository();
+    const at = '2026-10-01T15:00:00.000Z';
+    const kept = await locks.tryHold('trm-fetch');
+    await kept!.release(async (tx) => {
+      await repo.insertJobRun(tx, { id: 'jkept0000000000000000000', job: 'trm-fetch', trigger: 'tick', startedAt: at, outcome: 'running' });
+      await repo.finishJobRun(tx, 'jkept0000000000000000000', { outcome: 'failed', errorCode: 'Unexpected', finishedAt: at });
+    });
+    const broken = new Error('write refused');
+    const lost = await locks.tryHold('trm-fetch');
+    await expect(lost!.release(async (tx) => {
+      await repo.insertJobRun(tx, { id: 'jlost0000000000000000000', job: 'trm-fetch', trigger: 'tick', startedAt: at, outcome: 'running' });
+      throw broken;
+    })).rejects.toBe(broken);
+    expect(await db.query(`SELECT id, outcome, "errorCode" FROM "JobRun" ORDER BY id`)).toEqual([{ id: 'jkept0000000000000000000', outcome: 'failed', errorCode: 'Unexpected' }]);
+    const next = await locks.tryHold('trm-fetch');
+    expect(next).not.toBeNull();
+    await next!.release();
+  });
+
   it('a COMMIT that succeeds frees job:<name>, so the next run holds it', async () => {
     const locks = new PgJobLocks(db.pool);
     const first = await locks.tryHold('outbox-sweep');

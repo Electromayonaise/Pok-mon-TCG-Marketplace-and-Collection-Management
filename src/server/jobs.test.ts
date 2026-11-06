@@ -20,7 +20,7 @@ function route(work: Partial<Record<JobName, JobWork>> = {}) {
     finishJobRun: async (_tx, _id, end) => { rows.at(-1)!.outcome = end.outcome; },
   };
   const clock = new VirtualClock(Date.parse('2026-10-01T15:00:00.000Z'));
-  const runner = new JobRunner({ repo, locks: { tryHold: async () => ({ release: async () => undefined }) }, transactions: { run: async (fn) => fn({} as Tx) }, clock, ids: new SequentialIds('j') });
+  const runner = new JobRunner({ repo, locks: { tryHold: async () => ({ release: async (last) => { await last?.({} as Tx); } }) }, transactions: { run: async (fn) => fn({} as Tx) }, clock, ids: new SequentialIds('j') });
   const idle: JobWork = { singleFlight: 'runner', triggers: ['tick'], run: async () => ({ skipped: false, result: { done: true } }) };
   const lines: { message: string; data: Record<string, unknown> | undefined }[] = [];
   const log = { info: () => undefined, error: (message: string, data?: Record<string, unknown>) => { lines.push({ message, data }); } };
