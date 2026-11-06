@@ -564,3 +564,32 @@
   - **Winston:** **(recommended)** run `bmad-agent-architect` (Winston) now, over Impl-2's hardening, labelled honestly as a close-phase audit and not as shift-left. Findings go through menus. The alternative was documenting the gap. ACCEPT.
 - **Artifact changed:** this log; the work follows in #32 and after.
 - **Decided by:** Mateo.
+
+
+### 32. Story 4.6: a circuit breaker on the TRM source, shared in Postgres and proven under a race (Implementation + Architecture + Testing)
+
+- **Phase:** C (close-phase hardening, after #31), Flow A, in a story subagent (`4a84964` red, `bde313d` green); then menus.
+- **Persona/Skill:** `bmad-correct-course`, `bmad-create-story`, `bmad-testarch-atdd` (Murat), `bmad-dev-story` (Amelia).
+- **Prompt (summary):** build the TRM circuit breaker of #31. It needs a pure state machine, its state in Postgres, atomic transitions, a degraded outcome and admin visibility, with the red tests committed first.
+- **AI output (summary):**
+  - **Backlog:** Story 4.6 "Open a circuit breaker when the TRM source keeps failing" (71 → 72 stories). It traces to NFR-CAT-4, FR-CAT-8 and AD-CAT-3, and adds the new P0 risk R-32 (3 × 2). The PRD has no explicit circuit-breaker requirement, and the agent said so instead of inventing one.
+  - **Red (`4a84964`):** all 6 bound tests failed on `NotImplementedError: NotImplemented: catalog.getFxSourceBreaker`. The gate line: `solu2-atdd: 379 tests in 26 files; 6 red for the right reason; 373 green …; 0 not as expected`. Each test reads the breaker through the new admin read before checking an effect, so the red reason is the missing read and not a wrong outcome.
+  - **Green (`bde313d`):**
+    - The pure machine `catalog/domain/breaker.ts` (100 % branches): `closed` → `open` after 3 failures in a row → `half-open` after the cool-down, with one probe whose lease runs for 60 s.
+    - The `"FxSourceBreaker"` row, from the new migration `002_fx_source_breaker.sql`, is changed under `FOR UPDATE`.
+    - `fetchTrm` answers `circuitOpen` (code `FxRateCircuitOpen`, `allowedWithNotice`), keeps the last rate and never calls the source.
+    - Admins read the state through `catalog.fx.breaker` (page 2.3). The shared-kernel tick health may not read a catalog table.
+    - The lint rule, the table-ownership fitness scan and the epics generator now read every migration file.
+  - **Gate (`33-story-4.6.log`):** `test:ci` exit 0. 743 unit tests; trace PASS with 425 / 425 ids and 72 / 72 stories; `solu2-atdd` 379 green; `solu2-nfr` 30 green.
+  - **Mutation check:** with `FOR UPDATE` removed, the hammer C1 sees 42 probes instead of 1, and C2 loses failure counts and leaves the breaker closed.
+- **Human decisions (menus):**
+  - **Cool-down:** **(recommended)** 30 min. NFR-CAT-4 requires one attempt an hour, so the hourly tick always finds the breaker half-open. What it stops are admin retries and concurrent calls between ticks. The alternative was 150 min, which would really skip ticks but needs NFR-CAT-4 amended. ACCEPT.
+  - **Admin retry:** **(recommended)** it goes through the breaker: one rule for everyone, answered with `circuitOpen` and the next probe time. The alternative was a force flag. ACCEPT.
+  - **AD rule:** **(recommended)** the Winston audit writes AD-CAT-3 rule 7 for the breaker and binds its tests in the AD matrix. The alternative was keeping the deferral. ACCEPT.
+- **Evidence:** `evidence/impl2/33-story-4.6.log` (red and green).
+- **Artifact changed:**
+  - Code and migration: `catalog/domain/breaker.ts` (+ test), `application/cat.v2.ts`, `infra/pg.ts`, `ports/cat.v2.ts`, `schemas/002_fx_source_breaker.sql`.
+  - Tests: `atdd/cat_breaker.test.ts`.
+  - Planning and tracking: `epics.source.mjs`, `epics.md`, `sprint-status.yaml`, the story file 4-6, `contracts.md`, `operations.json`, `ui-states.json`, `openapi.yaml`.
+  - Test and trace artifacts: `test-design.md` (R-32), `nfr-evidence.md`, `traceability-matrix.md`, `deferred-work.md`.
+- **Decided by:** Mateo.
