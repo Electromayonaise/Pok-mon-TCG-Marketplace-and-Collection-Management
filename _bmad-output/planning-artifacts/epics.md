@@ -441,7 +441,7 @@ Build the cross-module platform every story stands on: one typed error body, an 
 - **Contracts:** `S-SYS.sweep` sweep · **Also proves:** `S-SYS.jobs` (§15 clause)
 - **Depends on:** Story 1.3, Story 1.5
 - **Traceability:** FR: none (cross-cutting) · NFR-SYS-6 · Risk R-21 (P0)
-- **Binding invariants:** also cited by its clauses: AD-SYS-2, AD-SYS-4
+- **Binding invariants:** AD-SYS-4 — Transaction handles, pooler-safe state, global lock order (`tx` first; `db()` ambient client; ascending unit locks; `job:<name>` held for the run on one of the pool's 2 connections (rule 7)); also cited by its clauses: AD-SYS-2
 - **Files:** `src/shared-kernel/admin-events.ts` (`AdminEventsServiceV2.sweep`)
 - **Schema/DTO:** DTOs `SweepDeliveriesRequest` → `SweepDeliveriesResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/sys_jobs.test.ts` › `[S-SYS.jobs.auth]`, `[S-SYS.jobs.trigger]`, `[S-SYS.jobs.h]`, `[S-SYS.jobs.failed]`, `[S-SYS.sweep.h]`, `[S-SYS.jobs.single]`, `[S-SYS.jobs.C1]`, `[S-SYS.jobs.pool]`
@@ -493,7 +493,7 @@ Give every account exactly one seller track and derive its capabilities from fac
 - **Contracts:** `IDN-2` requireListingEligibility, `P-IDN.capabilities` getCapabilities, `P-IDN.verification` getSellerVerification
 - **Depends on:** Story 2.1
 - **Traceability:** FR-IDN-1, FR-IDN-3 · NFR-IDN-1 · UI 1.1 (dev), 1.2, 4.1
-- **Binding invariants:** AD-16 — Roles derived server-side (`deriveCapabilities`; no role-like input key); AD-SYS-4 — Transaction handles, pooler-safe state, global lock order (`tx` first; `db()` ambient client; ascending unit locks); also cited by its clauses: AD-IDN-1
+- **Binding invariants:** AD-16 — Roles derived server-side (`deriveCapabilities`; no role-like input key); AD-SYS-4 — Transaction handles, pooler-safe state, global lock order (`tx` first; `db()` ambient client; ascending unit locks; `job:<name>` held for the run on one of the pool's 2 connections (rule 7)); also cited by its clauses: AD-IDN-1
 - **Files:** `src/modules/identity/application/idn.v2.ts` (`IdnServiceV2.requireListingEligibility`, `IdnServiceV2.getCapabilities`, `IdnServiceV2.getSellerVerification`), `src/modules/identity/ports/idn.v2.ts` (`IdnRepository`), `src/modules/identity/domain/idn.ts`, `src/modules/identity/infra/pg.ts`
 - **Schema/DTO:** tables `"BusinessApplication"`, `"User"`; DTOs `RequireListingEligibilityRequest` → `RequireListingEligibilityResponse`, `GetCapabilitiesRequest` → `GetCapabilitiesResponse`, `GetSellerVerificationRequest` → `GetSellerVerificationResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_contracts.test.ts` › `[IDN-2.Q1]`, `[IDN-2.QF1]`, `[IDN-2.QF2]`, `[IDN-2.I1]`, `[P-IDN.capabilities.h]`, `[P-IDN.verification.h]`; `_bmad-output/test-artifacts/atdd/sys_contracts.test.ts` › `[SYS-4.R9]`; `_bmad-output/test-artifacts/nfr/idn1_latency.test.ts` › `[NFR-IDN-1.capabilities]`, `[NFR-IDN-1.eligibility]`
@@ -509,7 +509,7 @@ Give every account exactly one seller track and derive its capabilities from fac
 - **Contracts:** `S-FR-IDN-7.canBuy` requireCanBuy, `S-FR-IDN-7.throttle` checkAuthThrottle
 - **Depends on:** Story 1.1
 - **Traceability:** FR-IDN-7
-- **Binding invariants:** AD-IDN-3 — `canBuy` gate and auth throttle (`requireCanBuy`; `AuthThrottleEvent` count); also cited by its clauses: AD-16, AD-SYS-8
+- **Binding invariants:** AD-IDN-3 — `canBuy` gate and auth throttle (`requireCanBuy`; `AuthThrottleEvent` count; consent set in the sign-up insert); also cited by its clauses: AD-16, AD-SYS-8
 - **Files:** `src/modules/identity/application/idn.v2.ts` (`IdnServiceV2.requireCanBuy`, `IdnServiceV2.checkAuthThrottle`), `src/modules/identity/ports/idn.v2.ts` (`IdnRepository`), `src/modules/identity/domain/idn.ts`, `src/modules/identity/infra/pg.ts`
 - **Schema/DTO:** tables `"Account"`, `"AuthThrottleEvent"`, `"Session"`, `"User"`; DTOs `RequireCanBuyRequest` → `RequireCanBuyResponse`, `CheckAuthThrottleRequest` → `CheckAuthThrottleResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_contracts.test.ts` › `[S-FR-IDN-7.h]`, `[S-FR-IDN-7.f]`
@@ -541,7 +541,7 @@ Give every account exactly one seller track and derive its capabilities from fac
 - **Contracts:** — (no registry operation of its own) · **Also proves:** `S-FR-IDN-7` (§15 clause)
 - **Depends on:** Story 2.4
 - **Traceability:** FR-IDN-7 · Risk R-22 (P0)
-- **Binding invariants:** also cited by its clauses: AD-16, AD-IDN-3, AD-SYS-8
+- **Binding invariants:** AD-IDN-3 — `canBuy` gate and auth throttle (`requireCanBuy`; `AuthThrottleEvent` count; consent set in the sign-up insert); also cited by its clauses: AD-16, AD-SYS-8
 - **Files:** —
 - **Schema/DTO:** tables `"Account"`, `"AuthThrottleEvent"`, `"Session"`, `"User"`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_auth.test.ts` › `[S-FR-IDN-7.signup.h]`, `[S-FR-IDN-7.signup.f]`, `[S-FR-IDN-7.signup.throttle]`, `[S-FR-IDN-7.signin.h]`, `[S-FR-IDN-7.signin.throttle]`, `[S-FR-IDN-7.signin.unknown]`, `[S-FR-IDN-7.signup.unwired]`
@@ -761,7 +761,7 @@ Let sellers list from one stock pool per (seller, item, condition). Reserve that
 - **Contracts:** `INV-1` reserveForPurchase, `S-FR-INV-5` releaseReservation, `P-INV.purchase` getListingForPurchase, `P-INV.units` getInventoryUnitIds
 - **Depends on:** Story 5.1
 - **Traceability:** FR-INV-3, FR-INV-5, FR-INV-6 · NFR-INV-1, NFR-INV-2, NFR-INV-3, NFR-INV-4 · Risk R-05 (P0) · UI 4.3 (dev)
-- **Binding invariants:** AD-6 — `InventoryUnit` is the sole quantity owner (`CHECK (quantity >= 0)`; conditional decrement); AD-SYS-4 — Transaction handles, pooler-safe state, global lock order (`tx` first; `db()` ambient client; ascending unit locks); AD-INV-2 — Reserve and release in the caller's transaction (`tx` parameter; ascending conditional decrement); also cited by its clauses: AD-INV-1, AD-ORD-1, AD-ORD-2, AD-SYS-5
+- **Binding invariants:** AD-6 — `InventoryUnit` is the sole quantity owner (`CHECK (quantity >= 0)`; conditional decrement); AD-SYS-4 — Transaction handles, pooler-safe state, global lock order (`tx` first; `db()` ambient client; ascending unit locks; `job:<name>` held for the run on one of the pool's 2 connections (rule 7)); AD-INV-2 — Reserve and release in the caller's transaction (`tx` parameter; ascending conditional decrement); also cited by its clauses: AD-INV-1, AD-ORD-1, AD-ORD-2, AD-SYS-5
 - **Files:** `src/modules/listings/application/inv.v2.ts` (`InvServiceV2.reserveForPurchase`, `InvServiceV2.releaseReservation`, `InvServiceV2.getListingForPurchase`, `InvServiceV2.getInventoryUnitIds`), `src/modules/listings/ports/inv.v2.ts` (`InvRepository`), `src/modules/listings/domain/inv.ts`, `src/modules/listings/infra/pg.ts`
 - **Schema/DTO:** tables `"InventoryUnit"`; DTOs `ReserveForPurchaseRequest` → `ReserveForPurchaseResponse`, `ReleaseReservationRequest` → `ReleaseReservationResponse`, `GetListingForPurchaseRequest` → `GetListingForPurchaseResponse`, `GetInventoryUnitIdsRequest` → `GetInventoryUnitIdsResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_contracts.test.ts` › `[INV-1.Q1]`, `[INV-1.Q3]`, `[INV-1.I1]`, `[INV-1.I3]`, `[INV-1.MEC]`; `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-INV-5.h]`, `[S-FR-INV-5.f]`, `[P-INV.purchase.h]`, `[P-INV.units.h]`; `_bmad-output/test-artifacts/nfr/inv4_latency.test.ts` › `[NFR-INV-4.reserve]`, `[NFR-INV-4.bundle]`
@@ -1013,7 +1013,7 @@ Keep each business's prepaid commission balance exact. Each order is charged exa
 - **Contracts:** `COM-1` applyOrderDeduction
 - **Depends on:** Story 8.1, Story 7.2
 - **Traceability:** FR-COM-4, FR-COM-5, FR-COM-6 · NFR-COM-1, NFR-COM-2, NFR-COM-3, NFR-COM-4 · Risk R-07 (P0) · UI 7.5 (dev)
-- **Binding invariants:** AD-19 — Atomic decrement; balance may go negative (Account `UPDATE … RETURNING`; no refusal path); AD-SYS-3 — Commission triggered by the first of two order events (`commissionTrigger(facts)`; partial unique on deductions); AD-SYS-7 — Branded money, one set of formulas (BigInt helpers; rounding CHECK on deductions); AD-COM-2 — Deduction keyed by `orderId`, priced at the trigger time (Partial unique; rate by `commissionTriggeredAt`); also cited by its clauses: AD-COM-1, AD-SYS-2
+- **Binding invariants:** AD-19 — Atomic decrement; balance may go negative (Account `UPDATE … RETURNING`; no refusal path); AD-SYS-3 — Commission triggered by the first of two order events (`commissionTrigger(facts)`; partial unique on deductions); AD-SYS-7 — Branded money, one set of formulas (BigInt helpers; rounding CHECK on deductions); AD-COM-2 — Deduction keyed by `orderId`, priced at the trigger time (Partial unique; rate by `commissionTriggeredAt`; `UNIQUE ("effectiveFrom")` on rate settings); also cited by its clauses: AD-COM-1, AD-SYS-2
 - **Files:** `src/modules/commission/application/com.v2.ts` (`ComServiceV2.applyOrderDeduction`), `src/modules/commission/ports/com.v2.ts` (`ComRepository`), `src/modules/commission/domain/com.ts`, `src/modules/commission/infra/pg.ts`
 - **Schema/DTO:** tables `"CommissionAccount"`, `"CommissionLedgerEntry"`, `"CommissionRateSetting"`, `"EventDelivery"`; DTOs `ApplyOrderDeductionRequest` → `ApplyOrderDeductionResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/com_contracts.test.ts` › `[COM-1.Q1]`, `[COM-1.Q3]`, `[COM-1.I1]`, `[COM-1.I3]`, `[COM-1.I4]`, `[COM-1.MEC]`, `[COM-1.MEC2]`; `_bmad-output/test-artifacts/nfr/com3_latency.test.ts` › `[NFR-COM-3.deduction]`
@@ -1061,7 +1061,7 @@ Keep each business's prepaid commission balance exact. Each order is charged exa
 - **Contracts:** `COM-3` reconcile, `COM-3.last` getLastReconciliation
 - **Depends on:** Story 8.2, Story 1.6
 - **Traceability:** FR-COM-8 · NFR-COM-2 · Risk R-23 (P0), R-24 (P1) · UI 7.4, 7.5 (dev)
-- **Binding invariants:** AD-COM-1 — One atomic account update + one ledger entry (`UPDATE … RETURNING`; `UNIQUE (businessId, seq)`); also cited by its clauses: AD-19, AD-ORD-2, AD-SYS-1, AD-SYS-4
+- **Binding invariants:** AD-SYS-4 — Transaction handles, pooler-safe state, global lock order (`tx` first; `db()` ambient client; ascending unit locks; `job:<name>` held for the run on one of the pool's 2 connections (rule 7)); AD-COM-1 — One atomic account update + one ledger entry (`UPDATE … RETURNING`; `UNIQUE (businessId, seq)`); also cited by its clauses: AD-19, AD-ORD-2, AD-SYS-1
 - **Files:** `src/modules/commission/application/com.v2.ts` (`ComServiceV2.reconcile`, `ComServiceV2.getLastReconciliation`), `src/modules/commission/ports/com.v2.ts` (`ComRepository`), `src/modules/commission/domain/com.ts`, `src/modules/commission/infra/pg.ts`
 - **Schema/DTO:** tables `"CommissionAccount"`, `"CommissionLedgerEntry"`, `"ReconciliationRun"`, `"TopUpRequest"`; DTOs `ReconcileRequest` → `ReconcileResponse`, `GetLastReconciliationRequest` → `GetLastReconciliationResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/com_contracts.test.ts` › `[COM-3.Q1]`, `[COM-3.Q2]`, `[COM-3.I1]`, `[COM-3.Q4]`, `[COM-3.P2]`, `[COM-3.last.h]`; `_bmad-output/test-artifacts/atdd/com_reconcile.test.ts` › `[COM-3.C1]`, `[COM-3.C2]`; `_bmad-output/test-artifacts/nfr/com2_drift.test.ts` › `[NFR-COM-2.drift]`
@@ -1077,7 +1077,7 @@ Keep each business's prepaid commission balance exact. Each order is charged exa
 - **Contracts:** `S-FR-COM-7` setCommissionRate, `S-FR-COM-7.list` listCommissionRates, `S-FR-COM-8.ledger` getAccountLedger
 - **Depends on:** Story 8.2
 - **Traceability:** FR-COM-7, FR-COM-8 · Risk R-25 (P0) · UI 7.2, 7.4
-- **Binding invariants:** also cited by its clauses: AD-COM-1, AD-COM-2
+- **Binding invariants:** AD-COM-2 — Deduction keyed by `orderId`, priced at the trigger time (Partial unique; rate by `commissionTriggeredAt`; `UNIQUE ("effectiveFrom")` on rate settings); also cited by its clauses: AD-COM-1
 - **Files:** `src/modules/commission/application/com.v2.ts` (`ComServiceV2.setCommissionRate`, `ComServiceV2.listCommissionRates`, `ComServiceV2.getAccountLedger`), `src/modules/commission/ports/com.v2.ts` (`ComRepository`), `src/modules/commission/domain/com.ts`, `src/modules/commission/infra/pg.ts`
 - **Schema/DTO:** tables `"CommissionRateSetting"`; DTOs `SetCommissionRateRequest` → `SetCommissionRateResponse`, `ListCommissionRatesRequest` → `ListCommissionRatesResponse`, `GetAccountLedgerRequest` → `GetAccountLedgerResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/com_supporting.test.ts` › `[S-FR-COM-7.h]`, `[S-FR-COM-7.f]`, `[S-FR-COM-7.list.h]`, `[S-FR-COM-8.ledger.h]`, `[S-FR-COM-7.C1]`
@@ -1281,7 +1281,7 @@ Let collectors keep collections of catalog cards and external promos, organize t
 - **Contracts:** `S-FR-COL-1.create` createCollection, `S-FR-COL-1.rename` renameCollection, `S-FR-COL-1.delete` deleteCollection, `S-FR-COL-1.list` listCollections
 - **Depends on:** Story 1.2
 - **Traceability:** FR-COL-1 · UI 9.1, 9.2, 9.4, 10.1
-- **Binding invariants:** AD-COL-1 — Tagged-union entries; collections capped under an owner lock (CHECKs; `col:owner` lock)
+- **Binding invariants:** AD-COL-1 — Tagged-union entries; collections capped under an owner lock (CHECKs; `col:owner` lock, also over every binder position)
 - **Files:** `src/modules/collections/application/col.v2.ts` (`ColServiceV2.createCollection`, `ColServiceV2.renameCollection`, `ColServiceV2.deleteCollection`, `ColServiceV2.listCollections`), `src/modules/collections/ports/col.v2.ts` (`ColRepository`), `src/modules/collections/domain/col.ts`, `src/modules/collections/infra/pg.ts`
 - **Schema/DTO:** DTOs `CreateCollectionRequest` → `CreateCollectionResponse`, `RenameCollectionRequest` → `CollectionChangeResponse`, `DeleteCollectionRequest` → `DeleteCollectionResponse`, `ListCollectionsRequest` → `ListCollectionsResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/col_supporting.test.ts` › `[S-FR-COL-1.h]`, `[S-FR-COL-1.f]`, `[S-FR-COL-1.list.h]`, `[S-FR-COL-1.delete.h]`
@@ -1297,7 +1297,7 @@ Let collectors keep collections of catalog cards and external promos, organize t
 - **Contracts:** `COL-3` addEntry
 - **Depends on:** Story 11.1, Story 4.5
 - **Traceability:** FR-COL-1, FR-COL-2 · UI 9.2
-- **Binding invariants:** AD-7 — Catalog, listing and binder records are independent (Upsert `SET` list without `id`/`kind`; tagged-union CHECKs); AD-COL-1 — Tagged-union entries; collections capped under an owner lock (CHECKs; `col:owner` lock); also cited by its clauses: AD-SYS-1
+- **Binding invariants:** AD-7 — Catalog, listing and binder records are independent (Upsert `SET` list without `id`/`kind`; tagged-union CHECKs); AD-COL-1 — Tagged-union entries; collections capped under an owner lock (CHECKs; `col:owner` lock, also over every binder position); also cited by its clauses: AD-SYS-1
 - **Files:** `src/modules/collections/application/col.v2.ts` (`ColServiceV2.addEntry`), `src/modules/collections/ports/col.v2.ts` (`ColRepository`), `src/modules/collections/domain/col.ts`, `src/modules/collections/infra/pg.ts`
 - **Schema/DTO:** tables `"CatalogEntry"`, `"Collection"`, `"CollectionEntry"`; DTOs `AddEntryRequest` → `AddEntryResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/col_contracts.test.ts` › `[COL-3.Q1]`, `[COL-3.Q2]`, `[COL-3.R1]`, `[COL-3.I2]`
@@ -1345,7 +1345,7 @@ Let collectors keep collections of catalog cards and external promos, organize t
 - **Contracts:** `S-FR-COL-3` addExternalEntry, `S-FR-COL-4` moveOrCopyEntry, `S-FR-COL-5.binder` getBinder, `S-FR-COL-5.layout` setBinderLayout, `S-FR-COL-5.reorder` reorderEntries, `S-FR-COL-6.add` addWishlist, `S-FR-COL-6.remove` removeWishlist, `S-FR-COL-6.list` listWishlist
 - **Depends on:** Story 11.2, Story 5.6
 - **Traceability:** FR-COL-3, FR-COL-4, FR-COL-5, FR-COL-6 · NFR-COL-2 · Risk R-27 (P2) · UI 9.1, 9.2, 9.3
-- **Binding invariants:** AD-8 — Table ownership (No module writes another's tables; static scan of `infra/` SQL; shared-kernel owns only infra tables (+ `audit_events`, R-2)); also cited by its clauses: AD-1, AD-7, AD-COL-1
+- **Binding invariants:** AD-8 — Table ownership (No module writes another's tables; static scan of `infra/` SQL; shared-kernel owns only infra tables (+ `audit_events`, R-2)); AD-COL-1 — Tagged-union entries; collections capped under an owner lock (CHECKs; `col:owner` lock, also over every binder position); also cited by its clauses: AD-1, AD-7
 - **Files:** `src/modules/collections/application/col.v2.ts` (`ColServiceV2.addExternalEntry`, `ColServiceV2.moveOrCopyEntry`, `ColServiceV2.getBinder`, `ColServiceV2.setBinderLayout`, `ColServiceV2.reorderEntries`, `ColServiceV2.addWishlist`, `ColServiceV2.removeWishlist`, `ColServiceV2.listWishlist`), `src/modules/collections/ports/col.v2.ts` (`ColRepository`), `src/modules/collections/domain/col.ts`, `src/modules/collections/infra/pg.ts`
 - **Schema/DTO:** tables `"CatalogEntry"`; DTOs `AddExternalEntryRequest` → `AddExternalEntryResponse`, `MoveOrCopyEntryRequest` → `MoveOrCopyEntryResponse`, `GetBinderRequest` → `GetBinderResponse`, `SetBinderLayoutRequest` → `CollectionChangeResponse`, `ReorderEntriesRequest` → `CollectionChangeResponse`, `AddWishlistRequest` → `ListWishlistResponse`, `RemoveWishlistRequest` → `ListWishlistResponse`, `ListWishlistRequest` → `ListWishlistResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/col_supporting.test.ts` › `[S-FR-COL-3.h]`, `[S-FR-COL-4.h]`, `[S-FR-COL-5.h]`, `[S-FR-COL-6.h]`, `[S-FR-COL-5.C1]`; `_bmad-output/test-artifacts/nfr/col2_latency.test.ts` › `[NFR-COL-2.binder]`, `[NFR-COL-2.wishlist]`
@@ -1529,7 +1529,7 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Contracts:** `S-FR-REP-5` setListingHidden, `S-FR-REP-6.listing` listListingModerationLog, `S-FR-REP-6.search` searchReviews, `S-FR-REP-6.log` listReviewModerationLog, `S-FR-REP-7` getProfile · **Also proves:** `REP-3` (operation owned by Story 13.3)
 - **Depends on:** Story 13.2, Story 5.1
 - **Traceability:** FR-REP-3, FR-REP-5, FR-REP-6, FR-REP-7 · NFR-REP-1, NFR-REP-2 · Risk R-29 (P0), R-30 (P1) · UI 11.2, 11.3, 11.4
-- **Binding invariants:** also cited by its clauses: AD-12, AD-REP-2, AD-REP-3
+- **Binding invariants:** AD-REP-2 — Aggregates from the same snapshot as the list (One statement; `REPEATABLE READ` profile read); also cited by its clauses: AD-12, AD-REP-3
 - **Files:** `src/modules/listings/application/inv.v2.ts` (`InvServiceV2.setListingHidden`, `InvServiceV2.listListingModerationLog`), `src/modules/listings/ports/inv.v2.ts` (`InvRepository`), `src/modules/listings/domain/inv.ts`, `src/modules/listings/infra/pg.ts`, `src/modules/reviews/application/rep.v2.ts` (`RepServiceV2.searchReviews`, `RepServiceV2.listReviewModerationLog`, `RepServiceV2.getProfile`), `src/modules/reviews/ports/rep.v2.ts` (`RepRepository`), `src/modules/reviews/domain/rep.ts`, `src/modules/reviews/infra/pg.ts`
 - **Schema/DTO:** tables `"ListingModerationLog"`, `"Review"`; DTOs `SetListingHiddenRequest` → `SetListingHiddenResponse`, `ListListingModerationLogRequest` → `ListListingModerationLogResponse`, `SearchReviewsRequest` → `SearchReviewsResponse`, `ListReviewModerationLogRequest` → `ListReviewModerationLogResponse`, `GetProfileRequest` → `GetProfileResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.h]`; `_bmad-output/test-artifacts/atdd/rep_reads.test.ts` › `[S-FR-REP-6.h]`, `[S-FR-REP-7.h]`, `[S-FR-REP-7.C1]`; `_bmad-output/test-artifacts/nfr/rep2_latency.test.ts` › `[NFR-REP-2.profile]`
@@ -1545,7 +1545,7 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Contracts:** — (no registry operation of its own) · **Also proves:** `S-FR-REP-5` (operation owned by Story 13.5), `S-FR-REP-6` (§15 clause), `S-FR-REP-7` (operation owned by Story 13.5)
 - **Depends on:** Story 13.5
 - **Traceability:** FR-REP-5, FR-REP-6, FR-REP-7 · Risk R-31 (P0)
-- **Binding invariants:** also cited by its clauses: AD-12, AD-REP-2, AD-REP-3
+- **Binding invariants:** AD-12 — Hide, never delete (`DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate); AD-REP-3 — Hide and unhide conditional and logged (`WHERE hiddenAt IS NULL`; log with snapshots); also cited by its clauses: AD-REP-2
 - **Files:** —
 - **Schema/DTO:** tables `"ListingModerationLog"`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.f]`, `[S-FR-REP-5.C1]`; `_bmad-output/test-artifacts/atdd/rep_reads.test.ts` › `[S-FR-REP-6.f]`, `[S-FR-REP-7.f]`

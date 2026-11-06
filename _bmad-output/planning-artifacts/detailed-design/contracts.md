@@ -1476,7 +1476,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 
 ## 14. Invariant Binding Table
 
-There is one row per AD, and no AD is left unbound (Phase 3 gate: "no AD without a test that goes red"). The test column names the Phase 3 ATDD test that turns red when the enforcement point is removed. `sys` is `_bmad-output/test-artifacts/atdd/sys_contracts.test.ts`: the shared-kernel and cross-module suite, which also holds the walking skeleton. Every other prefix is `<module>_contracts.test.ts` or `<module>_supporting.test.ts`. The static `sys` proofs (`SYS-AD1`, `SYS-AD8`, `SYS-AD9`, `SYS-6.R1`, `SYS-6.R4`) are green fitness functions in `_bmad-output/test-artifacts/fitness/sys_fitness.test.ts`: they turn red on a violation, as their planted-violation probes prove.
+There is one row per AD, and no AD is left unbound (Phase 3 gate: "no AD without a test that goes red"). The test column names the Phase 3 ATDD test that turns red when the enforcement point is removed. `sys` is `_bmad-output/test-artifacts/atdd/sys_contracts.test.ts`: the shared-kernel and cross-module suite, which also holds the walking skeleton. Every other prefix is `<module>_contracts.test.ts` or `<module>_supporting.test.ts`. The Impl-2 race proofs live in their stories' files and are cited by file name (`sys_jobs`, `com_reconcile`, `msg_inbox`, `rep_reads`, `inv_supporting`, `idn_auth`, `cat_breaker`); they were bound here at the Impl-2 close (architecture audit F7, decision log Impl-2 #34). The static `sys` proofs (`SYS-AD1`, `SYS-AD8`, `SYS-AD9`, `SYS-6.R1`, `SYS-6.R4`) are green fitness functions in `_bmad-output/test-artifacts/fitness/sys_fitness.test.ts`: they turn red on a violation, as their planted-violation probes prove.
 
 | Invariant | AD | Enforcement point | Red test |
 |---|---|---|---|
@@ -1491,7 +1491,7 @@ There is one row per AD, and no AD is left unbound (Phase 3 gate: "no AD without
 | Snapshot payloads | AD-9 | Payload = ADD-§5 exactly; subscribers read only the payload | `sys › [SYS-AD9] payload schema per event`, `col › [COL-2.I2]` |
 | Post-commit, in-process dispatch with an outbox | AD-10 | `outbox.enqueue(tx)` + sweeper | `sys › [SYS-2.R6] crash between commit and dispatch → delivered once` |
 | One owner per error code | AD-11 | Registry `owner`; `raise` checks the caller module | `sys › [SYS-1.R2] non-owner raise fails` |
-| Hide, never delete | AD-12 | `DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate | `rep › [REP-2.I1]`, `dsc › [DSC-1.I2]` |
+| Hide, never delete | AD-12 | `DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate | `rep › [REP-2.I1]`, `dsc › [DSC-1.I2]`, `inv_supporting › [S-FR-REP-5.C1]` |
 | `legalIdentity` under Ley 1581 | AD-13 | Split table; one repository reader | `ver › [VER-3.I2]`, `idn › [IDN-3.I1]` |
 | Signed URLs, 10-minute TTL | AD-14 | `ObjectStorage.sign(key, 600)` | `ver › [VER-3.I3]` |
 | Business sees an order from `buyerPaidConfirmedAt` | AD-15 | One visibility predicate | `ord › [ORD-3.I3]`, `ord › [ORD-3.MEC]` |
@@ -1502,14 +1502,14 @@ There is one row per AD, and no AD is left unbound (Phase 3 gate: "no AD without
 | One Decision shape and one code registry | AD-SYS-1 | `codes.ts`; error formatter; `explain_assert` | `sys › [SYS-1.R6] every code triggered with full shape` |
 | Transactional outbox; at most 3 automatic attempts | AD-SYS-2 | `EventDelivery` attempt procedure | `sys › [SYS-2.R4] 3 unrecorded attempts → failed DeliveryAttemptsExhausted` |
 | Commission triggered by the first of two order events | AD-SYS-3 | `commissionTrigger(facts)`; partial unique on deductions | `com › [COM-1.I4]` |
-| Transaction handles, pooler-safe state, global lock order | AD-SYS-4 | `tx` first; `db()` ambient client; ascending unit locks | `inv › [INV-1.I3]`, `sys › [SYS-4.R9] neighbour query in tx with pool of 1` |
+| Transaction handles, pooler-safe state, global lock order | AD-SYS-4 | `tx` first; `db()` ambient client; ascending unit locks; `job:<name>` held for the run on one of the pool's 2 connections (rule 7) | `inv › [INV-1.I3]`, `sys › [SYS-4.R9] neighbour query in tx with pool of 1`, `sys_jobs › [S-SYS.jobs.C1]`, `sys_jobs › [S-SYS.jobs.pool]`, `com_reconcile › [COM-3.C2]` |
 | Every transition is one conditional UPDATE | AD-SYS-5 | `WHERE <from-state>` + loser re-read | `ver › [VER-1.MEC]`, `trd › [TRD-2.I3]` |
 | Determinism boundary (Clock, IdGenerator, no network) | AD-SYS-6 | `Clock` port; network guard; no SQL `now()` | `sys › [SYS-6.R1] no wall-clock reads`, `sys › [SYS-6.R4] socket guard` |
 | Branded money, one set of formulas | AD-SYS-7 | BigInt helpers; rounding CHECK on deductions | `com › [COM-1.I3]`, `val › [VAL-2.I3]` |
 | Server-side authorization, regulated data, uploads | AD-SYS-8 | Procedure builders; redactor; quarantine promotion | `sys › [SYS-8.R2]`, `ver › [VER-2.P3]` |
 | Capabilities from one pure function | AD-IDN-1 | `deriveCapabilities`; trace = projection | `idn › [IDN-3.I3]` |
 | Seller-track exclusivity | AD-IDN-2 | Conditional `UPDATE "User"."sellerTrack"` | `idn › [IDN-1.I1]` |
-| `canBuy` gate and auth throttle | AD-IDN-3 | `requireCanBuy`; `AuthThrottleEvent` count | `idn › [S-FR-IDN-7.f]` |
+| `canBuy` gate and auth throttle | AD-IDN-3 | `requireCanBuy`; `AuthThrottleEvent` count; consent set in the sign-up insert | `idn › [S-FR-IDN-7.f]`, `idn_auth › [S-FR-IDN-7.signup.h]`, `idn_auth › [S-FR-IDN-7.signup.f]`, `idn_auth › [S-FR-IDN-7.signup.throttle]`, `idn_auth › [S-FR-IDN-7.signup.unwired]`, `idn_auth › [S-FR-IDN-7.signin.throttle]` |
 | One decision with its audit row and event | AD-VER-1 | `WHERE status='Pending'`; unique decision log | `ver › [VER-1.I1]` |
 | Legal identity has one reader; reads and denials logged | AD-VER-2 | `legalIdentityRepository`; access log | `ver › [VER-3.I1]` |
 | One pending application; reapplication from the snapshot | AD-VER-3 | Partial unique `(businessId) WHERE Pending` | `ver › [VER-2.I1]` |
@@ -1525,22 +1525,22 @@ There is one row per AD, and no AD is left unbound (Phase 3 gate: "no AD without
 | Creation serialized per buyer | AD-ORD-1 | `orders:buyer` advisory lock + derived count | `ord › [ORD-1.I2]` |
 | Facts set once; expiry derived and materialized once | AD-ORD-2 | `IS NULL` predicates; `expiresAt > now` | `ord › [ORD-2.MEC]`, `ord › [ORD-4.MEC]` |
 | One visibility predicate; locked comprobante | AD-ORD-3 | Visibility SQL; comprobante update predicate | `ord › [ORD-3.I3]`, `ord › [S-FR-ORD-2.f]` |
-| One atomic account update + one ledger entry | AD-COM-1 | `UPDATE … RETURNING`; `UNIQUE (businessId, seq)` | `com › [COM-3.I1]` |
-| Deduction keyed by `orderId`, priced at the trigger time | AD-COM-2 | Partial unique; rate by `commissionTriggeredAt` | `com › [COM-1.I1]` |
+| One atomic account update + one ledger entry | AD-COM-1 | `UPDATE … RETURNING`; `UNIQUE (businessId, seq)` | `com › [COM-3.I1]`, `com_reconcile › [COM-3.C1]` |
+| Deduction keyed by `orderId`, priced at the trigger time | AD-COM-2 | Partial unique; rate by `commissionTriggeredAt`; `UNIQUE ("effectiveFrom")` on rate settings | `com › [COM-1.I1]`, `com › [S-FR-COM-7.C1]` |
 | Top-ups have one domain path | AD-COM-3 | `WHERE status='Pending'`; unique TopUp entry | `com › [COM-2.I1]` |
 | Offer action = one conditional update | AD-TRD-1 | `status`, `turn`, `version`, `expiresAt` predicate | `trd › [TRD-2.I3]` |
 | Accept serialized per seller | AD-TRD-2 | `trd:seller` advisory lock | `trd › [TRD-1.MEC]` |
 | Completion computed; cancel releases once | AD-TRD-3 | `WHERE status='Accepted' AND no confirmation` | `trd › [TRD-3.I1]` |
 | Contact messages deterministic and rate-limited | AD-MSG-1 | Pure composer; fixed-order advisory locks | `msg › [MSG-2.I1]`, `msg › [MSG-2.MEC]` |
 | One conversation per pair; idempotent send | AD-MSG-2 | Unique keys; `lastSeq` allocation | `msg › [MSG-1.I3]` |
-| Read state monotonic | AD-MSG-3 | `WHERE "lastReadSeq" < :seq` | `msg › [S-FR-MSG-7.f]` |
-| Tagged-union entries; collections capped under an owner lock | AD-COL-1 | CHECKs; `col:owner` lock | `col › [COL-3.I2]`, `col › [S-FR-COL-1.f]` |
+| Read state monotonic | AD-MSG-3 | `WHERE "lastReadSeq" < :seq` | `msg › [S-FR-MSG-7.f]`, `msg_inbox › [S-FR-MSG-7.C1]` |
+| Tagged-union entries; collections capped under an owner lock | AD-COL-1 | CHECKs; `col:owner` lock, also over every binder position | `col › [COL-3.I2]`, `col › [S-FR-COL-1.f]`, `col › [S-FR-COL-5.C1]` |
 | One prompt per closed order; entries once | AD-COL-2 | `UNIQUE orderId`; `WHERE status='Pending'` | `col › [COL-1.MEC]` |
 | Valuation is a pure BigInt function | AD-VAL-1 | Pure function; brand types | `val › [VAL-1.I1]`, `val › [VAL-1.MEC]` |
 | Trend and history recomputed, no zero division | AD-VAL-2 | `roundHalfAwayFromZero`; null baseline | `val › [VAL-2.I1]` |
 | Business reviews purchase-verified; one per pair | AD-REP-1 | `review_business_iff_verified`; unique pair | `rep › [REP-1.I1]` |
-| Aggregates from the same snapshot as the list | AD-REP-2 | One statement; `REPEATABLE READ` profile read | `rep › [REP-3.MEC]` |
-| Hide and unhide conditional and logged | AD-REP-3 | `WHERE hiddenAt IS NULL`; log with snapshots | `rep › [REP-2.I2]` |
+| Aggregates from the same snapshot as the list | AD-REP-2 | One statement; `REPEATABLE READ` profile read | `rep › [REP-3.MEC]`, `rep_reads › [S-FR-REP-7.C1]` |
+| Hide and unhide conditional and logged | AD-REP-3 | `WHERE hiddenAt IS NULL`; log with snapshots | `rep › [REP-2.I2]`, `inv_supporting › [S-FR-REP-5.C1]` |
 | `audit_events` is append-only and written in the writer's transaction | AD-SYS-2 rule 10 as refined by R-2 | Grants (`UPDATE`/`DELETE` revoked); `AuditLog.record(tx)` | `sys › [SYS-R2] audit row rolls back with its transaction; grants` |
 
 ---

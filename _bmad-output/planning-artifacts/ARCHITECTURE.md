@@ -1937,6 +1937,8 @@ ADD-§3.1 and ADD-§3.2 stay the source for the existing rows, which remain vali
 | --- | --- | --- | --- | --- |
 | `FxRateSourceMismatch` | catalog | A TRM re-fetch returned a value different from the stored rate for the same validity date. The stored rate is kept, and the conflict is logged on 2.3 | FR-CAT-8; NFR-CAT-3 | AD-CAT-3 |
 
+The decision codes added during implementation are registered in contracts.md §13, the code registry, as stored-only rows; this table does not repeat them. The Impl-2 ones include the TRM breaker's `FxRateCircuitOpen`, `FxSourceHealthy` and `FxSourceProbing` (Story 4.6, AD-CAT-3 rule 7), the `Reconciliation*` codes and `CommissionRateScheduled` (Stories 8.5, 8.6), and `ScheduledJobsDegraded` (tick health, architecture audit F3).
+
 ### 8.3 Codes whose use changed
 
 | Code | Change | Reason |
@@ -2091,6 +2093,8 @@ No correctness rule depends on any row in this table (AD-SYS-6 rule 5). Every jo
 | `orphan-upload-sweep` | `daily-night` | identity, orders, commission | Deletes objects in the three destination buckets that no row references and that are older than 24 h, and every `upload-quarantine` object older than 24 h (AD-SYS-8 rule 5) | Unreferenced files remain (private; no signed URL can be issued, and none is ever issued for quarantine) |
 | `contact-log-purge` | `daily-night` | listings | Deletes `ContactRequestLog` rows older than 7 days | The limiter reads only the last 24 h, so behaviour is unchanged |
 | `auth-throttle-purge` | `daily-night` | identity | Deletes `AuthThrottleEvent` rows older than 24 h | Same as above, with the 15-minute and 1-hour windows |
+
+At the Impl-2 close, `trm-fetch`, `expiry-materialize`, `commission-reconcile` and `outbox-sweep` have routes (Story 1.6). `feed-ingest` runs from the admin buttons only. `failed-delivery-digest`, `retention-purge`, `orphan-upload-sweep`, `contact-log-purge` and `auth-throttle-purge` are deferred to the launch checklist, with owners in `implementation-artifacts/deferred-work.md` (architecture audit F4, decision log Impl-2 #34).
 
 ---
 
