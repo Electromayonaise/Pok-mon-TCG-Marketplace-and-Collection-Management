@@ -30,6 +30,7 @@ const APPROVED = {
     'fast-check': 'SD-5 (fast-check 4.10.2)',
     '@vitest/coverage-v8': 'Impl-2 #3 (branch coverage of the domain cores, the peer of vitest 5.0.5)',
     '@playwright/test': 'Impl-2 #3 (Flow E: browser E2E with Page Objects and traces)',
+    '@axe-core/playwright': 'Impl-2 #31, #33 (axe-core WCAG 2.x A/AA scans in the Playwright journeys, NFR-SYS-11)',
   },
   'tools/lint': {
     eslint: '#7',
