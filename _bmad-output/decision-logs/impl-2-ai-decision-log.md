@@ -664,3 +664,42 @@
   - Verdict rule: PASS when nothing is above LOW, CONCERNS when there is a MEDIUM, FAIL when there is a HIGH.
 - **Artifact changed:** `ARCHITECTURE.md`, `contracts.md`, `epics.md`, `traceability-matrix.md`, `deferred-work.md`, `docs/impl-2/README.md`, `_bmad-output/README.md`, `architecture-audit-impl2.md` (new); the fixes follow in #35.
 - **Decided by:** Mateo.
+
+
+### 35. Winston's findings F1–F9 are fixed: a 2-connection pool proven per job, the breaker moves by version, and job failures reach the health page (Architecture + Testing)
+
+- **Phase:** C (close), in a subagent (`a8f5d1a`, `2acf4e6`, `926e68a`, `e9a5352`, `78310df`); then menus.
+- **Persona/Skill:** `bmad-dev-story` (Amelia), `bmad-testarch-atdd` (Murat).
+- **Prompt (summary):** fix audit findings F1–F9 as decided in #34, and accept F10.
+- **AI output (summary):**
+  - **F1:** AD-SYS-4 rules 7 and 9, ARCH §4, `ports-and-adapters.md` and `src/server/db.ts` all say `max: 2`. The new `boundedPool(db, n)` helper refuses checkout n+1 at once, with no timer. `[S-SYS.jobs.pool]` runs all four jobs, the nightly reconcile included, through the real route on a pool of 2. Each succeeds; on a pool of 1, each is refused at once.
+  - **F2:** migration `003_fx_source_breaker_version.sql`. The transition is `UPDATE … WHERE state = $from AND version = $v`, still under `FOR UPDATE`, and a 0-row update raises `UnexpectedError` and rolls back. The 4.6 races stay green.
+  - **F3:** `admin.jobs.tickHealth` returns, per job, the last outcome and code, the failed runs in the last 24 h, and the runs still `running` 15 minutes after start. The decision checks `TickSilent`, then the new stored-only code `ScheduledJobsDegraded`, then `TickOnSchedule`. Page 2.3 gains "Tareas (24 h)". The work is tested with `[S-SYS.tick.jobs]` and pure tests of the rule.
+  - **F4, F5, F6, F9:**
+    - the four unbuilt jobs are deferred to the launch checklist;
+    - rule 6 now reads "no read path";
+    - the adapter must answer within 45 s;
+    - `ports-and-adapters.md` is refreshed for Impl-2.
+  - **F7:** the §14 rows of AD-SYS-4, AD-COM-1, AD-COM-2, AD-MSG-3, AD-COL-1, AD-REP-2, AD-12, AD-REP-3 and AD-IDN-3 now bind their Impl-2 race tests. Trace: 62 AD rows, 429 test ids, PASS.
+  - **F8, no bug:** `[S-FR-COL-5.C1]` (10 rounds of 20 concurrent binder writes) and `[S-FR-COM-7.C1]` (concurrent rate settings) pass, so no unique index was added. Two mutations prove each test can fail:
+    - with the `col:owner` lock removed, 16 entries end at one position;
+    - with the `UNIQUE` removed, 20 of 20 settings are stored.
+  - **Audit:** `architecture-audit-impl2.md` marks F1–F9 Fixed and F10 Accepted, and the verdicts are recomputed.
+  - **Gates:** `test:ci` run 2 exit 0 (unit 751, `solu2-atdd` 383 green, `solu2-nfr` 30 green, trace PASS); Playwright 6 / 6, including the axe scans.
+- **Open findings:**
+  - **Pool starvation:** with `max: 2`, two job requests on one instance would each hold one connection and wait forever for the second.
+  - **Slow benchmark:** `test:ci` run 1 failed when `[NFR-VAL-2.trend]` hit its 600 s timeout, on a path no change touched. On its own it passed in 256 s with p95 251 ms.
+- **Agent defaults:**
+  - A run counts as stuck when it is still `running` 15 minutes after start, within the 24 h window.
+  - `degraded` covers failed or stuck jobs only, and a silent tick takes precedence.
+  - A breaker conflict is an `UnexpectedError`, not a new 409.
+- **Human decisions (menus):**
+  - **Pool starvation:** **(recommended)** set a checkout timeout on the runtime pool. Exhaustion then fails the run as a visible `failed` JobRun, which F3 shows, instead of hanging, and a test holds both connections and sees the second job fail. The alternatives were a launch deferral, or taking the lock inside the work transaction (size M). ACCEPT.
+  - **Slow benchmark:** **(recommended)** investigate now. Find where the 256–600 s goes, make the setup faster or the bound honest, prove stable timings over repeated runs, and never loosen the latency threshold. The alternative was a flaky-risk deferral. ACCEPT.
+- **Evidence:** `evidence/impl2/35-architecture-fixes.log` (the gate lines, the F1 pool test, the F8 mutations, and the run-1 timeout).
+- **Artifact changed:**
+  - Docs: `ARCHITECTURE.md`, `contracts.md`, `ports-and-adapters.md`, `deferred-work.md`, `architecture-audit-impl2.md`, the 2.3 UX spec, `ui-states.json`.
+  - Schema: migration 003.
+  - Code and tests: `src/server/db.ts`, the shared-kernel admin events and tick health, the catalog breaker, `test-support/single-connection.ts`, and the new tests.
+  - Regenerated: `epics.md`, `traceability-matrix.md`, `openapi.yaml`, `messages.generated.ts`, `ui-states.md`, `prisma/schema.prisma`.
+- **Decided by:** Mateo.
