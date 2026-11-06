@@ -624,3 +624,43 @@
   - Test and trace artifacts: `nfr-evidence.md`, `test-design.md` §7.4, `traceability-matrix.md`.
   - Docs: `docs/impl-2/README.md`, `walkthrough-impl2.md`.
 - **Decided by:** Mateo.
+
+
+### 34. Winston's close-phase architecture audit: AD-CAT-3 rule 7 is written; three MEDIUM and seven LOW findings, nine of them fixed now (Architecture + Governance)
+
+- **Phase:** C (close), after #31–#33. This is a close-phase audit, not shift-left: Phase A's audit was Murat's test design (#6) alone.
+- **Persona/Skill:** `bmad-agent-architect` (Winston), in a subagent (`2ba4c20`, `15bb068`); then menus.
+- **Prompt (summary):** audit `a7c5d81..HEAD` against rubric 1 (ports and adapters, concurrency, degradation and circuit breakers) and rubric 2 (the AD-n invariants). Write AD-CAT-3 rule 7 and bind it in §14, as decided in #32. Fix nothing else.
+- **AI output (summary):**
+  - **Report:** `_bmad-output/planning-artifacts/architecture-audit-impl2.md`, which has verdicts, per-check tables with file:line evidence, and findings.
+  - **Verdicts:** ports and adapters PASS; concurrency defense CONCERNS; graceful degradation and circuit breakers CONCERNS; AD invariants CONCERNS. Every Impl-2 write path has a named mechanism, and the risky ones have a race test.
+  - **Rule 7:** AD-CAT-3 rule 7 covers the TRM circuit breaker. A new §14 row binds the six `[S-FR-CAT-8.breaker.*]` tests. Trace PASS with 62 / 62 AD rows, and the 4.6 deferral is closed.
+  - **Findings:**
+    - **F1 (MEDIUM):** `src/server/db.ts` uses pg's default pool of 10, while AD-SYS-4 says `max: 1`. The job lock and the reconcile need two connections, so `max: 1` would hang.
+    - **F2 (MEDIUM):** the breaker updates its row under `FOR UPDATE` with no from-state check or version column, contrary to AD-SYS-5's wording. It is correct, as the race tests and the mutation check prove.
+    - **F3 (MEDIUM):** failed job runs are stored but shown nowhere. The tick health reads "on schedule" even when every job fails.
+    - **F4–F10 (LOW):**
+      - F4: four §13 jobs are neither built nor deferred.
+      - F5: AD-CAT-3 rule 6's wording contradicts the admin retry.
+      - F6: the TRM source call has no deadline.
+      - F7: the Impl-2 race tests are not bound in their §14 rows.
+      - F8: no race test or unique index covers the binder positions.
+      - F9: `ports-and-adapters.md` is stale.
+      - F10: admin checks go through identity's repository type.
+- **Gate lines:** lint and typecheck exit 0; `gate:purity` 14 files, 0 problems; trace `62 AD rows … 425 test ids (425 enforced green) … gate PASS; 0 problems`; ids, codes and epics current; fitness 12 passed.
+- **Human decisions (menus):**
+  - **F1:** **(recommended)** amend AD-SYS-4 and §4 to `max: 2` (one connection for the lock, one for the work), set it in `db.ts`, and add a test that runs every job on a 2-connection pool so a hang fails. The alternative was taking the lock per batch transaction (size M). ACCEPT.
+  - **F2:** **(recommended)** make the code match the rule rather than recording an exception. A `version` column (migration 003) and a from-state and version predicate on the UPDATE are added, `FOR UPDATE` stays, and the race tests stay green. The alternative was recording a named exception. ACCEPT.
+  - **F3:** **(recommended)** extend the tick health and admin page 2.3 with each job's last outcome, the failed runs in 24 h and the runs stuck in `running`, so the health turns degraded when jobs fail. The alternative was a launch-checklist item. ACCEPT.
+  - **LOW:** **(recommended)** fix now:
+    - F4, F5, F6 and F9 (docs and deferrals);
+    - F7 (bind the race tests in §14);
+    - F8 (a binder-position race test, plus a unique index if it finds a duplicate).
+
+    F10 stays as Impl-1 #32 accepted it.
+- **Agent defaults:**
+  - Rule 7 is a separate §14 row.
+  - The adapter's 3 transport retries count as one breaker call.
+  - Verdict rule: PASS when nothing is above LOW, CONCERNS when there is a MEDIUM, FAIL when there is a HIGH.
+- **Artifact changed:** `ARCHITECTURE.md`, `contracts.md`, `epics.md`, `traceability-matrix.md`, `deferred-work.md`, `docs/impl-2/README.md`, `_bmad-output/README.md`, `architecture-audit-impl2.md` (new); the fixes follow in #35.
+- **Decided by:** Mateo.
