@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 72 stories. They bind 144 registry operations and 428 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 72 stories. They bind 144 registry operations and 429 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -428,11 +428,11 @@ Build the cross-module platform every story stands on: one typed error body, an 
 - **Binding invariants:** also cited by its clauses: AD-SYS-2
 - **Files:** `src/shared-kernel/admin-events.ts` (`AdminEventsServiceV2.getTickHealth`, `AdminEventsServiceV2.listDeliveries`, `AdminEventsServiceV2.getDeliveryHealth`)
 - **Schema/DTO:** DTOs `GetTickHealthRequest` → `GetTickHealthResponse`, `ListDeliveriesRequest` → `ListDeliveriesResponse`, `GetDeliveryHealthRequest` → `GetDeliveryHealthResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/sys_contracts.test.ts` › `[S-SYS.tick.h]`, `[S-SYS.deliveries.h]`, `[S-SYS.health.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/sys_contracts.test.ts` › `[S-SYS.tick.h]`, `[S-SYS.deliveries.h]`, `[S-SYS.health.h]`, `[S-SYS.tick.jobs]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** 27 failed deliveries, one `pending` for 25 h and one `pending` for 23 h. **When:** an admin opens page 2.3's Entregas tab. **Then:** failed rows list by `firstFailedAt`, 25 per page with a next cursor; the 25-hour delivery is the only stuck row; the badge counts the failed rows and the stuck one.
   - **Scenario (failure) — Given:** the last tick started at 10:00 Bogotá. **When:** an admin reads tick health at 13:01. **Then:** `tickSilent=true` citing `lastTickStartedAt`; read at 11:00 it is `false`.
-- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 1.6: Run scheduled jobs single-flight behind JOBS_SECRET
 

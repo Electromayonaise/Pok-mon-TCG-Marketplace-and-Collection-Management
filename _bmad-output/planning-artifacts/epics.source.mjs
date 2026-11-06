@@ -103,7 +103,7 @@ export default {
         {
           title: 'Show admins the delivery and tick health', kind: 'Skeleton',
           as: 'As an admin, I want the Entregas tab to show failed and stuck deliveries and a silent tick, so that nothing fails unseen (AD-SYS-2 rule 9).',
-          ops: ['S-SYS.tick', 'S-SYS.deliveries', 'S-SYS.health'], tests: ['S-SYS.tick.h', 'S-SYS.deliveries.h', 'S-SYS.health.h'], depends: ['1.3'],
+          ops: ['S-SYS.tick', 'S-SYS.deliveries', 'S-SYS.health'], tests: ['S-SYS.tick.h', 'S-SYS.deliveries.h', 'S-SYS.health.h', 'S-SYS.tick.jobs'], depends: ['1.3'],
           happy: ['27 failed deliveries, one `pending` for 25 h and one `pending` for 23 h.', 'an admin opens page 2.3\'s Entregas tab.', 'failed rows list by `firstFailedAt`, 25 per page with a next cursor; the 25-hour delivery is the only stuck row; the badge counts the failed rows and the stuck one.'],
           failure: ['the last tick started at 10:00 Bogotá.', 'an admin reads tick health at 13:01.', '`tickSilent=true` citing `lastTickStartedAt`; read at 11:00 it is `false`.'],
         },

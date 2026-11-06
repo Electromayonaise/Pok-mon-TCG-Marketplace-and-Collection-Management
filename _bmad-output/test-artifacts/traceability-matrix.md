@@ -37,7 +37,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | P1 risks PASS | 100 % | 7 / 7 | MET |
 | P2 risks PASS | 100 % | 1 / 1 | MET |
 | §14 AD rows PASS | 100 % | 62 / 62 | MET |
-| Test ids enforced green | 100 % | 428 / 428 | MET |
+| Test ids enforced green | 100 % | 429 / 429 | MET |
 | Unmapped requirements (no test or no story; a waived NFR maps to its waiver) | 0 | 0 | MET |
 | Static checks (ids defined, risks registered, statuses known) | 0 problems | 0 | MET |
 
@@ -72,8 +72,8 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | NFRs with a test | 55 / 56 |
 | NFR evidence status (an NFR with two statuses counts under each) | Green — ATDD: 37; Green — gate: 9; Green — benchmark: 17; Deferred — launch: 3 |
 | Contract clauses | 115 |
-| Test ids (Vitest) / enforced green / red | 428 / 428 / 0 |
-| `solu2-atdd`: files / `it` blocks | 26 / 382 |
+| Test ids (Vitest) / enforced green / red | 429 / 429 / 0 |
+| `solu2-atdd`: files / `it` blocks | 26 / 383 |
 | `solu2-nfr`: files / `it` blocks | 15 / 30 |
 | `solu2-fitness`: files / `it` blocks | 2 / 12 |
 | Playwright journeys: specs / tests | 4 / 6 |
@@ -477,7 +477,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | REP-1.edit | read model / mirror | FR-REP-1, FR-REP-2 | AD-REP-1 | 2 | green 2/2 |
 | REP-1.check | read model / mirror | FR-REP-1, FR-REP-2 | AD-REP-1 | 2 | green 2/2 |
 | S-FR-CAT-8.breaker | read model / mirror | FR-CAT-8 | AD-CAT-3 | 6 | green 6/6 |
-| S-SYS.tick | read model / mirror | — | — | 1 | green 1/1 |
+| S-SYS.tick | read model / mirror | — | AD-SYS-2 | 2 | green 2/2 |
 | S-SYS.deliveries | read model / mirror | — | AD-SYS-2 | 1 | green 1/1 |
 | S-SYS.jobs | read model / mirror | — | AD-SYS-4 | 7 | green 7/7 |
 | S-SYS.sweep | read model / mirror | — | AD-SYS-2 | 1 | green 1/1 |

@@ -21,7 +21,7 @@ describe('es-CO message catalog (contracts.md §13, AD-SYS-1 rule 6)', () => {
     const allowed = new Set([
       ...['orderId', 'itemRef', 'catalogEntryId', 'decidedBy', 'openOrderIds', 'businessId'], // ids
       ...['acquiredAt', 'at', 'confirmedAt', 'decidedAt', 'effectiveFrom', 'hiddenAt', 'lastTickStartedAt', 'reapplyNotBefore', 'resolvedAt', 'retryAt', 'startedAt', 'submittedAt', 'today'], // instants
-      ...['available', 'count', 'entriesRemoved', 'entryCount', 'platformPurchaseEntriesRemoved', 'requested', 'round', 'threshold', 'accountsChecked', 'rateBps', 'consecutiveFailures', 'failureThreshold'], // numbers (the last two: the TRM breaker, Story 4.6)
+      ...['available', 'count', 'entriesRemoved', 'entryCount', 'platformPurchaseEntriesRemoved', 'requested', 'round', 'threshold', 'accountsChecked', 'rateBps', 'consecutiveFailures', 'failureThreshold', 'failedRuns', 'stuckRuns'], // numbers (the TRM breaker, Story 4.6; the job health, architecture audit F3)
       ...['expected', 'actual'], // COM-3's decimal-string amounts and seqs (Story 8.5)
       ...['field', 'fields', 'issue'], // input keys, and the parser's own es-CO copy
       ...['cause', 'status', 'latestApplicationStatus', 'latestState', 'reasonCode', 'turn'], // enum values

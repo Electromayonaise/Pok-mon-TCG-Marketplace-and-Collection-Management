@@ -227,6 +227,31 @@ describe('S-SYS.tick — getTickHealth (ARCH §4)', () => {
     expect(silent.tickSilent).toBe(true);
     explainAssert(silent.decision, { inputs: { lastTickStartedAt: T0 } });
   });
+
+  // Architecture audit F3 (decision log Impl-2 #34): the job route ran trm-fetch hourly against an unwired source and tick
+  // health still read "on schedule". It now reads each job's runs, so failing and stuck jobs show on page 2.3.
+  it('[S-SYS.tick.jobs] a failed trm-fetch and an expiry run stuck running for 16 min turn the health degraded (ScheduledJobsDegraded); 24 h later both have left the window', async () => {
+    await admin(db);
+    await ins(db, 'JobRun', { id: id('tick1'), trigger: 'tick', job: 'outbox-sweep', startedAt: T0, finishedAt: T0, outcome: 'succeeded', errorCode: null });
+    await ins(db, 'JobRun', { id: id('fx1'), trigger: 'tick', job: 'trm-fetch', startedAt: T0, finishedAt: T0, outcome: 'failed', errorCode: 'NotImplemented' });
+    await ins(db, 'JobRun', { id: id('exp1'), trigger: 'tick', job: 'expiry-materialize', startedAt: T0, finishedAt: null, outcome: 'running', errorCode: null });
+    const w = wiring(db);
+    w.clock.advance(16 * 60_000);
+    const health = await events(w).getTickHealth({ adminId: id('admin') });
+    expect(health).toMatchObject({
+      tickSilent: false, degraded: true,
+      jobs: [
+        { job: 'expiry-materialize', lastOutcome: 'running', failedInWindow: 0, stuckRunning: 1 },
+        { job: 'outbox-sweep', lastOutcome: 'succeeded', failedInWindow: 0, stuckRunning: 0 },
+        { job: 'trm-fetch', lastOutcome: 'failed', lastErrorCode: 'NotImplemented', failedInWindow: 1, stuckRunning: 0 },
+      ],
+    });
+    explainAssert(health.decision, { code: 'ScheduledJobsDegraded', rule: 'AD-SYS-2', inputs: { failedRuns: 1, stuckRuns: 1 } });
+    // A day later, read at 10:16 Bogotá (before the silence window opens), both runs have left the 24 h window.
+    w.clock.advance(24 * HOUR);
+    const later = await events(w).getTickHealth({ adminId: id('admin') });
+    expect([later.degraded, later.decision.reasonCode, later.jobs.map((j) => [j.failedInWindow, j.stuckRunning])]).toEqual([false, 'TickOnSchedule', [[0, 0], [0, 0], [0, 0]]]);
+  });
 });
 
 describe('S-SYS.deliveries — listDeliveries (AD-SYS-2 rule 9)', () => {
