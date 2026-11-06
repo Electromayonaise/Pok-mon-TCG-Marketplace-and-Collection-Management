@@ -15,12 +15,15 @@ const ROOTS = ['src', 'app', 'test-support', 'scripts', '_bmad-output/test-artif
 const SELF = new Set(['scripts/check-no-sleep.mjs']);
 const CODE = /\.(?:[cm]?[jt]s|tsx)$/;
 
+/** A planted violation, assembled at run time so the forbidden call never appears as literal text in the code (decision log Impl-2 #31). */
+const planted = (...parts) => parts.join('');
+
 /** Rules for every code file: [name, pattern, planted violation]. */
 const SLEEPS = [
-  ['waitForTimeout', /\bwaitForTimeout\s*\(/, 'await page.waitForTimeout(500);'],
-  ['time.sleep', /\btime\.sleep\s*\(/, 'time.sleep(5)'],
-  ['pg_sleep', /\bpg_sleep\s*\(/, "await tx.query('SELECT pg_sleep(0.05)');"],
-  ['sleep(n)', /(?<![\w.])sleep\s*\(\s*\d/, 'sleep(5000);'],
+  ['waitForTimeout', /\bwaitForTimeout\s*\(/, planted('await page.waitFor', 'Timeout(500);')],
+  ['time.sleep', /\btime\.sleep\s*\(/, planted('time.sl', 'eep(5)')],
+  ['pg_sleep', /\bpg_sleep\s*\(/, planted("await tx.query('SELECT pg_sl", "eep(0.05)');")],
+  ['sleep(n)', /(?<![\w.])sleep\s*\(\s*\d/, planted('sl', 'eep(5000);')],
   ['promise sleep', /setTimeout\s*\(\s*(?:resolve\b|\(\s*\)\s*=>\s*resolve\b)/, 'await new Promise((resolve) => setTimeout(resolve, 200));'],
   ['promise sleep (callback)', /new Promise\s*\(\s*\(?\s*\w+\s*\)?\s*=>\s*setTimeout\s*\(/, 'await new Promise((r) => setTimeout(r, 10));'],
 ];

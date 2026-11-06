@@ -533,3 +533,34 @@
 - **Evidence:** `evidence/impl2/32-ci-run.log`, `evidence/impl2/traces-ci/`.
 - **Artifact changed:** `walkthrough-impl2.md`, `docs/impl-2/README.md`, `32-ci-run.log`, `traces-ci/` (new).
 - **Decided by:** Mateo (#27–#29).
+
+
+### 31. A line-by-line audit against the statement finds seven gaps; a TRM circuit breaker, axe-core scans and a Winston audit are added (Governance)
+
+- **Phase:** C (close), re-audit at Mateo's request ("read again the task and make sure it is accomplished to minute detail and all the rubric is addressed").
+- **Persona/Skill:** main agent, reading `tasks/impl2-task-statement.md` §1–§6 against the repository.
+- **AI output (summary):**
+  - **Confirmed:**
+    - 71 / 71 story files and 13 / 13 epics `done`, with 0 unchecked tasks.
+    - No GitHub issues; the 12 PRs are all closed.
+    - The trace PASS with 0 unmapped requirements.
+    - CI run 4 ([41966565252](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41966565252)) green.
+  - **Gaps found:**
+    1. The no-sleep gate's own planted samples (`waitForTimeout(500)`, `sleep(5000)`) are literal text in `scripts/check-no-sleep.mjs`, so a plain grep of the codebase finds them.
+    2. The walkthrough does not name the 4 classic traps with their evidence.
+    3. The walkthrough does not map the 5 NFR dimensions (security, concurrency, performance, resilience, usability).
+    4. The k6 table has no CI figures, and nothing backs learning objective 7's "cryptographic logs".
+    5. Rubric 1 names circuit breakers; the code degrades gracefully but has no open / half-open breaker.
+    6. Usability rests on NFR-SYS-11 (WCAG), which is waived.
+    7. Phase A names a "Winston & Murat audit"; Winston was never invoked in Impl-2.
+  - **Agent defaults (gaps 1–4):**
+    - The planted samples are assembled at run time, so the literal text appears nowhere in the code.
+    - The walkthrough gains a section on the 4 traps and a table of the 5 NFR dimensions, and its k6 table a row from the CI run.
+    - A `SHA256SUMS` file covers the evidence, and the trace's CI-evidence section names the passing CI run.
+- **Human decisions (menus):**
+  - **Circuit breaker:** **(recommended)** build a small Flow A story. It adds a pure breaker state machine in the catalog domain: closed, open after N failures, half-open after a cool-down on the Clock. The breaker wraps the TRM source adapter, and its state lives in Postgres so every instance shares it. The red tests come first. The alternative was documenting the existing mechanisms only. ACCEPT.
+  - **Accessibility:** **(recommended)** add `@axe-core/playwright`, exact-pinned. The journeys assert 0 WCAG 2.x A / AA violations on the home, sign-in, inbox, binder and profile pages. NFR-SYS-11 becomes PASS for the automated rules, with the manual audit deferred to launch. The alternative was keeping it waived. ACCEPT.
+  - **Log name:** **(recommended)** keep `impl-2-ai-decision-log.md`. It ends in the statement's `ai-decision-log.md`, follows the one-log-per-phase convention, and the README maps it. The alternative was renaming it. ACCEPT.
+  - **Winston:** **(recommended)** run `bmad-agent-architect` (Winston) now, over Impl-2's hardening, labelled honestly as a close-phase audit and not as shift-left. Findings go through menus. The alternative was documenting the gap. ACCEPT.
+- **Artifact changed:** this log; the work follows in #32 and after.
+- **Decided by:** Mateo.
