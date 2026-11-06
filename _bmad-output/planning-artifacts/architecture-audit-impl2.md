@@ -4,7 +4,7 @@ audited: "a7c5d81..0f54897 (branch impl-2): Stories 1.6, 2.6, 4.6, 8.5, 8.6, 9.6
 persona: "Winston (bmad-agent-architect)"
 directed_by: "Mateo Rubio (decision log Impl-2 #31, #32)"
 date: 2026-11-06
-status: "findings open: they go to Mateo as menus"
+status: "closed: F1–F9 fixed (decision log Impl-2 #34 decisions, fixes in #35), F10 accepted; verdicts recomputed in §1 and §10"
 inputs:
   - _bmad-output/planning-artifacts/ARCHITECTURE.md (AD-n, §4, §13)
   - _bmad-output/planning-artifacts/detailed-design/contracts.md (§14, §15)
@@ -37,6 +37,8 @@ Impl-1 code is in scope only where an Impl-2 path depends on it.
 **Verdict rule.** A rubric line is **PASS** when no finding against it is above LOW. It is **CONCERNS** when a finding is MEDIUM and none is HIGH, and **FAIL** when any finding is HIGH.
 
 ## 1. Verdict per rubric line
+
+The verdicts below are the audit's, before the fixes. §10 records each fix and recomputes them: after the fixes every rubric line is **PASS**.
 
 | Rubric line | Verdict | Why |
 |---|---|---|
@@ -178,6 +180,8 @@ Sizes: XS ≤ 1 h (a document or one line), S ≤ half a day, M ≤ 2 days.
 | F9 | LOW | **`ports-and-adapters.md` was not updated for Impl-2.** It has no rows for the job runner (`JobRunner`, `JobLocks`, `JobRunRepository`), the `EmailSender` port, the `/api/auth` and `/api/jobs` driving adapters, the breaker in catalog's core domain, or `moderation-log.ts`. Its jobs diagram lacks `outbox-sweep` (`:152`). §1 still puts the system clock in `shared-kernel/clock/system.ts` (`:36`; it moved to `app/_server/runtime.ts`, Impl-2 #2) and the pool at `max 1` (`:37`). ARCHITECTURE §8.2 does not list `FxRateCircuitOpen`, `FxSourceHealthy` or `FxSourceProbing` | `ports-and-adapters.md:36-37, 69, 152` | Refresh the map with the Impl-2 rows. The §8.2 codes can point to contracts.md §13, which is the registry | S |
 | F10 | LOW | **Admin checks go through identity's repository type.** Story 13.5 made `InvRepository = InvTablesRepository & AdminFactsReader` (`listings/ports/inv.v2.ts:155`). This follows Impl-1 #32 (commission, messaging, reviews). AD-8 holds, because identity's adapter reads its own `"User"` table, and lint passes. The hexagonal cost is that listings' port type depends on identity's repository shape, not on a neighbour port such as `IdentityForInv` | `inv.v2.ts:609`; `identity/application/admin.ts:11-24` | **(a)** Keep it: an accepted pattern, documented in Impl-1 #32. **(b)** In the next revision, move `isAdmin` onto each module's identity neighbour port | a: — · b: M |
 
+Each finding's status (Fixed with its commit, or Accepted) is in §10.
+
 **Outside scope, noted only.**
 - The Impl-1 `create*Module` factories in the module `index.ts` files are a second, dormant wiring path for the v1 services.
 - The lint rules that AD-SYS-4 to AD-SYS-7 name (`no-nested-tx`, `no-session-state`, `no-system-clock`, `no-direct-io`, `money`, `no-select-then-write`) are partly fitness functions and partly missing. That is an Impl-1 matter, except where F2 depends on it.
@@ -187,3 +191,30 @@ Sizes: XS ≤ 1 h (a document or one line), S ≤ half a day, M ≤ 2 days.
 - **Integration-first proofs over more unit tests for locks.** Each lock is proven by a real-Postgres race plus a mutation check. That is the right evidence for a lock, and no unit test could replace it.
 - **The breaker's 30-minute cool-down below the hourly tick.** The hourly attempt of NFR-CAT-4 survives, and only admin retries and concurrent callers are stopped (#32).
 - **`NotImplementedError` bypassing the breaker.** An unwired adapter is a deployment fact, not a source outage. Counting it would open the breaker and hide the real cause behind `circuitOpen`. F3, not the breaker, is where its visibility belongs.
+
+## 10. Resolution and recomputed verdicts (decision log Impl-2 #34, #35)
+
+Mateo chose a fix for each finding in #34. The fixes were made in four commits on `impl-2` and pass the whole gate (`evidence/impl2/35-architecture-fixes.log`). `npm run test:ci` exits 0, with `solu2-atdd` 383 of 383 green, `solu2-nfr` 30 of 30 green and the trace at 62 AD rows and 429 test ids (gate PASS). `npx playwright test` passes 6 of 6, axe scans included. A first gate run timed out once on `[NFR-VAL-2.trend]`, whose path none of the commits touch. That file alone then passed in 256 s (trend p95 251 ms), and the rerun of the whole gate passed.
+
+| # | Status | Commit | What changed |
+|---|---|---|---|
+| F1 | **Fixed** | `2acf4e6` | Option (a). AD-SYS-4 rule 7 now says a job run holds `job:<name>` for the whole run on one connection while its work runs on a second; rule 9, the trade-off, ARCH §4 and `ports-and-adapters.md` say `max: 2`. `src/server/db.ts` sets `max: 2`. `test-support/single-connection.ts` gains `boundedPool(db, n)`, which refuses checkout n + 1 at once. `[S-SYS.jobs.pool]` (Story 1.6, bound in the AD-SYS-4 row) runs `trm-fetch`, `expiry-materialize`, `outbox-sweep` and the nightly `commission-reconcile` through the real route on a pool of exactly 2: each succeeds and uses both connections; on a pool of 1 a job is refused at once. The residual risk (two job runs on one instance) is a launch-checklist deferral |
+| F2 | **Fixed** | `2acf4e6` | Option (b). Migration `003_fx_source_breaker_version.sql` adds `version`. The transition is one `UPDATE … WHERE port AND state = :from AND version = :v` that bumps `version`, still under `FOR UPDATE`; 0 rows is raised as a conflict (`Unexpected`) and rolls back. `cat.v2-breaker.test.ts` proves the predicate and the raise; `[S-FR-CAT-8.breaker.C1]`, `.C2` and `breaker-domain.test.ts` stay green. AD-CAT-3 rule 7, AD-SYS-5's Binds and the contract clause describe the UPDATE |
+| F3 | **Fixed** | `926e68a` | Option (a). `admin.jobs.tickHealth` (shared-kernel) returns per job its last outcome and error code, its failed runs in the 24 h before the read and its runs still `running` 15 min after their start, and `degraded`; the decision is `TickSilent`, else the new stored-only `ScheduledJobsDegraded`, else `TickOnSchedule`. Page 2.3's UX spec gains the "Tareas (24 h)" line and the "Jobs degraded" state (UI-states gate: 0 problems). Pure unit tests and Postgres tests in `admin-events.test.ts`; `[S-SYS.tick.jobs]` (Story 1.5) |
+| F4 | **Fixed** | `e9a5352` | Option (a). `deferred-work.md` lists the four jobs with an owner each; ARCH §13 says which jobs have routes |
+| F5 | **Fixed** | `e9a5352` | AD-CAT-3 rule 6: "No read path calls `FxRateSource`. Only `trm-fetch` and the admin retry `catalog.fx.retry` call it, both through rule 7's breaker" |
+| F6 | **Fixed** | `e9a5352` | The Story 4.4 adapter deferral: the call, retries included, ends within 45 s, inside the 60 s probe lease |
+| F7 | **Fixed** | `e9a5352` | §14 binds `[S-SYS.jobs.C1]`, `[S-SYS.jobs.pool]`, `[COM-3.C2]` (AD-SYS-4), `[COM-3.C1]` (AD-COM-1), `[S-FR-COM-7.C1]` (AD-COM-2), `[S-FR-MSG-7.C1]` (AD-MSG-3), `[S-FR-COL-5.C1]` (AD-COL-1), `[S-FR-REP-7.C1]` (AD-REP-2), `[S-FR-REP-5.C1]` (AD-12, AD-REP-3) and the `[S-FR-IDN-7.signup.*]` tests with `[S-FR-IDN-7.signin.throttle]` (AD-IDN-3); trace regenerated |
+| F8 | **Fixed** (no bug) | `a8f5d1a` | `[S-FR-COL-5.C1]`: 10 rounds of 20 concurrent adds by link, moves, copies and a reorder leave distinct positions; it passes, so `col:owner` holds and no unique index is added. A mutation without `col:owner` fails it in round 0 (16 entries at one position). `[S-FR-COM-7.C1]`: 10 rounds of 20 concurrent settings from one instant store one rate; with the `UNIQUE` dropped and a check-then-insert, 20 of 20 succeed. Both mutations were run and not committed |
+| F9 | **Fixed** | `e9a5352` | `ports-and-adapters.md` refreshed: the job runner and `JobWork` ports, `EmailSender`, the breaker's domain, port and adapter, a §1.1 for the composition root and the `/api/trpc`, `/api/jobs` and `/api/auth` driving adapters, the clock in `app/_server/runtime.ts`, the pool at `max: 2`; ARCH §8.2 points to contracts.md §13 |
+| F10 | **Accepted** | — | Option (a), as Impl-1 #32 accepted it: the admin check stays on identity's repository type; a move to each module's identity neighbour port is left to a later revision |
+
+**Recomputed verdicts** (the verdict rule of §0, applied to the findings still open: PASS when none is above LOW).
+
+| Rubric line | Before | After | Why |
+|---|---|---|---|
+| R1 · Ports & Adapters | PASS | **PASS** | F9 fixed; F10 accepted (LOW) |
+| R1 · Concurrency defense | CONCERNS | **PASS** | F1 and F2 fixed; F8 fixed by two race tests, each proven able to fail |
+| R1 · Graceful degradation and circuit breakers | CONCERNS | **PASS** | F3 fixed (failing and stuck jobs read degraded); F4 and F6 recorded with owners |
+| R2 · AD invariants | CONCERNS | **PASS** | AD-SYS-4 and AD-SYS-5 now match the code (F1, F2); F5 reworded; F7 bound (62 / 62 AD rows PASS) |
+
