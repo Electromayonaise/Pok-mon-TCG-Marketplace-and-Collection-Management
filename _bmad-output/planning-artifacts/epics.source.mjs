@@ -437,7 +437,7 @@ export default {
         {
           title: 'Set commission rates and read the ledger', kind: 'Supporting',
           as: 'As an admin, I want future-dated commission rates and a filterable ledger, so that pricing changes never apply retroactively.',
-          ops: ['S-FR-COM-7', 'S-FR-COM-7.list', 'S-FR-COM-8.ledger'], tests: ['S-FR-COM-7.h', 'S-FR-COM-7.f', 'S-FR-COM-7.list.h', 'S-FR-COM-8.ledger.h'], depends: ['8.2'],
+          ops: ['S-FR-COM-7', 'S-FR-COM-7.list', 'S-FR-COM-8.ledger'], tests: ['S-FR-COM-7.h', 'S-FR-COM-7.f', 'S-FR-COM-7.list.h', 'S-FR-COM-8.ledger.h', 'S-FR-COM-7.C1'], depends: ['8.2'],
           happy: ['only the seed rate of 800 bps exists.', 'an admin schedules a new rate from tomorrow.', 'it applies only to triggers at or after its `effectiveFrom`; the ledger filtered by `buyerClosed` shows only those deductions.'],
           failure: ['an `effectiveFrom` 61 s in the past.', 'the rate is set.', '`CommissionRateNotFutureDated` (400), with zero writes.'],
         },
@@ -572,7 +572,7 @@ export default {
           title: 'Use the binder, add external cards, move entries and wishlist cards', kind: 'Supporting',
           as: 'As Julián, I want a stable binder view, promo cards by link, moves and a wishlist with the lowest available price, so that I can manage cards outside the catalog too.',
           // Impl-2 (decision log Impl-2 #17): Flow B + D adds the NFR-COL-2 benchmark, written with the code.
-          ops: ['S-FR-COL-3', 'S-FR-COL-4', 'S-FR-COL-5.binder', 'S-FR-COL-5.layout', 'S-FR-COL-5.reorder', 'S-FR-COL-6.add', 'S-FR-COL-6.remove', 'S-FR-COL-6.list'], tests: ['S-FR-COL-3.h', 'S-FR-COL-4.h', 'S-FR-COL-5.h', 'S-FR-COL-6.h', 'NFR-COL-2.binder', 'NFR-COL-2.wishlist'], depends: ['11.2', '5.6'],
+          ops: ['S-FR-COL-3', 'S-FR-COL-4', 'S-FR-COL-5.binder', 'S-FR-COL-5.layout', 'S-FR-COL-5.reorder', 'S-FR-COL-6.add', 'S-FR-COL-6.remove', 'S-FR-COL-6.list'], tests: ['S-FR-COL-3.h', 'S-FR-COL-4.h', 'S-FR-COL-5.h', 'S-FR-COL-6.h', 'NFR-COL-2.binder', 'NFR-COL-2.wishlist', 'S-FR-COL-5.C1'], depends: ['11.2', '5.6'],
           happy: ['Julián\'s collection and a wishlist.', 'he adds two promos by link, copies a purchase entry, sorts the binder twice and wishlists a card.', 'the catalog is untouched; the copy keeps its source and order id; both sorts give the same order with `entryId` as the last tie-break; the wishlisted card shows its lowest purchasable price.'],
           failure: ['the binder is read twice with equal ties.', 'the sort runs.', 'the order is identical both times: no unstable ordering.'],
         },

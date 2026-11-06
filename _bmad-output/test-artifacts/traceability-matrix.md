@@ -37,7 +37,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | P1 risks PASS | 100 % | 7 / 7 | MET |
 | P2 risks PASS | 100 % | 1 / 1 | MET |
 | §14 AD rows PASS | 100 % | 62 / 62 | MET |
-| Test ids enforced green | 100 % | 425 / 425 | MET |
+| Test ids enforced green | 100 % | 427 / 427 | MET |
 | Unmapped requirements (no test or no story; a waived NFR maps to its waiver) | 0 | 0 | MET |
 | Static checks (ids defined, risks registered, statuses known) | 0 problems | 0 | MET |
 
@@ -72,8 +72,8 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | NFRs with a test | 55 / 56 |
 | NFR evidence status (an NFR with two statuses counts under each) | Green — ATDD: 37; Green — gate: 9; Green — benchmark: 17; Deferred — launch: 3 |
 | Contract clauses | 115 |
-| Test ids (Vitest) / enforced green / red | 425 / 425 / 0 |
-| `solu2-atdd`: files / `it` blocks | 26 / 379 |
+| Test ids (Vitest) / enforced green / red | 427 / 427 / 0 |
+| `solu2-atdd`: files / `it` blocks | 26 / 381 |
 | `solu2-nfr`: files / `it` blocks | 15 / 30 |
 | `solu2-fitness`: files / `it` blocks | 2 / 12 |
 | Playwright journeys: specs / tests | 4 / 6 |
@@ -143,7 +143,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | FR-COM-4 | Deduct commission exactly once per order (CAP-21); clauses COM-1 | 8.2 (done), 8.4 (done) | 8: `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +5 | `atdd/com_contracts.test.ts` | `com-domain.test.ts` | `gate:atdd-red:impl1` › gate | green 8/8 | PASS |
 | FR-COM-5 | Commission amount and rounding rule (CAP-21); clauses COM-1 | 8.2 (done), 8.4 (done) | 8: `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +5 | `atdd/com_contracts.test.ts` | `com-domain.test.ts` | `gate:atdd-red:impl1` › gate | green 8/8 | PASS |
 | FR-COM-6 | Threshold events without flapping (CAP-21); clauses COM-1, COM-2, COM-2.queue | 8.2 (done), 8.3 (done), 8.4 (done) | 16: `COM-1.I1`, `COM-1.I3`, `COM-1.I4` +13 | `atdd/com_contracts.test.ts` | `com-domain.test.ts` | `gate:atdd-red:impl1` › gate | green 16/16 | PASS |
-| FR-COM-7 | Configure the commission rate (CAP-21); clauses S-FR-COM-7, S-FR-COM-7.list | 8.6 (done) | 3: `S-FR-COM-7.f`, `S-FR-COM-7.h`, `S-FR-COM-7.list.h` | `atdd/com_supporting.test.ts` | `com-domain.test.ts` | `gate:atdd-red:impl1` › gate | green 3/3 | PASS |
+| FR-COM-7 | Configure the commission rate (CAP-21); clauses S-FR-COM-7, S-FR-COM-7.list | 8.6 (done) | 4: `S-FR-COM-7.C1`, `S-FR-COM-7.f`, `S-FR-COM-7.h` +1 | `atdd/com_supporting.test.ts` | `com-domain.test.ts` | `gate:atdd-red:impl1` › gate | green 4/4 | PASS |
 | FR-COM-8 | Ledger views and reconciliation (CAP-21); clauses COM-3, S-FR-COM-8.ledger, COM-3.last | 8.5 (done), 8.6 (done) | 9: `COM-3.C1`, `COM-3.C2`, `COM-3.I1` +6 | `atdd/com_contracts.test.ts`, `atdd/com_reconcile.test.ts`, `atdd/com_supporting.test.ts` | `com-domain.test.ts` | `gate:atdd-red:impl1` › gate | green 9/9 | PASS |
 | FR-COM-9 | Low-balance notice (CAP-21); clauses S-FR-COM-9 | 8.1 (done), 8.4 (done) | 2: `S-FR-COM-9.f`, `S-FR-COM-9.h` | `atdd/com_supporting.test.ts` | `com-domain.test.ts` | `gate:atdd-red:impl1` › gate | green 2/2 | PASS |
 | FR-TRD-1 | Make an offer on an open-to-trade listing (CAP-25); clauses TRD-2, S-FR-TRD-1 | 10.1 (done), 10.2 (done), 10.4 (done) | 9: `S-FR-TRD-1.f`, `S-FR-TRD-1.h`, `TRD-2.I3` +6 | `atdd/trd_contracts.test.ts`, `atdd/trd_supporting.test.ts` | `trd-domain.test.ts`, `trd.v2.test.ts` | `gate:atdd-red:impl1` › gate | green 9/9 | PASS |
@@ -167,7 +167,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | FR-COL-2 | Add an entry manually (CAP-8, CAP-12); clauses COL-3 | 11.2 (done), 11.4 (done) | 7: `COL-3.I2`, `COL-3.P2`, `COL-3.P3` +4 | `atdd/col_contracts.test.ts` | `col-domain.test.ts` | `gate:atdd-red:impl1` › gate | green 7/7 | PASS |
 | FR-COL-3 | Add an entry by link (CAP-24); clauses S-FR-COL-3 | 11.5 (done), 11.6 (done) | 3: `S-FR-COL-3.f`, `S-FR-COL-3.f2`, `S-FR-COL-3.h` | `atdd/col_links.test.ts`, `atdd/col_supporting.test.ts`, `e2e/binder.spec.ts` | `col-domain.test.ts` | `gate:atdd-red:impl1` › gate; `npx playwright test` › e2e | green 3/3 | PASS |
 | FR-COL-4 | Move and copy between collections (CAP-11); clauses S-FR-COL-4 | 11.5 (done), 11.6 (done) | 2: `S-FR-COL-4.f`, `S-FR-COL-4.h` | `atdd/col_supporting.test.ts` | `col-domain.test.ts` | `gate:atdd-red:impl1` › gate | green 2/2 | PASS |
-| FR-COL-5 | Binder layout, sorting and completion (CAP-10); clauses S-FR-COL-5 | 11.5 (done), 11.6 (done) | 2: `S-FR-COL-5.f`, `S-FR-COL-5.h` | `atdd/col_supporting.test.ts`, `e2e/binder.spec.ts` | `col-domain.test.ts` | `gate:atdd-red:impl1` › gate; `npx playwright test` › e2e | green 2/2 | PASS |
+| FR-COL-5 | Binder layout, sorting and completion (CAP-10); clauses S-FR-COL-5 | 11.5 (done), 11.6 (done) | 3: `S-FR-COL-5.C1`, `S-FR-COL-5.f`, `S-FR-COL-5.h` | `atdd/col_supporting.test.ts`, `e2e/binder.spec.ts` | `col-domain.test.ts` | `gate:atdd-red:impl1` › gate; `npx playwright test` › e2e | green 3/3 | PASS |
 | FR-COL-6 | Wishlist, separate from collections (CAP-13, CAP-14); clauses S-FR-COL-6 | 11.5 (done), 11.6 (done) | 2: `S-FR-COL-6.f`, `S-FR-COL-6.h` | `atdd/col_supporting.test.ts` | `col-domain.test.ts` | `gate:atdd-red:impl1` › gate | green 2/2 | PASS |
 | FR-COL-7 | Exactly one post-purchase prompt per closed order (CAP-27); clauses COL-1, COL-2, COL-1.list | 11.3 (done), 11.4 (done) | 11: `COL-1.dismiss.f`, `COL-1.dismiss.h`, `COL-1.list.h` +8 | `atdd/col_contracts.test.ts` | `col-domain.test.ts` | `gate:atdd-red:impl1` › gate | green 11/11 | PASS |
 | FR-VAL-1 | Current value in integer COP (CAP-9); clauses VAL-1 | 12.1 (done), 12.3 (done), 12.4 (done) | 5: `VAL-1.I1`, `VAL-1.I2`, `VAL-1.MEC` +2 | `atdd/val_contracts.test.ts` | `val-domain.test.ts`, `val.v2.test.ts` | `gate:atdd-red:impl1` › gate | green 5/5 | PASS |
@@ -425,7 +425,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | S-FR-ORD-10 | supporting | FR-ORD-10 | AD-ORD-3, AD-SYS-8 | 2 | green 2/2 |
 | S-FR-COM-1 | supporting | FR-COM-1 | AD-COM-1 | 2 | green 2/2 |
 | S-FR-COM-2 | supporting | FR-COM-2 | AD-COM-3 | 5 | green 5/5 |
-| S-FR-COM-7 | supporting | FR-COM-7 | AD-COM-2 | 3 | green 3/3 |
+| S-FR-COM-7 | supporting | FR-COM-7 | AD-COM-2 | 4 | green 4/4 |
 | S-FR-COM-9 | supporting | FR-COM-9 | AD-COM-3 | 2 | green 2/2 |
 | S-FR-TRD-1 | supporting | FR-TRD-1 | AD-TRD-1 | 2 | green 2/2 |
 | S-FR-TRD-2w | supporting | FR-TRD-2 | AD-TRD-1 | 2 | green 2/2 |
@@ -437,7 +437,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | S-FR-COL-1 | supporting | FR-COL-1 | AD-COL-1 | 4 | green 4/4 |
 | S-FR-COL-3 | supporting | FR-COL-3 | AD-COL-1, AD-7, AD-8 | 3 | green 3/3 |
 | S-FR-COL-4 | supporting | FR-COL-4 | AD-COL-1 | 2 | green 2/2 |
-| S-FR-COL-5 | supporting | FR-COL-5 | AD-COL-1 | 2 | green 2/2 |
+| S-FR-COL-5 | supporting | FR-COL-5 | AD-COL-1 | 3 | green 3/3 |
 | S-FR-COL-6 | supporting | FR-COL-6 | AD-1, AD-7 | 2 | green 2/2 |
 | S-FR-REP-5 | supporting | FR-REP-5 | AD-REP-3, AD-12 | 3 | green 3/3 |
 | S-FR-REP-6 | supporting | FR-REP-6 | AD-REP-3 | 2 | green 2/2 |

@@ -1715,7 +1715,7 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *Q:* append a `"CommissionRateSetting"` with `effectiveFrom = max(effectiveFrom, now)`, plus an audit row. The decision is `CommissionRateScheduled`, citing `{ rateBps, effectiveFrom }` (Story 8.6).
   - *Errors:* `AdminOnly` (HTTP 403, identity), `CommissionRateNotFutureDated` (HTTP 400, commission), citing `{ effectiveFrom, now }`. A second setting from the same stored instant breaks `UNIQUE (effectiveFrom)` and is `RequestValidationFailed` (HTTP 400, shared-kernel) on `effectiveFrom`, with zero writes (Story 8.6).
   - *I:* AD-COM-2 rule 6; `UNIQUE (effectiveFrom)`; append-only grants.
-  - *Tests:* `[S-FR-COM-7.h]` a new rate applies only to triggers after its `effectiveFrom`; `[S-FR-COM-7.f]` `effectiveFrom = now − 61 s` → `CommissionRateNotFutureDated`.
+  - *Tests:* `[S-FR-COM-7.h]` a new rate applies only to triggers after its `effectiveFrom`; `[S-FR-COM-7.f]` `effectiveFrom = now − 61 s` → `CommissionRateNotFutureDated`; `[S-FR-COM-7.C1]` 20 concurrent settings from the same instant store one rate and one audit row, and 19 are refused with zero writes, 10 rounds (architecture audit F8).
 - **S-FR-COM-9 — `commission.myAccount` / `myLedger` (low-balance notice).** Inbound Port.
   - *P:* a business session.
   - *Q:* the balance, state and ledger (newest first). `lowBalance = 0 < balance < lowBalanceThresholdCop` (20,000, display only). `neededToResumeCop = 1 − balance` when `balance ≤ 0`. With no account → `account: null` (a "no account yet" state). Zero writes.
@@ -1801,8 +1801,8 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *P:* the owner; `binderRows` and `binderCols` are 1–5.
   - *Q:* a deterministic order with `entryId` as the last tie-break. Completion is `floor(owned × 100 / cardEntryCount)`, or `null` when the count is 0.
   - *Errors:* `CollectionNotFound` (HTTP 404, collections).
-  - *I:* AD-COL-1 rule 5.
-  - *Tests:* `[S-FR-COL-5.h]` the same sort twice gives the same order; `[S-FR-COL-5.f]` a set with 0 card entries → completion `null`, never a division.
+  - *I:* AD-COL-1 rule 5; every binder position (`addExternalEntry`, move, copy, `reorder`) is assigned under `col:owner` (AD-COL-1 rule 1).
+  - *Tests:* `[S-FR-COL-5.h]` the same sort twice gives the same order; `[S-FR-COL-5.f]` a set with 0 card entries → completion `null`, never a division; `[S-FR-COL-5.C1]` 20 concurrent adds by link, moves, copies and a reorder into one collection leave distinct positions, 10 rounds (architecture audit F8).
 - **S-FR-COL-6 — `collections.wishlist.add` / `remove` / `list`.** Inbound Port.
   - *P:* a session; the catalog id exists.
   - *Q:* `INSERT … ON CONFLICT (ownerId, catalogEntryId) DO NOTHING`. `list` composes `listings.getAvailabilitySummary` (≤ 500 ids per call).

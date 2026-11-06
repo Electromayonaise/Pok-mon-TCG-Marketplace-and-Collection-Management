@@ -4,7 +4,7 @@ import { ComServiceV2 } from '../../../src/modules/commission/index.js';
 import type { IdentityForCom, RequestTopUpRequest } from '../../../src/modules/commission/index.js';
 import { useTestDatabase } from '../../../test-support/db.js';
 import { caught, citedInputs, httpOf } from '../../../test-support/errors.js';
-import { codeOf } from '../../../test-support/concurrency.js';
+import { codeOf, race } from '../../../test-support/concurrency.js';
 import { admin, at, business, commissionAccount, DAY, fake, id, ins, rows, T0, topUp, user, wiring } from '../../../test-support/solu2/fixtures.js';
 
 const db = useTestDatabase();
@@ -100,6 +100,23 @@ describe('Supporting COM contracts (contracts.md §15, §15.12)', () => {
     const error = await caught(() => com.setCommissionRate({ adminId: id('admin'), rateBps: 1_000, effectiveFrom: new Date(w.clock.now().getTime() - 61_000).toISOString() }));
     expect(codeOf(error)).toBe('CommissionRateNotFutureDated');
     expect(httpOf(error)).toBe(400);
+  });
+
+  // Architecture audit F8 (decision log Impl-2 #34): two settings from the same instant are refused only by
+  // UNIQUE ("effectiveFrom"), with no lock, so a race proves it. 10 rounds of 20 concurrent admins scheduling the same instant.
+  it('[S-FR-COM-7.C1] 20 concurrent settings from the same effectiveFrom store one rate and one audit row; the other 19 are refused with zero writes, 10 rounds', async () => {
+    await admin(db);
+    const { w, com } = setup();
+    for (let r = 0; r < 10; r++) {
+      const effectiveFrom = new Date(w.clock.now().getTime() + (r + 1) * DAY).toISOString();
+      const outcome = await race(20, (i) => com.setCommissionRate({ adminId: id('admin'), rateBps: 900 + i, effectiveFrom }));
+      const unexpected = outcome.rejected.filter((e) => codeOf(e) !== 'RequestValidationFailed');
+      if (unexpected.length > 0) throw unexpected[0];
+      expect([outcome.fulfilled.length, outcome.rejected.length], `round ${r}`).toEqual([1, 19]);
+      const stored = await rows<{ rateBps: number }>(db, 'CommissionRateSetting', '"effectiveFrom" = $1', [effectiveFrom]);
+      expect(stored.map((s) => s.rateBps)).toEqual([outcome.fulfilled[0]!.rateBps]);
+      expect(await rows(db, 'audit_events', `action = 'commission.rate.set' AND data->>'effectiveFrom' = $1`, [effectiveFrom])).toHaveLength(1);
+    }
   });
 
   it('[S-FR-COM-7.list.h] with no other row, the seed rate of 800 bps is current', async () => {

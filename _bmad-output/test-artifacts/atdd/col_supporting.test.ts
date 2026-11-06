@@ -112,6 +112,37 @@ describe('Supporting COL contracts (contracts.md §15, §15.12)', () => {
     expect((await setup().col.getBinder({ ownerId: id('camila'), collectionId: id('c1'), sort: [], setId: id('emptyset') })).completion).toMatchObject({ completionPercent: null });
   });
 
+  // Architecture audit F8 (decision log Impl-2 #34): the binder positions are assigned as `max + 1` under `col:owner`, with no
+  // unique index behind the lock, so only a race proves the lock. 10 rounds of 20 concurrent writes into one collection:
+  // 12 external adds, 4 moves and 3 copies in from a second collection, and one reorder of the collection's seeded entries.
+  it('[S-FR-COL-5.C1] 20 concurrent binder writes (adds by link, moves, copies and a reorder) leave every entry of each collection at a distinct position, 10 rounds', async () => {
+    await user(db, { id: id('camila') });
+    const { col } = setup();
+    const ownerId = id('camila');
+    for (let r = 0; r < 10; r++) {
+      const [c1, c2] = [id(`bind${r}`), id(`from${r}`)];
+      await collection(db, { id: c1, ownerId, name: `Binder ${r}` });
+      await collection(db, { id: c2, ownerId, name: `Origen ${r}` });
+      for (let e = 0; e < 3; e++) await entry(db, { id: id(`b${r}e${e}`), collectionId: c1, catalogEntryId: id('char'), position: e });
+      for (let e = 0; e < 7; e++) await entry(db, { id: id(`f${r}e${e}`), collectionId: c2, catalogEntryId: id('char'), position: e });
+      const reordered = [2, 0, 1].map((e) => id(`b${r}e${e}`));
+      const outcome = await race(20, (i) => {
+        if (i < 12) return col.addExternalEntry({ ownerId, collectionId: c1, url: 'https://promos.example/a', title: `Promo ${i}`, imageUrl: null, qty: 1, acquiredAt: '2026-09-01' });
+        if (i < 16) return col.moveOrCopyEntry({ ownerId, entryId: id(`f${r}e${i - 12}`), targetCollectionId: c1, mode: 'move' });
+        if (i < 19) return col.moveOrCopyEntry({ ownerId, entryId: id(`f${r}e${i - 12}`), targetCollectionId: c1, mode: 'copy' });
+        return col.reorderEntries({ ownerId, collectionId: c1, orderedEntryIds: reordered });
+      });
+      // The reorder names the 3 seeded entries only, so it is refused when an add, move or copy took the lock before it.
+      const unexpected = outcome.rejected.filter((e) => codeOf(e) !== 'RequestValidationFailed');
+      if (unexpected.length > 0) throw unexpected[0];
+      expect(outcome.rejected.length).toBeLessThanOrEqual(1);
+      const duplicates = await db.query(
+        `SELECT "collectionId", "manualPosition", count(*)::int AS n FROM "CollectionEntry" WHERE "collectionId" IN ($1, $2) GROUP BY 1, 2 HAVING count(*) > 1`, [c1, c2]);
+      expect(duplicates, `round ${r}`).toEqual([]);
+      expect(await rows(db, 'CollectionEntry', `"collectionId" = $1`, [c1])).toHaveLength(3 + 12 + 4 + 3);
+    }
+  });
+
   it('[S-FR-COL-6.h] a wishlisted card shows its lowest purchasable price', async () => {
     await user(db, { id: id('camila') });
     const { col } = setup();

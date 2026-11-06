@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 72 stories. They bind 144 registry operations and 425 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 72 stories. They bind 144 registry operations and 427 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -1080,11 +1080,11 @@ Keep each business's prepaid commission balance exact. Each order is charged exa
 - **Binding invariants:** also cited by its clauses: AD-COM-1, AD-COM-2
 - **Files:** `src/modules/commission/application/com.v2.ts` (`ComServiceV2.setCommissionRate`, `ComServiceV2.listCommissionRates`, `ComServiceV2.getAccountLedger`), `src/modules/commission/ports/com.v2.ts` (`ComRepository`), `src/modules/commission/domain/com.ts`, `src/modules/commission/infra/pg.ts`
 - **Schema/DTO:** tables `"CommissionRateSetting"`; DTOs `SetCommissionRateRequest` → `SetCommissionRateResponse`, `ListCommissionRatesRequest` → `ListCommissionRatesResponse`, `GetAccountLedgerRequest` → `GetAccountLedgerResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/com_supporting.test.ts` › `[S-FR-COM-7.h]`, `[S-FR-COM-7.f]`, `[S-FR-COM-7.list.h]`, `[S-FR-COM-8.ledger.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/com_supporting.test.ts` › `[S-FR-COM-7.h]`, `[S-FR-COM-7.f]`, `[S-FR-COM-7.list.h]`, `[S-FR-COM-8.ledger.h]`, `[S-FR-COM-7.C1]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** only the seed rate of 800 bps exists. **When:** an admin schedules a new rate from tomorrow. **Then:** it applies only to triggers at or after its `effectiveFrom`; the ledger filtered by `buyerClosed` shows only those deductions.
   - **Scenario (failure) — Given:** an `effectiveFrom` 61 s in the past. **When:** the rate is set. **Then:** `CommissionRateNotFutureDated` (400), with zero writes.
-- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ## Epic 9: Contact handoff and in-app business messaging (MSG)
 
@@ -1348,11 +1348,11 @@ Let collectors keep collections of catalog cards and external promos, organize t
 - **Binding invariants:** AD-8 — Table ownership (No module writes another's tables; static scan of `infra/` SQL; shared-kernel owns only infra tables (+ `audit_events`, R-2)); also cited by its clauses: AD-1, AD-7, AD-COL-1
 - **Files:** `src/modules/collections/application/col.v2.ts` (`ColServiceV2.addExternalEntry`, `ColServiceV2.moveOrCopyEntry`, `ColServiceV2.getBinder`, `ColServiceV2.setBinderLayout`, `ColServiceV2.reorderEntries`, `ColServiceV2.addWishlist`, `ColServiceV2.removeWishlist`, `ColServiceV2.listWishlist`), `src/modules/collections/ports/col.v2.ts` (`ColRepository`), `src/modules/collections/domain/col.ts`, `src/modules/collections/infra/pg.ts`
 - **Schema/DTO:** tables `"CatalogEntry"`; DTOs `AddExternalEntryRequest` → `AddExternalEntryResponse`, `MoveOrCopyEntryRequest` → `MoveOrCopyEntryResponse`, `GetBinderRequest` → `GetBinderResponse`, `SetBinderLayoutRequest` → `CollectionChangeResponse`, `ReorderEntriesRequest` → `CollectionChangeResponse`, `AddWishlistRequest` → `ListWishlistResponse`, `RemoveWishlistRequest` → `ListWishlistResponse`, `ListWishlistRequest` → `ListWishlistResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/col_supporting.test.ts` › `[S-FR-COL-3.h]`, `[S-FR-COL-4.h]`, `[S-FR-COL-5.h]`, `[S-FR-COL-6.h]`; `_bmad-output/test-artifacts/nfr/col2_latency.test.ts` › `[NFR-COL-2.binder]`, `[NFR-COL-2.wishlist]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/col_supporting.test.ts` › `[S-FR-COL-3.h]`, `[S-FR-COL-4.h]`, `[S-FR-COL-5.h]`, `[S-FR-COL-6.h]`, `[S-FR-COL-5.C1]`; `_bmad-output/test-artifacts/nfr/col2_latency.test.ts` › `[NFR-COL-2.binder]`, `[NFR-COL-2.wishlist]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Julián's collection and a wishlist. **When:** he adds two promos by link, copies a purchase entry, sorts the binder twice and wishlists a card. **Then:** the catalog is untouched; the copy keeps its source and order id; both sorts give the same order with `entryId` as the last tie-break; the wishlisted card shows its lowest purchasable price.
   - **Scenario (failure) — Given:** the binder is read twice with equal ties. **When:** the sort runs. **Then:** the order is identical both times: no unstable ordering.
-- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 7 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 11.6: Refuse unsafe links, foreign entries and unknown wishlist cards
 
