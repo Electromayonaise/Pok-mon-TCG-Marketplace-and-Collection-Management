@@ -53,8 +53,11 @@ export default async function SellerProfilePage({ params, searchParams }: Props)
           ? <p>Aún no tiene reseñas</p>
           : (
             <>
-              <p aria-label={`${averageLabel(aggregate.averageTenths)} de 5`}>
-                <span className="price">{averageLabel(aggregate.averageTenths)}</span> <span aria-hidden="true">{starsOfTenths(aggregate.averageTenths)}</span>
+              {/* A paragraph may not be named (ARIA 1.2), so the average and its stars are one image named "4,5 de 5". */}
+              <p>
+                <span role="img" aria-label={`${averageLabel(aggregate.averageTenths)} de 5`}>
+                  <span className="price">{averageLabel(aggregate.averageTenths)}</span> <span aria-hidden="true">{starsOfTenths(aggregate.averageTenths)}</span>
+                </span>
               </p>
               <p className="meta">{countLabel(aggregate.count)} · {provenanceLabel(seller.kind)}</p>
             </>

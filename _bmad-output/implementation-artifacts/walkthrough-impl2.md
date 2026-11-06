@@ -406,7 +406,7 @@ The agent also caught some of its own mistakes. They are recorded but not counte
 
 Every open item has an owner in [`deferred-work.md`](deferred-work.md), in the sections "Deferred from: Story 1.6" to "Deferred from: the test-review remediation". In short:
 
-- **Launch checklist.** The `jobs-tick.yml` schedule, `JOBS_SECRET` in production, a mail provider (until then sign-up is refused) with Better Auth's own limiter back on (F7), NFR-SYS-11 (WCAG), and reconcile's restart from the first account at large volume.
+- **Launch checklist.** The `jobs-tick.yml` schedule, `JOBS_SECRET` in production, a mail provider (until then sign-up is refused) with Better Auth's own limiter back on (F7), NFR-SYS-11's manual WCAG audit (its automated axe-core rules pass in the journeys since decision log Impl-2 #33), and reconcile's restart from the first account at large volume.
 - **UI phase.** The full pages behind the three slices (composer, filters, sort direction, wishlist page, moderation pages 11.3–11.4 with the merged-log cursors, F6), and a typed es-CO formatter for instants and money (F5).
 - **CI owner.** The serial benchmarks take about 15 minutes of the gate instead of 5.
 

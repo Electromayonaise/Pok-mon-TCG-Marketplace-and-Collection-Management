@@ -18,7 +18,7 @@ gateDecision: 'PASS'
 
 ## 1. Gate decision
 
-**PASS.** All 96 FRs, all 32 registered risks and all 61 §14 AD rows pass; 55 of 56 NFRs pass and 1 is waived to the launch checklist; 72 of 72 stories are `done`; 0 requirements are unmapped; the static checks find 0 problems.
+**PASS.** All 96 FRs, all 32 registered risks and all 61 §14 AD rows pass; 56 of 56 NFRs pass and 0 are waived to the launch checklist; 72 of 72 stories are `done`; 0 requirements are unmapped; the static checks find 0 problems.
 
 **Rule.** The decision is computed, never chosen:
 
@@ -32,7 +32,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 |---|---|---|---|
 | Stories `done` in `sprint-status.yaml` | 72 / 72 | 72 / 72 | MET |
 | FRs PASS | 100 % | 96 / 96 | MET |
-| NFRs PASS or WAIVED | 100 % | 56 / 56 (55 PASS, 1 WAIVED) | MET |
+| NFRs PASS or WAIVED | 100 % | 56 / 56 (56 PASS, 0 WAIVED) | MET |
 | P0 risks PASS | 100 % | 24 / 24 | MET |
 | P1 risks PASS | 100 % | 7 / 7 | MET |
 | P2 risks PASS | 100 % | 1 / 1 | MET |
@@ -41,7 +41,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | Unmapped requirements (no test or no story; a waived NFR maps to its waiver) | 0 | 0 | MET |
 | Static checks (ids defined, risks registered, statuses known) | 0 problems | 0 | MET |
 
-**Waived to the launch checklist** (`nfr-evidence.md`, "Deferred — launch"): NFR-SYS-11 (Accessibility). **Passing in scope, with a part deferred to launch:** NFR-VER-4, NFR-ORD-2.
+**Waived to the launch checklist** (`nfr-evidence.md`, "Deferred — launch"): none. **Passing in scope, with a part deferred to launch:** NFR-SYS-11, NFR-VER-4, NFR-ORD-2.
 
 ## 2. CI evidence
 
@@ -70,7 +70,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
 | NFRs with an evidence row (nfr-evidence.md) | 56 / 56 |
 | NFRs with a test | 55 / 56 |
-| NFR evidence status (an NFR with two statuses counts under each) | Green — ATDD: 37; Green — gate: 8; Green — benchmark: 17; Deferred — launch: 3 |
+| NFR evidence status (an NFR with two statuses counts under each) | Green — ATDD: 37; Green — gate: 9; Green — benchmark: 17; Deferred — launch: 3 |
 | Contract clauses | 115 |
 | Test ids (Vitest) / enforced green / red | 425 / 425 / 0 |
 | `solu2-atdd`: files / `it` blocks | 26 / 379 |
@@ -199,7 +199,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | NFR-SYS-8 | Admin audit trail | Security (audit) | 1.2 (done), 2.5 (done), 13.2 (done) | `IDN-3.Q1`, `REP-2.Q1`, `SYS-R2` +1 | 9 | `atdd/idn_contracts.test.ts`, `atdd/rep_contracts.test.ts`, `atdd/sys_contracts.test.ts`, `fitness/sys_fitness.test.ts`, `nfr/canary_scan.test.ts` | `gate:atdd-red:impl1` › gate; `gate:nfr-red:impl1` › gate; `test:fitness:solu2` › gate | green 9/9 | Green — ATDD | PASS |
 | NFR-SYS-9 | Latency baseline | Performance | 7.1 (done) | `NFR-ORD-2.p95` | 1 | `nfr/k6/reputation-profile.js`, `nfr/ord1_latency.test.ts` | `gate:nfr-red:impl1` › gate; `nfr:k6` › nfr-k6 | green 1/1 | Green — benchmark | PASS |
 | NFR-SYS-10 | Concurrency proofs run on PostgreSQL | Reliability | 5.2 (done), 10.3 (done), 13.3 (done) | `INV-1.I1`, `TRD-1.MEC`, `REP-3.MEC` | 3 | `atdd/inv_contracts.test.ts`, `atdd/rep_reads.test.ts`, `atdd/trd_contracts.test.ts` | `gate:atdd-red:impl1` › gate | green 3/3 | Green — ATDD | PASS |
-| NFR-SYS-11 | Accessibility | Accessibility | — | — | 0 | — | — | — | Deferred — launch | WAIVED (deferred to the launch checklist) |
+| NFR-SYS-11 | Accessibility | Accessibility | — | — | 0 | `e2e/binder.spec.ts`, `e2e/inbox.spec.ts`, `e2e/profile.spec.ts`, `e2e/smoke.spec.ts` | `npx playwright test` › e2e | — | Green — gate, Deferred — launch | PASS (a part deferred to launch) |
 | NFR-SYS-12 | Platform personal-data consent | Compliance | 1.4 (done) | `SEED.profile` | 1 | `fixtures/seed_marketplace.test.ts` | `test:fitness:solu2` › gate | green 1/1 | Green — gate | PASS |
 | NFR-SYS-13 | Error-code integrity | Maintainability | 1.1 (done) | `SYS-1.R2`, `SYS-1.R6` | 2 | `atdd/sys_contracts.test.ts` | `gate:atdd-red:impl1` › gate | green 2/2 | Green — ATDD | PASS |
 | NFR-SYS-14 | Abuse baseline | Security (abuse) | 2.4 (done), 9.3 (done) | `S-FR-IDN-7.f`, `MSG-2.R1` | 2 | `atdd/idn_contracts.test.ts`, `atdd/msg_contracts.test.ts` | `gate:atdd-red:impl1` › gate | green 2/2 | Green — ATDD | PASS |
@@ -355,10 +355,10 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 
 | Spec or script | Tests or scenarios | Requirements traced | Page Objects | CI evidence |
 |---|---|---|---|---|
-| `e2e/binder.spec.ts` | 1: “Julián re-sorts his binder, the order survives a reload, and a promo added by an https link lands in a pocket after an http:// link is refused” | FR-COL-3, FR-COL-5, FR-IDN-7 | `AddLinkPage`, `BinderPage`, `SignInPage` | `npx playwright test` › e2e |
-| `e2e/inbox.spec.ts` | 2: “Camila reads a conversation, its badge clears, and muting another takes it out of her unread total”; “a wrong password keeps Camila on the sign-in page with the es-CO error” | FR-MSG-7, FR-MSG-8, FR-IDN-7 | `InboxPage`, `SignInPage` | `npx playwright test` › e2e |
-| `e2e/profile.spec.ts` | 2: “a visitor with no session reads Lucía’s rating and reviews, without the review moderation hid”; “an id that is no seller shows the es-CO Not-available page” | FR-REP-7, FR-REP-4 | `SellerProfilePage` | `npx playwright test` › e2e |
-| `e2e/smoke.spec.ts` | 1: “a visitor opens TEZG and sees the service ready” | NFR-SYS-3 | `HomePage` | `npx playwright test` › e2e |
+| `e2e/binder.spec.ts` | 1: “Julián re-sorts his binder, the order survives a reload, and a promo added by an https link lands in a pocket after an http:// link is refused” | FR-COL-3, FR-COL-5, FR-IDN-7, NFR-SYS-11 | `AddLinkPage`, `BinderPage`, `CollectionsPage`, `SignInPage` | `npx playwright test` › e2e |
+| `e2e/inbox.spec.ts` | 2: “Camila reads a conversation, its badge clears, and muting another takes it out of her unread total”; “a wrong password keeps Camila on the sign-in page with the es-CO error” | FR-MSG-7, FR-MSG-8, FR-IDN-7, NFR-SYS-11 | `InboxPage`, `SignInPage` | `npx playwright test` › e2e |
+| `e2e/profile.spec.ts` | 2: “a visitor with no session reads Lucía’s rating and reviews, without the review moderation hid”; “an id that is no seller shows the es-CO Not-available page” | FR-REP-7, FR-REP-4, NFR-SYS-11 | `SellerProfilePage` | `npx playwright test` › e2e |
+| `e2e/smoke.spec.ts` | 1: “a visitor opens TEZG and sees the service ready” | NFR-SYS-3, NFR-SYS-11 | `HomePage` | `npx playwright test` › e2e |
 | `nfr/k6/reputation-profile.js` | 2 constant-arrival-rate scenarios: `profile`, `browse`; 10 thresholds | NFR-REP-2, NFR-SYS-9, NFR-CAT-1 | — | `nfr:k6` › nfr-k6 |
 
 ## 9. Contract clauses

@@ -159,7 +159,7 @@ git log --reverse --format='%h %ad %s' --date=short main..impl-2
 
 [`deferred-work.md`](../../_bmad-output/implementation-artifacts/deferred-work.md) holds every open item with its owner, in its sections from "Deferred from: Story 1.6 (2026-11-03)" to "Deferred from: the test-review remediation (2026-11-04)". The main ones:
 
-- **Launch checklist.** Uncomment the `jobs-tick.yml` schedule and set `JOBS_SECRET` and `TEZG_URL` in production. Choose a mail provider: until then sign-up is refused, and Better Auth's own limiter is off on the unguarded routes (F7). NFR-SYS-11 (WCAG 2.2 AA) is waived until an accessibility audit runs. Reconcile restarts from the first account after a 50 s partial run.
+- **Launch checklist.** Uncomment the `jobs-tick.yml` schedule and set `JOBS_SECRET` and `TEZG_URL` in production. Choose a mail provider: until then sign-up is refused, and Better Auth's own limiter is off on the unguarded routes (F7). NFR-SYS-11 (WCAG 2.2 AA): axe-core's automated WCAG 2.x A and AA rules pass at every state the Playwright journeys reach (decision log Impl-2 #33), and the manual audit (screen reader, keyboard walk-through, contrast of dynamic states) waits for launch. Reconcile restarts from the first account after a 50 s partial run.
 - **UI phase.** The three pages are thin slices. The full inbox, binder, wishlist, profile writing, the rate page 7.4 and the moderation pages 11.3–11.4 (with one cursor per merged log, F6) are open, and so is a typed es-CO formatter for instants and money (F5).
 - **CI owner.** The NFR benchmarks run one file at a time, about 15 minutes of the gate instead of 5 (#25).
 - **Pyramid.** The remaining gap to 70 / 20 / 10 is the deliberate deviation of `test-review.md`.

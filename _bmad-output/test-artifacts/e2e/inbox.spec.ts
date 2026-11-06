@@ -2,7 +2,8 @@
 // conversation, sees its unread badge clear and the total drop, and mutes another conversation so the total leaves
 // it out. The rules themselves (the clamp, monotonic read marks, mute) are proven below this level (ATDD); this
 // journey proves the pages wire them together.
-// Traces: FR-MSG-7, FR-MSG-8, FR-IDN-7 (read by scripts/gen-solu2-trace.mjs into traceability-matrix.md).
+// Each meaningful state is also scanned with axe-core for WCAG 2.x A / AA violations (NFR-SYS-11, decision log Impl-2 #33).
+// Traces: FR-MSG-7, FR-MSG-8, FR-IDN-7, NFR-SYS-11 (read by scripts/gen-solu2-trace.mjs into traceability-matrix.md).
 import { expect, test } from '@playwright/test';
 import { InboxPage } from './pages/InboxPage.js';
 import { SignInPage } from './pages/SignInPage.js';
@@ -19,6 +20,7 @@ test('Camila reads a conversation, its badge clears, and muting another takes it
   // Given she is not signed in, the inbox sends her to sign in.
   await inbox.open();
   await expect(signIn.heading).toHaveText('Ingresar');
+  await signIn.expectNoA11yViolations();
 
   // When she signs in, she lands on her inbox with 2 unread messages in each conversation.
   await signIn.signIn(BUYER.email, BUYER.password);
@@ -26,6 +28,7 @@ test('Camila reads a conversation, its badge clears, and muting another takes it
   await expect(inbox.totalUnread).toHaveText('4');
   await expect(inbox.openButton(SHOPS.andres.name)).toHaveAccessibleName(/2 sin leer/);
   await expect(inbox.openButton(SHOPS.paradise.name)).toHaveAccessibleName(/2 sin leer/);
+  await inbox.expectNoA11yViolations();
 
   // When she opens the conversation with Cartas Andrés, she sees its three messages, and it is read up to the last one.
   await inbox.openConversation(SHOPS.andres.name);
@@ -34,12 +37,14 @@ test('Camila reads a conversation, its badge clears, and muting another takes it
   await expect(inbox.messages.last()).toContainText('Le puedo enviar fotos por aquí mismo.');
   await expect(inbox.openButton(SHOPS.andres.name)).not.toHaveAccessibleName(/sin leer/);
   await expect(inbox.totalUnread).toHaveText('2');
+  await inbox.expectNoA11yViolations();
 
   // When she mutes the other conversation, the total leaves it out, and the page says so.
   await inbox.toggleMute(SHOPS.paradise.name);
   await expect(inbox.notice).toHaveText('Silenciaste esta conversación.');
   await expect(inbox.totalUnread).toHaveText('0');
   await expect(inbox.muteButton(SHOPS.paradise.name)).toHaveText('Dejar de silenciar');
+  await inbox.expectNoA11yViolations();
 
   // And the read mark and the mute are the server's: a reload shows the same state.
   await page.reload();
@@ -53,4 +58,5 @@ test('a wrong password keeps Camila on the sign-in page with the es-CO error', a
   await signIn.signIn(BUYER.email, 'una-clave-equivocada');
   await expect(signIn.error).toHaveText('El correo o la contraseña no coinciden. Revísalos e inténtalo de nuevo.');
   await expect(signIn.heading).toHaveText('Ingresar');
+  await signIn.expectNoA11yViolations();
 });

@@ -197,6 +197,7 @@ The share is counted on the tests Impl-2 adds and reported in `walkthrough-impl2
 | Concurrency | 50 connections: 0 false discrepancies, `lastReadSeq` equal to the highest seq, exactly one log row per hide, exactly one job run | NFR-SYS-10, AD-COM-1, AD-MSG-3, AD-REP-3, AD-SYS-4 rule 7 | the `.C*` tests above |
 | Determinism | 0 `waitForTimeout`, 0 sleep-as-synchronization (`setTimeout` resolving a promise, `pg_sleep`) in tests | Impl-2 statement checklist | `npm run gate:no-sleep` |
 | E2E | Page Objects only (no locator in a spec), web-first assertions, `trace: 'on-first-retry'` | Impl-2 statement §3 | `gate:no-sleep` also refuses `page.locator(` in `*.spec.ts` |
+| Accessibility (usability) | 0 axe-core violations of the WCAG 2.0, 2.1 and 2.2 A and AA rules (tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa`) at each meaningful state of the journeys: home, sign-in and its refusal, inbox and thread, collections list, binder, add-by-link and its field error, seller profile and its Not-available page. The manual audit (screen reader, keyboard walk-through, contrast of dynamic states) stays on the launch checklist | NFR-SYS-11, decision log Impl-2 #31, #33 | `npx playwright test` (`BasePage.expectNoA11yViolations()`, which lists each rule, impact and target on failure); the planted-violation run in `evidence/impl2/34-a11y-axe.log` proves it can fail |
 
 ### 7.5 The four testing traps, as rules
 
