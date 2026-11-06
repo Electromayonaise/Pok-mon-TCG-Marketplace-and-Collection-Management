@@ -1515,6 +1515,7 @@ There is one row per AD, and no AD is left unbound (Phase 3 gate: "no AD without
 | Resumable leased ingestion | AD-CAT-1 | Partial unique `Running`; lease token | `cat › [CAT-1.I1]`, `cat › [CAT-2.I1]` |
 | Observations immutable, aged at read | AD-CAT-2 | Append-only observations; `stale` computed | `cat › [CAT-3.I1]` |
 | TRM never invented | AD-CAT-3 | `EXCLUDE` on validity ranges; no gap row | `cat › [S-FR-CAT-8.f]` |
+| TRM source circuit breaker: closed, open after 3 failures in a row, one half-open probe after 30 min | AD-CAT-3 rule 7 | One `"FxSourceBreaker"` row read `FOR UPDATE` per transition; pure `admit` / `record` (`catalog/domain/breaker.ts`, unit-tested in `breaker-domain.test.ts`); `circuitOpen` with no source call | `cat › [S-FR-CAT-8.breaker.h]`, `cat › [S-FR-CAT-8.breaker.open]`, `cat › [S-FR-CAT-8.breaker.halfOpen]`, `cat › [S-FR-CAT-8.breaker.reset]`, `cat › [S-FR-CAT-8.breaker.C1]`, `cat › [S-FR-CAT-8.breaker.C2]` |
 | One unit per (seller, item, condition) | AD-INV-1 | `UNIQUE (sellerId, catalogEntryId, condition)` | `inv › [INV-2.I1]` |
 | Reserve and release in the caller's transaction | AD-INV-2 | `tx` parameter; ascending conditional decrement | `inv › [INV-1.MEC]` |
 | Fail-closed purchasability, newer facts only | AD-INV-3 | Seq gate; `AppliedApplicationDecision` | `inv › [INV-3.I1]`, `inv › [S-FR-INV-8.f]` |

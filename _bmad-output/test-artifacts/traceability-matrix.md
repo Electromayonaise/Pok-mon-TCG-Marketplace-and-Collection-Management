@@ -18,7 +18,7 @@ gateDecision: 'PASS'
 
 ## 1. Gate decision
 
-**PASS.** All 96 FRs, all 32 registered risks and all 61 §14 AD rows pass; 56 of 56 NFRs pass and 0 are waived to the launch checklist; 72 of 72 stories are `done`; 0 requirements are unmapped; the static checks find 0 problems.
+**PASS.** All 96 FRs, all 32 registered risks and all 62 §14 AD rows pass; 56 of 56 NFRs pass and 0 are waived to the launch checklist; 72 of 72 stories are `done`; 0 requirements are unmapped; the static checks find 0 problems.
 
 **Rule.** The decision is computed, never chosen:
 
@@ -36,7 +36,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | P0 risks PASS | 100 % | 24 / 24 | MET |
 | P1 risks PASS | 100 % | 7 / 7 | MET |
 | P2 risks PASS | 100 % | 1 / 1 | MET |
-| §14 AD rows PASS | 100 % | 61 / 61 | MET |
+| §14 AD rows PASS | 100 % | 62 / 62 | MET |
 | Test ids enforced green | 100 % | 425 / 425 | MET |
 | Unmapped requirements (no test or no story; a waived NFR maps to its waiver) | 0 | 0 | MET |
 | Static checks (ids defined, risks registered, statuses known) | 0 problems | 0 | MET |
@@ -63,8 +63,8 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | FRs traced to a contract clause and a test | 96 / 96 |
 | FRs linked to a story | 96 / 96 |
 | FRs also walked by a Playwright journey | 7 / 96 |
-| ADs of §14 with a test that turns red on violation | 61 / 61 |
-| §14 ADs linked to a story | 61 / 61 |
+| ADs of §14 with a test that turns red on violation | 62 / 62 |
+| §14 ADs linked to a story | 62 / 62 |
 | Risks registered (P0 / P1 / P2) | 32 (24 / 7 / 1) |
 | P0 risks linked to a story and a test | 24 / 24 |
 | MEC modules with a P0 risk and a MEC test | 12 / 12 |
@@ -323,6 +323,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | AD-CAT-1 | Resumable leased ingestion | Partial unique `Running`; lease token | `CAT-1.I1`, `CAT-2.I1` | `atdd/cat_contracts.test.ts` | 4.1 (done), 4.2 (done) | `gate:atdd-red:impl1` › gate | green 2/2 | PASS |
 | AD-CAT-2 | Observations immutable, aged at read | Append-only observations; `stale` computed | `CAT-3.I1` | `atdd/cat_contracts.test.ts` | 4.4 (done) | `gate:atdd-red:impl1` › gate | green 1/1 | PASS |
 | AD-CAT-3 | TRM never invented | `EXCLUDE` on validity ranges; no gap row | `S-FR-CAT-8.f` | `atdd/cat_contracts.test.ts` | 4.4 (done) | `gate:atdd-red:impl1` › gate | green 1/1 | PASS |
+| AD-CAT-3 rule 7 | TRM source circuit breaker: closed, open after 3 failures in a row, one half-open probe after 30 min | One `"FxSourceBreaker"` row read `FOR UPDATE` per transition; pure `admit` / `record` (`catalog/domain/breaker.ts`, unit-tested in `breaker-domain.test.ts`); `circuitOpen` with no source call | `S-FR-CAT-8.breaker.h`, `S-FR-CAT-8.breaker.open`, `S-FR-CAT-8.breaker.halfOpen`, `S-FR-CAT-8.breaker.reset`, `S-FR-CAT-8.breaker.C1` +1 | `atdd/cat_breaker.test.ts` | 4.6 (done) | `gate:atdd-red:impl1` › gate | green 6/6 | PASS |
 | AD-INV-1 | One unit per (seller, item, condition) | `UNIQUE (sellerId, catalogEntryId, condition)` | `INV-2.I1` | `atdd/inv_contracts.test.ts` | 5.1 (done) | `gate:atdd-red:impl1` › gate | green 1/1 | PASS |
 | AD-INV-2 | Reserve and release in the caller's transaction | `tx` parameter; ascending conditional decrement | `INV-1.MEC` | `atdd/inv_contracts.test.ts` | 5.2 (done) | `gate:atdd-red:impl1` › gate | green 1/1 | PASS |
 | AD-INV-3 | Fail-closed purchasability, newer facts only | Seq gate; `AppliedApplicationDecision` | `INV-3.I1`, `S-FR-INV-8.f` | `atdd/inv_contracts.test.ts`, `atdd/inv_supporting.test.ts` | 5.5 (done) | `gate:atdd-red:impl1` › gate | green 2/2 | PASS |

@@ -863,17 +863,25 @@ flowchart LR
 
 #### AD-CAT-3 — The TRM is stored with the source's validity and never invented
 
-- **Status:** [ADOPTED], with the hourly retry [ASSUMPTION — gate item G-3]
-- **Binds:** `FxRate`; job `trm-fetch` (`daily-morning`, plus the hourly tick); `catalog.fx.retry`; `getFxRate`; FR-CAT-8; NFR-CAT-4; ADD-§6.
-- **Prevents:** overlapping rates; a weekend rate fabricated by copying; a request path waiting on the source; a float parse of `valor`.
+- **Status:** [ADOPTED], with the hourly retry [ASSUMPTION — gate item G-3]. Rule 7 was added at the Impl-2 close (Story 4.6; decision log Impl-2 #31, #32) and is [ADOPTED].
+- **Binds:** `FxRate`; `FxSourceBreaker` (migration `002_fx_source_breaker.sql`); job `trm-fetch` (`daily-morning`, plus the hourly tick); `catalog.fx.retry`; `catalog.fx.breaker`; `getFxRate`; `catalog/domain/breaker.ts`; FR-CAT-8; NFR-CAT-4; ADD-§6.
+- **Prevents:** overlapping rates; a weekend rate fabricated by copying; a request path waiting on the source; a float parse of `valor`; a source that keeps failing being called again by every tick, retry and concurrent caller; two instances probing a recovering source at once.
 - **Rule:**
   1. `trm-fetch` is a no-op when a row already covers today's Bogotá date.
-  2. Otherwise it calls `FxRateSource.getRateCovering(today)`, which retries transport failures at most 3 times.
+  2. Otherwise it calls `FxRateSource.getRateCovering(today)` through the breaker of rule 7. The adapter retries transport failures at most 3 times, inside that one breaker call.
   3. `valor` is parsed as a decimal string into centavos, rounded half-up.
   4. The row is inserted as delivered by the source (`validFrom`, `validTo`). An exclusion-constraint conflict with an identical row is treated as already stored. A conflict with a *different* value keeps the existing row and logs `FxRateSourceMismatch` for the admin (2.3).
   5. `getFxRate(date)` returns the covering row. If none covers the date, it returns the latest earlier row with `stale=true`, citing `FxRateCarriedForward`. No row is ever written for a gap.
   6. No request path calls `FxRateSource` (lint `tezg/no-direct-io` plus port binding).
-- **Trade-off:** until the day's rate arrives, conversions and displays carry the previous rate with a stale label. On Hobby without G-3, that can last until the admin retries.
+  7. **A circuit breaker guards the TRM source** (Story 4.6; decision log Impl-2 #31, #32). Every `FxRateSource` call of rule 2 passes through one breaker. A day that rule 1 finds covered answers `alreadyCovered` first and never touches it.
+     - **States.** `closed`: the call reaches the source. `open`: no call reaches the source until `retryAt`. `halfOpen`: exactly one call, the probe, is in flight.
+     - **Opening.** While `closed`, a failed call (a thrown transport error, `null`, or a row that does not cover today) adds 1 to `consecutiveFailures`, and a delivered row that covers today resets it to 0. The 3rd failure in a row (N = 3) opens the breaker: `openedAt = now` and `retryAt = now + 30 min`. Every instant comes from `Clock`.
+     - **Half-open.** The first fetch at or after `retryAt` becomes the one probe. The breaker turns `halfOpen` with a fresh probe token from `IdGenerator`, and `retryAt = now + 60 s` becomes the probe's lease. Every other fetch while the lease runs is short-circuited, and a lapsed lease lets the next fetch take the probe over. The probe's success closes the breaker (`consecutiveFailures = 0`). Its failure reopens it for a new 30 min. A result whose admission state is gone moves nothing: a closed-state call that returns after the breaker opened, or a probe whose lease another probe took over.
+     - **One shared row under `FOR UPDATE`.** The state is one `"FxSourceBreaker"` row, owned by `catalog` and shared by every instance; a missing row reads `closed`. Each transition is one short transaction: it inserts the row `ON CONFLICT DO NOTHING`, reads it `SELECT … FOR UPDATE`, and stores the state that the pure functions `admit` and `record` (`catalog/domain/breaker.ts`) return. The source call runs between two such transactions, outside any transaction. So two concurrent fetches (a tick racing `catalog.fx.retry`) never both probe, and no failure is lost.
+     - **`circuitOpen` keeps the last rate.** A short-circuited fetch answers `circuitOpen` (`allowedWithNotice`, `FxRateCircuitOpen`, citing `NFR-CAT-4` with `{ consecutiveFailures, retryAt, trigger }`). It makes no source call and no write. `getFxRate` keeps serving the last stored rate, stale (rule 5).
+     - **Admin retries go through the breaker.** `catalog.fx.retry` has no bypass. While the breaker is open it answers `circuitOpen` with the next probe time. `catalog.fx.breaker` (admin, page 2.3) shows the state, the failure count, the threshold and `retryAt`.
+     - **Enforced by** the six `S-FR-CAT-8.breaker` tests in `atdd/cat_breaker.test.ts`, bound in contracts.md §14 (the two races `.C1` and `.C2` turn red without the `FOR UPDATE`), and by the pure unit tests in `src/modules/catalog/breaker-domain.test.ts`.
+- **Trade-off:** until the day's rate arrives, conversions and displays carry the previous rate with a stale label. On Hobby without G-3, that can last until the admin retries. After 3 failures in a row, an admin retry waits up to 30 min for the next probe instead of calling the source. The hourly tick always finds that cool-down over, so NFR-CAT-4's one attempt per hour is kept (decision log Impl-2 #32).
 
 ---
 

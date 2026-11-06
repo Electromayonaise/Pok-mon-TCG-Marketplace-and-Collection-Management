@@ -725,7 +725,7 @@ Ingest the card catalog with stable ids and serve reference prices that are alwa
 - **Contracts:** `S-FR-CAT-8.breaker` getFxSourceBreaker · **Also proves:** `S-FR-CAT-8` (§15 clause)
 - **Depends on:** Story 4.4, Story 1.6
 - **Traceability:** FR-CAT-8 · NFR-CAT-4 · Risk R-32 (P0) · UI 2.3
-- **Binding invariants:** also cited by its clauses: AD-CAT-3
+- **Binding invariants:** AD-CAT-3 rule 7 — TRM source circuit breaker: closed, open after 3 failures in a row, one half-open probe after 30 min (One `"FxSourceBreaker"` row read `FOR UPDATE` per transition; pure `admit` / `record` (`catalog/domain/breaker.ts`, unit-tested in `breaker-domain.test.ts`); `circuitOpen` with no source call)
 - **Files:** `src/modules/catalog/application/cat.v2.ts` (`CatServiceV2.getFxSourceBreaker`), `src/modules/catalog/ports/cat.v2.ts` (`CatRepository`), `src/modules/catalog/domain/cat.ts`, `src/modules/catalog/infra/pg.ts`
 - **Schema/DTO:** tables `"FxRate"`, `"FxSourceBreaker"`; DTOs `GetFxSourceBreakerRequest` → `GetFxSourceBreakerResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/cat_breaker.test.ts` › `[S-FR-CAT-8.breaker.h]`, `[S-FR-CAT-8.breaker.open]`, `[S-FR-CAT-8.breaker.halfOpen]`, `[S-FR-CAT-8.breaker.reset]`, `[S-FR-CAT-8.breaker.C1]`, `[S-FR-CAT-8.breaker.C2]`
