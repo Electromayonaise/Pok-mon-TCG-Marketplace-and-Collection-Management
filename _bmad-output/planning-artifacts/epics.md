@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 71 stories. They bind 143 registry operations and 419 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 72 stories. They bind 144 registry operations and 425 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -258,7 +258,7 @@ All 56 NFRs. Each has a metric, an artifact and a status in `_bmad-output/test-a
 | FR-CAT-5 | 4.4 |
 | FR-CAT-6 | 4.4, 6.3, 6.4 |
 | FR-CAT-7 | 4.4 |
-| FR-CAT-8 | 4.4 |
+| FR-CAT-8 | 4.4, 4.6 |
 | FR-INV-1 | 5.1, 5.3 |
 | FR-INV-2 | 5.6 |
 | FR-INV-3 | 5.2, 5.4 |
@@ -339,7 +339,7 @@ All 56 NFRs. Each has a metric, an artifact and a status in `_bmad-output/test-a
 | 1. Walking skeleton: errors, audit, outbox and determinism | shared-kernel, server/trpc | Build the cross-module platform every story stands on: one typed error body, an audit trail with a regulated-data redactor, exactly-once event delivery, deterministic time and boundaries, and the admin event panel. | 6 | — |
 | 2. User, role and seller-type access (IDN) | IDN (`identity`) | Give every account exactly one seller track and derive its capabilities from facts, never from a client claim. | 6 | 2.2 |
 | 3. Business verification workflow (VER) | VER (`identity`) | Let a business apply once with its legal identity, and let admins decide each application exactly once. | 5 | 3.2 |
-| 4. Catalog and price reference (CAT) | CAT (`catalog`) | Ingest the card catalog with stable ids and serve reference prices that are always a stored observation. | 5 | 4.2 |
+| 4. Catalog and price reference (CAT) | CAT (`catalog`) | Ingest the card catalog with stable ids and serve reference prices that are always a stored observation. | 6 | 4.2 |
 | 5. Listings and shared inventory (INV) | INV (`listings`) | Let sellers list from one stock pool per (seller, item, condition). | 6 | 5.2 |
 | 6. Marketplace browse and location discovery (DSC) | DSC (`listings`, no tables) | Let buyers find listings by area through one query path. | 4 | 6.3 |
 | 7. Orders and comprobante confirmation (ORD) | ORD (`orders`) | Let buyers order from businesses and pay by bank transfer outside the platform. | 5 | 7.2 |
@@ -695,7 +695,7 @@ Ingest the card catalog with stable ids and serve reference prices that are alwa
 - **Traceability:** FR-CAT-5, FR-CAT-6, FR-CAT-7, FR-CAT-8 · NFR-CAT-1, NFR-CAT-3 · UI 2.3
 - **Binding invariants:** AD-CAT-2 — Observations immutable, aged at read (Append-only observations; `stale` computed); AD-CAT-3 — TRM never invented (`EXCLUDE` on validity ranges; no gap row); also cited by its clauses: AD-SYS-6, AD-SYS-7
 - **Files:** `src/modules/catalog/application/cat.v2.ts` (`CatServiceV2.getPriceProvenance`, `CatServiceV2.fetchTrm`, `CatServiceV2.getFxRate`), `src/modules/catalog/ports/cat.v2.ts` (`CatRepository`), `src/modules/catalog/domain/cat.ts`, `src/modules/catalog/infra/pg.ts`
-- **Schema/DTO:** tables `"FxRate"`; DTOs `GetPriceProvenanceRequest` → `GetPriceProvenanceResponse`, `FetchTrmRequest` → `FetchTrmResponse`, `GetFxRateRequest` → `GetFxRateResponse`
+- **Schema/DTO:** tables `"FxRate"`, `"FxSourceBreaker"`; DTOs `GetPriceProvenanceRequest` → `GetPriceProvenanceResponse`, `FetchTrmRequest` → `FetchTrmResponse`, `GetFxRateRequest` → `GetFxRateResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/cat_contracts.test.ts` › `[CAT-3.Q1]`, `[CAT-3.Q4]`, `[CAT-3.Q5]`, `[CAT-3.P2]`, `[CAT-3.I1]`, `[S-FR-CAT-8.h]`, `[S-FR-CAT-8.f]`; `_bmad-output/test-artifacts/nfr/cat1_latency.test.ts` › `[NFR-CAT-1.provenance]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a card has a 30-day baseline of 40,000 and a latest observation of 45,000. **When:** Camila reads its provenance. **Then:** +12.50 % with the source and observation time; two sources at one instant give one stored row chosen by source order, never an average.
@@ -717,6 +717,22 @@ Ingest the card catalog with stable ids and serve reference prices that are alwa
   - **Scenario (happy) — Given:** the catalog holds Pikachu cards in two sets. **When:** Camila filters by pokemon. **Then:** only matches, in `(setId, numberSort, id)` order; neighbours read entries, refs, prices as of an instant, history and set summaries through the ports.
   - **Scenario (failure) — Given:** a filter names an unknown set, a match covers 20,001 entries, or an id is unknown. **When:** browse or a neighbour port runs. **Then:** an empty page with total 0, `tooBroad`, and the unknown id listed in `missing`, never thrown.
 - **DoD:** the shared DoD, plus: the 10 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+
+### Story 4.6: Open a circuit breaker when the TRM source keeps failing
+
+- **Kind:** Failure-state
+- **Description:** As an admin, I want the TRM fetch to stop calling a source that keeps failing and to probe it once after a cool-down, while prices keep using the last stored rate, so that a down source degrades gracefully instead of being hammered by every tick and retry (NFR-CAT-4).
+- **Contracts:** `S-FR-CAT-8.breaker` getFxSourceBreaker · **Also proves:** `S-FR-CAT-8` (§15 clause)
+- **Depends on:** Story 4.4, Story 1.6
+- **Traceability:** FR-CAT-8 · NFR-CAT-4 · Risk R-32 (P0) · UI 2.3
+- **Binding invariants:** also cited by its clauses: AD-CAT-3
+- **Files:** `src/modules/catalog/application/cat.v2.ts` (`CatServiceV2.getFxSourceBreaker`), `src/modules/catalog/ports/cat.v2.ts` (`CatRepository`), `src/modules/catalog/domain/cat.ts`, `src/modules/catalog/infra/pg.ts`
+- **Schema/DTO:** tables `"FxRate"`, `"FxSourceBreaker"`; DTOs `GetFxSourceBreakerRequest` → `GetFxSourceBreakerResponse`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/cat_breaker.test.ts` › `[S-FR-CAT-8.breaker.h]`, `[S-FR-CAT-8.breaker.open]`, `[S-FR-CAT-8.breaker.halfOpen]`, `[S-FR-CAT-8.breaker.reset]`, `[S-FR-CAT-8.breaker.C1]`, `[S-FR-CAT-8.breaker.C2]`
+- **Gherkin:**
+  - **Scenario (happy) — Given:** the breaker has been open for 30 minutes after 3 failed hourly fetches. **When:** the next tick fetches the TRM and the source answers. **Then:** that one probe stores the rate of the day and closes the breaker; page 2.3 reads `closed` with 0 failures.
+  - **Scenario (failure) — Given:** the TRM source is down, and a tick races two admin retries; later 50 fetches meet an open breaker whose cool-down has passed. **When:** the fetches run. **Then:** the 3rd failure in a row opens the breaker with no failure lost; a fetch while open is `circuitOpen` (`FxRateCircuitOpen`) with no source call and no write, the rate of the day stays the one of yesterday, stale; and exactly one of the 50 probes the source.
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; migration `002_fx_source_breaker.sql` adds the catalog-owned `FxSourceBreaker` row; the lint rule, the fitness scan and the epics generator read every migration.
 
 ## Epic 5: Listings and shared inventory (INV)
 

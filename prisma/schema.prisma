@@ -413,6 +413,19 @@ model FxRate {
   createdAt         DateTime @db.Timestamptz(6)
 }
 
+/// @owner catalog
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model FxSourceBreaker {
+  port                String    @id
+  state               String
+  consecutiveFailures Int
+  openedAt            DateTime? @db.Timestamptz(6)
+  retryAt             DateTime? @db.Timestamptz(6)
+  probeToken          String?
+  createdAt           DateTime  @db.Timestamptz(6)
+  updatedAt           DateTime  @db.Timestamptz(6)
+}
+
 /// @owner identity
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model IndividualSellerProfile {

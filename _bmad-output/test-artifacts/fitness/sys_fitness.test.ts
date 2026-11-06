@@ -10,7 +10,8 @@ import { useTestDatabase } from '../../../test-support/db.js';
 import { importViolations, ownershipViolations, parseGeneratedYaml, sqlWrites, tableOwners, tsFiles, wallClockReads } from '../../../test-support/solu2/fitness.js';
 
 const SCHEMAS = '_bmad-output/planning-artifacts/detailed-design/schemas';
-const schemaSql = fs.readFileSync(`${SCHEMAS}/001_tezg_schema.sql`, 'utf8');
+// Every migration of the schema folder, in apply order (002 adds Story 4.6's FxSourceBreaker).
+const schemaSql = fs.readdirSync(SCHEMAS).filter((f) => f.endsWith('.sql')).sort().map((f) => fs.readFileSync(`${SCHEMAS}/${f}`, 'utf8')).join('\n');
 const source = tsFiles('src').map((file) => ({ file, text: fs.readFileSync(file, 'utf8') }));
 
 describe('SYS-AD1 — import graph (AD-1)', () => {
@@ -109,7 +110,7 @@ describe('SYS-8.R2 — ingress inputs (AD-SYS-8 rules 1–2, AD-16, NFR-IDN-3)',
         }
       }
     }
-    expect(procedures).toBe(114); // 108 tRPC procedures + 4 job endpoints (jobs/outbox-sweep: decision log Impl-2 #11) + 2 health probes
+    expect(procedures).toBe(115); // 109 tRPC procedures (catalog.fx.breaker: Story 4.6) + 4 job endpoints (jobs/outbox-sweep: decision log Impl-2 #11) + 2 health probes
     expect(problems).toEqual([]);
   });
 });

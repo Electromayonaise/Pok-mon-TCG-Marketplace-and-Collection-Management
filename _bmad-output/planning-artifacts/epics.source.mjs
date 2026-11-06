@@ -253,6 +253,16 @@ export default {
           happy: ['the catalog holds Pikachu cards in two sets.', 'Camila filters by pokemon.', 'only matches, in `(setId, numberSort, id)` order; neighbours read entries, refs, prices as of an instant, history and set summaries through the ports.'],
           failure: ['a filter names an unknown set, a match covers 20,001 entries, or an id is unknown.', 'browse or a neighbour port runs.', 'an empty page with total 0, `tooBroad`, and the unknown id listed in `missing`, never thrown.'],
         },
+        {
+          // Impl-2 (decision log Impl-2 #31): rubric 1's circuit breaker around the one outbound dependency, the TRM source.
+          title: 'Open a circuit breaker when the TRM source keeps failing', kind: 'Failure-state',
+          as: 'As an admin, I want the TRM fetch to stop calling a source that keeps failing and to probe it once after a cool-down, while prices keep using the last stored rate, so that a down source degrades gracefully instead of being hammered by every tick and retry (NFR-CAT-4).',
+          ops: ['S-FR-CAT-8.breaker'], contracts: ['S-FR-CAT-8'],
+          tests: ['S-FR-CAT-8.breaker.h', 'S-FR-CAT-8.breaker.open', 'S-FR-CAT-8.breaker.halfOpen', 'S-FR-CAT-8.breaker.reset', 'S-FR-CAT-8.breaker.C1', 'S-FR-CAT-8.breaker.C2'], depends: ['4.4', '1.6'],
+          happy: ['the breaker has been open for 30 minutes after 3 failed hourly fetches.', 'the next tick fetches the TRM and the source answers.', 'that one probe stores the rate of the day and closes the breaker; page 2.3 reads `closed` with 0 failures.'],
+          failure: ['the TRM source is down, and a tick races two admin retries; later 50 fetches meet an open breaker whose cool-down has passed.', 'the fetches run.', 'the 3rd failure in a row opens the breaker with no failure lost; a fetch while open is `circuitOpen` (`FxRateCircuitOpen`) with no source call and no write, the rate of the day stays the one of yesterday, stale; and exactly one of the 50 probes the source.'],
+          dod: ['migration `002_fx_source_breaker.sql` adds the catalog-owned `FxSourceBreaker` row; the lint rule, the fitness scan and the epics generator read every migration'],
+        },
       ],
     },
     // =============================================================== 5 INV

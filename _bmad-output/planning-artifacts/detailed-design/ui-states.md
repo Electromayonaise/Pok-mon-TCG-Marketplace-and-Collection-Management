@@ -79,21 +79,21 @@ Operations: `DSC-2`, `REP-3`, `ORD-1`
 
 ## 2.3 Feed Ingestion Console
 
-Operations: `CAT-1`, `CAT-2.ingress`, `CAT-1.runs`, `CAT-2.quarantine`, `S-FR-CAT-8.fetch`, `S-FR-CAT-8.rate`, `S-SYS.tick`, `S-SYS.health`, `S-SYS.deliveries`, `S-SYS.replay`
+Operations: `CAT-1`, `CAT-2.ingress`, `CAT-1.runs`, `CAT-2.quarantine`, `S-FR-CAT-8.fetch`, `S-FR-CAT-8.rate`, `S-FR-CAT-8.breaker`, `S-SYS.tick`, `S-SYS.health`, `S-SYS.deliveries`, `S-SYS.replay`
 
 | State | Class | Backed by |
 |---|---|---|
 | Loading | client | transport or interaction; no server DTO |
-| Empty | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
+| Empty | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetFxSourceBreakerResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
 | Error | client | transport or interaction; no server DTO |
 | Running | client | transport or interaction; no server DTO |
-| Success | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
-| Interrupted | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
-| Tick silent | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
-| Stale feed | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
-| TRM mismatch | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
-| Deliveries empty | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
-| Replay success | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
+| Success | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetFxSourceBreakerResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
+| Interrupted | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetFxSourceBreakerResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
+| Tick silent | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetFxSourceBreakerResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
+| Stale feed | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetFxSourceBreakerResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
+| TRM mismatch | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetFxSourceBreakerResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
+| Deliveries empty | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetFxSourceBreakerResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
+| Replay success | data | `StartFeedRunResponse`, `ContinueFeedRunResponse`, `ListFeedRunsResponse`, `ListQuarantinedRowsResponse`, `FetchTrmResponse`, `GetFxRateResponse`, `GetFxSourceBreakerResponse`, `GetTickHealthResponse`, `GetDeliveryHealthResponse`, `ListDeliveriesResponse`, `ReplayEventDeliveryResponse` |
 | Replay refused | refusal | `ErrorBody` (`NotAuthenticated`, `AdminOnly`, `RequestValidationFailed`, `FeedRunInProgress`, `EventDeliveryNotReplayable`) |
 
 ## 3.1 Nearby Listings

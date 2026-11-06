@@ -1883,6 +1883,107 @@ paths:
               type: "object"
               additionalProperties: false
               properties: {}
+  "/api/trpc/catalog.fx.breaker":
+    get:
+      operationId: "catalog_fx_breaker"
+      summary: "S-FR-CAT-8.breaker getFxSourceBreaker (contracts.md §3)"
+      tags:
+        - "catalog"
+      x-procedure-builder: "admin"
+      x-actor-fields-from-session:
+        - "actorId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/GetFxSourceBreakerResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "403":
+          description: "Refusal: AdminOnly."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "AdminOnly"
+                          httpStatus:
+                            const: 403
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties: {}
   "/api/trpc/discovery.search":
     get:
       operationId: "discovery_search"
@@ -12808,6 +12909,12 @@ components:
         - "acquiredAt"
         - "acquiredPriceCop"
         - "manual"
+    BreakerState:
+      type: "string"
+      enum:
+        - "closed"
+        - "open"
+        - "halfOpen"
     BrowseCatalogResponse:
       type: "object"
       additionalProperties: false
@@ -13699,6 +13806,7 @@ components:
             - "alreadyCovered"
             - "sourceUnavailable"
             - "mismatchKept"
+            - "circuitOpen"
         decision:
           "$ref": "#/components/schemas/ExplanationDTO"
       required:
@@ -13899,6 +14007,35 @@ components:
         - "oldestFirstFailedAt"
         - "stuckPendingCount"
         - "latestDigest"
+    GetFxSourceBreakerResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        state:
+          "$ref": "#/components/schemas/BreakerState"
+        consecutiveFailures:
+          type: "number"
+        failureThreshold:
+          type: "number"
+        openedAt:
+          anyOf:
+            - type: "string"
+              format: "date-time"
+            - type: "null"
+        retryAt:
+          anyOf:
+            - type: "string"
+              format: "date-time"
+            - type: "null"
+        decision:
+          "$ref": "#/components/schemas/ExplanationDTO"
+      required:
+        - "state"
+        - "consecutiveFailures"
+        - "failureThreshold"
+        - "openedAt"
+        - "retryAt"
+        - "decision"
     GetHandoffResponse:
       "$ref": "#/components/schemas/ContactMessageDTO"
     GetLastReconciliationResponse:

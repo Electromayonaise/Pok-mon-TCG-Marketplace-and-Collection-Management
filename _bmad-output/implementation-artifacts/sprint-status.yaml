@@ -1,13 +1,13 @@
 # generated: 2026-10-24
-# last_updated: 2026-11-04
+# last_updated: 2026-11-06
 # project: Pok-mon-TCG-Marketplace-and-Collection-Management
 # project_key: NOKEY
 # tracking_system: file-system
 # story_location: _bmad-output/implementation-artifacts
-# backlog_source: _bmad-output/planning-artifacts/epics.md (13 epics, 71 stories; 1.6 and 2.6 added by decision log Impl-2 #7)
+# backlog_source: _bmad-output/planning-artifacts/epics.md (13 epics, 72 stories; 1.6 and 2.6 added by decision log Impl-2 #7, 4.6 by decision log Impl-2 #31)
 # scope: 853449c:docs/impl-1/task-statement.md Appendix B: 43 stories in Impl-1; the 26 listed under impl2_scope stay backlog until Impl-2
 # delivery: the 6 stories under impl1_delivery (decision log Impl-1 #22, Appendix B.0)
-# impl2_scope: decision log Impl-2 #1, #7: the 7 reserved stories (8.5, 8.6, 9.6, 11.5, 11.6, 13.5, 13.6) plus two new stories, 1.6 (the jobs route) and 2.6 (sign-up, sign-in and the throttle hook), added when their red tests land
+# impl2_scope: decision log Impl-2 #1, #7: the 7 reserved stories (8.5, 8.6, 9.6, 11.5, 11.6, 13.5, 13.6) plus two new stories, 1.6 (the jobs route) and 2.6 (sign-up, sign-in and the throttle hook), added when their red tests land; decision log Impl-2 #31 adds a third, 4.6 (the TRM source's circuit breaker)
 # impl2_flows: _bmad-output/test-artifacts/test-design.md §7.1 (Flow A ATDD-first, B test-along, C test-after, D quality gate, E Playwright)
 # readiness_gate: IR-PASS (scripts/readiness-audit.mjs --package docs/solu-2, run as this workflow's prepend step, 2026-10-24)
 
@@ -49,7 +49,7 @@
 # - An epic is 'done' when its Impl-1 stories are done and Martín signed its gate; its impl2_scope stories stay backlog
 
 generated: 2026-10-24
-last_updated: 2026-11-04
+last_updated: 2026-11-06
 project: Pok-mon-TCG-Marketplace-and-Collection-Management
 project_key: NOKEY
 tracking_system: file-system
@@ -79,12 +79,13 @@ development_status:
   3-4-guard-and-audit-every-legal-identity-read: done
   3-5-run-the-review-queue-the-rejection-policy-and-payment-instructions: done
   epic-3-retrospective: optional
-  epic-4: done
+  epic-4: in-progress
   4-1-start-and-continue-a-catalog-feed-run: done
   4-2-keep-a-card-s-id-through-renames-and-reprints: done
   4-3-refuse-a-second-live-run-and-quarantine-changed-kinds: done
   4-4-never-fabricate-a-price: done
   4-5-browse-the-catalog-and-answer-neighbours-catalog-queries: done
+  4-6-open-a-circuit-breaker-when-the-trm-source-keeps-failing: in-progress
   epic-4-retrospective: optional
   epic-5: done
   5-1-list-a-card-and-share-one-stock-pool: done

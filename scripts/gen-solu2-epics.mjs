@@ -73,7 +73,8 @@ const adRows = [...s14.matchAll(/^\| ([^|]+) \| ([^|]*AD[^|]*) \| ([^|]+) \| ([^
 
 const registry = JSON.parse(read(`${DD}/schemas/operations.json`));
 const ops = new Map(registry.operations.map((o) => [o.id, o]));
-const schema = read(`${DD}/schemas/001_tezg_schema.sql`);
+// Every migration of the schema folder (002 adds Story 4.6's FxSourceBreaker).
+const schema = fs.readdirSync(`${DD}/schemas`).filter((f) => f.endsWith('.sql')).sort().map((f) => read(`${DD}/schemas/${f}`)).join('\n');
 const tables = new Set([...schema.matchAll(/^CREATE TABLE IF NOT EXISTS "?(\w+)"?/gm)].map((m) => m[1]));
 const tablesIn = (text) => uniq([...text.matchAll(/"(\w+)"/g)].map((m) => m[1]).filter((t) => tables.has(t)));
 

@@ -78,11 +78,12 @@ The *Red tests* column lists the test ids that turn red when the mitigation is r
 | R-29 | A profile's aggregate and its first page come from different snapshots around a hide, so the rating and the list disagree (Impl-2, Story 13.5) | REP | Correctness/trust | 3 | 3 | 9 | P0 | AD-REP-2 rule 2: the aggregate and the first page of 20 in one `REPEATABLE READ` read-only transaction; both select `"hiddenAt" IS NULL` | `[S-FR-REP-7.h]`, `[S-FR-REP-7.C1]` | Integration (race) |
 | R-30 | The profile read misses p95 ≤ 300 ms (NFR-REP-2) at N = 1, or under load on the production build (100 requests/s per endpoint, decision log Impl-2 #21) (Impl-2, Story 13.5) | REP | Performance | 2 | 2 | 4 | P1 | One read-only `REPEATABLE READ` transaction on one connection: identity's target and name reads on it (AD-SYS-4 rule 9), the one-statement aggregate and the page of 20 on `review_visible_by_target`; no cache, so a hide shows on the next read | `[NFR-REP-2.profile]` (benchmark), k6 `reputation-profile` (`npm run nfr:k6`) | NFR benchmark + load |
 | R-31 | An admin search for `100%` matches every review (an unescaped `LIKE` wildcard), or two concurrent hides of one listing log twice (Impl-2, Story 13.6) | REP | Correctness/trust | 3 | 2 | 6 | P0 | `\`, `%` and `_` escaped before `tezg_unaccent_lower(text) LIKE … ESCAPE '\'` (AD-REP-3 rule 4); the conditional `UPDATE … WHERE "hiddenAt" IS NULL RETURNING` with the log row only on 1 row, and a locked re-read for the explained no-op (AD-REP-3 rule 1) | `[S-FR-REP-6.f]`, `[S-FR-REP-5.f]`, `[S-FR-REP-5.C1]` | Integration (race) + pure |
+| R-32 | A down TRM source is called by every tick and retry, two concurrent fetches (a tick racing `catalog.fx.retry`) both probe a half-open source, or a lost failure count keeps the breaker closed (Impl-2, Story 4.6) | CAT | Reliability | 3 | 2 | 6 | P0 | The pure breaker (`domain/breaker.ts`): 3 failures in a row open it for 30 min on the Clock, then one probe; its one `"FxSourceBreaker"` row moved only under `SELECT … FOR UPDATE`, with the source call outside any transaction; `circuitOpen` keeps the last stored rate, never a fabricated one | `[S-FR-CAT-8.breaker.open]`, `[S-FR-CAT-8.breaker.halfOpen]`, `[S-FR-CAT-8.breaker.C1]`, `[S-FR-CAT-8.breaker.C2]` | Integration (race) + pure |
 
 Twenty risks were registered in Solu-2, and Impl-2 adds its own (§7.2) as each story's red tests land:
 
 - Solu-2: 15 are P0 (the 12 MECs plus R-13, R-14 and R-15) and 5 are P1.
-- Impl-2: R-21 to R-31, 11 risks: 8 P0, 2 P1 (R-24, R-30) and 1 P2 (R-27). R-24, R-25 and R-27 belong to Stories 8.5, 8.6 and 11.5; they were planned in §7.2 but entered this register only at the Impl-2 close, with the tests §7.2 named for them.
+- Impl-2: R-21 to R-32, 12 risks: 9 P0, 2 P1 (R-24, R-30) and 1 P2 (R-27). R-32 (Story 4.6, the TRM source's circuit breaker) was added by decision log Impl-2 #31, after the Impl-2 close. R-24, R-25 and R-27 belong to Stories 8.5, 8.6 and 11.5; they were planned in §7.2 but entered this register only at the Impl-2 close, with the tests §7.2 named for them.
 
 Every P0 and P1 risk has at least one red test. The test-id gate (`npm run gate:ids:solu2`) and the trace gate prove that each id exists.
 
@@ -155,6 +156,7 @@ Impl-2 implements the 7 reserved stories and two new ones (decision log Impl-2 #
 | 11.6 Refuse unsafe links, foreign entries and unknown wishlist cards | Failure-state | An unsafe URL stored and rendered (XSS) | **A** | Pure refusal contracts |
 | 13.5 Profiles, moderation logs and listing hides | Supporting | Profile aggregate and first page disagree around a hide; p95 over 300 ms | **D** + **E** | NFR-REP-2 latency and snapshot consistency under load; public profile page |
 | 13.6 Refuse invalid moderation and bad aggregate requests | Failure-state | `100%` matches everything (LIKE wildcard); a double hide logs twice | **A** | Pure refusal contracts |
+| 4.6 Open a circuit breaker when the TRM source keeps failing (new, decision log Impl-2 #31) | Failure-state | Two concurrent fetches both probe a half-open source, or a failure count is lost (NFR-CAT-4) | **A** ATDD-first | A shared state machine under concurrency: the race contract comes first; the pure transitions get unit tests |
 | Impl-1 code | — | Weakly-green lock tests that sleep 200 ms (test review MEDIUM-1/2) | **C** test-after | Backfill and hardening of existing code |
 
 ### 7.2 Planned risks (enter §2 with their red tests)
@@ -172,6 +174,7 @@ Impl-2 implements the 7 reserved stories and two new ones (decision log Impl-2 #
 | R-29 | 13.5 | A profile's aggregate and its first page come from different snapshots around a hide | 3 × 3 | P0 | `[S-FR-REP-7.h]`, `[S-FR-REP-7.C1]`* |
 | R-30 | 13.5 | The profile read misses p95 ≤ 300 ms (NFR-REP-2) | 2 × 2 | P1 | `[NFR-REP-2.profile]`* (benchmark), k6 `reputation-profile` |
 | R-31 | 13.6 | A search for `100%` matches everything, or two concurrent hides log twice | 3 × 2 | P0 | `[S-FR-REP-6.f]`, `[S-FR-REP-5.f]`, `[S-FR-REP-5.C1]`* |
+| R-32 | 4.6 | Two concurrent fetches both probe a half-open TRM source, or a failure count is lost | 3 × 2 | P0 | `[S-FR-CAT-8.breaker.C1]`*, `[S-FR-CAT-8.breaker.C2]`*, `[S-FR-CAT-8.breaker.open]`* |
 
 Every P0 risk keeps the §1 rule: a red test before code, a story, and a CI gate.
 
