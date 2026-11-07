@@ -789,3 +789,34 @@
 - **Evidence:** `evidence/impl2/38-reaudit-docs.log` (both k6 runs, the evidence mutations, the pyramid recount and the link check).
 - **Artifact changed:** `walkthrough-impl2.md`, `docs/impl-2/README.md`, `README.md`, `docs/README.md`, `_bmad-output/README.md`, `scripts/evidence-sums.mjs` (new), `package.json`, `scripts/gen-solu2-trace.mjs`, `traceability-matrix.md`, `evidence/impl2/SHA256SUMS` and `ci-runs.json` (new).
 - **Decided by:** Mateo.
+
+
+### 39. The runtime pool is configurable; long-lived servers use 10 connections and k6 passes again (Performance + Architecture)
+
+- **Phase:** C (close), in a subagent (`f453ca6`, `333233c`), as decided in #38.
+- **Persona/Skill:** `bmad-dev-story` (Amelia), `bmad-testarch-nfr` (Murat).
+- **AI output (summary):**
+  - **Setting:** `TEZG_PG_POOL_MAX` is validated in `src/shared-kernel/config.ts` (`PG_POOL_MAX = { default: 2, min: 2, max: 50 }`). An invalid value stops the app at start-up with its name. `runtimePool(url, { max })` reads it, and the 10 s checkout timeout stays.
+  - **Who sets what:** the k6 server, the E2E server and the Docker app set 10; serverless instances, and any unset environment, keep 2. `.env.example` documents it.
+  - **Tests:**
+    - 14 config tests: the default, 2, 10 and 50, and eight invalid values.
+    - `[S-SYS.jobs.pool]` and `[S-SYS.jobs.starved]` build their pool from the config's minimum and default and stay on 2.
+    - Two mutations make them fail: a default of 10, and a minimum of 1.
+  - **Docs:** AD-SYS-4 (§4, rules 7 and 9, the trade-off), `contracts.md`, `ports-and-adapters.md` and the audit's F1 row are amended.
+  - **Every dependent proof re-run** (#38's rule):
+    - **k6:** PASS, k6 exit 0. Profile p95 41.25 ms and p99 122.91 ms; browse p95 42.80 ms; 0.00 % errors, 0 5xx, 3 dropped against a limit of 120. Before (log 38): p95 659.84 ms, 1,347 dropped.
+    - **Playwright:** 6 passed (28.2 s), with the 14 axe scans.
+    - **`test:ci`:** exit 0 in 11 min 48 s. 767 unit tests, 97.56 % branches; trace PASS with 430 ids; `solu2-atdd` 384 green; `solu2-nfr` 30 green.
+    - **`gate:evidence`:** 48 / 48, regenerated last.
+- **Agent defaults:**
+  - An empty value is rejected, not treated as unset.
+  - The k6 and E2E runners use `process.env.TEZG_PG_POOL_MAX ?? '10'`.
+  - `runtimePool` takes `max` as a required argument.
+- **Human decision:** none new (#38 decided it).
+- **Evidence:** `evidence/impl2/39-pool-config-k6.log`, `k6-summary.json`.
+- **Artifact changed:**
+  - Code and tests: `config.ts` (+ test), `db.ts`, `atdd/sys_jobs.test.ts`.
+  - Runners and env: `scripts/nfr-k6.mjs`, `scripts/e2e-server.mjs`, `playwright.config.ts`, `docker-compose.yml`, `.env.example`.
+  - Docs: `ARCHITECTURE.md`, `contracts.md`, `ports-and-adapters.md`, `architecture-audit-impl2.md`, `walkthrough-impl2.md`, `docs/impl-2/README.md`, `nfr-evidence.md`.
+  - Generated: `epics.md`, `traceability-matrix.md`, `SHA256SUMS`.
+- **Decided by:** Mateo (#38).
