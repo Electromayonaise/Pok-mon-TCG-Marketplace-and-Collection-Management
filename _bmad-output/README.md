@@ -13,14 +13,14 @@ The latest version of every BMAD/WDS artifact for TEZG, in the folders `_bmad/bm
 | `planning-artifacts/ux/` | UX: scenarios and page specs (`C-UX-Scenarios/`), `DESIGN.md`, `EXPERIENCE.md`, es-CO microcopy, HTML mockups, wireframes |
 | `planning-artifacts/ARCHITECTURE.md` | The architecture: AD-SYS-1..8, the per-module AD-&lt;CODE&gt;-n, and the inherited AD-14..AD-19 (Appendix A) |
 | `planning-artifacts/ARCHITECTURE-v2-delta.md` | Architecture v2: the stack, refinements R-1..R-17 and the links to the detailed design |
-| `planning-artifacts/detailed-design/` | Contracts, ports and adapters, the schema (the migration the service runs), OpenAPI, DTOs, events, UI states |
-| `planning-artifacts/epics.md`, `epics.source.mjs` | The backlog: 13 epics, 69 stories, generated from the source file |
+| `planning-artifacts/detailed-design/` | Contracts, ports and adapters, the schema (the migrations the service runs: `001_tezg_schema.sql`, then `002` and `003` for the TRM circuit breaker), OpenAPI, DTOs, events, UI states |
+| `planning-artifacts/epics.md`, `epics.source.mjs` | The backlog: 13 epics, 72 stories, generated from the source file |
 | `planning-artifacts/implementation-readiness-report.md` | The planning readiness gate: PRD, UX and architecture aligned (PASS) |
 | `planning-artifacts/sprint-readiness-report.md` | The sprint readiness gate on the backlog (IR-PASS) |
 | `planning-artifacts/reviews/` | Every review of the planning artifacts, each with its triage |
 | `planning-artifacts/architecture-audit-impl2.md` | Winston's close-phase architecture audit of Impl-2 (run after the code, not shift-left): a verdict per rubric line, evidence tables, the findings for Mateo, and (§10) their fixes with the recomputed verdicts, all PASS |
 | `planning-artifacts/.memlog.md`, `.memlog-detailed-design.md` | The process logs of the PRD and of the detailed design |
-| `test-artifacts/` | The ATDD, fitness and NFR suites, fixtures, the CI gate mirror (`ci/`), test design (`test-design.md`, with the Impl-2 flows in §7), NFR evidence, the traceability matrix (the final trace and quality gate, `traceability-matrix.md`), the test review (`test-review.md`), the Playwright journeys and their Page Objects (`e2e/`, `e2e/pages/`), the k6 load script and its seed (`nfr/k6/`) and the run evidence (`evidence/impl2/`: the red and green logs, `k6-summary.json` and one `trace.zip` per journey in `traces/`) |
+| `test-artifacts/` | The ATDD, fitness and NFR suites, fixtures, the CI gate mirror (`ci/`), test design (`test-design.md`, with the Impl-2 flows in §7), NFR evidence, the traceability matrix (the final trace and quality gate, `traceability-matrix.md`), the test review (`test-review.md`), the Playwright journeys and their Page Objects (`e2e/`, `e2e/pages/`), the k6 load script and its seed (`nfr/k6/`) and the run evidence (`evidence/impl2/`: the red and green logs, `k6-summary.json`, `ci-runs.json` (the CI runs), one `trace.zip` per journey in `traces/` and in `traces-ci/` (captured on CI), and `SHA256SUMS`, the SHA-256 digest of every one of them, checked by `npm run gate:evidence`) |
 | `implementation-artifacts/` | `sprint-status.yaml`, one file per story, `deferred-work.md`, `walkthrough-impl1.md` (the Impl-1 stories) and `walkthrough-impl2.md` (the Impl-2 stories, flows and evidence) |
 | `decision-logs/` | The human/AI decision log of every task from Plan-1 on. They are records, not versions of one another, so all are kept |
 
@@ -40,5 +40,6 @@ The code depends on several of these paths, so moving a file here means updating
 
 - `planning-artifacts/detailed-design/schemas/`: the migration runner (`scripts/lib/migrations.mjs`), `next.config.ts`, the API generator, `.dockerignore`;
 - `test-artifacts/`: `vitest.config.ts`, `tsconfig.json`, `tools/lint/base.mjs`;
+- `test-artifacts/evidence/impl2/`: `scripts/evidence-sums.mjs` (`gate:evidence` checks every file against `SHA256SUMS`, so adding, editing or moving a file there needs `npm run gen:evidence`), and `scripts/gen-solu2-trace.mjs`, which reads `k6-summary.json` and `ci-runs.json`;
 - `implementation-artifacts/sprint-status.yaml`, `planning-artifacts/epics.md`, `detailed-design/contracts.md`, `prd.md`, `ux/C-UX-Scenarios/` and the four Solu-2 reviews: the `gate:*` scripts in `package.json`, the generators and readiness audit in `scripts/`, and `_bmad/custom/bmad-sprint-planning.toml`;
 - `test-artifacts/ci/quality-gate.yml`: must stay byte-identical to `.github/workflows/solu2-quality-gate.yml`.

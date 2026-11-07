@@ -15,7 +15,7 @@
 
 <br/>
 
-![Status](https://img.shields.io/badge/status-Impl--2%3A%2071%20of%2071%20stories%20done-brightgreen?style=for-the-badge)
+![Status](https://img.shields.io/badge/status-Impl--2%3A%2072%20of%2072%20stories%20done-brightgreen?style=for-the-badge)
 ![Region](https://img.shields.io/badge/region-Colombia-8A2BE2?style=for-the-badge)
 ![Made with BMAD](https://img.shields.io/badge/planned%20with-BMAD%2FWDS-2596BE?style=for-the-badge)
 
@@ -86,10 +86,11 @@ npm run dev               # http://localhost:3000
 | Command | What it does |
 |---|---|
 | `npm test` | `npm run db:up`, then `npm run test:ci` |
-| `npm run test:ci` | The full suite against a running PostgreSQL: lint, the dependency, no-sleep and Prisma gates, the unit tests with the 90 % per-file branch threshold on the domain cores, then `gate:impl1` (typecheck, the Solu-2 contract gates, the trace gate, `gate:purity`, the fitness suite and the red gates for the ATDD tests and NFR benchmarks). CI runs this command; it takes about 15 minutes, because the benchmarks run one file at a time |
-| `npx playwright test` | The E2E journeys: it starts the Compose PostgreSQL, recreates the `tezg_e2e` database, builds and serves the app on port 3100, and runs the specs through their Page Objects (`trace: 'on-first-retry'`) |
+| `npm run test:ci` | The full suite against a running PostgreSQL: lint, the dependency, no-sleep, evidence-checksum and Prisma gates, the unit tests with the 90 % per-file branch threshold on the domain cores, then `gate:impl1` (typecheck, the Solu-2 contract gates, the trace gate, `gate:purity`, the fitness suite and the red gates for the ATDD tests and NFR benchmarks). CI runs this command; it takes about 12 minutes, most of it the benchmarks, which run one file at a time |
+| `npx playwright test` | The E2E journeys: it starts the Compose PostgreSQL, recreates the `tezg_e2e` database, builds and serves the app on port 3100, and runs the specs through their Page Objects, with axe-core WCAG scans (`trace: 'on-first-retry'`) |
 | `npm run nfr:k6` | The k6 load run: it seeds `tezg_k6`, serves the production build on port 3200 and runs `grafana/k6` in Docker at a fixed arrival rate; it fails on any p95, p99, error-rate, 5xx or dropped-iteration threshold |
 | `npm run gate:no-sleep` | Refuses timed waits (`waitForTimeout`, `pg_sleep`, promise sleeps) everywhere, and locators built in a Playwright spec |
+| `npm run gate:evidence` | Recomputes the SHA-256 digest of every run-evidence file in `_bmad-output/test-artifacts/evidence/impl2/` and fails if one differs from `SHA256SUMS`, is missing or is not listed; `npm run gen:evidence` rewrites `SHA256SUMS` |
 | `npm run test:unit` | The unit and integration tests colocated with the code (`*.test.ts`) |
 | `npm run lint` | ESLint, run from its own toolchain in `tools/lint/` |
 | `npm run typecheck` | TypeScript 7, no emit |
@@ -119,7 +120,7 @@ Windows (WinNAT/Hyper-V) can reserve a port range that includes 55432. `npm run 
 
 ## What Impl-2 delivers
 
-Impl-2 is closed: all 71 stories of the 13 epics are `done`. It built the 7 stories Impl-1 reserved and two new ones, 1.6 (the jobs route, single-flight behind `JOBS_SECRET`) and 2.6 (sign-up, sign-in and the throttle), each paired with a testing flow: ATDD-first with the red run committed before the code, test-along, the hardening of the Impl-1 tests, the NFR gate (k6 and concurrency hammers) and Playwright journeys through Page Objects, with one committed `trace.zip` per journey. The final trace (`traceability-matrix.md`) awards **PASS**, and the CI workflow `impl2-quality-gate` releases only when the suite, the journeys and k6 all pass. Every registry procedure is now wired, and the service has its first pages: sign-in, the inbox, the binder and the public seller profile.
+Impl-2 is closed: all 72 stories of the 13 epics are `done`. It built the 7 stories Impl-1 reserved and three new ones: 1.6 (the jobs route, single-flight behind `JOBS_SECRET`), 2.6 (sign-up, sign-in and the throttle) and 4.6 (a circuit breaker on the TRM source, shared in Postgres). Each is paired with a testing flow: ATDD-first with the red run committed before the code, test-along, the hardening of the Impl-1 tests, the NFR gate (k6 and concurrency hammers) and Playwright journeys through Page Objects with axe-core WCAG scans, and one committed `trace.zip` per journey, captured locally and on CI. The final trace (`traceability-matrix.md`) awards **PASS**, and the CI workflow `impl2-quality-gate` releases only when the suite, the journeys and k6 all pass. A close-phase architecture audit (Winston) found three MEDIUM and seven LOW findings; nine are fixed and one is accepted. Every run-evidence file has its SHA-256 digest in `SHA256SUMS`, checked by `npm run gate:evidence`. Every registry procedure is now wired, and the service has its first pages: sign-in, the inbox, the binder and the public seller profile. One item is open: re-run on the current code, the k6 load run fails on the 2-connection runtime pool, and the fix is a decision for the team ([`docs/impl-2/README.md`](docs/impl-2/README.md), "Known deferrals").
 
 Where each Impl-2 deliverable is, what changed in each artifact and how to run everything: [`docs/impl-2/README.md`](docs/impl-2/README.md). The walkthrough: [`walkthrough-impl2.md`](_bmad-output/implementation-artifacts/walkthrough-impl2.md).
 
