@@ -365,7 +365,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - P3 `period ∈ {7, 30, 90}`, default 30. Violation: `RequestValidationFailed`.
 - **Postcondition (Q):**
   - Q1 One element per input id, in input order. Two indexed statements (AD-CAT-2 rule 4):
-    - the latest observation per entry, `DISTINCT ON` ordered by `("observedAt" DESC, source ASC, id ASC)` (deterministic tie-break, Solu-1 review F-11);
+    - the latest observation per entry, ordered by `("observedAt" DESC, source ASC, id ASC)` (deterministic tie-break, Solu-1 review F-11): one `LIMIT 1` walk of `reference_price_as_of` per distinct id (decision log Impl-2 #36);
     - the latest observation at or before `now − period days`, as the baseline.
   - Q2 `changePercentHundredths = changePercent(baseline.cop, latest.cop)`, by the ADD-§2.2 BigInt formula, rounded half away from zero. It is `null` when there is no baseline or `baseline.cop = 0`.
   - Q3 Zero writes; a read path. No audit.

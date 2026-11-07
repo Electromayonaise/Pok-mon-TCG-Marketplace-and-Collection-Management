@@ -248,10 +248,21 @@ export class PgCatRepository implements CatRepository {
     return new Set(rows.map((r) => r.id));
   }
 
+  /**
+   * Per entry, its latest observation at or before `asOf` (ties by source, then id), or none: one `LIMIT 1` walk of
+   * `reference_price_as_of` ("catalogEntryId", "observedAt" DESC, source, id) per distinct id, so the read touches one row
+   * per entry instead of sorting every observation of the batch (decision log Impl-2 #36: a 480-entry batch sorted 43,200
+   * rows, spilling to disk, to keep 480). An entry with no observation by `asOf` has no row: no price is made up.
+   */
   async latestObservations(tx: Tx, ids: CuidId[], asOf: IsoInstant): Promise<Map<CuidId, ObservedPriceDTO>> {
     const { rows } = await tx.query<ObservedRow & { catalogEntryId: CuidId }>(
-      `SELECT DISTINCT ON ("catalogEntryId") "catalogEntryId", ${OBSERVED_COLUMNS} FROM "ReferencePriceObservation"
-       WHERE "catalogEntryId" = ANY($1) AND "observedAt" <= $2 ORDER BY "catalogEntryId", "observedAt" DESC, source, id`,
+      `SELECT e.id AS "catalogEntryId", ${OBSERVED_COLUMNS}
+       FROM (SELECT DISTINCT unnest($1::text[]) AS id) e
+       CROSS JOIN LATERAL (
+         SELECT * FROM "ReferencePriceObservation" r
+         WHERE r."catalogEntryId" = e.id AND r."observedAt" <= $2
+         ORDER BY r."observedAt" DESC, r.source, r.id LIMIT 1
+       ) o`,
       [ids, asOf],
     );
     return new Map(rows.map((r) => [r.catalogEntryId, observed(r)]));
