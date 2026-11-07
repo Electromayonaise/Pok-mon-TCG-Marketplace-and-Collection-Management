@@ -45,7 +45,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 
 ## 2. CI evidence
 
-*Each test file is run by one command, and that command runs in one job of `.github/workflows/impl2-quality-gate.yml`. The `release` job prints `Quality gate: PASS` only when `gate`, `e2e` and `nfr-k6` all pass. `npm run test:ci` (the `gate` job, and `npm test` locally) chains lint, the dependency, no-sleep and Prisma gates, `test:unit`, and `gate:impl1`, which runs this trace check, the fitness functions and both red gates.*
+*Each test file is run by one command, and that command runs in one job of `.github/workflows/impl2-quality-gate.yml`. The `release` job prints `Quality gate: PASS` only when `gate`, `e2e` and `nfr-k6` all pass. `npm run test:ci` (the `gate` job, and `npm test` locally) chains lint, the dependency, no-sleep, evidence-checksum and Prisma gates, `test:unit`, and `gate:impl1`, which runs this trace check, the fitness functions and both red gates.*
 
 | Test files | Vitest project / runner | Command | CI job | What the command requires |
 |---|---|---|---|---|
@@ -55,6 +55,8 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | `src/**/*.test.ts`, `app/**/*.test.ts` | impl1-unit | `npm run test:unit` | `gate` | always green, with ≥ 90 % branch coverage per file of `src/modules/*/domain/**` |
 | `e2e/*.spec.ts` (Page Objects in `e2e/pages/`) | Playwright (chromium) | `npx playwright test` | `e2e` | every journey passes against the production build; Page Objects only, web-first assertions |
 | `nfr/k6/*.js` | k6 (grafana/k6 in Docker) | `npm run nfr:k6` | `nfr-k6` | p95, p99, error-rate, 5xx and dropped-iteration thresholds at a fixed arrival rate |
+
+**CI runs and signed evidence.** The CI sign-off is run [41964862300](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41964862300) of `.github/workflows/impl2-quality-gate.yml` on commit `cdb295b`: its `release` job printed `Quality gate: PASS` (decision log Impl-2 #29, #30), and its Playwright traces are committed in `evidence/impl2/traces-ci/`. The 3 recorded runs ([41901553179](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41901553179) `Quality gate: FAIL`, [41922563597](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41922563597) `Quality gate: PASS`, [41964862300](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41964862300) `Quality gate: PASS`) are excerpted in `evidence/impl2/32-ci-run.log` and listed in `evidence/impl2/ci-runs.json`. The re-audit commits after it (decision log Impl-2 #31 to #37: Story 4.6, the axe-core scans, the architecture fixes, the pool timeout and the price read) are not on CI yet. They passed the same gate locally: `npm run test:ci` exited 0 in evidence logs 33, 35, 36 and 37, and `npx playwright test` passed 6 of 6 in logs 34 to 37. Every file of `evidence/impl2/` (the run logs, `k6-summary.json`, `ci-runs.json` and the `trace.zip` files of `traces/` and `traces-ci/`) has its SHA-256 digest in `evidence/impl2/SHA256SUMS`, written by `scripts/evidence-sums.mjs` (`npm run gen:evidence`). `npm run gate:evidence`, a step of `npm run test:ci`, recomputes every digest and fails when a listed file changed or is missing, or when a file is not listed; `sha256sum -c SHA256SUMS` inside the folder checks the same digests.
 
 ## 3. Gate summary
 

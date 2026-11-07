@@ -23,6 +23,7 @@ const EPICS = '_bmad-output/planning-artifacts/epics.md';
 const STATUS = '_bmad-output/implementation-artifacts/sprint-status.yaml';
 const OUT = '_bmad-output/test-artifacts/traceability-matrix.md';
 const K6_SUMMARY = '_bmad-output/test-artifacts/evidence/impl2/k6-summary.json';
+const CI_RUNS = '_bmad-output/test-artifacts/evidence/impl2/ci-runs.json';
 const RUN_BEGIN = '<!-- real-run:begin (written by `node scripts/gen-solu2-trace.mjs --real-run`; ignored by --check) -->';
 const RUN_END = '<!-- real-run:end -->';
 const check = process.argv.includes('--check');
@@ -342,12 +343,21 @@ P(`**Waived to the launch checklist** (\`nfr-evidence.md\`, "Deferred — launch
 P();
 P('## 2. CI evidence');
 P();
-P('*Each test file is run by one command, and that command runs in one job of `.github/workflows/impl2-quality-gate.yml`. The `release` job prints `Quality gate: PASS` only when `gate`, `e2e` and `nfr-k6` all pass. `npm run test:ci` (the `gate` job, and `npm test` locally) chains lint, the dependency, no-sleep and Prisma gates, `test:unit`, and `gate:impl1`, which runs this trace check, the fitness functions and both red gates.*');
+P('*Each test file is run by one command, and that command runs in one job of `.github/workflows/impl2-quality-gate.yml`. The `release` job prints `Quality gate: PASS` only when `gate`, `e2e` and `nfr-k6` all pass. `npm run test:ci` (the `gate` job, and `npm test` locally) chains lint, the dependency, no-sleep, evidence-checksum and Prisma gates, `test:unit`, and `gate:impl1`, which runs this trace check, the fitness functions and both red gates.*');
 P();
 P('| Test files | Vitest project / runner | Command | CI job | What the command requires |');
 P('|---|---|---|---|---|');
 const globs = { atdd: '`atdd/*.test.ts`', nfr: '`nfr/*.test.ts`', fitness: '`fitness/`, `fixtures/`', unit: '`src/**/*.test.ts`, `app/**/*.test.ts`', e2e: '`e2e/*.spec.ts` (Page Objects in `e2e/pages/`)', k6: '`nfr/k6/*.js`' };
 for (const [k, r] of Object.entries(RUNNERS)) P(`| ${globs[k]} | ${r.project} | \`${r.command}\` | \`${r.job}\` | ${r.rule} |`);
+P();
+{
+  // The CI runs and the evidence checksums (learning objective 7: a sign-off backed by cryptographic logs; decision log Impl-2 #31).
+  const ci = JSON.parse(read(CI_RUNS));
+  const run = ci.runs.find((r) => r.run === ci.signOff);
+  if (!run) throw new Error(`${CI_RUNS}: signOff ${ci.signOff} is not one of its runs`);
+  const url = (r) => `[${r.run}](${ci.repository}/actions/runs/${r.run})`;
+  P(`**CI runs and signed evidence.** The CI sign-off is run ${url(run)} of \`${ci.workflow}\` on commit \`${run.commit}\`: its \`release\` job printed \`${run.release}\` (decision log Impl-2 ${run.decisionLog}), and its Playwright traces are committed in \`evidence/impl2/${run.traces}\`. The ${ci.runs.length} recorded runs (${ci.runs.map((r) => `${url(r)} \`${r.release}\``).join(', ')}) are excerpted in \`evidence/impl2/${ci.log}\` and listed in \`evidence/impl2/ci-runs.json\`.${ci.since ? ` ${ci.since}` : ''} Every file of \`evidence/impl2/\` (the run logs, \`k6-summary.json\`, \`ci-runs.json\` and the \`trace.zip\` files of \`traces/\` and \`traces-ci/\`) has its SHA-256 digest in \`evidence/impl2/SHA256SUMS\`, written by \`scripts/evidence-sums.mjs\` (\`npm run gen:evidence\`). \`npm run gate:evidence\`, a step of \`npm run test:ci\`, recomputes every digest and fails when a listed file changed or is missing, or when a file is not listed; \`sha256sum -c SHA256SUMS\` inside the folder checks the same digests.`);
+}
 P();
 P('## 3. Gate summary');
 P();
