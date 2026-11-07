@@ -50,7 +50,7 @@ Every Impl-2 story kept the module layout of Impl-1: a pure `domain/`, an `appli
 |---|---|---|
 | Job route | `src/server/jobs.ts`, `app/api/jobs/[job]/route.ts` | Parses the bearer, the job name and the trigger, then runs the job and answers JSON |
 | Job runner and lock | `src/shared-kernel/jobs.ts`, `src/shared-kernel/infra/pg-jobs.ts` | Writes one `JobRun` row per run and keeps the run single-flight under `pg_try_advisory_xact_lock(hashtextextended('job:<name>', 0))` |
-| Runtime pool | `src/server/db.ts:23` | `RUNTIME_POOL = { max: 2, connectionTimeoutMillis: 10_000 }`: one connection for a job's lock, one for its work, and a checkout that fails after 10 s instead of waiting forever (#34, #35) |
+| Runtime pool | `src/server/db.ts:28`, `src/shared-kernel/config.ts:13` | `runtimePool(url, { max })` with `RUNTIME_POOL = { connectionTimeoutMillis: 10_000 }`; `max` is `TEZG_PG_POOL_MAX` (2 to 50, default 2): at least one connection for a job's lock and one for its work, 2 on serverless instances and 10 on long-lived servers, and a checkout that fails after 10 s instead of waiting forever (#34, #35, #38) |
 | Job bearer | `src/modules/identity/application/gate.ts:45` | Hashes both sides with SHA-256 and compares them with `timingSafeEqual`. An empty secret matches nothing |
 | Auth guard | `src/server/auth-routes.ts`, `src/server/auth.ts` | Runs the AD-IDN-3 throttle before Better Auth checks the password, and records failures after it (#12) |
 | TRM circuit breaker | `src/modules/catalog/domain/breaker.ts`; the `"FxSourceBreaker"` row (migrations `002_fx_source_breaker.sql`, `003_fx_source_breaker_version.sql`) | A pure state machine whose one shared row moves under `FOR UPDATE` with a state and version predicate (§3.1) |
@@ -140,7 +140,7 @@ AssertionError: expected { state: 'closed', …(5) } to match object { state: 'o
 |---|---|---|---|
 | **An outbox subscriber keeps failing** | Each attempt is counted before it runs. After 3 attempts the delivery is `failed` with `DeliveryAttemptsExhausted` and is never retried automatically. An admin replays it once, by hand, and the replay is logged. The admin badge counts failed and stuck deliveries live, and the health read returns the latest `FailedDeliveryDigest` row. The daily job that writes that row is one of the four jobs deferred to launch (audit F4) | `MAX_ATTEMPTS = 3` (`src/shared-kernel/dispatcher.ts:45`, `:165-172`); replay rule `ARCHITECTURE.md:338`; `src/shared-kernel/admin-events.ts:91` | `[SYS-2.R4]` (`atdd/sys_contracts.test.ts:91`), `[SYS-2.R6]` (`:115`), `[S-SYS.replay.h]` (`:285`), `[S-SYS.sweep.h]` (`atdd/sys_jobs.test.ts:102`), `[NFR-SYS-6.sweep]` (500 undispatched events and 20 half-attempted deliveries drained once) |
 | **A job run fails or gets stuck (#35 F3)** | The runner commits a `running` row before the work starts, so a run that dies midway stays visible. A failed run answers 500 `Unexpected` with no message, and its row keeps the error code. `admin.jobs.tickHealth` returns, per job, the last outcome, the failed runs in the last 24 h and the runs still `running` 15 min after their start; any of them turns the health `degraded` with `ScheduledJobsDegraded` (a silent tick takes precedence). Page 2.3 shows it as "Tareas (24 h)" | `src/shared-kernel/jobs.ts:87-88`; `admin-events.ts:54-59` (window and stuck bound), `:134-144` (the rule) | `[S-SYS.jobs.failed]` (`sys_jobs.test.ts:92`); `[S-SYS.tick.jobs]` (`sys_contracts.test.ts:233`): "a failed trm-fetch and an expiry run stuck running for 16 min turn the health degraded" (`35-architecture-fixes.log`) |
-| **The pool is exhausted (#36)** | The runtime pool waits at most 10 s for a connection. A starved run that holds its lock writes its end in the lock's own transaction, so it ends `failed` / `Unexpected` with HTTP 500, and the health above shows it. A run refused even its lock's connection writes nothing, logs `job.lock.acquireFailed` and answers 500 | `src/server/db.ts:23`; `src/shared-kernel/jobs.ts:72-75` (lock refused), `:97-108` (the end written through `hold.release`); AD-SYS-4 rule 7 (`ARCHITECTURE.md:397`) | `[S-SYS.jobs.starved]` (`sys_jobs.test.ts:203`), bounded by a 200 ms pool timeout and no timer of its own. Two mutations make it fail: the old no-row behaviour, and a pool with no timeout, which hangs until "Test timed out in 60000ms" (`36-pool-timeout-and-bench.log`) |
+| **The pool is exhausted (#36, #38)** | The runtime pool has `TEZG_PG_POOL_MAX` connections: serverless instances use the minimum, 2 (one for a job's lock, one for its work), and long-lived servers raise it to 10 (Docker, k6, E2E), because one process serving every request on 2 connections queued the k6 profile to a p95 of 660 ms against 300 ms (§15). A value under 2 or over 50 stops the app at start-up with the variable's name. It waits at most 10 s for a connection. A starved run that holds its lock writes its end in the lock's own transaction, so it ends `failed` / `Unexpected` with HTTP 500, and the health above shows it. A run refused even its lock's connection writes nothing, logs `job.lock.acquireFailed` and answers 500 | `src/server/db.ts:28`, `src/shared-kernel/config.ts:13` (`PG_POOL_MAX`); `src/shared-kernel/jobs.ts:72-75` (lock refused), `:97-108` (the end written through `hold.release`); AD-SYS-4 rule 7 (`ARCHITECTURE.md:397`) | `[S-SYS.jobs.starved]` (`sys_jobs.test.ts:203`), bounded by a 200 ms pool timeout and no timer of its own. Two mutations make it fail: the old no-row behaviour, and a pool with no timeout, which hangs until "Test timed out in 60000ms" (`36-pool-timeout-and-bench.log`) |
 | **Reconcile runs long** | The all-accounts run stops after 50 s of Clock time and answers `ReconciliationPartial` with `accountsChecked`. It reports discrepancies and never repairs them | `RECONCILE_BATCH_MS = 50_000` (`commission/domain/com.ts:114`); `commission/application/com.v2.ts:297`, `:327` | `src/modules/commission/application/com.v2-admin.test.ts:13` ("stops once 50 s of Clock time have passed … and the next run restarts from the first account"); `[COM-3.C1]` |
 | **No mail provider is wired** | Sign-up is refused before Better Auth writes anything: 500 `Unexpected`, with no `User`, `Account` or throttle row. Sign-in keeps working | `src/server/auth-routes.ts:53` | `[S-FR-IDN-7.signup.unwired]` (`atdd/idn_auth.test.ts:88`); it was the correction of an untested AI claim (#23, §21) |
 | **A feed row is invalid or changed kind** | The row is quarantined with its reason, and the stored entry is untouched; a rerun converges | `INSERT INTO "QuarantinedFeedRow" … ON CONFLICT ("runId", "rowNumber") DO NOTHING` (`catalog/infra/pg.ts:225-228`) | `[CAT-2.QF1]` (`atdd/cat_contracts.test.ts:85`), `[CAT-2.I1]` (`:95`) |
@@ -380,39 +380,41 @@ Flow B story 8.6 has no red commit: its 4 Solu-2 tests were red on `NotImplement
 
 `npm run nfr:k6` (`scripts/nfr-k6.mjs`) migrates and seeds `tezg_k6` with the PRD §3 marketplace, serves the production build on port 3200, and runs `grafana/k6:1.4.2` in Docker. The script is `nfr/k6/reputation-profile.js`: two `constant-arrival-rate` scenarios at 100 iterations a second each for 60 s, 25 VUs pre-allocated and at most 50 per endpoint, with no `sleep()`. A `setup()` warm-up (5 batches of 25 concurrent reads per endpoint) runs first and is tagged out of the measured figures (#21, #22).
 
+Since #38 the server it starts sets `TEZG_PG_POOL_MAX=10` (§3.2): one long-lived `next start` serves the whole load, so it raises the runtime pool above the serverless minimum of 2.
+
 The table puts two passing runs side by side:
 
-- **Local:** the committed run (`k6-summary.json`, `24-k6.log`), captured 2026-11-04 on a Windows 11 laptop with Docker Desktop Postgres 16.6.
-- **CI run 3:** [41964862300](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41964862300), job `nfr-k6`, on GitHub's Ubuntu runner (`32-ci-run.log`). Its log prints the thresholds only, so the figures it does not print are marked "—".
+- **Local:** the committed run (`k6-summary.json`, `39-pool-config-k6.log`), captured 2026-11-07 at the #38 fix, on a Windows 11 laptop with Docker Desktop Postgres 16.6, with the pool at 10.
+- **CI run 3:** [41964862300](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41964862300), job `nfr-k6`, on GitHub's Ubuntu runner (`32-ci-run.log`), before audit fix F1, when the server used pg's default pool of 10. Its log prints the thresholds only, so the figures it does not print are marked "—".
 
 | Endpoint | Run | Requests | p95 | p99 | Error rate | 5xx | Dropped iterations | Thresholds | Result |
 |---|---|---|---|---|---|---|---|---|---|
-| `reputation.profile` (NFR-REP-2) | Local | 6,001 | 38.3 ms | 113.7 ms | 0.00 % | 0 | 0 | p95 < 300 ms, p99 < 800 ms, errors < 1 %, 5xx = 0, dropped < 60 | PASS |
+| `reputation.profile` (NFR-REP-2) | Local | 5,999 | 41.25 ms | 122.91 ms | 0.00 % | 0 | 2 | p95 < 300 ms, p99 < 800 ms, errors < 1 %, 5xx = 0, dropped < 60 | PASS |
 | | CI run 3 | 6,001 | 8.29 ms | 15.33 ms | 0.00 % | 0 | 0 | the same | PASS |
-| `catalog.browse` (NFR-SYS-9, NFR-CAT-1) | Local | 6,001 | 39.4 ms | 98.7 ms | 0.00 % | 0 | 0 | p95 < 1,000 ms, errors < 1 %, 5xx = 0, dropped < 60 | PASS |
+| `catalog.browse` (NFR-SYS-9, NFR-CAT-1) | Local | 6,000 | 42.80 ms | 115.40 ms | 0.00 % | 0 | 1 | p95 < 1,000 ms, errors < 1 %, 5xx = 0, dropped < 60 | PASS |
 | | CI run 3 | 6,001 | 24.02 ms | — | 0.00 % | 0 | 0 | the same | PASS |
-| All (incl. 250 warm-up requests) | Local | 12,252 | 50.6 ms | 162.9 ms | 0.00 % | 0 | 0 | errors < 1 %, 5xx = 0, dropped < 120 | PASS |
+| All (incl. 250 warm-up requests) | Local | 12,249 | 59.70 ms | 199.50 ms | 0.00 % | 0 | 3 | errors < 1 %, 5xx = 0, dropped < 120 | PASS |
 | | CI run 3 | — | — | — | 0.00 % | 0 | 0 | the same | PASS |
 
-The thresholds as k6 printed them locally (`24-k6.log`):
+The thresholds as k6 printed them locally (`39-pool-config-k6.log`):
 
 ```text
+    dropped_iterations
+    ✓ 'count<120' count=3
     http_req_duration{endpoint:browse}
-    ✓ 'p(95)<1000' p(95)=39.38ms
-
+    ✓ 'p(95)<1000' p(95)=42.79ms
     http_req_duration{endpoint:profile}
-    ✓ 'p(95)<300' p(95)=38.32ms
-    ✓ 'p(99)<800' p(99)=113.71ms
-
+    ✓ 'p(95)<300' p(95)=41.25ms
+    ✓ 'p(99)<800' p(99)=122.91ms
     http_req_failed
     ✓ 'rate<0.01' rate=0.00%
     ...
     server_errors_5xx
     ✓ 'count==0' count=0
 ...
-    checks_succeeded...: 100.00% 12002 out of 12002
-browse  ✓ [ 100% ] 00/25 VUs  1m0s  100.00 iters/s
-profile ✓ [ 100% ] 00/25 VUs  1m0s  100.00 iters/s
+    checks_succeeded...: 100.00% 11999 out of 11999
+browse  ✓ [ 100% ] 00/26 VUs  1m0s  100.00 iters/s
+profile ✓ [ 100% ] 00/27 VUs  1m0s  100.00 iters/s
 nfr-k6: k6 exited with 0
 ```
 
@@ -432,16 +434,17 @@ and on CI (`32-ci-run.log`, run 3):
     ✓ 'count==0' count=0
 ```
 
-The run before the local one, on the same tree, gave profile p95 34.4 ms and p99 156.2 ms, browse p95 36.4 ms and p99 140.3 ms, and 3 dropped iterations (`24-k6.log` header). Without the warm-up, the cold server dropped 60 and 63 iterations in its first second, which crossed the 1 % threshold on its own (#22).
+The earlier local runs, of 2026-11-04 on pg's default pool of 10 (`24-k6.log`), gave profile p95 38.3 and 34.4 ms and browse p95 39.4 and 36.4 ms, with 0 and 3 dropped iterations. Without the warm-up, the cold server dropped 60 and 63 iterations in its first second, which crossed the 1 % threshold on its own (#22).
 
-**Re-run at HEAD: k6 fails on the 2-connection pool.** Both passing runs predate audit fix F1, which set the runtime pool to `max: 2` with a 10 s checkout timeout (#34–#36); before it, the server used pg's default pool of 10. Nobody re-ran k6 after that change, so this update did, on `94b42e7`, twice on the same machine a few minutes apart (`38-reaudit-docs.log`; the committed `k6-summary.json` was restored after each run):
+**Before and after the configurable pool (#38).** Audit fix F1 set the runtime pool to `max: 2` with a 10 s checkout timeout (#34–#36), and nobody re-ran k6 after that change. The re-audit update did, on `94b42e7` (`38-reaudit-docs.log`, the "before"), and k6 failed. Mateo chose a configurable pool (#38): `TEZG_PG_POOL_MAX`, 2 to 50 and 2 by default, with 10 on the long-lived servers. The run at the fix is the "after" (`39-pool-config-k6.log`):
 
 | Pool | Profile p95 | Profile p99 | Browse p95 | Requests (browse, profile) | Errors, 5xx | Dropped iterations | k6 exit |
 |---|---|---|---|---|---|---|---|
-| `max: 2`, as committed | 659.84 ms (budget 300 ms) | 793.29 ms | 665.38 ms | 5,312, 5,343 | 0.00 %, 0 | 1,347 (budget < 120) | 99, FAIL |
-| `max: 10`, edited for the run only and reverted | 26.89 ms | 49.64 ms | 30.95 ms | 6,000, 6,001 | 0.00 %, 0 | 0 | 0, PASS |
+| `max: 2`, at `94b42e7` (log 38, before) | 659.84 ms (budget 300 ms) | 793.29 ms | 665.38 ms | 5,312, 5,343 | 0.00 %, 0 | 1,347 (budget < 120) | 99, FAIL |
+| `max: 10`, edited for the run only and reverted (log 38) | 26.89 ms | 49.64 ms | 30.95 ms | 6,000, 6,001 | 0.00 %, 0 | 0 | 0, PASS |
+| `TEZG_PG_POOL_MAX=10`, set by `scripts/nfr-k6.mjs` (log 39, after) | 41.25 ms | 122.91 ms | 42.80 ms | 6,000, 5,999 | 0.00 %, 0 | 3 | 0, PASS |
 
-With two connections, the 100 VUs of one `next start` process queue for the pool: no request fails, but the median answer takes 536 ms. AD-SYS-4 sizes `max: 2` for one serverless instance, while the k6 server is one long-lived process taking 200 requests a second. So the NFR load proof holds for the pushed code (local and CI run 3), but **not for HEAD**, and the CI `nfr-k6` job would fail on the next push. The fix is a design choice, left to Mateo (§22).
+With two connections, the 100 VUs of one `next start` process queue for the pool: no request fails, but the median answer takes 536 ms. AD-SYS-4 sizes the pool at 2 for one serverless instance, where the platform adds instances under load, while the k6 server is one long-lived process taking 200 requests a second, so it sets 10.
 
 **The other Flow D proofs** (PRD §7 benchmarks in `solu2-nfr`, values from [`nfr-evidence.md`](../test-artifacts/nfr-evidence.md) and the logs named):
 
@@ -573,7 +576,7 @@ Learning objective 4 names five NFR dimensions. The PRD's 56 NFRs are mapped to 
 |---|---|---|---|
 | **Security** | NFR-SYS-2 (0 regulated values in logs, errors and payloads), NFR-SYS-7 and NFR-IDN-3 (the actor comes from the session, never a client-claimed role), NFR-SYS-14 (throttles), NFR-SYS-8 and NFR-VER-2 (audit) | `[NFR-SYS-8.canary]`, `[SYS-8.R2]`, `[SYS-8.R2.static]`, `[S-FR-IDN-7.signin.throttle]`, `[S-FR-IDN-7.signup.throttle]`; Impl-2 adds `[S-SYS.jobs.auth]` (the job bearer), `[S-FR-COL-3.f2]` (unsafe links), `app/ingresar/destination.test.ts` (open redirect) and `src/server/ip-hmac.test.ts` | `solu2-atdd` 384 green and `solu2-nfr` 30 green (`37-price-lookup.log`); `gate:deps` "24 dependencies in 2 manifests: exact, approved, no high or critical advisory" (`34-a11y-axe.log`); the code review's F1 and F2 (#23) |
 | **Concurrency** | NFR-SYS-10 (≥ 50 real connections, 100 repetitions), NFR-INV-1 and NFR-INV-2 (no oversell), NFR-COM-1, NFR-REP-1, and the other MEC rows | the 13 hammers of §2.3, among them `[S-FR-CAT-8.breaker.C1]` and `.C2`, `[S-FR-COL-5.C1]`, `[S-FR-COM-7.C1]`, `[S-SYS.jobs.C1]`, `[COM-3.C1]`, `[S-FR-MSG-7.C1]`, `[S-FR-REP-7.C1]` | each hammer's mutation proof (§18); `33-story-4.6.log`, `35-architecture-fixes.log`, `02-flowC-lock-mutation.log`; Winston's "Concurrency defense: PASS" (§4) |
-| **Performance** | NFR-SYS-9 (commands p95 ≤ 800 ms, reads ≤ 1,000 ms), NFR-REP-2, NFR-CAT-1, NFR-COL-2, NFR-IDN-1, NFR-VAL-2 and the other 7 Performance rows | the 30 PRD §7 benchmarks in `solu2-nfr`; the k6 script `nfr/k6/reputation-profile.js` | §15: k6 locally (`24-k6.log`) and on CI run 3 (`32-ci-run.log`), both before the 2-connection pool; at HEAD k6 fails on that pool (profile p95 659.84 ms, 1,347 dropped iterations) and passes with 10 connections (`38-reaudit-docs.log`), an open decision; the benchmarks in `37-price-lookup.log` |
+| **Performance** | NFR-SYS-9 (commands p95 ≤ 800 ms, reads ≤ 1,000 ms), NFR-REP-2, NFR-CAT-1, NFR-COL-2, NFR-IDN-1, NFR-VAL-2 and the other 7 Performance rows | the 30 PRD §7 benchmarks in `solu2-nfr`; the k6 script `nfr/k6/reputation-profile.js` | §15: k6 PASS at the configurable pool of #38, `TEZG_PG_POOL_MAX=10` (profile p95 41.25 ms and p99 122.91 ms, browse p95 42.80 ms, 0.00 % errors, 0 5xx, 3 dropped iterations; `39-pool-config-k6.log`), after the FAIL on the 2-connection pool (profile p95 659.84 ms, 1,347 dropped; `38-reaudit-docs.log`); CI run 3 before the pool change (`32-ci-run.log`); the benchmarks in `37-price-lookup.log` |
 | **Resilience** | NFR-CAT-4 (the TRM job never invents a rate, and a failing source is short-circuited), NFR-SYS-6 (0 lost events), NFR-CAT-3 (0 fabricated prices), NFR-COM-2 (reconciliation difference 0) | `[S-FR-CAT-8.breaker.*]`, `[S-FR-CAT-8.f]`, `[NFR-SYS-6.sweep]`, `[SYS-2.R4]`, `[S-SYS.jobs.failed]`, `[S-SYS.jobs.starved]`, `[S-SYS.tick.jobs]`, `[CAT-3.I1]`, `[NFR-COM-2.drift]` | §3; `33-story-4.6.log`, `35-architecture-fixes.log`, `36-pool-timeout-and-bench.log`, `15-story-8.5-green.log`; Winston's "Graceful degradation and circuit breakers: PASS" (§4) |
 | **Usability** | NFR-SYS-11 (WCAG 2.2 AA), NFR-ORD-4 (a paid order waiting 7 days shows the waiting state and the support contact), NFR-SYS-1 and NFR-SYS-13 (every decision explained, every code with its message) | the 14 axe-core scans in the 6 journeys (§16); `[SYS-1.R6]` ("every registry code formats with its family status, an es-CO message and a cited decision"); the journeys that assert es-CO text (the sign-in refusal, the Not-available page); `[S-FR-ORD-10.h]` | `34-a11y-axe.log` (14 scans, 0 violations, a planted violation fails); `gate:ui:solu2` "43 pages, 328 states (139 data, 77 refusal, 112 client), 0 problems" (`37-price-lookup.log`). The manual WCAG audit (screen reader, keyboard walk-through, contrast of dynamic states) is deferred to launch (#33) |
 
@@ -609,7 +612,7 @@ EXIT 0
   - **Run 2** ([41922563597](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41922563597)): `Quality gate: PASS`, but a green run records no trace, so the forensic trace step was added (#29).
   - **Run 3** ([41964862300](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41964862300), `cdb295b`): `gate=success e2e=success nfr-k6=success`, `Quality gate: PASS`. The run had 729 unit tests (97.49 % branches), the trace gate PASS, `solu2-atdd` 373 green, `solu2-nfr` 30 green, Playwright 6 passed twice, and k6 profile p95 8.29 ms, p99 15.33 ms, browse p95 24.02 ms, 0.00 % errors and 0 dropped iterations. Six `trace.zip` files were uploaded. This is the CI sign-off.
 
-  The 23 re-audit commits and this update are local, so CI has not run them yet. They passed the same gate locally: `npm run test:ci` exited 0 in evidence logs 33, 35, 36 and 37, and `npx playwright test` passed 6 of 6 in logs 34 to 37. The `nfr-k6` job was not run locally after the pool change of #35; run now, it fails (§15), so a push of HEAD would end `Quality gate: FAIL` until that is decided.
+  The 23 re-audit commits and this update are local, so CI has not run them yet. They passed the same gate locally: `npm run test:ci` exited 0 in evidence logs 33, 35, 36 and 37, and `npx playwright test` passed 6 of 6 in logs 34 to 37. The `nfr-k6` job was not run locally after the pool change of #35, and when run it failed (§15). With the configurable pool of #38 it passes again, and at that fix `npm run nfr:k6`, `npx playwright test` (6 of 6) and `npm run test:ci` (exit 0) were all re-run (`39-pool-config-k6.log`).
 - **Signed evidence.** Learning objective 7 asks for a sign-off "backed by cryptographic logs and test runner execution reports". [`SHA256SUMS`](../test-artifacts/evidence/impl2/SHA256SUMS) holds the SHA-256 digest of every file in `evidence/impl2/`: the run logs `00`–`38`, `k6-summary.json`, `ci-runs.json` (the CI runs and the sign-off run, which the trace generator reads) and the 12 `trace.zip` files of `traces/` and `traces-ci/`. `scripts/evidence-sums.mjs` writes it in the standard `sha256sum` format (`npm run gen:evidence`). `npm run gate:evidence` runs inside `test:ci`; it recomputes every digest and fails when a listed file changed or is missing, or when a file is not listed. `sha256sum -c SHA256SUMS`, run inside the folder, checks the same digests without Node. The trace's §2 names the CI sign-off run and this file. The digests are generated last, after every other evidence file is final (`38-reaudit-docs.log`).
 
 ## 21. AI governance: corrections of AI testing mistakes
@@ -643,7 +646,6 @@ Every open item has an owner in [`deferred-work.md`](deferred-work.md), in the s
 - **UI phase.** The full pages behind the three slices (composer, filters, sort direction, wishlist page, moderation pages 11.3–11.4 with the merged-log cursors, F6 of the code review), page 2.3 with the breaker and the job health, and a typed es-CO formatter for instants and money (F5).
 - **CI owner.** The serial benchmarks take most of the gate's 11–13 minutes (`36-pool-timeout-and-bench.log`, `37-price-lookup.log`).
 - **Not yet on CI.** The re-audit commits (§20).
-- **The k6 load proof fails at HEAD** (§15). It passes with a 10-connection pool and fails with the committed `max: 2`. Open for a decision before the branch is pushed.
 
 ## 23. How to reproduce
 
@@ -656,4 +658,4 @@ npm run gate:evidence                      # recompute every digest of SHA256SUM
 npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/cat_breaker.test.ts   # one story's bound tests
 ```
 
-All of them need Docker and nothing in `.env`: the tests compose their own configuration, and Playwright and k6 pass local `JOBS_SECRET`, `BETTER_AUTH_SECRET` and `IP_HMAC_KEY` values to the server they start. `npm run nfr:k6` rewrites `k6-summary.json`, so after a local k6 run `gate:evidence` fails until you restore the committed file (`git checkout -- <path>`) or record the new one with `npm run gen:evidence`. [`docs/impl-2/README.md`](../../docs/impl-2/README.md) has the full command list.
+All of them need Docker and nothing in `.env`: the tests compose their own configuration, and Playwright and k6 pass local `JOBS_SECRET`, `BETTER_AUTH_SECRET` and `IP_HMAC_KEY` values to the server they start, with `TEZG_PG_POOL_MAX=10` (#38). `npm run nfr:k6` rewrites `k6-summary.json`, so after a local k6 run `gate:evidence` fails until you restore the committed file (`git checkout -- <path>`) or record the new one with `npm run gen:evidence`. [`docs/impl-2/README.md`](../../docs/impl-2/README.md) has the full command list.
