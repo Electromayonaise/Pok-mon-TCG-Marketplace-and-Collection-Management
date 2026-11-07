@@ -732,3 +732,25 @@
   - Docs: `ARCHITECTURE.md` (AD-SYS-4), `ports-and-adapters.md`, `contracts.md`, `deferred-work.md`.
   - Generated: `epics.source.mjs`, `epics.md`, `traceability-matrix.md`.
 - **Decided by:** Mateo.
+
+
+### 37. The as-of price read is one indexed `LIMIT 1` per card; the valuation benchmarks run 3–4.5× faster with the same rows (Performance)
+
+- **Phase:** C (close), in a subagent (`f024606`, `8d8fd4d`), as decided in #36.
+- **Persona/Skill:** `bmad-dev-story` (Amelia), `bmad-testarch-nfr` (Murat).
+- **AI output (summary):**
+  - **Query:** `latestObservations` (`catalog/infra/pg.ts`) serves VAL's `getReferencePricesAsOf` and CAT-1's `getPriceProvenance`.
+    - Before, it was a `DISTINCT ON` that sorted all 43,200 observations for 480 cards: an external merge on disk, 48–61 ms.
+    - Now it `unnest`s the ids and runs a LATERAL `ORDER BY "observedAt" DESC, source, id LIMIT 1` per id over the existing `reference_price_as_of` index: no Sort node and no temp I/O, 2.5 ms. No migration was needed.
+  - **Same rows:** both statements return identical rows for the 480 ids plus an unpriced card, a sealed one and a duplicate id, at three instants, and for a two-source tie. AD-CAT-2 is unchanged: the latest observation at or before asOf, ties by source then id, never a fabricated price. AD-CAT-2 rule 4 and CAT-1 Q1 describe the new statement.
+  - **Benchmarks** (3 solo runs each, median, before → after):
+    - current: 40.7 → 12.8 s, p95 87.5 → 20.0 ms;
+    - trend: 100.6 → 22.2 s, p95 197.0 → 44.7 ms;
+    - 365-day history: unchanged path, p95 259.6 → 296.7 ms, which is machine noise.
+  - **Thresholds and bounds:** thresholds, dataset and iterations are unchanged. The trend's explicit 600 s bound goes back to the project's 300 s, about 13× its run time.
+  - **Gate:** `test:ci` exit 0 in 11 min 43 s (13 min 24 s before). Unit 757, branch coverage 97.56 %, trace PASS, `solu2-atdd` 384 green, `solu2-nfr` 30 green. No CAT or VAL assertion changed. Playwright 6 / 6.
+- **Agent default:** the 365-day history query, the longest NFR test at about 130 s, is left as is. Most of its time is returning about 43k rows, not a sort.
+- **Human decision:** none new (#36 decided it).
+- **Evidence:** `evidence/impl2/37-price-lookup.log`: both statements, the same-row checks, `EXPLAIN (ANALYZE, BUFFERS)` before and after, 15 benchmark runs, the gate and Playwright.
+- **Artifact changed:** `src/modules/catalog/infra/pg.ts`, `nfr/val2_latency.test.ts`, `ARCHITECTURE.md` (AD-CAT-2 rule 4), `contracts.md` (CAT-1 Q1), `nfr-evidence.md`.
+- **Decided by:** Mateo (#36).
