@@ -703,3 +703,32 @@
   - Code and tests: `src/server/db.ts`, the shared-kernel admin events and tick health, the catalog breaker, `test-support/single-connection.ts`, and the new tests.
   - Regenerated: `epics.md`, `traceability-matrix.md`, `openapi.yaml`, `messages.generated.ts`, `ui-states.md`, `prisma/schema.prisma`.
 - **Decided by:** Mateo.
+
+
+### 36. A starved job run fails visibly instead of hanging; the slow benchmark is slow in its measured calls, not its setup, so the price lookup is optimised (Architecture + Testing)
+
+- **Phase:** C (close), in a subagent (`811dceb`, `0370255`, `d15e57b`); then menus.
+- **Persona/Skill:** `bmad-dev-story` (Amelia), `bmad-testarch-nfr` (Murat).
+- **Prompt (summary):** carry out #35: give the runtime pool a checkout timeout, and investigate the slow `[NFR-VAL-2.trend]`.
+- **AI output (summary):**
+  - **Pool:** `RUNTIME_POOL = { max: 2, connectionTimeoutMillis: 10_000 }`. That is far above a healthy checkout and far below the 50 s batch bound.
+    - The timeout alone was not enough: the runner, refused a connection for its `running` row, threw and left no row. `JobHold.release(last)` now writes the run's end in the lock's own transaction, which needs no further connection.
+    - A starved run that holds its lock ends `failed` / `Unexpected` with HTTP 500, and the tick health (#35 F3) shows it.
+    - A run refused even its lock's connection writes no row, logs `job.lock.acquireFailed` and answers 500.
+    - New test `[S-SYS.jobs.starved]`, with a 200 ms test timeout. Two mutations make it fail: the old no-row behaviour, and a pool with no timeout.
+  - **Test edit:** `[S-SYS.jobs.pool]`'s refused pool-of-1 run now expects a fifth row, `failed` / `Unexpected`, where it used to expect none.
+  - **Benchmark: the root cause is not the seeding.** The seed takes 4.5 s and is already bulk SQL. About 92 % of the time is the 550 measured calls; each sorts 43,200 price rows to keep 480 and spills about 1.8 MB to disk.
+    - Run 1's 600 s timeout came from a machine about 6× slower that day: 79 minutes for the gate, against 13.
+    - Three solo runs took 97–102 s, with p95 193–212 ms. The workload, threshold and 600 s bound are unchanged.
+  - **Correction of the main agent:** #35 said the benchmark "passed alone in 256 s"; that was the whole 3-test file. The trend test alone takes about 100 s.
+  - **Gate:** `test:ci` exit 0 in 13 min 24 s. Unit 757; trace PASS with 430 ids; `solu2-atdd` 384 green; `solu2-nfr` 30 green. Playwright 6 / 6.
+- **Human decisions (menus):**
+  - **Price lookup:** **(recommended)** optimise it now. It becomes one indexed `LIMIT 1` per card: the same 480 rows in 7 ms instead of 61 ms, with no disk spill, about 5× faster on the VAL-2 benchmarks. It is guarded by the existing CAT and VAL tests, which stay unchanged, and the before and after p95 are recorded. The alternatives were a launch deferral, or accepting it. ACCEPT.
+  - **Starved-run code:** **(recommended)** keep `Unexpected`. Starvation is an infrastructure fault, and the `job.lock.*` log names it. The alternative was a new code, `JobPoolExhausted`. ACCEPT.
+  - **Edited assertion:** **(recommended)** accept the change to `[S-SYS.jobs.pool]`. The old assertion encoded the hang-prone behaviour #35 removed, and two mutations make the new one fail. The alternative was reverting it and proving the fifth row only in `[S-SYS.jobs.starved]`. ACCEPT.
+- **Evidence:** `evidence/impl2/36-pool-timeout-and-bench.log`.
+- **Artifact changed:**
+  - Code and tests: `src/server/db.ts`, `src/shared-kernel/jobs.ts`, `infra/pg-jobs.ts`, the runner, route and jobs tests, `atdd/sys_jobs.test.ts`, `nfr/val2_latency.test.ts` (its header comment).
+  - Docs: `ARCHITECTURE.md` (AD-SYS-4), `ports-and-adapters.md`, `contracts.md`, `deferred-work.md`.
+  - Generated: `epics.source.mjs`, `epics.md`, `traceability-matrix.md`.
+- **Decided by:** Mateo.
