@@ -1,7 +1,9 @@
 // The Playwright web server (bmad-testarch-framework, decision log Impl-2 #10). So that
 // `npx playwright test` is the one command, it starts the Compose Postgres (skipped in CI, which
 // has a service container), recreates and migrates the dedicated `tezg_e2e` database, builds the
-// app and serves the production build on E2E_PORT. Specs seed their own rows into `tezg_e2e`.
+// app and serves the production build on E2E_PORT. Specs seed their own rows into `tezg_e2e`. The app's
+// variables, TEZG_PG_POOL_MAX=10 for this long-lived server included (decision log Impl-2 #38), come from
+// playwright.config.ts's webServer env.
 // Usage: node scripts/e2e-server.mjs   (Playwright's webServer runs it; see playwright.config.ts)
 import { spawn, spawnSync } from 'node:child_process';
 

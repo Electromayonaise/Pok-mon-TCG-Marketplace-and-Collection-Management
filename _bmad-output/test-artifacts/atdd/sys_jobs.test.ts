@@ -11,6 +11,7 @@ import { FixtureFxRateSource } from '../../../test-support/simulated/index.js';
 import { boundedPool } from '../../../test-support/single-connection.js';
 import { PG } from '../../../test-support/env.js';
 import { RUNTIME_POOL, runtimePool } from '../../../src/server/db.js';
+import { loadConfig, PG_POOL_MAX } from '../../../src/shared-kernel/config.js';
 import { PgJobLocks } from '../../../src/shared-kernel/infra/pg-jobs.js';
 import { at, business, commissionAccount, HOUR, id, ins, order, purchasableListing, rows, T0, topUp, user } from '../../../test-support/solu2/fixtures.js';
 
@@ -143,8 +144,9 @@ describe('Story 1.6 — single-flight under job:<name> (AD-SYS-4 rule 7)', () =>
   });
 });
 
-// Architecture audit F1 (decision log Impl-2 #34): AD-SYS-4 and §4 fix the runtime pool at `max: 2`, one connection
-// for a job's `job:<name>` and one for its work. Each job runs through the real runner and route on a pool that refuses
+// Architecture audit F1 (decision log Impl-2 #34): AD-SYS-4 and §4 give the runtime pool at least 2 connections, one
+// for a job's `job:<name>` and one for its work; 2 is `TEZG_PG_POOL_MAX`'s minimum and default, the serverless size
+// (decision log Impl-2 #38), so the jobs are proven on exactly that. Each job runs through the real runner and route on a pool that refuses
 // a third checkout at once (test-support/single-connection.ts), so a job that needed a third connection fails the test
 // at once instead of waiting forever; no timer is involved.
 describe('Architecture audit F1 — every job runs on the runtime pool of 2 connections (AD-SYS-4 rules 7 and 9)', () => {
@@ -163,9 +165,11 @@ describe('Architecture audit F1 — every job runs on the runtime pool of 2 conn
       const res = await small.jobs(new Request(`http://localhost/api/jobs/${job}?trigger=${trigger}`, { method: 'POST', headers: { authorization: `Bearer ${SECRET}` } }));
       return { status: res.status, outcome: ((await res.json()) as { outcome?: string }).outcome, peak: pool.peak() };
     };
+    // The budget under test is the config's minimum and default, the size a serverless instance runs with.
+    expect([PG_POOL_MAX.min, PG_POOL_MAX.default]).toEqual([2, 2]);
     const runs = [];
     for (const [job, trigger] of [['trm-fetch', 'tick'], ['expiry-materialize', 'tick'], ['outbox-sweep', 'tick'], ['commission-reconcile', 'daily-night']] as const) {
-      const pool = boundedPool(db, 2);
+      const pool = boundedPool(db, PG_POOL_MAX.min);
       try {
         runs.push({ job, ...(await runOn(pool, job, trigger)) });
       } finally {
@@ -202,17 +206,20 @@ describe('Architecture audit F1 — every job runs on the runtime pool of 2 conn
 
   it('[S-SYS.jobs.starved] on the runtime pool (max 2, a checkout timeout), a job whose second connection another run holds fails within the timeout as a failed JobRun; one refused its first connection answers 500 and writes nothing', async () => {
     await dueOrder();
-    // The runtime pool as src/server/db.ts builds it, with its checkout timeout shortened to 200 ms: the test is bounded by
-    // the timeout, not by a timer of its own.
+    // The runtime pool as src/server/db.ts builds it, its `max` from loadConfig() with TEZG_PG_POOL_MAX unset (the serverless
+    // default, decision log Impl-2 #38), and its checkout timeout shortened to 200 ms: the test is bounded by the
+    // timeout, not by a timer of its own.
     const { database } = db.pool.options as { database: string };
-    const pool = runtimePool(`postgres://${PG.user}:${PG.password}@${PG.host}:${PG.port}/${database}`, { connectionTimeoutMillis: 200 });
+    const url = `postgres://${PG.user}:${PG.password}@${PG.host}:${PG.port}/${database}`;
+    const { pgPoolMax } = loadConfig({ DATABASE_URL: url, BETTER_AUTH_SECRET: 's'.repeat(32), BETTER_AUTH_URL: 'http://localhost', IP_HMAC_KEY: 'k'.repeat(32), JOBS_SECRET: SECRET });
+    const pool = runtimePool(url, { max: pgPoolMax, connectionTimeoutMillis: 200 });
     const small = compose({ pool, clock, sessions: { userIdOf: async () => null }, fx: new FixtureFxRateSource([]), jobsSecret: SECRET });
     const post = async (job: string) => {
       const res = await small.jobs(new Request(`http://localhost/api/jobs/${job}?trigger=tick`, { method: 'POST', headers: { authorization: `Bearer ${SECRET}` } }));
       return [res.status, ((await res.json()) as { error?: { code: string } }).error?.code];
     };
     try {
-      expect([pool.options.max, RUNTIME_POOL.max, RUNTIME_POOL.connectionTimeoutMillis]).toEqual([2, 2, 10_000]);
+      expect([pool.options.max, pgPoolMax, RUNTIME_POOL.connectionTimeoutMillis]).toEqual([2, 2, 10_000]);
       // Given: another job's run holds job:trm-fetch on one of the two connections, as a second job request on the same
       // instance does (the starvation of decision log Impl-2 #35).
       const other = await new PgJobLocks(pool).tryHold('trm-fetch');

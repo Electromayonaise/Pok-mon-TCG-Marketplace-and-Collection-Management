@@ -46,6 +46,8 @@ export default defineConfig({
       BETTER_AUTH_URL: baseURL,
       IP_HMAC_KEY: process.env.IP_HMAC_KEY ?? 'e2e-only-ip-hmac-key-not-for-any-deployed-environment',
       JOBS_SECRET: process.env.JOBS_SECRET ?? 'e2e-only-jobs-secret-not-for-any-deployed-environment',
+      // A long-lived `next start`, so the runtime pool is raised from the serverless 2 to 10 (decision log Impl-2 #38).
+      TEZG_PG_POOL_MAX: process.env.TEZG_PG_POOL_MAX ?? '10',
     },
   },
 });

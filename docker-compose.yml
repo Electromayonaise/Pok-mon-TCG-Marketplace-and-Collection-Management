@@ -35,6 +35,8 @@ services:
       BETTER_AUTH_URL: http://localhost:3000
       IP_HMAC_KEY: local-compose-ip-hmac-key-not-for-any-deployed-environment
       JOBS_SECRET: local-compose-jobs-secret-not-for-any-deployed-environment
+      # A long-lived server: the runtime pool rises from the serverless 2 to 10 (AD-SYS-4 rule 9, decision log Impl-2 #38).
+      TEZG_PG_POOL_MAX: "10"
     ports:
       - "3000:3000"
     healthcheck:

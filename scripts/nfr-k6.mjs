@@ -36,6 +36,9 @@ const appEnv = {
   BETTER_AUTH_URL: `http://127.0.0.1:${PORT}`,
   IP_HMAC_KEY: process.env.IP_HMAC_KEY ?? 'k6-only-ip-hmac-key-not-for-any-deployed-environment',
   JOBS_SECRET: process.env.JOBS_SECRET ?? 'k6-only-jobs-secret-not-for-any-deployed-environment',
+  // One long-lived `next start` serves the whole load, so it raises the runtime pool from the serverless 2 to 10
+  // (AD-SYS-4 rule 9, decision log Impl-2 #38): with 2, the 200 requests a second queue past the profile's p95 budget.
+  TEZG_PG_POOL_MAX: process.env.TEZG_PG_POOL_MAX ?? '10',
 };
 
 if (!process.env.CI) run('npm run db:up');
