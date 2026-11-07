@@ -2,6 +2,8 @@
 // (Epic 1). Red phase: every test must fail with NotImplementedError. The static fitness
 // functions of the same ADs (import graph, table ownership, payload registry, wall-clock scan,
 // socket guard, grants) hold already and run green in _bmad-output/test-artifacts/fitness/.
+// The admin panel's reads (S-SYS.tick, .deliveries, .health, .replay) are in sys_admin.test.ts, split from this file by
+// the Impl-2 test review re-run (decision log Impl-2 #38); the shared Given steps are in test-support/suites/sys.ts.
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DOMAIN_ERRORS, HTTP_STATUS, type DomainErrorCode } from '../../../src/shared-kernel/codes.js';
@@ -9,49 +11,18 @@ import { DomainError } from '../../../src/shared-kernel/errors.js';
 import { raiserFor } from '../../../src/shared-kernel/raise.js';
 import { createLogger, redact } from '../../../src/shared-kernel/regulated.js';
 import { PgAuditLog } from '../../../src/shared-kernel/infra/pg-audit.js';
-import { OutboxDispatcherV2, type DeliveryHandler, type SubscriberName } from '../../../src/shared-kernel/dispatcher.js';
-import { AdminEventsServiceV2 } from '../../../src/shared-kernel/admin-events.js';
-import type { EventEnvelope } from '../../../src/shared-kernel/events.js';
 import { toErrorBody } from '../../../src/server/trpc/errors.js';
 import { describeProceduresV2 } from '../../../src/server/trpc/router.v2.js';
 import { IdnServiceV2 } from '../../../src/modules/identity/index.js';
-import { PgTransactionRunner, useTestDatabase } from '../../../test-support/db.js';
-import { caught, httpOf } from '../../../test-support/errors.js';
+import { PgTransactionRunner } from '../../../test-support/db.js';
+import { caught } from '../../../test-support/errors.js';
 import { codeOf } from '../../../test-support/concurrency.js';
-import { admin, at, DAY, explainAssert, HOUR, id, ins, rows, T0, user, wiring } from '../../../test-support/solu2/fixtures.js';
+import { at, explainAssert, HOUR, id, rows, T0, user, wiring } from '../../../test-support/solu2/fixtures.js';
 import { singleConnectionPool } from '../../../test-support/single-connection.js';
+import { useSysSuite } from '../../../test-support/suites/sys.js';
 
-const db = useTestDatabase();
+const { db, dispatcher, publish, delivery } = useSysSuite();
 const cite = [{ rule: 'AD-SYS-1', inputs: { probe: 1 } }] as [{ rule: string; inputs: { probe: number } }];
-
-/** A dispatcher whose handlers record each envelope they run, and optionally throw. */
-function dispatcher(w: ReturnType<typeof wiring>, fail: Partial<Record<SubscriberName, () => Error>> = {}) {
-  const ran: { subscriber: SubscriberName; envelope: EventEnvelope }[] = [];
-  const handler = (subscriber: SubscriberName): DeliveryHandler => async (_tx, envelope) => {
-    ran.push({ subscriber, envelope });
-    const f = fail[subscriber];
-    if (f) throw f();
-  };
-  return { ran, d: new OutboxDispatcherV2({ transactions: w.transactions, clock: w.clock }, { commission: handler('commission'), listings: handler('listings'), collections: handler('collections') }) };
-}
-/** Commits one CommissionBalanceExhausted event (one `listings` delivery) at the virtual clock's now. */
-async function publish(w: ReturnType<typeof wiring>): Promise<string> {
-  const envelope = await w.transactions.run((tx) => w.outbox.enqueue(tx, 'CommissionBalanceExhausted', id('tienda'), { businessId: id('tienda'), ledgerSeq: 7, balanceAfter: -1_200 }));
-  return envelope.eventId;
-}
-/** An OutboxEvent plus one delivery in a given state, for the admin panel reads. */
-async function delivery(eventId: string, o: { status: 'pending' | 'delivered' | 'failed'; attempts?: number; createdAt?: string; firstFailedAt?: string }) {
-  await ins(db, 'OutboxEvent', { id: eventId, type: 'CommissionBalanceExhausted', aggregateId: id('tienda'), schemaVersion: 1, payload: JSON.stringify({ businessId: id('tienda'), ledgerSeq: 1, balanceAfter: 0 }), createdAt: o.createdAt ?? T0 }, 'none');
-  const failed = o.status === 'failed';
-  await ins(db, 'EventDelivery', {
-    eventId, subscriber: 'listings', status: o.status, attempts: o.attempts ?? (failed ? 1 : 0),
-    lastErrorCode: failed ? 'Unexpected' : null, firstFailedAt: failed ? (o.firstFailedAt ?? T0) : null, lastFailedAt: failed ? (o.firstFailedAt ?? T0) : null,
-    deliveredAt: o.status === 'delivered' ? T0 : null, createdAt: o.createdAt ?? T0, updatedAt: o.createdAt ?? T0,
-  });
-}
-function events(w: ReturnType<typeof wiring>) {
-  return new AdminEventsServiceV2({ ...w, dispatcher: dispatcher(w).d });
-}
 
 describe('SYS-1.R2 — raiserFor (AD-11, AD-SYS-1 rule 2)', () => {
   it('[SYS-1.R2] a non-owner raise fails as Unexpected; the owner raise is a DomainError with its code', async () => {
@@ -212,92 +183,5 @@ describe('SYS-R2 — record (R-2; AD-SYS-2 rule 10)', () => {
     expect(await rows(db, 'audit_events')).toMatchObject([{ action: 'shared-kernel.probe.recorded', createdAt: new Date(T0) }]);
     const [grant] = await db.query<{ u: boolean; d: boolean }>(`SELECT has_table_privilege('tezg_app', 'audit_events', 'UPDATE') AS u, has_table_privilege('tezg_app', 'audit_events', 'DELETE') AS d`);
     expect(grant).toEqual({ u: false, d: false });
-  });
-});
-
-describe('S-SYS.tick — getTickHealth (ARCH §4)', () => {
-  it('[S-SYS.tick.h] 3 h after the last tick, read inside 10:17–23:17 Bogotá, tickSilent=true; 1 h after, false', async () => {
-    await admin(db);
-    await ins(db, 'JobRun', { id: id('run1'), trigger: 'tick', job: 'tick', startedAt: T0, finishedAt: T0, outcome: 'succeeded', errorCode: null });
-    const w = wiring(db);
-    w.clock.advance(HOUR);
-    expect(await events(w).getTickHealth({ adminId: id('admin') })).toMatchObject({ lastTickStartedAt: T0, tickSilent: false });
-    w.clock.advance(2 * HOUR + 60_000);
-    const silent = await events(w).getTickHealth({ adminId: id('admin') });
-    expect(silent.tickSilent).toBe(true);
-    explainAssert(silent.decision, { inputs: { lastTickStartedAt: T0 } });
-  });
-
-  // Architecture audit F3 (decision log Impl-2 #34): the job route ran trm-fetch hourly against an unwired source and tick
-  // health still read "on schedule". It now reads each job's runs, so failing and stuck jobs show on page 2.3.
-  it('[S-SYS.tick.jobs] a failed trm-fetch and an expiry run stuck running for 16 min turn the health degraded (ScheduledJobsDegraded); 24 h later both have left the window', async () => {
-    await admin(db);
-    await ins(db, 'JobRun', { id: id('tick1'), trigger: 'tick', job: 'outbox-sweep', startedAt: T0, finishedAt: T0, outcome: 'succeeded', errorCode: null });
-    await ins(db, 'JobRun', { id: id('fx1'), trigger: 'tick', job: 'trm-fetch', startedAt: T0, finishedAt: T0, outcome: 'failed', errorCode: 'NotImplemented' });
-    await ins(db, 'JobRun', { id: id('exp1'), trigger: 'tick', job: 'expiry-materialize', startedAt: T0, finishedAt: null, outcome: 'running', errorCode: null });
-    const w = wiring(db);
-    w.clock.advance(16 * 60_000);
-    const health = await events(w).getTickHealth({ adminId: id('admin') });
-    expect(health).toMatchObject({
-      tickSilent: false, degraded: true,
-      jobs: [
-        { job: 'expiry-materialize', lastOutcome: 'running', failedInWindow: 0, stuckRunning: 1 },
-        { job: 'outbox-sweep', lastOutcome: 'succeeded', failedInWindow: 0, stuckRunning: 0 },
-        { job: 'trm-fetch', lastOutcome: 'failed', lastErrorCode: 'NotImplemented', failedInWindow: 1, stuckRunning: 0 },
-      ],
-    });
-    explainAssert(health.decision, { code: 'ScheduledJobsDegraded', rule: 'AD-SYS-2', inputs: { failedRuns: 1, stuckRuns: 1 } });
-    // A day later, read at 10:16 Bogotá (before the silence window opens), both runs have left the 24 h window.
-    w.clock.advance(24 * HOUR);
-    const later = await events(w).getTickHealth({ adminId: id('admin') });
-    expect([later.degraded, later.decision.reasonCode, later.jobs.map((j) => [j.failedInWindow, j.stuckRunning])]).toEqual([false, 'TickOnSchedule', [[0, 0], [0, 0], [0, 0]]]);
-  });
-});
-
-describe('S-SYS.deliveries — listDeliveries (AD-SYS-2 rule 9)', () => {
-  it('[S-SYS.deliveries.h] failed rows by firstFailedAt; stuck = pending older than 24 h by createdAt; 25 per page', async () => {
-    await admin(db);
-    for (let i = 0; i < 27; i++) await delivery(id(`f${i}`), { status: 'failed', createdAt: at(-3 * DAY), firstFailedAt: at(-2 * DAY + i * HOUR) });
-    await delivery(id('stuck'), { status: 'pending', createdAt: at(-25 * HOUR) });
-    await delivery(id('young'), { status: 'pending', createdAt: at(-23 * HOUR) });
-    const svc = events(wiring(db));
-    const failed = await svc.listDeliveries({ adminId: id('admin'), kind: 'failed', cursor: null });
-    expect(failed.rows).toHaveLength(25);
-    expect(failed.rows[0]!.eventId).toBe(id('f0'));
-    expect(failed.nextCursor).not.toBeNull();
-    const stuck = await svc.listDeliveries({ adminId: id('admin'), kind: 'stuck', cursor: null });
-    expect(stuck.rows.map((r) => r.eventId)).toEqual([id('stuck')]);
-  });
-});
-
-describe('S-SYS.health — getDeliveryHealth (AD-SYS-2 rule 9)', () => {
-  it('[S-SYS.health.h] counts failed rows, the oldest firstFailedAt and stuck pending rows; delivered rows are not counted', async () => {
-    await admin(db);
-    await delivery(id('f1'), { status: 'failed', firstFailedAt: at(-2 * DAY) });
-    await delivery(id('f2'), { status: 'failed', firstFailedAt: at(-DAY) });
-    await delivery(id('ok'), { status: 'delivered' });
-    await delivery(id('stuck'), { status: 'pending', createdAt: at(-25 * HOUR) });
-    expect(await events(wiring(db)).getDeliveryHealth({ adminId: id('admin') })).toEqual({ failedCount: 2, oldestFirstFailedAt: at(-2 * DAY), stuckPendingCount: 1, latestDigest: null });
-  });
-});
-
-describe('S-SYS.replay — replayEventDelivery (AD-SYS-2 rule 7)', () => {
-  it('[S-SYS.replay.h] a failed delivery replays to delivered, keeps firstFailedAt, and writes one EventReplayLog row', async () => {
-    await admin(db);
-    await delivery(id('ev1'), { status: 'failed', firstFailedAt: at(-DAY) });
-    const w = wiring(db);
-    const result = await events(w).replayEventDelivery({ adminId: id('admin'), eventId: id('ev1'), subscriber: 'listings' });
-    expect(result).toMatchObject({ status: 'delivered', replayed: true });
-    expect(await rows(db, 'EventDelivery')).toMatchObject([{ status: 'delivered', firstFailedAt: new Date(at(-DAY)), lastAttemptAt: new Date(T0) }]);
-    expect(await rows(db, 'EventReplayLog')).toMatchObject([{ adminId: id('admin'), outcome: 'delivered' }]);
-  });
-
-  it('[S-SYS.replay.f] a pending delivery is EventDeliveryNotReplayable (409) citing its status, with zero writes', async () => {
-    await admin(db);
-    await delivery(id('ev1'), { status: 'pending' });
-    const error = await caught(() => events(wiring(db)).replayEventDelivery({ adminId: id('admin'), eventId: id('ev1'), subscriber: 'listings' }));
-    expect(codeOf(error)).toBe('EventDeliveryNotReplayable');
-    expect(httpOf(error)).toBe(409);
-    expect(await rows(db, 'EventReplayLog')).toEqual([]);
   });
 });

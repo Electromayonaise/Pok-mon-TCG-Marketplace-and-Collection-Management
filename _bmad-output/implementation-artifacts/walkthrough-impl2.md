@@ -515,17 +515,17 @@ no-sleep: 351 files checked, 7 rules proven on planted violations, 0 problems
 
 ## 17. The test pyramid
 
-The statement asks for 70 % unit, 20 % integration and 10 % E2E, with NFR as a separate layer. The counts use the rule of [`test-review.md`](../test-artifacts/test-review.md) ("The pyramid (70 / 20 / 10 + NFR)"): `it`/`test` blocks, an `it.each` table once, a k6 scenario once; a file is integration when it registers a test database. The test review counted 284 / 745 / 6 / 32 at `727c74f`. The recount below is a script in `38-reaudit-docs.log`, run on the committed trees; it gives 282 / 745 / 6 / 32 at `727c74f`, 2 unit blocks fewer, so the shares agree to 0.2 points.
+The statement asks for 70 % unit, 20 % integration and 10 % E2E, with NFR as a separate layer. The counts use the rule of [`test-review.md`](../test-artifacts/test-review.md) ("The pyramid (70 / 20 / 10 + NFR)"): `it`/`test` blocks, an `it.each` table once, a k6 scenario once; a file is integration when it registers a test database. The test review's re-run (#38, `test-review.md`) recounted with the script of `38-reaudit-docs.log` §4, run on the committed trees (copied into `40-test-review-rerun.log`). It gives 282 / 745 / 6 / 32 at `727c74f`, where that review's own count said 284 unit blocks, so the shares agree to 0.2 points.
 
 | Level | Added by Impl-2 (`a7c5d81` → HEAD) | Share | Whole suite at HEAD | Share | Target |
 |---|---|---|---|---|---|
-| Unit | 115 | 55.0 % | 296 | 27.7 % | 70 % |
-| Integration | 88 | 42.1 % | 768 | 71.8 % | 20 % |
-| E2E | 6 | 2.9 % | 6 | 0.6 % | 10 % |
+| Unit | 118 | 55.7 % | 299 | 27.9 % | 70 % |
+| Integration | 88 | 41.5 % | 768 | 71.6 % | 20 % |
+| E2E | 6 | 2.8 % | 6 | 0.6 % | 10 % |
 | NFR (separate layer) | 9 | — | 32 (30 benchmarks, 2 k6 scenarios) | — | separate |
-| **Total** | **218** | | **1,102** | | |
+| **Total** | **221** | | **1,105** | | |
 
-The test review's own figures at `727c74f` were 59.1 / 37.4 / 3.5 % for Impl-2's additions and 27.4 / 72.0 / 0.6 % for the whole suite; before its remediation, 43.1 / 52.0 / 4.9 % and 23.9 / 75.5 / 0.6 % (#24, #25). Counted the same way, the cursor fix (#26) added 1 unit and 2 integration blocks before the close (`3bc7543`: 283 / 747 / 6), and the re-audit 13 unit blocks (the breaker's domain tests and the tick-health rule among them) and 21 integration blocks (the breaker's races, the pool tests and the F8 races).
+The test review's own figures at `727c74f` were 59.1 / 37.4 / 3.5 % for Impl-2's additions and 27.4 / 72.0 / 0.6 % for the whole suite; before its remediation, 43.1 / 52.0 / 4.9 % and 23.9 / 75.5 / 0.6 % (#24, #25). Counted the same way, the cursor fix (#26) added 1 unit and 2 integration blocks before the close (`3bc7543`: 283 / 747 / 6), and the re-audit 16 unit blocks (the breaker's domain tests, the job runner's refused checkouts and the `TEZG_PG_POOL_MAX` cases) and 21 integration blocks (the breaker's races, the pool tests, the F8 races and the job health).
 
 **Deliberate deviation.** Neither count reaches 70 / 20 / 10, and Mateo chose to document this, not to pad the base (#24). Quoting `test-review.md` § "Deliberate deviation": "The suite is integration-first by design, not by neglect." Test-design §3 explains why: most P0 risks are races, retries and boundaries that only the database can arbitrate, such as conditional updates, partial unique indexes and `FOR UPDATE` order. A unit test over a mock would pass on code that oversells. It is not an ice-cream cone: E2E stays at 6 journeys, and every rule a journey touches is proven below it (§18).
 
@@ -533,7 +533,7 @@ The test review's own figures at `727c74f` were 59.1 / 37.4 / 3.5 % for Impl-2's
 
 The statement audits the suite against four traps. For each one, the rule is in `test-design.md` §7.5, and the evidence is below.
 
-**1. The Ice Cream Cone (inverted pyramid).** The pyramid is not inverted: 6 E2E tests against 296 unit and 768 integration tests (0.6 % E2E, §17). The journeys only prove that the pages wire the rules together. Each rule they touch is proven by a bound ATDD test or a domain test, and the domain cores are held at ≥ 90 % branches per file (97.56 % overall, `37-price-lookup.log`). The deviation from 70 / 20 / 10 is toward integration, not toward the browser, and it is documented (§17).
+**1. The Ice Cream Cone (inverted pyramid).** The pyramid is not inverted: 6 E2E tests against 299 unit and 768 integration tests (0.6 % E2E, §17). The journeys only prove that the pages wire the rules together. Each rule they touch is proven by a bound ATDD test or a domain test, and the domain cores are held at ≥ 90 % branches per file (97.56 % overall, `37-price-lookup.log`). The deviation from 70 / 20 / 10 is toward integration, not toward the browser, and it is documented (§17).
 
 **2. The Flaky Sleeper (timing hacks).** No test or script waits on time.
 
@@ -583,7 +583,7 @@ Learning objective 4 names five NFR dimensions. The PRD's 56 NFRs are mapped to 
 ## 20. Quality gate, trace, CI and signed evidence
 
 - **Final trace.** [`traceability-matrix.md`](../test-artifacts/traceability-matrix.md) is generated by `scripts/gen-solu2-trace.mjs` and maps PRD requirement → story (status) → test files → CI evidence → verdict (#5, #24). Its gate decision is **PASS**: FRs 96 / 96, NFRs 56 / 56 (56 PASS, 0 waived; NFR-SYS-11, NFR-VER-4 and NFR-ORD-2 pass in scope with a part deferred to launch), P0 risks 24 / 24, P1 7 / 7, P2 1 / 1, §14 AD rows 62 / 62, stories 72 / 72 `done`, test ids enforced green 430 / 430, and 0 unmapped requirements. The check line in the last run: "trace: 96 FRs, 56 NFRs, 62 AD rows, 32 risks, 115 clauses, 430 test ids (430 enforced green), 4 journeys, 1 k6 scripts; gate PASS; 0 problems" (`37-price-lookup.log`).
-- **Test review.** 100 / 100 (A, Approve), 0 findings, after the remediation of the first review's 59 / 100 (#24, #25). It reviewed the suite at `727c74f`; the tests added since (#26, #32–#36) follow its rules and are checked by the same gates, but the review itself was not run again.
+- **Test review.** 100 / 100 (A, Approve), 0 findings, re-run over the whole suite at `efa178c` as #38 decided (`test-review.md`, `40-test-review-rerun.log`). At `efa178c` it found 1 HIGH (`atdd/sys_contracts.test.ts` at 303 lines, after F3's test) and 2 MEDIUM (inline `JobRun` rows, a local copy of the `failedDelivery()` factory): 101 clamped to 100, but Request Changes, because a HIGH decides the recommendation. All three were mechanical and were fixed in the same run without changing an assertion; four shuffled seeds pass in `impl1-unit`, `solu2-atdd` and `solu2-fitness`. Before: 59 / 100 at the close (#24), then 100 / 100 at `727c74f` after the remediation (#25).
 - **The last full gate** (`37-price-lookup.log`, `npm run test:ci` exit 0 in 11 min 43 s):
 
 ```text

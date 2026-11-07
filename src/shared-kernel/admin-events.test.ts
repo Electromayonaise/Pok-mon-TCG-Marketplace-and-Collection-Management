@@ -3,7 +3,7 @@
 // silence window, the 3 h boundary, the deliveries cursor and its refusal, the latest digest.
 import { describe, expect, it } from 'vitest';
 import { useTestDatabase } from '../../test-support/db.js';
-import { admin, at, DAY, explainAssert, HOUR, id, ins, rows, T0, wiring } from '../../test-support/solu2/fixtures.js';
+import { admin, at, DAY, explainAssert, failedDelivery as failedOutboxDelivery, HOUR, id, ins, jobRun, rows, T0, wiring } from '../../test-support/solu2/fixtures.js';
 import { AdminEventsServiceV2, decodeDeliveryCursor, encodeDeliveryCursor, isJobHealthDegraded, isTickSilent, JOB_HEALTH_WINDOW_MS, JOB_STUCK_AFTER_MS, jobHealthWindow, jobRunTotals, tickHealthReason } from './admin-events.js';
 import { OutboxDispatcherV2 } from './dispatcher.js';
 import { DomainError } from './errors.js';
@@ -14,8 +14,7 @@ const inputs = { eventId: id('ev1'), subscriber: 'listings' };
 
 async function failedDelivery() {
   await admin(db);
-  await ins(db, 'OutboxEvent', { id: id('ev1'), type: 'CommissionBalanceExhausted', aggregateId: id('tienda'), schemaVersion: 1, payload: JSON.stringify({ businessId: id('tienda'), ledgerSeq: 1, balanceAfter: 0 }) }, 'created');
-  await ins(db, 'EventDelivery', { eventId: id('ev1'), subscriber: 'listings', status: 'failed', attempts: 3, lastErrorCode: 'DeliveryAttemptsExhausted', firstFailedAt: at(-DAY), lastFailedAt: at(-DAY) });
+  await failedOutboxDelivery(db, { eventId: id('ev1'), type: 'CommissionBalanceExhausted', aggregateId: id('tienda'), payload: { businessId: id('tienda'), ledgerSeq: 1, balanceAfter: 0 }, subscriber: 'listings' });
 }
 
 function service(fail?: () => Error) {
@@ -143,7 +142,7 @@ describe('the job-health rule (pure)', () => {
 
 describe('AdminEventsServiceV2.getTickHealth: the jobs (Postgres)', () => {
   const run = (name: string, job: string, startedAt: string, outcome: 'running' | 'succeeded' | 'skipped' | 'failed', errorCode: string | null = null) =>
-    ins(db, 'JobRun', { id: id(name), trigger: 'tick', job, startedAt, finishedAt: outcome === 'running' ? null : startedAt, outcome, errorCode, createdAt: startedAt, updatedAt: startedAt });
+    jobRun(db, { id: id(name), job, startedAt, outcome, errorCode });
 
   it('counts failed runs after the window start only, stuck runs older than 15 min only, and reads each job\'s latest run', async () => {
     await run('f-edge', 'trm-fetch', at(-DAY), 'failed', 'NotImplemented');

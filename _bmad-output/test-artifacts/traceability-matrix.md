@@ -75,7 +75,7 @@ A requirement, risk or AD **passes** when it has ≥ 1 test, every story it maps
 | NFR evidence status (an NFR with two statuses counts under each) | Green — ATDD: 37; Green — gate: 9; Green — benchmark: 17; Deferred — launch: 3 |
 | Contract clauses | 115 |
 | Test ids (Vitest) / enforced green / red | 430 / 430 / 0 |
-| `solu2-atdd`: files / `it` blocks | 26 / 384 |
+| `solu2-atdd`: files / `it` blocks | 27 / 384 |
 | `solu2-nfr`: files / `it` blocks | 15 / 30 |
 | `solu2-fitness`: files / `it` blocks | 2 / 12 |
 | Playwright journeys: specs / tests | 4 / 6 |

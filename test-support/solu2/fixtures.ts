@@ -196,6 +196,17 @@ export async function failedDelivery(db: Q, o: { eventId: string; type: string; 
   await ins(db, 'EventDelivery', { eventId: o.eventId, subscriber: o.subscriber, status: 'failed', attempts: 3, lastErrorCode: 'DeliveryAttemptsExhausted', firstFailedAt: at(-DAY), lastFailedAt: at(-DAY) });
 }
 
+// ---------------------------------------------------------------- jobs (Story 1.6, S-SYS.tick)
+/**
+ * One JobRun row, triggered by the tick unless said otherwise: started at `startedAt` (T0 by default), finished at the same
+ * instant unless it is still `running`, and created and updated when it started.
+ */
+export const jobRun = (db: Q, o: { id: string; job: string; startedAt?: string; outcome?: 'running' | 'succeeded' | 'skipped' | 'failed'; errorCode?: string | null; trigger?: string }) => {
+  const startedAt = o.startedAt ?? T0;
+  const outcome = o.outcome ?? 'succeeded';
+  return ins(db, 'JobRun', { id: o.id, trigger: o.trigger ?? 'tick', job: o.job, startedAt, finishedAt: outcome === 'running' ? null : startedAt, outcome, errorCode: o.errorCode ?? null, createdAt: startedAt, updatedAt: startedAt });
+};
+
 // ---------------------------------------------------------------- wiring
 /**
  * One id sequence per database and prefix, so two wirings in one test (a race's two sessions,
