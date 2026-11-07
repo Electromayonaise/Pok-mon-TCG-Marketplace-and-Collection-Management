@@ -754,3 +754,38 @@
 - **Evidence:** `evidence/impl2/37-price-lookup.log`: both statements, the same-row checks, `EXPLAIN (ANALYZE, BUFFERS)` before and after, 15 benchmark runs, the gate and Playwright.
 - **Artifact changed:** `src/modules/catalog/infra/pg.ts`, `nfr/val2_latency.test.ts`, `ARCHITECTURE.md` (AD-CAT-2 rule 4), `contracts.md` (CAT-1 Q1), `nfr-evidence.md`.
 - **Decided by:** Mateo (#36).
+
+
+### 38. The re-audit docs and signed evidence are written; a k6 re-run finds that #35's 2-connection pool broke the load budget (Governance + Performance)
+
+- **Phase:** C (close), in a subagent (`94b42e7`, `03213fb`); then menus.
+- **Persona/Skill:** tech writing; `bmad-testarch-nfr` (Murat) for the k6 re-run.
+- **Prompt (summary):** update the walkthrough and `docs/impl-2/README.md` for #31–#37. Add the degradation and circuit-breaker section, the 4 traps, the 5 NFR dimensions, Winston's audit, a Story 4.6 card and the CI k6 figures. Sign the evidence with SHA-256 and a gate.
+- **AI output (summary):**
+  - **Walkthrough, renumbered §1–§23:**
+    - §3 graceful degradation and circuit breakers (file:line and a test for each path);
+    - §4 Winston's audit, labelled close-phase;
+    - §8 the Story 4.6 card;
+    - §18 the 4 traps;
+    - §19 the 5 NFR dimensions;
+    - §20 signed evidence;
+    - the k6 table with CI run 3 beside the local run.
+  - **Greps for §18:** `vi.mock` 0; `vi.fn`, `vi.spyOn` and `vi.stubGlobal` 5 uses, all on ports; `fake<T>` over 18 port types; 0 conditional `expect`, 0 skip / only / todo, 0 files with no assertion.
+  - **Signed evidence:** `scripts/evidence-sums.mjs` writes `evidence/impl2/SHA256SUMS` (47 files). `npm run gate:evidence`, in `test:ci`, fails on a changed, missing or unlisted file; three mutations prove it. `ci-runs.json` feeds a trace §2 paragraph naming the CI run and the digests.
+  - **Updated docs:** `docs/impl-2/README.md` (a phase "C. Re-audit (#31–#37)"), the root, `docs/` and `_bmad-output/` READMEs.
+  - **Gates:** lint, typecheck, `no-sleep` and `epics` pass; trace PASS with 430 ids; evidence 47 / 47; the link check finds 139 links, 0 broken.
+  - **Regression found:** k6 had not run since #35 cut the runtime pool to `max: 2`, because it is not part of `test:ci` and the F1 subagent did not run it.
+    - At `94b42e7`: **FAIL**, profile p95 659.84 ms against 300 ms and 1,347 dropped iterations against 120, with 0 errors but requests queuing on 2 connections.
+    - With `max: 10` (a temporary edit): PASS, p95 26.89 ms.
+    - CI's `nfr-k6` job, and so `release`, would have failed on the next push. The README left that checklist item unchecked, not claimed.
+  - **Process lesson:** a change to a shared runtime setting must re-run every proof that depends on it, including those outside `test:ci`. The sub-agent prompts now say so.
+- **Human decisions (menus):**
+  - **Pool:** **(recommended)** make it configurable: a validated env setting (`TEZG_PG_POOL_MAX`, default 2, minimum 2) in `config.ts`.
+    - Serverless instances keep 2, the minimum a job needs. Long-lived servers (`next start` for k6, E2E and Docker) set 10.
+    - Amend AD-SYS-4 §4 and rule 9. `[S-SYS.jobs.pool]` and `[S-SYS.jobs.starved]` still prove 2. Re-run k6 as evidence 39.
+    - The alternatives were a default of 10, which gives up the serverless sizing argument, or lowering the k6 rate, which weakens the proof.
+    - ACCEPT.
+  - **Test review:** **(recommended)** re-run `bmad-testarch-test-review` over the whole suite at HEAD. The 100 / 100 of `727c74f` predates Story 4.6, the axe scans, F1–F9 and the pool tests. Any finding is fixed before the push, by menu. The alternative was keeping the old review with a note. ACCEPT.
+- **Evidence:** `evidence/impl2/38-reaudit-docs.log` (both k6 runs, the evidence mutations, the pyramid recount and the link check).
+- **Artifact changed:** `walkthrough-impl2.md`, `docs/impl-2/README.md`, `README.md`, `docs/README.md`, `_bmad-output/README.md`, `scripts/evidence-sums.mjs` (new), `package.json`, `scripts/gen-solu2-trace.mjs`, `traceability-matrix.md`, `evidence/impl2/SHA256SUMS` and `ci-runs.json` (new).
+- **Decided by:** Mateo.
