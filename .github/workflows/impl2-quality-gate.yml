@@ -28,7 +28,8 @@ concurrency:
 
 # Each job's Postgres service binds a free host port the runner picks (`ports: [5432]`), never a fixed one: run 6
 # (42523796447) failed before any test because 55432 was already taken on the runner host (decision log Impl-2 #42).
-# Each job's first step exports that port (`job.services.postgres.ports['5432']`, readable only in steps) to $GITHUB_ENV.
+# A step exports that port to $GITHUB_ENV from `docker port`, after the max_connections restart where a job has one:
+# a restarted container is mapped to a new host port, so `job.services.postgres.ports` goes stale (run 7, #43).
 env:
   TEZG_PG_HOST: 127.0.0.1
 
@@ -51,10 +52,6 @@ jobs:
           --health-timeout 2s
           --health-retries 30
     steps:
-      - name: "The Postgres service's host port (picked by the runner, decision log Impl-2 #42)"
-        run: |
-          port='${{ job.services.postgres.ports['5432'] }}'
-          echo "TEZG_PG_PORT=$port" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -70,6 +67,11 @@ jobs:
           docker restart ${{ job.services.postgres.id }}
           timeout 60 bash -c 'until docker exec ${{ job.services.postgres.id }} pg_isready -U tezg -d tezg; do :; done'
           test "$(docker exec ${{ job.services.postgres.id }} psql -U tezg -d tezg -tAc 'SHOW max_connections')" = 200
+      - name: "The Postgres service's host port (picked by the runner, decision log Impl-2 #42)"
+        run: |
+          port="$(docker port ${{ job.services.postgres.id }} 5432/tcp | head -n 1 | sed 's/.*://')"
+          test -n "$port"
+          echo "TEZG_PG_PORT=$port" >> "$GITHUB_ENV"
       - name: npm test without db:up
         run: npm run test:ci
       - name: The Solu-2 workflow and its docs mirror are identical
@@ -102,7 +104,8 @@ jobs:
     steps:
       - name: "The Postgres service's host port (picked by the runner, decision log Impl-2 #42)"
         run: |
-          port='${{ job.services.postgres.ports['5432'] }}'
+          port="$(docker port ${{ job.services.postgres.id }} 5432/tcp | head -n 1 | sed 's/.*://')"
+          test -n "$port"
           echo "TEZG_PG_PORT=$port" >> "$GITHUB_ENV"
           echo "E2E_DATABASE_URL=postgresql://tezg:tezg@127.0.0.1:$port/tezg_e2e" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
@@ -154,11 +157,6 @@ jobs:
           --health-timeout 2s
           --health-retries 30
     steps:
-      - name: "The Postgres service's host port (picked by the runner, decision log Impl-2 #42)"
-        run: |
-          port='${{ job.services.postgres.ports['5432'] }}'
-          echo "TEZG_PG_PORT=$port" >> "$GITHUB_ENV"
-          echo "K6_DATABASE_URL=postgresql://tezg:tezg@127.0.0.1:$port/tezg_k6" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -173,6 +171,12 @@ jobs:
           docker restart ${{ job.services.postgres.id }}
           timeout 60 bash -c 'until docker exec ${{ job.services.postgres.id }} pg_isready -U tezg -d tezg; do :; done'
           test "$(docker exec ${{ job.services.postgres.id }} psql -U tezg -d tezg -tAc 'SHOW max_connections')" = 200
+      - name: "The Postgres service's host port (picked by the runner, decision log Impl-2 #42)"
+        run: |
+          port="$(docker port ${{ job.services.postgres.id }} 5432/tcp | head -n 1 | sed 's/.*://')"
+          test -n "$port"
+          echo "TEZG_PG_PORT=$port" >> "$GITHUB_ENV"
+          echo "K6_DATABASE_URL=postgresql://tezg:tezg@127.0.0.1:$port/tezg_k6" >> "$GITHUB_ENV"
       - name: k6 at a fixed arrival rate on the public profile and catalog reads (thresholds of test-design.md §7.4)
         run: npm run nfr:k6
       - name: Upload the k6 summary

@@ -43,6 +43,13 @@
       "release": "Quality gate: FAIL",
       "decisionLog": "#42",
       "note": "the runner could not bind host port 55432 for the e2e Postgres service; no test ran"
+    },
+    {
+      "run": 42524957776,
+      "commit": "0687919",
+      "release": "Quality gate: FAIL",
+      "decisionLog": "#43",
+      "note": "the exported host port went stale after the max_connections restart; e2e passed, gate and nfr-k6 were refused"
     }
   ]
 }

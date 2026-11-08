@@ -893,3 +893,17 @@
 - **Evidence:** `evidence/impl2/32-ci-run.log` (run 6), `ci-runs.json`.
 - **Artifact changed:** `.github/workflows/impl2-quality-gate.yml`, `32-ci-run.log`, `ci-runs.json`, `traceability-matrix.md`, `SHA256SUMS`.
 - **Decided by:** Mateo.
+
+
+### 43. `[CORRECTED]` The agent's #42 workflow change exported a host port that the restart then invalidated; CI run 7 caught it (CI)
+
+- **Phase:** C (close), CI.
+- **Persona/Skill:** main agent.
+- **AI output (summary):**
+  - **Run 7** ([42524957776](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/42524957776), `0687919`): `e2e` passed, while `gate` and `nfr-k6` failed with `connect ECONNREFUSED 127.0.0.1:32768`, so `release` printed `Quality gate: FAIL`.
+  - **The agent's mistake:** in #42 the first step exported `job.services.postgres.ports['5432']`. In `gate` and `nfr-k6`, the step of #28 then restarts the container to apply `max_connections = 200`, and Docker maps a restarted container to a new host port, so the exported value went stale. `e2e` has no restart, which is why it passed. The agent did not foresee this, and no local check could have caught it, since it depends on GitHub's service containers.
+  - **Fix:** the export step reads the live mapping with `docker port <service> 5432/tcp`, fails if the result is empty, and runs after the restart in `gate` and `nfr-k6` (first in `e2e`).
+- **Human decision:** none new. This carries out #42's decision, and is recorded as an agent self-correction caught by CI rather than by a human.
+- **Evidence:** `evidence/impl2/32-ci-run.log` (run 7), `ci-runs.json`. The confirming run is reported to Mateo.
+- **Artifact changed:** `.github/workflows/impl2-quality-gate.yml`, `32-ci-run.log`, `ci-runs.json`, `traceability-matrix.md`, `SHA256SUMS`.
+- **Decided by:** Mateo (#42).

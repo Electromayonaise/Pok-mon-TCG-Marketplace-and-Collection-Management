@@ -1,4 +1,4 @@
-# Impl-2 CI on GitHub Actions (impl2-quality-gate), runs 1-6. Excerpts of the job logs, ANSI colours stripped.
+# Impl-2 CI on GitHub Actions (impl2-quality-gate), runs 1-7. Excerpts of the job logs, ANSI colours stripped.
 
 ## Run 1: https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41901553179 (commit ef77c50)
 # jobs: gate failure, e2e success, nfr-k6 success, release failure (Quality gate: FAIL)
@@ -174,3 +174,10 @@
 # Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint ..._postgres166_...: failed to bind host port for 0.0.0.0:55432:172.18.0.2:5432/tcp: address already in use
 # Error: failed to start containers: c05e6cf35cf32f662f9b1a4d15b77e626950b8dc5906610b4426112c287dbfec
 # fix (decision log #42): each job's Postgres service binds a host port the runner picks (ports: [5432]), exported by a first step.
+
+## Run 7: https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/42524957776 (commit 0687919, decision log #42's workflow change)
+# jobs: e2e success, gate failure, nfr-k6 failure, release failure (Quality gate: FAIL). The exported port went stale:
+# the first step exported the runner-picked port, then the max_connections step restarted the container, which docker mapped to a new host port.
+# gate:   Run port='32768' ... TEZG_PG_PORT: 32768 ... Error: connect ECONNREFUSED 127.0.0.1:32768
+# nfr-k6: Run port='32768' ... TEZG_PG_PORT: 32768 ... Error: connect ECONNREFUSED 127.0.0.1:32768
+# fix (decision log #43): the port is read with `docker port <service> 5432/tcp`, after the restart in gate and nfr-k6.
