@@ -851,3 +851,28 @@
 - **Evidence:** `evidence/impl2/40-test-review-rerun.log`.
 - **Artifact changed:** `test-review.md` (overwritten in place), `atdd/sys_contracts.test.ts`, `atdd/sys_admin.test.ts` (new), `test-support/suites/sys.ts` (new), `fixtures.ts`, `admin-events.test.ts`, `epics.md`, `traceability-matrix.md`, `walkthrough-impl2.md`, `docs/impl-2/README.md`, `SHA256SUMS`.
 - **Decided by:** Mateo.
+
+
+### 41. Close of the re-audit: every statement line evidenced, and CI run 5 is the sign-off (Governance)
+
+- **Phase:** C (close).
+- **Persona/Skill:** main agent; `bmad-testarch-ci` (Murat).
+- **AI output (summary):**
+  - **CI run 5** ([42522585504](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/42522585504), `053f5e9`): every re-audit commit (#31–#40) ran on CI. `release` printed `gate=success e2e=success nfr-k6=success`, `Quality gate: PASS`.
+    - **gate:** `no-sleep` 354 files, 0 problems; `gate:evidence` 49 / 49; 767 unit tests, 97.56 % branches; trace PASS with 430 ids; `solu2-atdd` 384 green; `solu2-nfr` 30 green.
+    - **e2e:** the gating run had 6 passed (22.8 s) and the forensic run 6 passed (18.2 s), each with the 14 axe scans.
+    - **nfr-k6:** with `TEZG_PG_POOL_MAX=10`, profile p95 6.30 ms, p99 10.46 ms, browse p95 15.40 ms; 0.00 % errors, 0 5xx, 0 dropped.
+  - **Recorded:**
+    - run 5 is the sign-off in `ci-runs.json`, which feeds trace §2;
+    - runs 4 and 5 are excerpted in `32-ci-run.log`;
+    - the six run-5 `trace.zip` files, with the axe scans, replace run 3's in `traces-ci/` (git history keeps the old ones);
+    - the walkthrough's k6 table and CI list, and the README's rubric rows 4 and 5, runs table and evidence row, now cite run 5;
+    - `SHA256SUMS` was regenerated last.
+  - **The re-audit of #31, line by line against the statement:**
+    - **Gaps closed:** the sleep literals (#31); the walkthrough sections on the 4 traps, the 5 NFR dimensions, graceful degradation and circuit breakers, and the CI k6 figures (#38); signed evidence (#38); the circuit breaker, Story 4.6 (#32); the automated accessibility checks, with 0 NFRs waived (#33); Winston's audit with F1–F9 fixed (#34–#36); the k6 regression the re-run caught (#38–#39); the test review re-run at 100 / 100 (#40); CI on the final code (this entry).
+    - **Still open, stated as such:** the pyramid below 70 / 20 / 10, which is the documented deliberate deviation; the manual WCAG audit at launch; and Winston's audit being close-phase rather than shift-left.
+  - **State:** 72 / 72 stories and 13 / 13 epics `done`; the trace PASS with 96 / 96 FRs, 56 / 56 NFRs (3 with a part deferred to launch), 32 / 32 risks, 62 / 62 AD rows and 430 / 430 ids; the test review 100 / 100. This log holds 41 entries, with three human corrections of AI tests (#8, #9, #23).
+- **Human decision:** none new; this entry records the outcome of #31–#40.
+- **Evidence:** `evidence/impl2/32-ci-run.log`, `ci-runs.json`, `traces-ci/`, `SHA256SUMS`.
+- **Artifact changed:** `32-ci-run.log`, `ci-runs.json`, `traces-ci/*.zip`, `traceability-matrix.md`, `walkthrough-impl2.md`, `docs/impl-2/README.md`, `SHA256SUMS`.
+- **Decided by:** Mateo (#31–#40).

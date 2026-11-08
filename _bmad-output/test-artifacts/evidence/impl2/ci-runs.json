@@ -3,11 +3,39 @@
   "workflow": ".github/workflows/impl2-quality-gate.yml",
   "repository": "https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management",
   "log": "32-ci-run.log",
-  "signOff": 41964862300,
-  "since": "The re-audit commits after it (decision log Impl-2 #31 to #37: Story 4.6, the axe-core scans, the architecture fixes, the pool timeout and the price read) are not on CI yet. They passed the same gate locally: `npm run test:ci` exited 0 in evidence logs 33, 35, 36 and 37, and `npx playwright test` passed 6 of 6 in logs 34 to 37.",
+  "signOff": 42522585504,
   "runs": [
-    { "run": 41901553179, "commit": "ef77c50", "release": "Quality gate: FAIL", "decisionLog": "#28" },
-    { "run": 41922563597, "commit": "5bc619f", "release": "Quality gate: PASS", "decisionLog": "#28, #29" },
-    { "run": 41964862300, "commit": "cdb295b", "release": "Quality gate: PASS", "decisionLog": "#29, #30", "traces": "traces-ci/" }
+    {
+      "run": 41901553179,
+      "commit": "ef77c50",
+      "release": "Quality gate: FAIL",
+      "decisionLog": "#28"
+    },
+    {
+      "run": 41922563597,
+      "commit": "5bc619f",
+      "release": "Quality gate: PASS",
+      "decisionLog": "#28, #29"
+    },
+    {
+      "run": 41964862300,
+      "commit": "cdb295b",
+      "release": "Quality gate: PASS",
+      "decisionLog": "#29, #30",
+      "note": "its traces were in traces-ci/ until run 5 replaced them (git history keeps them)"
+    },
+    {
+      "run": 41966565252,
+      "commit": "3bc7543",
+      "release": "Quality gate: PASS",
+      "decisionLog": "#30"
+    },
+    {
+      "run": 42522585504,
+      "commit": "053f5e9",
+      "release": "Quality gate: PASS",
+      "decisionLog": "#31-#41",
+      "traces": "traces-ci/"
+    }
   ]
 }
