@@ -36,6 +36,13 @@
       "release": "Quality gate: PASS",
       "decisionLog": "#31-#41",
       "traces": "traces-ci/"
+    },
+    {
+      "run": 42523796447,
+      "commit": "6366a16",
+      "release": "Quality gate: FAIL",
+      "decisionLog": "#42",
+      "note": "the runner could not bind host port 55432 for the e2e Postgres service; no test ran"
     }
   ]
 }

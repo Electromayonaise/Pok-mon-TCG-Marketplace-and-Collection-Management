@@ -1,4 +1,4 @@
-# Impl-2 CI on GitHub Actions (impl2-quality-gate), runs 1-5. Excerpts of the job logs, ANSI colours stripped.
+# Impl-2 CI on GitHub Actions (impl2-quality-gate), runs 1-6. Excerpts of the job logs, ANSI colours stripped.
 
 ## Run 1: https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/41901553179 (commit ef77c50)
 # jobs: gate failure, e2e success, nfr-k6 success, release failure (Quality gate: FAIL)
@@ -167,3 +167,10 @@
 # release:
 2026-11-08T21:06:21.2191151Z gate=success e2e=success nfr-k6=success
 2026-11-08T21:06:21.2191688Z Quality gate: PASS
+
+## Run 6: https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/42523796447 (commit 6366a16, the docs-only close commit of decision log #41)
+# jobs: gate success, nfr-k6 success, e2e failure, release failure (Quality gate: FAIL). No test ran in e2e: its step
+# 'Initialize containers' failed on the runner host, before checkout:
+# Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint ..._postgres166_...: failed to bind host port for 0.0.0.0:55432:172.18.0.2:5432/tcp: address already in use
+# Error: failed to start containers: c05e6cf35cf32f662f9b1a4d15b77e626950b8dc5906610b4426112c287dbfec
+# fix (decision log #42): each job's Postgres service binds a host port the runner picks (ports: [5432]), exported by a first step.

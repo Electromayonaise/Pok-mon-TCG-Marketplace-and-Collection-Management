@@ -876,3 +876,20 @@
 - **Evidence:** `evidence/impl2/32-ci-run.log`, `ci-runs.json`, `traces-ci/`, `SHA256SUMS`.
 - **Artifact changed:** `32-ci-run.log`, `ci-runs.json`, `traces-ci/*.zip`, `traceability-matrix.md`, `walkthrough-impl2.md`, `docs/impl-2/README.md`, `SHA256SUMS`.
 - **Decided by:** Mateo (#31–#40).
+
+
+### 42. CI run 6 fails on the runner host before any test; each job's Postgres now binds a port the runner picks (CI)
+
+- **Phase:** C (close), CI; then a menu.
+- **Persona/Skill:** `bmad-testarch-ci` (Murat), main agent.
+- **AI output (summary):**
+  - **Run 6** ([42523796447](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/actions/runs/42523796447), `6366a16`, the docs-only commit of #41): `gate` and `nfr-k6` passed, but `e2e` failed in "Initialize containers", before checkout. The cause was `failed to bind host port for 0.0.0.0:55432 … address already in use` on the runner host. No test ran, and `release` printed `Quality gate: FAIL`. Run 5, the sign-off on the same code, was green.
+  - **Cause:** the workflow pinned the service to host port 55432, so any process already holding that port on a shared runner fails the job.
+- **Human decision (menu):** **(recommended)** harden the workflow, then confirm with a new run. The alternatives were re-running the job with the stored credential, or Mateo re-running it. ACCEPT. The workflow change:
+  - each job's Postgres service maps `ports: [5432]`, so the runner picks a free host port;
+  - a first step exports `job.services.postgres.ports['5432']` to `$GITHUB_ENV`, as `TEZG_PG_PORT` and, for `e2e` and `nfr-k6`, as `E2E_DATABASE_URL` and `K6_DATABASE_URL`. Job-level `env` cannot read the `job` context, so this has to be a step;
+  - three step names that contain `#` are quoted, since YAML had cut them at the `#`.
+- **Agent default:** run 5 stays the code sign-off. The run on this commit checks the workflow change and is reported to Mateo, because a commit cannot record its own CI run.
+- **Evidence:** `evidence/impl2/32-ci-run.log` (run 6), `ci-runs.json`.
+- **Artifact changed:** `.github/workflows/impl2-quality-gate.yml`, `32-ci-run.log`, `ci-runs.json`, `traceability-matrix.md`, `SHA256SUMS`.
+- **Decided by:** Mateo.

@@ -26,9 +26,11 @@ concurrency:
   group: impl2-gate-${{ github.ref }}
   cancel-in-progress: true
 
+# Each job's Postgres service binds a free host port the runner picks (`ports: [5432]`), never a fixed one: run 6
+# (42523796447) failed before any test because 55432 was already taken on the runner host (decision log Impl-2 #42).
+# Each job's first step exports that port (`job.services.postgres.ports['5432']`, readable only in steps) to $GITHUB_ENV.
 env:
   TEZG_PG_HOST: 127.0.0.1
-  TEZG_PG_PORT: '55432'
 
 jobs:
   gate:
@@ -42,13 +44,17 @@ jobs:
           POSTGRES_PASSWORD: tezg
           POSTGRES_DB: tezg
         ports:
-          - 55432:5432
+          - 5432
         options: >-
           --health-cmd "pg_isready -U tezg -d tezg"
           --health-interval 2s
           --health-timeout 2s
           --health-retries 30
     steps:
+      - name: "The Postgres service's host port (picked by the runner, decision log Impl-2 #42)"
+        run: |
+          port='${{ job.services.postgres.ports['5432'] }}'
+          echo "TEZG_PG_PORT=$port" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -56,7 +62,7 @@ jobs:
           cache: npm
       - name: Install (postinstall also installs the isolated tools/lint toolchain)
         run: npm ci
-      - name: Postgres allows 200 connections, as docker-compose.yml (decision log Impl-2 #28)
+      - name: "Postgres allows 200 connections, as docker-compose.yml (decision log Impl-2 #28)"
         # A service container takes no server flags, so the setting is written and the container restarted.
         # Each ATDD file's pool holds up to 60 connections and 3 files run at once (vitest.config.ts).
         run: |
@@ -87,13 +93,18 @@ jobs:
           POSTGRES_PASSWORD: tezg
           POSTGRES_DB: tezg
         ports:
-          - 55432:5432
+          - 5432
         options: >-
           --health-cmd "pg_isready -U tezg -d tezg"
           --health-interval 2s
           --health-timeout 2s
           --health-retries 30
     steps:
+      - name: "The Postgres service's host port (picked by the runner, decision log Impl-2 #42)"
+        run: |
+          port='${{ job.services.postgres.ports['5432'] }}'
+          echo "TEZG_PG_PORT=$port" >> "$GITHUB_ENV"
+          echo "E2E_DATABASE_URL=postgresql://tezg:tezg@127.0.0.1:$port/tezg_e2e" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -104,7 +115,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Playwright E2E (Page Objects, web-first assertions, trace on first retry)
         run: npx playwright test
-      - name: Forensic traces of the green journeys (decision log Impl-2 #29)
+      - name: "Forensic traces of the green journeys (decision log Impl-2 #29)"
         # The gating run above keeps `trace: 'on-first-retry'`, so a green run records no trace. This second
         # run records one trace.zip per journey (`--trace on`) as CI evidence; it does not gate on its own.
         run: npx playwright test --trace on --output test-results-forensic
@@ -136,20 +147,25 @@ jobs:
           POSTGRES_PASSWORD: tezg
           POSTGRES_DB: tezg
         ports:
-          - 55432:5432
+          - 5432
         options: >-
           --health-cmd "pg_isready -U tezg -d tezg"
           --health-interval 2s
           --health-timeout 2s
           --health-retries 30
     steps:
+      - name: "The Postgres service's host port (picked by the runner, decision log Impl-2 #42)"
+        run: |
+          port='${{ job.services.postgres.ports['5432'] }}'
+          echo "TEZG_PG_PORT=$port" >> "$GITHUB_ENV"
+          echo "K6_DATABASE_URL=postgresql://tezg:tezg@127.0.0.1:$port/tezg_k6" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - name: Postgres allows 200 connections, as docker-compose.yml (decision log Impl-2 #28)
+      - name: "Postgres allows 200 connections, as docker-compose.yml (decision log Impl-2 #28)"
         # A service container takes no server flags, so the setting is written and the container restarted.
         # Each ATDD file's pool holds up to 60 connections and 3 files run at once (vitest.config.ts).
         run: |
