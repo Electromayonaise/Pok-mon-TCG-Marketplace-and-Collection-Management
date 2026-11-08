@@ -820,3 +820,34 @@
   - Docs: `ARCHITECTURE.md`, `contracts.md`, `ports-and-adapters.md`, `architecture-audit-impl2.md`, `walkthrough-impl2.md`, `docs/impl-2/README.md`, `nfr-evidence.md`.
   - Generated: `epics.md`, `traceability-matrix.md`, `SHA256SUMS`.
 - **Decided by:** Mateo (#38).
+
+
+### 40. The test review re-run over the whole suite: 1 HIGH and 2 MEDIUM found and fixed, 100 / 100, Approve (Testing + Governance)
+
+- **Phase:** C (close), in a subagent (`e3af8f3`, `d968efb`), as decided in #38; then a menu.
+- **Persona/Skill:** `bmad-testarch-test-review` (Murat).
+- **Prompt (summary):** re-run the review at HEAD with the registry's fixed severities, as in #24. Fix the mechanical findings and report the judgment calls. Shuffle seeds 1, 2, 3 and 42, and recount the pyramid.
+- **AI output (summary):**
+  - **At `efa178c`:** 1 HIGH and 2 MEDIUM, scored 101 and capped at 100 (A). The recommendation was still Request Changes, because any HIGH forces it.
+    - HIGH-1: `atdd/sys_contracts.test.ts` had grown to 303 lines when #35's `[S-SYS.tick.jobs]` was added.
+    - MEDIUM-1: `JobRun` rows were built inline 4 times.
+    - MEDIUM-2: `admin-events.test.ts` copied the `failedDelivery()` factory column for column. The `727c74f` review missed it, and the new review says so.
+  - **Fixed, with no assertion changed:**
+    - the file was split by moving tests, into `sys_contracts.test.ts` (187 lines) and the new `sys_admin.test.ts` (98 lines), with shared steps in `test-support/suites/sys.ts`;
+    - a `jobRun()` factory was added, and the copy now calls the shared factory.
+
+    Result: **0 findings, 100 / 100 (A), Approve**.
+  - **No other row fires:** 0 hard waits, 0 conditional assertions, 0 skip / only, 0 files without an assertion, and no order dependence. All 12 shuffled runs pass (`impl1-unit` 767, `solu2-atdd` 384 in 27 files, `solu2-fitness` 12).
+  - **Pyramid at HEAD** (unit / integration / E2E):
+    - whole suite: 27.9 / 71.6 / 0.6 %;
+    - Impl-2's additions: 55.7 / 41.5 / 2.8 %, down from 58.7 % unit, since the re-audit added mostly database races and bounds.
+
+    The "Deliberate deviation" section is updated.
+  - **Gate:** `test:ci` exit 0 in 11 min 16 s; 97.56 % branches; trace PASS with 430 ids; `solu2-atdd` 384 green; `solu2-nfr` 30 green; `gate:evidence` 49 / 49.
+- **Human decisions (menu):** **(recommended)** all three judgment calls. ACCEPT.
+  - **Missing factories:** leave the shapes that have no factory yet (OutboxEvent with EventDelivery, CommissionLedgerEntry, FxSourceBreaker). None repeats 3 times in a file.
+  - **Binder race:** keep `[S-FR-COL-5.C1]` as is. It asserts the invariant unconditionally (distinct positions, 22 entries), and pinning the reorder's outcome would need a conditional assertion, or a fixed lock order that removes the race.
+  - **Pinned constants:** keep the tests that pin the decided constants (breaker policy, job-health window, `PG_POOL_MAX`). Each caught a mutation of the decided value.
+- **Evidence:** `evidence/impl2/40-test-review-rerun.log`.
+- **Artifact changed:** `test-review.md` (overwritten in place), `atdd/sys_contracts.test.ts`, `atdd/sys_admin.test.ts` (new), `test-support/suites/sys.ts` (new), `fixtures.ts`, `admin-events.test.ts`, `epics.md`, `traceability-matrix.md`, `walkthrough-impl2.md`, `docs/impl-2/README.md`, `SHA256SUMS`.
+- **Decided by:** Mateo.
