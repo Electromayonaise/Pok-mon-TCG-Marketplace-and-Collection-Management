@@ -32,6 +32,8 @@ Connection settings come from `TEZG_PG_*` (see `.env.example`). The defaults mat
 | concurrency | `concurrency.ts` | `race(n, fn)`: N calls released by one barrier, every outcome kept |
 | errors | `errors.ts` | `caught`, `httpOf`, `citedInputs`: extraction only; every `expect` stays in the test body |
 | wiring | `wiring.ts` | Fresh clock, ids and outbox per test |
+| composed app | `http-app.ts` | `useComposedApp()`: the production composition over HTTP for `src/server/composition-*.test.ts`, composed afresh before each test with the virtual clock back at T0 and an empty object store (test review HIGH-8) |
+| suites | `suites/*.ts` | `use<Module>Suite()`: the Given steps several split test files of one module share (`ver`, `inv`, `com`, `cat`, `rep`; test review HIGH-1 to HIGH-7) |
 
 ## Best practices (from the TEA knowledge base)
 
@@ -43,7 +45,7 @@ Connection settings come from `TEZG_PG_*` (see `.env.example`). The defaults mat
 
 ## CI integration
 
-`.github/workflows/impl1-quality-gate.yml` runs `npm run test:ci` against a Postgres 16 service on every push and pull request. `.github/workflows/solu2-quality-gate.yml` is the manual (`workflow_dispatch`) Solu-2 gate, with a burn-in of the fitness suite. Reports are uploaded as artifacts.
+`.github/workflows/impl2-quality-gate.yml` (which replaced the Impl-1 gate, decision log Impl-2 #10) runs `npm run test:ci`, `npx playwright test` and the k6 burst `npm run nfr:k6` (Story 13.5) against a Postgres 16 service on every push and pull request, then a `release` job that passes only when all three did. `.github/workflows/solu2-quality-gate.yml` is the manual (`workflow_dispatch`) Solu-2 gate, with a burn-in of the fitness suite. Reports are uploaded as artifacts.
 
 ## Knowledge-base references
 

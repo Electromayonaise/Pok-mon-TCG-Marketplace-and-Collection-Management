@@ -14,3 +14,10 @@ tools/lint/node_modules/
 # Written on every `next dev` by Next.js 16 (node_modules/next/dist/server/lib/generate-agent-files.js);
 # not a project file (decision log Impl-1 #39).
 /AGENTS.md
+
+# Impl-2 test outputs (decision log Impl-2 #8, #10): Playwright report and traces, V8 coverage
+/playwright-report/
+/test-results/
+/test-results-forensic/
+/.coverage/
+/.coverage-baseline/

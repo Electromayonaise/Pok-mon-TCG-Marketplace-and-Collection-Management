@@ -44,6 +44,7 @@ export { PgLegalIdentityRepository } from './infra/legalIdentityRepository.js';
 export { IdentityGateV2, type IdentityGateDeps } from './application/gate.js';
 export type { SessionReader } from './ports/session.js';
 /** AD-16: the admin guard a neighbour's admin operation runs in its own transaction (decision log Impl-1 #32). */
+export { CURRENT_CONSENT_VERSION } from './domain/ver.js';
 export { isAdmin, requireAdmin, requireBusinessAccount, sellerKindOf, type AdminFactsReader } from './application/admin.js';
 
 // <gen-solu2-api>

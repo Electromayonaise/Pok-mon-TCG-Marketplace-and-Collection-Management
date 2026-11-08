@@ -1,7 +1,8 @@
 // ORD domain (AD-ORD-1, AD-ORD-2, ADD-§4.2): pure rules, no database.
 import { describe, expect, it } from 'vitest';
 import {
-  closedLines, deriveStatus, expiryUnmaterialized, itemReceivedLoserCode, openOrderOverflow, paidLoserCode, paymentReceivedLoserCode, sniffComprobanteType, type OrderFacts,
+  AWAITING_BUSINESS_SUPPORT_MS, closedLines, comprobanteUploadPrefix, isComprobanteUploadKey, decodeOrderCursor, deriveStatus, encodeOrderCursor, expiryUnmaterialized, itemReceivedLoserCode, openOrderOverflow, orderView, paidLoserCode,
+  paymentReceivedLoserCode, sniffComprobanteType, type OrderFacts,
 } from './domain/ord.js';
 
 const NOW = new Date('2026-10-01T15:00:00.000Z');
@@ -76,5 +77,54 @@ describe('sniffComprobanteType (AD-SYS-8 rule 6)', () => {
   it('reads the type from the magic bytes only', () => {
     expect([[0xff, 0xd8, 0xff, 0], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], [0x25, 0x50, 0x44, 0x46, 0x2d], [0x47, 0x49, 0x46]].map((b) => sniffComprobanteType(new Uint8Array(b))))
       .toEqual(['image/jpeg', 'image/png', 'application/pdf', null]);
+  });
+});
+
+// Flow C backfill (decision log Impl-2 #8): the order page's state line, per derived status.
+describe('orderView (FR-ORD-1..8, NFR-ORD-4)', () => {
+  it('names each status with its code, rule and the instant it shows', () => {
+    expect(orderView(facts(), NOW)).toEqual({ status: 'AwaitingPayment', code: 'OrderAwaitingPayment', rule: 'FR-ORD-1', at: after(47) });
+    expect(orderView(facts({ buyerPaidConfirmedAt: before(1), sellerReceivedConfirmedAt: before(1) }), NOW)).toMatchObject({ code: 'OrderPaymentConfirmed', rule: 'FR-ORD-4', at: before(1) });
+    expect(orderView(facts({ buyerPaidConfirmedAt: before(3), buyerItemReceivedConfirmedAt: before(2) }), NOW)).toMatchObject({ status: 'Closed', code: 'OrderCompleted', at: before(2) });
+    expect(orderView(facts({ cancelledAt: before(1) }), NOW)).toMatchObject({ code: 'OrderCancelled', rule: 'FR-ORD-7', at: before(1) });
+  });
+
+  it('an Expired order shows its written expiry, or expiresAt while no transaction has written it', () => {
+    expect(orderView(facts({ expiredAt: before(1), expiresAt: before(2) }), NOW)).toMatchObject({ status: 'Expired', at: before(1) });
+    expect(orderView(facts({ expiresAt: before(2) }), NOW)).toMatchObject({ status: 'Expired', code: 'OrderExpired', at: before(2) });
+  });
+
+  it('a paid order turns to OrderAwaitingBusiness at exactly 7 days without the business, never before', () => {
+    const paidAt = new Date(NOW.getTime() - AWAITING_BUSINESS_SUPPORT_MS);
+    expect(orderView(facts({ buyerPaidConfirmedAt: paidAt }), NOW)).toMatchObject({ code: 'OrderAwaitingBusiness', rule: 'NFR-ORD-4', at: paidAt });
+    expect(orderView(facts({ buyerPaidConfirmedAt: new Date(paidAt.getTime() + 1) }), NOW)).toMatchObject({ code: 'OrderPaid', rule: 'FR-ORD-3' });
+  });
+});
+
+describe('itemReceivedLoserCode (ORD-4 P2–P5)', () => {
+  it('a paid, open order not yet received refuses nothing', () => {
+    expect(itemReceivedLoserCode(facts({ buyerPaidConfirmedAt: before(1) }), true, NOW)).toBeNull();
+  });
+});
+
+describe('the orders cursor', () => {
+  it('round-trips, and refuses one this service never issued', () => {
+    const cursor = encodeOrderCursor('2026-10-01T15:00:00.000Z', 'c'.repeat(24));
+    expect(decodeOrderCursor(cursor)).toEqual({ createdAt: '2026-10-01T15:00:00.000Z', id: 'c'.repeat(24) });
+    expect(decodeOrderCursor('not-a-cursor')).toBeNull();
+  });
+});
+
+describe('the comprobante upload key (AD-SYS-8 rule 5.3)', () => {
+  const buyer = 'camilax00000000000000000';
+
+  it('is exactly the buyer\'s prefix and one id segment of 1–64 lowercase letters or digits, so no other object is named', () => {
+    expect(comprobanteUploadPrefix(buyer)).toBe(`comprobante/${buyer}/`);
+    expect([`comprobante/${buyer}/k1`, `comprobante/${buyer}/${'a'.repeat(64)}`].map((k) => isComprobanteUploadKey(k, buyer))).toEqual([true, true]);
+    const refused = [
+      `comprobante/julianx00000000000000000/k1`, `comprobante/${buyer}/`, `comprobante/${buyer}/k1/x`, `comprobante/${buyer}/K1`, `comprobante/${buyer}/${'a'.repeat(65)}`,
+      `comprobante/${buyer}/../k1`, `topup-proof/${buyer}/k1`, `order-comprobantes/${buyer}/k1`,
+    ];
+    expect(refused.filter((k) => isComprobanteUploadKey(k, buyer))).toEqual([]);
   });
 });

@@ -1,6 +1,9 @@
 // INV domain (AD-INV-1, AD-INV-3, INV-2 P3–P5): pure rules, no database.
 import { describe, expect, it } from 'vitest';
-import { availability, conditionFitsKind, createdState, isValidLocation, isValidPrice, pausedAtInsert, purchasable, type PurchasabilityFacts } from './domain/inv.js';
+import {
+  availability, conditionFitsKind, createdState, decodeListingCursor, detailState, encodeListingCursor, isValidLocation, isValidPrice, ownerCheck, pausedAtInsert, purchasable,
+  type PurchasabilityFacts,
+} from './domain/inv.js';
 
 const facts = (o: Partial<PurchasabilityFacts> = {}): PurchasabilityFacts => ({
   sellerKindAtCreation: 'business', verification: 'Approved', pausedAt: null, hiddenAt: null, withdrawnAt: null, deactivatedAt: null, availability: 1, projection: 'funded', ...o,
@@ -54,5 +57,53 @@ describe('availability and purchasability (AD-INV-1 rule 2, AD-INV-3 rule 1)', (
     expect(purchasable(facts({ availability: 0 }))).toBe('SoldOut');
     const { projection: _omitted, ...solu1 } = facts();
     expect(purchasable(solu1)).toBe('ListingPausedBalanceExhausted');
+  });
+});
+
+describe('detailState and ownerCheck (S-FR-INV-9, S-FR-INV-10, S-2)', () => {
+  const state = (o: Partial<Parameters<typeof detailState>[0]> = {}) => detailState({
+    hidden: false, withdrawn: false, deactivated: false, paused: false, sellerKindAtCreation: 'business', projection: 'funded', verification: 'Approved', ...o,
+  });
+
+  it('reports the most severe state first: Hidden, Withdrawn, Deactivated, then Paused and Unverified for a business only', () => {
+    expect(state({ hidden: true, withdrawn: true, deactivated: true, paused: true })).toBe('Hidden');
+    expect(state({ withdrawn: true, deactivated: true })).toBe('Withdrawn');
+    expect(state({ deactivated: true, paused: true })).toBe('Deactivated');
+    expect([state({ paused: true }), state({ projection: 'absent' }), state({ verification: 'Pending' }), state({ verification: null }), state()])
+      .toEqual(['Paused', 'Paused', 'Unverified', 'Unverified', 'Active']);
+    expect(state({ sellerKindAtCreation: 'individual', paused: true, projection: 'absent', verification: null })).toBe('Active');
+  });
+
+  it('a non-owner never learns that an invisible listing exists: it reads exactly like an unknown id', () => {
+    const listing = (visible: boolean) => ({ sellerId: 'valentinax00000000000000', visible });
+    expect(ownerCheck(listing(false), 'valentinax00000000000000')).toBe('owner');
+    expect([ownerCheck(listing(true), 'julianx00000000000000000'), ownerCheck(listing(true), null)]).toEqual(['notOwner', 'notOwner']);
+    expect([ownerCheck(listing(false), 'julianx00000000000000000'), ownerCheck(null, 'julianx00000000000000000')]).toEqual(['notFound', 'notFound']);
+  });
+});
+
+describe('the listing keyset cursor (S-FR-INV-10.mine, S-FR-REP-6.listing log)', () => {
+  const raw = (text: string) => Buffer.from(text, 'utf8').toString('base64url');
+  const at = '2026-10-01T15:00:00.000Z';
+  const id = 'lcharx000000000000000000';
+
+  it('round-trips the (createdAt, id) keyset of the last row of a page in each list, and is opaque', () => {
+    const mine = encodeListingCursor('mine', at, id);
+    const log = encodeListingCursor('log', at, id);
+    expect([decodeListingCursor('mine', mine), decodeListingCursor('log', log)]).toEqual([{ createdAt: at, id }, { createdAt: at, id }]);
+    expect([mine, log].filter((c) => c.includes(id) || c.includes(at))).toEqual([]);
+  });
+
+  it('refuses a cursor the other list issued, and an untagged one (decision log Impl-2 #25)', () => {
+    expect([decodeListingCursor('mine', encodeListingCursor('log', at, id)), decodeListingCursor('log', encodeListingCursor('mine', at, id))]).toEqual([null, null]);
+    expect([decodeListingCursor('mine', raw(`${at}|${id}`)), decodeListingCursor('log', raw(`${at}|${id}`))]).toEqual([null, null]);
+  });
+
+  it('refuses a non-canonical or impossible instant, a malformed id, a missing or extra part, and noise', () => {
+    const refused = [
+      raw(`mine|2026-10-01T15:00:00Z|${id}`), raw(`mine|2026-02-30T15:00:00.000Z|${id}`), raw(`mine|${at}|LCHAR`), raw(`mine|${at}|`), raw(`mine|${at}`), raw(`mine||${id}`),
+      raw(`mine|${at}|${id}|x`), raw(`MINE|${at}|${id}`), 'not-a-cursor', '',
+    ];
+    expect(refused.map((c) => decodeListingCursor('mine', c))).toEqual(refused.map(() => null));
   });
 });

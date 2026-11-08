@@ -78,12 +78,19 @@ export async function business(db: Q, businessId: string, status: 'Pending' | 'A
 export const admin = (db: Q, adminId = id('admin')) => user(db, { id: adminId, isAdmin: true });
 
 // ---------------------------------------------------------------- catalog (CAT)
-export async function catalogEntry(db: Q, entryId: string, o: { setId?: string; kind?: 'card' | 'sealedProduct'; name?: string; number?: string; externalKey?: string } = {}): Promise<string> {
+export async function catalogEntry(db: Q, entryId: string, o: { setId?: string; kind?: 'card' | 'sealedProduct'; name?: string; number?: string; numberSort?: number; pokemon?: string; externalKey?: string } = {}): Promise<string> {
   const setId = o.setId ?? id('set1');
   await db.query(`INSERT INTO "CatalogSet" (id, code, name, era, "createdAt", "updatedAt") VALUES ($1, $2, 'Set de prueba', 'SV', $3, $3) ON CONFLICT DO NOTHING`, [setId, `S${setId.slice(0, 6)}`, T0]);
-  await ins(db, 'CatalogEntry', { id: entryId, externalKey: o.externalKey ?? `ext-${entryId}`, setId, kind: o.kind ?? 'card', name: o.name ?? `Carta ${entryId.slice(0, 6)}`, number: o.number ?? '001', numberSort: 1 });
+  await ins(db, 'CatalogEntry', { id: entryId, externalKey: o.externalKey ?? `ext-${entryId}`, setId, kind: o.kind ?? 'card', name: o.name ?? `Carta ${entryId.slice(0, 6)}`, number: o.number ?? '001', numberSort: o.numberSort ?? 1, ...(o.pokemon ? { pokemon: o.pokemon } : {}) });
   return entryId;
 }
+
+export const catalogSet = (db: Q, o: { id: string; code: string; name?: string; era?: string }) =>
+  ins(db, 'CatalogSet', { id: o.id, code: o.code, name: o.name ?? o.code, era: o.era ?? 'SV' });
+
+/** A stored TRM row (ADD-§6), fetched a day before T0 unless `fetchedAt` says otherwise; one day unless `validTo` widens it. */
+export const fxRate = (db: Q, o: { id: string; copPerUsdCentavos: number; validFrom: string; validTo?: string; fetchedAt?: string }) =>
+  ins(db, 'FxRate', { id: o.id, copPerUsdCentavos: o.copPerUsdCentavos, validFrom: o.validFrom, validTo: o.validTo ?? o.validFrom, source: 'fixture', fetchedAt: o.fetchedAt ?? at(-DAY) }, 'created');
 
 export async function feedRun(db: Q, runId: string, o: { status?: 'Running' | 'Completed' | 'Failed'; startedAt?: string; leaseUntil?: string | null } = {}): Promise<string> {
   const status = o.status ?? 'Completed';
@@ -140,8 +147,8 @@ export async function order(db: Q, o: { id: string; buyerId: string; businessId:
 export const commissionAccount = (db: Q, businessId: string, balanceCop: number, ledgerSeq = 0) =>
   ins(db, 'CommissionAccount', { businessId, balanceCop, state: balanceCop > 0 ? 'Funded' : 'Exhausted', ledgerSeq, openedAt: at(-DAY) });
 
-export const topUp = (db: Q, o: { id: string; businessId: string; amountCop: number; status?: 'Pending' | 'Confirmed' | 'Rejected' }) =>
-  ins(db, 'TopUpRequest', { id: o.id, businessId: o.businessId, amountCop: o.amountCop, transferReference: 'REF-1234', proofObjectKey: `topup-proofs/${o.id}`, status: o.status ?? 'Pending', rejectionReason: o.status === 'Rejected' ? 'No encontramos la transferencia.' : null, decidedBy: o.status && o.status !== 'Pending' ? id('admin') : null, decidedAt: o.status && o.status !== 'Pending' ? T0 : null, submittedAt: at(-HOUR) });
+export const topUp = (db: Q, o: { id: string; businessId: string; amountCop: number; status?: 'Pending' | 'Confirmed' | 'Rejected'; submittedAt?: string }) =>
+  ins(db, 'TopUpRequest', { id: o.id, businessId: o.businessId, amountCop: o.amountCop, transferReference: 'REF-1234', proofObjectKey: `topup-proofs/${o.id}`, status: o.status ?? 'Pending', rejectionReason: o.status === 'Rejected' ? 'No encontramos la transferencia.' : null, decidedBy: o.status && o.status !== 'Pending' ? id('admin') : null, decidedAt: o.status && o.status !== 'Pending' ? T0 : null, submittedAt: o.submittedAt ?? at(-HOUR) });
 
 // ---------------------------------------------------------------- trading (TRD)
 export const TERMS = { offeredItems: [], cashCop: 20_000, requestedQty: 1 } as const;
@@ -181,6 +188,24 @@ export const review = (db: Q, o: { id: string; reviewerId: string; targetUserId:
     id: o.id, reviewerId: o.reviewerId, targetUserId: o.targetUserId, targetKind: o.targetKind ?? 'business', purchaseVerified: (o.targetKind ?? 'business') === 'business',
     rating: o.rating ?? 5, text: o.text ?? 'Excelente vendedor.', hiddenAt: o.hiddenAt ?? null, hiddenReason: o.hiddenAt ? 'Spam' : null, hiddenBy: o.hiddenAt ? id('admin') : null,
   });
+
+// ---------------------------------------------------------------- events (S-SYS.replay)
+/** One outbox event and its delivery to `subscriber`, failed after 3 attempts a day ago: the Given of a replay. */
+export async function failedDelivery(db: Q, o: { eventId: string; type: string; aggregateId: string; payload: unknown; subscriber: string }): Promise<void> {
+  await ins(db, 'OutboxEvent', { id: o.eventId, type: o.type, aggregateId: o.aggregateId, schemaVersion: 1, payload: JSON.stringify(o.payload) }, 'created');
+  await ins(db, 'EventDelivery', { eventId: o.eventId, subscriber: o.subscriber, status: 'failed', attempts: 3, lastErrorCode: 'DeliveryAttemptsExhausted', firstFailedAt: at(-DAY), lastFailedAt: at(-DAY) });
+}
+
+// ---------------------------------------------------------------- jobs (Story 1.6, S-SYS.tick)
+/**
+ * One JobRun row, triggered by the tick unless said otherwise: started at `startedAt` (T0 by default), finished at the same
+ * instant unless it is still `running`, and created and updated when it started.
+ */
+export const jobRun = (db: Q, o: { id: string; job: string; startedAt?: string; outcome?: 'running' | 'succeeded' | 'skipped' | 'failed'; errorCode?: string | null; trigger?: string }) => {
+  const startedAt = o.startedAt ?? T0;
+  const outcome = o.outcome ?? 'succeeded';
+  return ins(db, 'JobRun', { id: o.id, trigger: o.trigger ?? 'tick', job: o.job, startedAt, finishedAt: outcome === 'running' ? null : startedAt, outcome, errorCode: o.errorCode ?? null, createdAt: startedAt, updatedAt: startedAt });
+};
 
 // ---------------------------------------------------------------- wiring
 /**

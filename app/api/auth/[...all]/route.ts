@@ -1,10 +1,7 @@
-// Better Auth's routes under /api/auth/* (S-FR-IDN-7): get-session and sign-out over the
-// `"Session"` table. The instance is built on the first request, so `next build` reads no
-// configuration. Sign-up and the sign-in methods are not configured in the Impl-1 cut (auth.ts).
-import { auth } from '../../../../src/server/auth.js';
+// Better Auth's routes behind the AD-IDN-3 guard (Story 2.6; src/server/auth-routes.ts): sign-up
+// checks consent and the sign-up limit, sign-in the account and IP limits.
+import { handleAuth } from '../../../_server/runtime.js';
 
-function handler(req: Request): Promise<Response> {
-  return auth().handler(req);
-}
+export const dynamic = 'force-dynamic';
 
-export { handler as GET, handler as POST };
+export { handleAuth as GET, handleAuth as POST };

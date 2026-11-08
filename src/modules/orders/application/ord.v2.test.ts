@@ -1,8 +1,6 @@
 // ORD against Postgres with the real neighbours: the edges the ATDD tests leave out.
-import pg from 'pg';
 import { describe, expect, it } from 'vitest';
 import { PgTransactionRunner, useTestDatabase } from '../../../../test-support/db.js';
-import { PG } from '../../../../test-support/env.js';
 import { caught, citedInputs } from '../../../../test-support/errors.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
 import { admin, at, business, catalogEntry, commissionState, HOUR, id, listing, order, purchasableListing, rows, unit, user, wiring } from '../../../../test-support/solu2/fixtures.js';
@@ -10,6 +8,7 @@ import { realInventory } from '../../../../test-support/solu2/services.js';
 import { VerServiceV2 } from '../../identity/index.js';
 import type { TransactionRunner } from '../../../shared-kernel/ports.js';
 import { OrdServiceV2 } from './ord.v2.js';
+import { singleConnectionPool } from '../../../../test-support/single-connection.js';
 
 const db = useTestDatabase();
 
@@ -26,17 +25,14 @@ describe('createOrder with the real neighbours (ORD-1, AD-SYS-4 rule 9)', () => 
   it('runs on a pool of 1: the reserve and the payment instructions read on the order\'s connection', async () => {
     await andres(3);
     await user(db, { id: id('camila') });
-    const pool = new pg.Pool({ ...PG, database: (db.pool.options as { database: string }).database, max: 1 });
-    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    const pool = singleConnectionPool(db);
     try {
       const { ord } = orders(new PgTransactionRunner(pool));
-      const deadlock = new Promise<never>((_, reject) => { watchdog = setTimeout(() => reject(new Error('deadlock: a second connection was requested')), 3_000); });
-      const result = await Promise.race([ord.createOrder({ listingId: id('lchar'), qty: 2, buyerId: id('camila') }), deadlock]);
+      const result = await ord.createOrder({ listingId: id('lchar'), qty: 2, buyerId: id('camila') });
       expect(result).toMatchObject({ status: 'AwaitingPayment', totalCop: 90_000, paymentInstructions: { bankName: 'Bancolombia', qrObjectKey: null } });
       expect(await quantity(id('uchar'))).toBe(1);
       expect(await rows(db, 'Order')).toMatchObject([{ listingSnapshot: { itemRef: id('char'), unitPriceCop: 45_000 }, reservationRef: { listingId: id('lchar'), units: [{ inventoryUnitId: id('uchar'), qty: 2 }] } }]);
     } finally {
-      clearTimeout(watchdog);
       await pool.end();
     }
   });

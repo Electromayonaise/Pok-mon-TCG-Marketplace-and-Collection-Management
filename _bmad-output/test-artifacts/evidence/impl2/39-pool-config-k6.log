@@ -1,0 +1,176 @@
+# Evidence 39 — the configurable runtime pool (decision log Impl-2 #38): TEZG_PG_POOL_MAX, validated in
+# src/shared-kernel/config.ts (whole number 2..50, default 2), read by runtimePool() in src/server/db.ts with the 10 s
+# checkout timeout unchanged. The long-lived servers set 10: scripts/nfr-k6.mjs (k6), playwright.config.ts webServer env
+# (E2E, through scripts/e2e-server.mjs) and docker-compose.yml (the Docker app). Serverless instances keep the default 2.
+# Branch impl-2, base commit 95b4675, local Docker Postgres 16.6 on 127.0.0.1:55432, Windows 11, 2026-11-07.
+# The "before" is evidence 38 (38-reaudit-docs.log §5, run A): k6 FAIL on the 2-connection pool, profile p95 659.84 ms
+# against 300 ms and 1,347 dropped iterations against < 120. This log is the "after". Rule followed: a change to a shared
+# runtime setting re-runs every proof that depends on it, inside and outside test:ci (nfr:k6, playwright, test:ci).
+# k6-summary.json in this directory is this run's summary export. SHA256SUMS is written after this file.
+
+# ===== 1. The setting's tests and two mutations =====
+$ npx vitest run --project impl1-unit src/shared-kernel/config.test.ts      # 14 passed: default 2, 2/10/50 accepted,
+#   and 1, 0, 51, '', 'ten', '2.5', '-3', ' 10' each stop the app naming TEZG_PG_POOL_MAX
+$ npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/sys_jobs.test.ts   # 9 passed
+# [S-SYS.jobs.pool] builds boundedPool(db, PG_POOL_MAX.min) and asserts min = default = 2; [S-SYS.jobs.starved] builds
+# runtimePool(url, { max: loadConfig(env without TEZG_PG_POOL_MAX).pgPoolMax, connectionTimeoutMillis: 200 }) and asserts
+# [pool.options.max, pgPoolMax, RUNTIME_POOL.connectionTimeoutMillis] = [2, 2, 10_000]. Both stay on 2 connections.
+# --- Mutation A: PG_POOL_MAX.default 2 -> 10 (config.ts), then restored ---
+     × maps a valid environment to the app configuration 10ms
+       × defaults to 2, the minimum, when unset 1ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  |impl1-unit| src/shared-kernel/config.test.ts > loadConfig > maps a valid environment to the app configuration
+ FAIL  |impl1-unit| src/shared-kernel/config.test.ts > loadConfig > TEZG_PG_POOL_MAX > defaults to 2, the minimum, when unset
+      Tests  2 failed | 12 passed (14)
+     × [S-SYS.jobs.pool] trm-fetch, expiry-materialize, outbox-sweep and the nightly commission-reconcile each succeed on a pool of exactly 2 connections, and use both; on a pool of 1 a job is refused at once and its run is failed 42ms
+     × [S-SYS.jobs.starved] on the runtime pool (max 2, a checkout timeout), a job whose second connection another run holds fails within the timeout as a failed JobRun; one refused its first connection answers 500 and writes nothing 32ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Architecture audit F1 — every job runs on the runtime pool of 2 connections (AD-SYS-4 rules 7 and 9) > [S-SYS.jobs.pool] trm-fetch, expiry-materialize, outbox-sweep and the nightly commission-reconcile each succeed on a pool of exactly 2 connections, and use both; on a pool of 1 a job is refused at once and its run is failed
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Architecture audit F1 — every job runs on the runtime pool of 2 connections (AD-SYS-4 rules 7 and 9) > [S-SYS.jobs.starved] on the runtime pool (max 2, a checkout timeout), a job whose second connection another run holds fails within the timeout as a failed JobRun; one refused its first connection answers 500 and writes nothing
+      Tests  2 failed | 7 passed (9)
+# --- Mutation B: PG_POOL_MAX.min 2 -> 1 (config.ts), then restored ---
+       × defaults to 2, the minimum, when unset 7ms
+       × stops the app with the variable named when it is "1" (below the minimum) 1ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  |impl1-unit| src/shared-kernel/config.test.ts > loadConfig > TEZG_PG_POOL_MAX > defaults to 2, the minimum, when unset
+ FAIL  |impl1-unit| src/shared-kernel/config.test.ts > loadConfig > TEZG_PG_POOL_MAX > stops the app with the variable named when it is "1" (below the minimum)
+      Tests  2 failed | 12 passed (14)
+     × [S-SYS.jobs.pool] trm-fetch, expiry-materialize, outbox-sweep and the nightly commission-reconcile each succeed on a pool of exactly 2 connections, and use both; on a pool of 1 a job is refused at once and its run is failed 41ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Architecture audit F1 — every job runs on the runtime pool of 2 connections (AD-SYS-4 rules 7 and 9) > [S-SYS.jobs.pool] trm-fetch, expiry-materialize, outbox-sweep and the nightly commission-reconcile each succeed on a pool of exactly 2 connections, and use both; on a pool of 1 a job is refused at once and its run is failed
+      Tests  1 failed | 8 passed (9)
+
+# ===== 2. npm run nfr:k6 (TEZG_PG_POOL_MAX=10 from scripts/nfr-k6.mjs): PASS =====
+$ npm run nfr:k6
+
+
+  █ THRESHOLDS 
+
+    dropped_iterations
+    ✓ 'count<120' count=3
+
+      {scenario:browse}
+      ✓ 'count<60' count=1
+
+      {scenario:profile}
+      ✓ 'count<60' count=2
+
+    http_req_duration{endpoint:browse}
+    ✓ 'p(95)<1000' p(95)=42.79ms
+
+    http_req_duration{endpoint:profile}
+    ✓ 'p(95)<300' p(95)=41.25ms
+    ✓ 'p(99)<800' p(99)=122.91ms
+
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+
+      {endpoint:browse}
+      ✓ 'rate<0.01' rate=0.00%
+
+      {endpoint:profile}
+      ✓ 'rate<0.01' rate=0.00%
+
+    http_reqs{endpoint:browse}
+    ✓ 'count>0' count=6000
+
+    http_reqs{endpoint:profile}
+    ✓ 'count>0' count=5999
+
+    server_errors_5xx
+    ✓ 'count==0' count=0
+
+      {endpoint:browse}
+      ✓ 'count==0' count=0
+
+      {endpoint:profile}
+      ✓ 'count==0' count=0
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 11999   195.31851/s
+    checks_succeeded...: 100.00% 11999 out of 11999
+    checks_failed......: 0.00%   0 out of 11999
+
+    ✓ profile answers 200
+    ✓ browse answers 200
+
+    CUSTOM
+    server_errors_5xx..............: 0      0/s
+      { endpoint:browse }..........: 0      0/s
+      { endpoint:profile }.........: 0      0/s
+
+    HTTP
+    http_req_duration..............: avg=24.1ms  min=7.19ms  med=16.35ms max=517.19ms p(90)=31.83ms p(95)=59.7ms  p(99)=199.49ms
+      { endpoint:browse }..........: avg=23.37ms min=12.89ms med=18.49ms max=266.73ms p(90)=30.86ms p(95)=42.79ms p(99)=115.4ms 
+      { endpoint:profile }.........: avg=17.12ms min=7.19ms  med=11.19ms max=283.45ms p(90)=25.08ms p(95)=41.25ms p(99)=122.91ms
+      { expected_response:true }...: avg=24.1ms  min=7.19ms  med=16.35ms max=517.19ms p(90)=31.83ms p(95)=59.7ms  p(99)=199.49ms
+    http_req_failed................: 0.00%  0 out of 12249
+      { endpoint:browse }..........: 0.00%  0 out of 6000
+      { endpoint:profile }.........: 0.00%  0 out of 5999
+    http_reqs......................: 12249  199.387985/s
+      { endpoint:browse }..........: 6000   97.667394/s
+      { endpoint:profile }.........: 5999   97.651116/s
+
+    EXECUTION
+    dropped_iterations.............: 3      0.048834/s
+      { scenario:browse }..........: 1      0.016278/s
+      { scenario:profile }.........: 2      0.032556/s
+    iteration_duration.............: avg=20.54ms min=7.34ms  med=16.47ms max=283.71ms p(90)=29.31ms p(95)=42.77ms p(99)=122.92ms
+    iterations.....................: 11999  195.31851/s
+    vus............................: 5      min=0          max=29
+    vus_max........................: 53     min=50         max=53
+
+    NETWORK
+    data_received..................: 58 MB  936 kB/s
+    data_sent......................: 2.2 MB 36 kB/s
+
+
+
+
+running (1m01.4s), 000/053 VUs, 11999 complete and 0 interrupted iterations
+browse  ✓ [ 100% ] 00/26 VUs  1m0s  100.00 iters/s
+profile ✓ [ 100% ] 00/27 VUs  1m0s  100.00 iters/s
+nfr-k6: k6 exited with 0
+# Summary (k6-summary.json):
+#   profile: 5,999 requests, med 11.20 ms, p95 41.25 ms (< 300), p99 122.91 ms (< 800), 0.00 % errors, 0 5xx, 2 dropped (< 60)
+#   browse:  6,000 requests, med 18.49 ms, p95 42.80 ms (< 1,000), p99 115.40 ms, 0.00 % errors, 0 5xx, 1 dropped (< 60)
+#   all:     12,249 requests incl. 250 warm-up, p95 59.70 ms, p99 199.50 ms, 0.00 % errors, 0 5xx, 3 dropped (< 120)
+# Before (log 38, run A, max 2): profile p95 659.84 ms, p99 793.29 ms, browse p95 665.38 ms, 1,347 dropped, k6 exit 99.
+
+# ===== 3. npx playwright test (TEZG_PG_POOL_MAX=10 from playwright.config.ts webServer env): 6 passed =====
+$ npx playwright test
+  ✓  1 [chromium] › _bmad-output\test-artifacts\e2e\binder.spec.ts:19:1 › Julián re-sorts his binder, the order survives a reload, and a promo added by an https link lands in a pocket after an http:// link is refused (4.5s)
+  ✓  2 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:16:1 › Camila reads a conversation, its badge clears, and muting another takes it out of her unread total (2.4s)
+  ✓  3 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:55:1 › a wrong password keeps Camila on the sign-in page with the es-CO error (980ms)
+  ✓  4 [chromium] › _bmad-output\test-artifacts\e2e\profile.spec.ts:15:1 › a visitor with no session reads Lucía’s rating and reviews, without the review moderation hid (792ms)
+  ✓  5 [chromium] › _bmad-output\test-artifacts\e2e\profile.spec.ts:33:1 › an id that is no seller shows the es-CO Not-available page (849ms)
+  ✓  6 [chromium] › _bmad-output\test-artifacts\e2e\smoke.spec.ts:8:1 › a visitor opens TEZG and sees the service ready (690ms)
+  6 passed (28.2s)
+# The 6 journeys run 14 expectNoA11yViolations() axe-core scans (WCAG 2.x A/AA, NFR-SYS-11); every one passed.
+
+# ===== 4. npm run db:up && npm run test:ci: exit 0 =====
+# 2026-11-07T19:30:25Z -> 2026-11-07T19:42:13Z (11 min 48 s), EXIT 0. gate:evidence ran inside test:ci against an interim SHA256SUMS written over the new
+# k6-summary.json (47 files); the final SHA256SUMS, with this file, is written after it by npm run gen:evidence.
+24 dependencies in 2 manifests: exact, approved, no high or critical advisory
+no-sleep: 352 files checked, 7 rules proven on planted violations, 0 problems
+evidence: 47 files listed in _bmad-output/test-artifacts/evidence/impl2/SHA256SUMS, 47 on disk; 0 problems
+56 models, each tagged with its owning module; prisma/schema.prisma is current
+ Test Files  72 passed (72)
+      Tests  767 passed (767)
+All files          |   99.07 |    97.56 |     100 |     100 |                   
+> npm run typecheck && npm run test:lint-rules && npm run gate:api:solu2 && npm run gate:ui:solu2 && npm run gate:codes:solu2 && npm run gate:ids:solu2 && npm run gate:trace:solu2 && npm run gate:epics:solu2 && npm run gate:purity && npm run test:fitness:solu2 && npm run gate:atdd-red:impl1 && npm run gate:nfr-red:impl1
+144 operations, 113 ingress procedures, 163 schemas, 37 core operations checked against contracts.md; surface is current
+43 pages, 328 states (139 data, 77 refusal, 112 client), 0 problems
+204 code citations checked, 0 problems
+> tezg@0.0.0 gate:trace:solu2
+trace: 96 FRs, 56 NFRs, 62 AD rows, 32 risks, 115 clauses, 430 test ids (430 enforced green), 4 journeys, 1 k6 scripts; gate PASS; 0 problems
+_bmad-output/planning-artifacts/epics.md is current: 13 epics, 72 stories
+14 domain files checked, 0 problems
+> tezg@0.0.0 test:fitness:solu2
+> vitest run --project solu2-fitness
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+solu2-atdd: 384 tests in 26 files; 0 red for the right reason; 384 green for done stories (430 contracts or test ids done); 0 not as expected
+solu2-nfr: 30 tests in 15 files; 0 red for the right reason; 30 green for done stories (430 contracts or test ids done); 0 not as expected

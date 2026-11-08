@@ -2,6 +2,7 @@
 // decision log Impl-1 #17): the cases the bound SYS-2 and S-SYS.replay proofs leave open.
 import { describe, expect, it } from 'vitest';
 import { useTestDatabase } from '../../test-support/db.js';
+import { untilBlockedOnLock } from '../../test-support/locks.js';
 import { at, DAY, id, ins, rows, T0, wiring } from '../../test-support/solu2/fixtures.js';
 import { type DeliveryHandler, OutboxDispatcherV2, type ReplayOutcome } from './dispatcher.js';
 import { DomainError } from './errors.js';
@@ -83,8 +84,19 @@ describe('OutboxDispatcherV2 attempt procedure (rule 4)', () => {
   it('a dispatch and a sweep racing on one delivery run its handler once', async () => {
     await delivery('pending', 0, at(-120_000));
     let ran = 0;
-    const { d } = setup({ listings: async (tx) => { ran++; await tx.query('SELECT pg_sleep(0.05)'); } });
-    const [dispatched, swept] = await Promise.all([d.dispatch([id('ev1')]), d.sweep()]);
+    // The winner's handler keeps its row lock until the loser has met it: either the loser's attempt
+    // count waits on the lock (Postgres reports it), or the loser already counted and settles by
+    // skipping the locked claim. A condition, not a sleep (decision log Impl-2 #8).
+    const calls: Promise<{ delivered: number }>[] = [];
+    const { d } = setup({
+      listings: async () => {
+        ran++;
+        // The winner cannot settle while its handler runs, so the first call to settle is the loser.
+        await untilBlockedOnLock(db, 'SET attempts = attempts + 1', { orSettled: Promise.race(calls) });
+      },
+    });
+    calls.push(d.dispatch([id('ev1')]), d.sweep());
+    const [dispatched, swept] = (await Promise.all(calls)) as [{ delivered: number }, { delivered: number }];
     expect(ran).toBe(1);
     expect(dispatched.delivered + swept.delivered).toBe(1);
     expect(await rows(db, 'EventDelivery')).toMatchObject([{ status: 'delivered' }]);

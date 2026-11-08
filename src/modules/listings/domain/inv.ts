@@ -96,15 +96,21 @@ export function ownerCheck(listing: { sellerId: string; visible: boolean } | nul
   return listing.visible ? 'notOwner' : 'notFound';
 }
 
-/** S-FR-INV-10.mine: the keyset `("createdAt", id)` of the last row, opaque to the client. */
-export function encodeListingCursor(createdAt: string, id: string): string {
-  return Buffer.from(`${createdAt}|${id}`, 'utf8').toString('base64url');
+/** The lists whose keyset cursors INV issues: a cursor of one list is refused by the other (decision log Impl-2 #25). */
+export type ListingListTag = 'mine' | 'log';
+
+/**
+ * S-FR-INV-10.mine, S-FR-REP-6.listing: the opaque keyset cursor of a list page, base64url of the list's tag and
+ * its last row's `("createdAt", id)`.
+ */
+export function encodeListingCursor(tag: ListingListTag, createdAt: string, id: string): string {
+  return Buffer.from(`${tag}|${createdAt}|${id}`, 'utf8').toString('base64url');
 }
 
-/** The cursor's keyset, or null when it is not one this service issued. */
-export function decodeListingCursor(cursor: string): { createdAt: string; id: string } | null {
-  const [createdAt, id, ...rest] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
-  if (rest.length > 0 || !createdAt || !id || !/^[a-z][0-9a-z]{23}$/.test(id)) return null;
+/** The cursor's keyset, or null when it is not one this list issued (another list's, an untagged one, or noise). */
+export function decodeListingCursor(tag: ListingListTag, cursor: string): { createdAt: string; id: string } | null {
+  const [listTag, createdAt, id, ...rest] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
+  if (listTag !== tag || rest.length > 0 || !createdAt || !id || !/^[a-z][0-9a-z]{23}$/.test(id)) return null;
   const at = Date.parse(createdAt);
   return Number.isNaN(at) || new Date(at).toISOString() !== createdAt ? null : { createdAt, id };
 }

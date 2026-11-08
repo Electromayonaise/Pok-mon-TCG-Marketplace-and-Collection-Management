@@ -25,3 +25,27 @@ export function averageTenths(sum: bigint, count: bigint): bigint | null {
   if (count === 0n) return null;
   return (20n * sum + count) / (2n * count);
 }
+
+/**
+ * AD-REP-3 rule 4 (EC-34, S-10): the admin query as a literal `LIKE` substring. The backslash, `%` and `_` are
+ * escaped for `ESCAPE` with a backslash, so "100%" matches only the text "100%", never "1000".
+ */
+export function escapeLike(query: string): string {
+  return query.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+/** The lists whose keyset cursors REP issues: a cursor of one list is refused by the other. */
+export type ReviewListTag = 'search' | 'log';
+
+/** The opaque keyset cursor of an admin list page: base64url of the list's tag and its last row's `(at, id)`. */
+export function encodeReviewCursor(tag: ReviewListTag, at: string, id: string): string {
+  return Buffer.from(`${tag}|${at}|${id}`, 'utf8').toString('base64url');
+}
+
+/** The cursor's keyset, or null when it is not one this list issued. */
+export function decodeReviewCursor(tag: ReviewListTag, cursor: string): { at: string; id: string } | null {
+  const [listTag, at, id, ...rest] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
+  if (listTag !== tag || rest.length > 0 || !at || !id || !/^[a-z][0-9a-z]{23}$/.test(id)) return null;
+  const ms = Date.parse(at);
+  return Number.isNaN(ms) || new Date(ms).toISOString() !== at ? null : { at, id };
+}

@@ -1883,6 +1883,107 @@ paths:
               type: "object"
               additionalProperties: false
               properties: {}
+  "/api/trpc/catalog.fx.breaker":
+    get:
+      operationId: "catalog_fx_breaker"
+      summary: "S-FR-CAT-8.breaker getFxSourceBreaker (contracts.md §3)"
+      tags:
+        - "catalog"
+      x-procedure-builder: "admin"
+      x-actor-fields-from-session:
+        - "actorId"
+      security:
+        - session: []
+      responses:
+        "200":
+          description: "Success: the tRPC result envelope."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "result"
+                properties:
+                  result:
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/GetFxSourceBreakerResponse"
+        "400":
+          description: "Refusal: RequestValidationFailed."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "RequestValidationFailed"
+                          httpStatus:
+                            const: 400
+        "401":
+          description: "Refusal: NotAuthenticated."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "NotAuthenticated"
+                          httpStatus:
+                            const: 401
+        "403":
+          description: "Refusal: AdminOnly."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                required:
+                  - "error"
+                properties:
+                  error:
+                    allOf:
+                      - "$ref": "#/components/schemas/ErrorBody"
+                      - type: "object"
+                        properties:
+                          code:
+                            type: "string"
+                            enum:
+                              - "AdminOnly"
+                          httpStatus:
+                            const: 403
+        "500":
+          "$ref": "#/components/responses/Unexpected"
+      parameters:
+        - name: "input"
+          in: "query"
+          required: true
+          description: "The procedure input, JSON-encoded (tRPC 11, non-batched)."
+          content:
+            "application/json":
+              schema:
+                type: "object"
+                additionalProperties: false
+                properties: {}
   "/api/trpc/discovery.search":
     get:
       operationId: "discovery_search"
@@ -8442,7 +8543,6 @@ paths:
                   pattern: "^[a-z][0-9a-z]{23}$"
                 url:
                   type: "string"
-                  pattern: "^https://"
                   maxLength: 2048
                 title:
                   type: "string"
@@ -8451,7 +8551,6 @@ paths:
                 imageUrl:
                   anyOf:
                     - type: "string"
-                      pattern: "^https://"
                     - type: "null"
                 qty:
                   type: "integer"
@@ -12501,6 +12600,20 @@ paths:
           description: "The run finished, or was skipped because another run holds the lock."
         "401":
           description: "Missing or wrong JOBS_SECRET bearer; no JobRun row is written (S-9)."
+  "/api/jobs/outbox-sweep":
+    post:
+      operationId: "job_outbox_sweep"
+      summary: "S-SYS.sweep sweep (contracts.md §13 (EventDeliveryNotReplayable))"
+      description: "Scheduled entry point (ARCHITECTURE §4). Idempotent and single-flight under `job:<name>` (AD-SYS-4 rule 7); writes one JobRun row."
+      tags:
+        - "jobs"
+      security:
+        - jobsSecret: []
+      responses:
+        "200":
+          description: "The run finished, or was skipped because another run holds the lock."
+        "401":
+          description: "Missing or wrong JOBS_SECRET bearer; no JobRun row is written (S-9)."
   "/api/health/live":
     get:
       operationId: "health_liveness"
@@ -12763,6 +12876,19 @@ components:
           format: "date"
         manualPosition:
           type: "number"
+        externalUrl:
+          anyOf:
+            - type: "string"
+            - type: "null"
+        imageUrl:
+          anyOf:
+            - type: "string"
+            - type: "null"
+        orderId:
+          anyOf:
+            - type: "string"
+              pattern: "^[a-z][0-9a-z]{23}$"
+            - type: "null"
       required:
         - "entryId"
         - "cardKind"
@@ -12772,6 +12898,9 @@ components:
         - "qty"
         - "acquiredAt"
         - "manualPosition"
+        - "externalUrl"
+        - "imageUrl"
+        - "orderId"
     BinderSortKey:
       type: "string"
       enum:
@@ -12780,6 +12909,12 @@ components:
         - "acquiredAt"
         - "acquiredPriceCop"
         - "manual"
+    BreakerState:
+      type: "string"
+      enum:
+        - "closed"
+        - "open"
+        - "halfOpen"
     BrowseCatalogResponse:
       type: "object"
       additionalProperties: false
@@ -13671,6 +13806,7 @@ components:
             - "alreadyCovered"
             - "sourceUnavailable"
             - "mismatchKept"
+            - "circuitOpen"
         decision:
           "$ref": "#/components/schemas/ExplanationDTO"
       required:
@@ -13871,6 +14007,35 @@ components:
         - "oldestFirstFailedAt"
         - "stuckPendingCount"
         - "latestDigest"
+    GetFxSourceBreakerResponse:
+      type: "object"
+      additionalProperties: false
+      properties:
+        state:
+          "$ref": "#/components/schemas/BreakerState"
+        consecutiveFailures:
+          type: "number"
+        failureThreshold:
+          type: "number"
+        openedAt:
+          anyOf:
+            - type: "string"
+              format: "date-time"
+            - type: "null"
+        retryAt:
+          anyOf:
+            - type: "string"
+              format: "date-time"
+            - type: "null"
+        decision:
+          "$ref": "#/components/schemas/ExplanationDTO"
+      required:
+        - "state"
+        - "consecutiveFailures"
+        - "failureThreshold"
+        - "openedAt"
+        - "retryAt"
+        - "decision"
     GetHandoffResponse:
       "$ref": "#/components/schemas/ContactMessageDTO"
     GetLastReconciliationResponse:
@@ -13994,6 +14159,8 @@ components:
       type: "object"
       additionalProperties: false
       properties:
+        seller:
+          "$ref": "#/components/schemas/ProfileSellerDTO"
         aggregate:
           "$ref": "#/components/schemas/SellerAggregateDTO"
         reviews:
@@ -14003,6 +14170,7 @@ components:
         hasMore:
           type: "boolean"
       required:
+        - "seller"
         - "aggregate"
         - "reviews"
         - "hasMore"
@@ -14065,11 +14233,19 @@ components:
             - type: "null"
         tickSilent:
           type: "boolean"
+        jobs:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/JobHealthDTO"
+        degraded:
+          type: "boolean"
         decision:
           "$ref": "#/components/schemas/ExplanationDTO"
       required:
         - "lastTickStartedAt"
         - "tickSilent"
+        - "jobs"
+        - "degraded"
         - "decision"
     GetTopUpProofUrlResponse:
       type: "object"
@@ -14124,6 +14300,37 @@ components:
         - "lastMessageAt"
         - "unread"
         - "muted"
+    JobHealthDTO:
+      type: "object"
+      additionalProperties: false
+      properties:
+        job:
+          type: "string"
+        lastOutcome:
+          type: "string"
+          enum:
+            - "running"
+            - "succeeded"
+            - "skipped"
+            - "failed"
+        lastErrorCode:
+          anyOf:
+            - type: "string"
+            - type: "null"
+        lastStartedAt:
+          type: "string"
+          format: "date-time"
+        failedInWindow:
+          type: "number"
+        stuckRunning:
+          type: "number"
+      required:
+        - "job"
+        - "lastOutcome"
+        - "lastErrorCode"
+        - "lastStartedAt"
+        - "failedInWindow"
+        - "stuckRunning"
     LedgerLineDTO:
       type: "object"
       additionalProperties: false
@@ -14973,6 +15180,26 @@ components:
         - "purchaseVerified"
         - "createdAt"
         - "editedAt"
+    ProfileSellerDTO:
+      type: "object"
+      additionalProperties: false
+      properties:
+        userId:
+          type: "string"
+          pattern: "^[a-z][0-9a-z]{23}$"
+        kind:
+          type: "string"
+          enum:
+            - "business"
+            - "individual"
+        displayName:
+          anyOf:
+            - type: "string"
+            - type: "null"
+      required:
+        - "userId"
+        - "kind"
+        - "displayName"
     PromptRowDTO:
       type: "object"
       additionalProperties: false

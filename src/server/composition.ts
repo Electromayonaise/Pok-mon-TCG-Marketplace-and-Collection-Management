@@ -24,6 +24,12 @@ import { PgTransactionRunner } from '../shared-kernel/infra/pg-transactions.js';
 import type { Clock } from '../shared-kernel/ports.js';
 import { oneRepository } from '../shared-kernel/repositories.js';
 import { requestIpHmac } from './ip-hmac.js';
+import { JOB_TRIGGERS, JobRunner, type JobWork } from '../shared-kernel/jobs.js';
+import { PgJobLocks, PgJobRunRepository } from '../shared-kernel/infra/pg-jobs.js';
+import type { Logger } from '../shared-kernel/regulated.js';
+import type { Auth } from './auth.js';
+import { serveAuth, type AuthGuard } from './auth-routes.js';
+import { serveJob, type JobName } from './jobs.js';
 import { buildAppRouter, type Resolvers } from './trpc/router.v2.js';
 
 /**
@@ -134,13 +140,19 @@ export interface AppDeps {
   fx?: FxRateSource;
   /** S-7: the key of the caller IP's HMAC; without one no request names an IP, so MSG-2's per-IP limit is skipped. */
   ipHmacKey?: string;
+  /** S-9: the `JOBS_SECRET` bearer of `/api/jobs/*` (Story 1.6); without one every job request is refused. */
+  jobsSecret?: string;
+  /** Where a failed job run is logged (the route's sink); none in tests. */
+  log?: Logger;
+  /** Better Auth's routes, served behind the AD-IDN-3 guard (Story 2.6); without it `/api/auth/*` is refused. */
+  auth?: Pick<Auth, 'handler' | 'emailWired'>;
 }
 
 /**
  * The procedures whose contracts the done stories implement: IDN-1.ingress (Story 2.1),
  * IDN-3 (Story 2.5), S-SYS.replay (Story 1.3), S-SYS.tick, .deliveries, .health
  * (Story 1.5), VER-2 (Story 3.1), VER-1 (Story 3.2), VER-3 and S-FR-VER-5.audit (Story 3.4) and
- * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), CAT-3 and S-FR-CAT-8.fetch (Story 4.4), S-FR-CAT-1 (Story 4.5), INV-2 (Story 5.1), S-FR-INV-2, -9 and -10 (Story 5.6), DSC-1 (Story 6.2), DSC-2 (Story 6.3), ORD-1 and S-FR-ORD-2 (Story 7.1), ORD-2, -3 and -4 (Story 7.2), S-FR-ORD-6, -7, -9 and -10 (Story 7.5; S-FR-ORD-8 has no jobs route yet), S-FR-COM-2 and -9 (Story 8.1, with the commission subscriber, which runs COM-1 for Story 8.2), COM-2, COM-2.reject and COM-2.queue (Story 8.3), MSG-1 (Story 9.2), MSG-2 (Story 9.3), and TRD's ten: S-FR-TRD-1, -2w and -3.get/.mine (Story 10.1), TRD-2 (Story 10.2), TRD-1 and S-FR-TRD-3.handoff (Story 10.3), TRD-3 and S-FR-TRD-7 (Story 10.5; S-FR-TRD-9 has no jobs route yet), S-FR-COL-1 and its list (Story 11.1), COL-3 (Story 11.2), and COL-1, COL-1.dismiss and COL-1.list (Story 11.3, with the collections subscriber, which runs COL-2), VAL-1 (Story 12.1), VAL-2 and VAL-3 (Story 12.2), REP-1, REP-1.edit and REP-1.check (Story 13.1), and REP-2 and REP-2.unhide (Story 13.2). Every other procedure stays NotImplemented until its story wires it.
+ * S-FR-VER-2, -7, -8, -9 (Story 3.5), CAT-1, CAT-2.ingress and CAT-1.runs (Story 4.1) CAT-2.quarantine (Story 4.2), CAT-3 and S-FR-CAT-8.fetch (Story 4.4), S-FR-CAT-1 (Story 4.5), S-FR-CAT-8.breaker (Story 4.6), INV-2 (Story 5.1), S-FR-INV-2, -9 and -10 (Story 5.6), DSC-1 (Story 6.2), DSC-2 (Story 6.3), ORD-1 and S-FR-ORD-2 (Story 7.1), ORD-2, -3 and -4 (Story 7.2), S-FR-ORD-6, -7, -9 and -10 (Story 7.5; S-FR-ORD-8 through the `expiry-materialize` job, Story 1.6), S-FR-COM-2 and -9 (Story 8.1, with the commission subscriber, which runs COM-1 for Story 8.2), COM-2, COM-2.reject and COM-2.queue (Story 8.3), COM-3 and COM-3.last (Story 8.5; COM-3 also through the `commission-reconcile` job), S-FR-COM-7, S-FR-COM-7.list and S-FR-COM-8.ledger (Story 8.6), MSG-1 (Story 9.2), MSG-2 (Story 9.3), S-FR-MSG-7 and S-FR-MSG-8 (Story 9.6: the inbox, the thread, the read mark and mute), and TRD's ten: S-FR-TRD-1, -2w and -3.get/.mine (Story 10.1), TRD-2 (Story 10.2), TRD-1 and S-FR-TRD-3.handoff (Story 10.3), TRD-3 and S-FR-TRD-7 (Story 10.5; S-FR-TRD-9 through the `expiry-materialize` job, Story 1.6), S-FR-COL-1 and its list (Story 11.1), COL-3 (Story 11.2), COL-1, COL-1.dismiss and COL-1.list (Story 11.3, with the collections subscriber, which runs COL-2), S-FR-COL-3, -4 (move and copy), -5 (binder, layout, reorder) and -6 (the wishlist) (Story 11.5), VAL-1 (Story 12.1), VAL-2 and VAL-3 (Story 12.2), REP-1, REP-1.edit and REP-1.check (Story 13.1), REP-2 and REP-2.unhide (Story 13.2), and S-FR-REP-5 (the listing hide and unhide), S-FR-REP-6 (the review search and both moderation logs, which `moderation-log.ts` merges) and S-FR-REP-7 (the public profile) (Story 13.5). With them every procedure of the registry is wired.
  */
 function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2; inv: InvServiceV2; dsc: DscServiceV2; ord: OrdServiceV2; com: ComServiceV2; msg: MsgServiceV2; contact: ContactServiceV2; trd: TrdServiceV2; col: ColServiceV2; val: ValServiceV2; rep: RepServiceV2; adminEvents: AdminEventsServiceV2 }): Resolvers {
   return {
@@ -166,6 +178,7 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
     'catalog.provenance': (input) => s.cat.getPriceProvenance(input),
     'catalog.browse': ({ filters, page, pageSize }) => s.cat.browseCatalog({ filters: defined(filters), page, pageSize }),
     'catalog.fx.retry': () => s.cat.fetchTrm({ trigger: 'admin' }),
+    'catalog.fx.breaker': (_input, actorId) => s.cat.getFxSourceBreaker({ actorId }),
     'catalog.feed.quarantine': ({ runId, reasonCode, cursor }, actorId) => s.cat.listQuarantinedRows({ actorId, runId, cursor, ...(reasonCode ? { reasonCode } : {}) }),
     'inventory.create': (input, sellerId) => s.inv.createListing({ ...input, sellerId }),
     'inventory.createBundle': (input, sellerId) => s.inv.createBundle({ ...input, sellerId }),
@@ -200,8 +213,17 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
     'commission.admin.confirmTopUp': ({ topUpRequestId }, adminId) => s.com.confirmTopUp({ topUpRequestId, adminId }),
     'commission.admin.rejectTopUp': ({ topUpRequestId, reason }, adminId) => s.com.rejectTopUp({ topUpRequestId, reason, adminId }),
     'commission.admin.topUpQueue': ({ cursor }, adminId) => s.com.listTopUpQueue({ adminId, cursor }),
+    'commission.reconcile': ({ businessId }, adminId) => s.com.reconcile({ businessId, actor: { kind: 'admin', adminId } }),
+    'commission.admin.lastReconciliation': (_input, adminId) => s.com.getLastReconciliation({ adminId }),
+    'commission.admin.setRate': ({ rateBps, effectiveFrom }, adminId) => s.com.setCommissionRate({ adminId, rateBps, effectiveFrom }),
+    'commission.admin.rates': (_input, adminId) => s.com.listCommissionRates({ adminId }),
+    'commission.admin.ledger': ({ businessId, trigger, cursor }, adminId) => s.com.getAccountLedger({ adminId, businessId, cursor, ...(trigger ? { trigger } : {}) }),
     'inventory.contact': ({ listingId }, requesterId, { ipHmac }) => s.contact.generateContactMessage({ kind: 'purchase', listingId, requesterId, tradeSummary: null, ipHmac }),
     'messaging.send': ({ target, body, clientMessageId }, senderId) => s.msg.sendMessage({ target, body, clientMessageId, senderId }),
+    'messaging.inbox': ({ cursor }, actorId) => s.msg.listInbox({ actorId, cursor }),
+    'messaging.thread': ({ conversationId, afterSeq }, actorId) => s.msg.getThread({ actorId, conversationId, afterSeq }),
+    'messaging.markRead': ({ conversationId, seq }, actorId) => s.msg.markRead({ actorId, conversationId, seq }),
+    'messaging.setMuted': ({ conversationId, muted }, actorId) => s.msg.setMuted({ actorId, conversationId, muted }),
     'trading.offer': ({ listingId, terms }, proposerId) => s.trd.makeOffer({ listingId, terms, proposerId }),
     'trading.counter': ({ offerId, terms, expectedVersion }, actorId) => s.trd.counterOffer({ offerId, terms, expectedVersion, actorId }),
     'trading.accept': ({ offerId, expectedVersion }, sellerId) => s.trd.acceptOffer({ offerId, expectedVersion, sellerId }),
@@ -217,6 +239,15 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
     'collections.delete': ({ collectionId, confirm }, ownerId) => s.col.deleteCollection({ collectionId, confirm, ownerId }),
     'collections.list': (_input, ownerId) => s.col.listCollections({ ownerId }),
     'collections.addEntry': (input, ownerId) => s.col.addEntry({ ...input, ownerId }),
+    'collections.addExternal': (input, ownerId) => s.col.addExternalEntry({ ...input, ownerId }),
+    'collections.moveEntry': ({ entryId, targetCollectionId }, ownerId) => s.col.moveOrCopyEntry({ entryId, targetCollectionId, ownerId, mode: 'move' }),
+    'collections.copyEntry': ({ entryId, targetCollectionId }, ownerId) => s.col.moveOrCopyEntry({ entryId, targetCollectionId, ownerId, mode: 'copy' }),
+    'collections.binder': ({ collectionId, sort, setId }, ownerId) => s.col.getBinder({ collectionId, sort, setId, ownerId }),
+    'collections.setLayout': ({ collectionId, rows, cols }, ownerId) => s.col.setBinderLayout({ collectionId, rows, cols, ownerId }),
+    'collections.reorder': ({ collectionId, orderedEntryIds }, ownerId) => s.col.reorderEntries({ collectionId, orderedEntryIds, ownerId }),
+    'collections.wishlist.add': ({ catalogEntryId, maxPriceCop, note }, ownerId) => s.col.addWishlist({ catalogEntryId, maxPriceCop, note, ownerId }),
+    'collections.wishlist.remove': ({ catalogEntryId }, ownerId) => s.col.removeWishlist({ catalogEntryId, ownerId }),
+    'collections.wishlist.list': (_input, ownerId) => s.col.listWishlist({ ownerId }),
     'collections.prompts.accept': ({ promptId, collectionId }, actorId) => s.col.acceptPrompt({ promptId, collectionId, actorId }),
     'collections.prompts.dismiss': ({ promptId }, actorId) => s.col.dismissPrompt({ promptId, actorId }),
     'collections.prompts.list': ({ status }, buyerId) => s.col.listPrompts({ buyerId, ...(status ? { status } : {}) }),
@@ -228,6 +259,13 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
     'reputation.eligibility': ({ targetUserId }, reviewerId) => s.rep.getReviewEligibility({ targetUserId, reviewerId }),
     'reputation.admin.hide': (input, adminId) => s.rep.hideReview({ ...input, adminId }),
     'reputation.admin.unhide': (input, adminId) => s.rep.unhideReview({ ...input, adminId }),
+    'reputation.admin.search': ({ query, cursor }, adminId) => s.rep.searchReviews({ query, cursor, adminId }),
+    'reputation.admin.log': ({ cursor, reasonCode }, adminId) => s.rep.listReviewModerationLog({ cursor, adminId, ...(reasonCode ? { reasonCode } : {}) }),
+    // Public (S-FR-REP-7): a reader is never asked who they are; hidden reviews are absent for everyone here.
+    'reputation.profile': ({ userId, page }) => s.rep.getProfile({ userId, page }),
+    'inventory.admin.hide': ({ listingId, reasonCode, note }, adminId) => s.inv.setListingHidden({ listingId, reasonCode, note, adminId, hidden: true }),
+    'inventory.admin.unhide': ({ listingId, reasonCode, note }, adminId) => s.inv.setListingHidden({ listingId, reasonCode, note, adminId, hidden: false }),
+    'inventory.admin.log': ({ cursor, reasonCode }, adminId) => s.inv.listListingModerationLog({ cursor, adminId, ...(reasonCode ? { reasonCode } : {}) }),
     'admin.events.replay': (input, adminId) => s.adminEvents.replayEventDelivery({ ...input, adminId }),
     'admin.jobs.tickHealth': (_input, adminId) => s.adminEvents.getTickHealth({ adminId }),
     'admin.events.deliveries': (input, adminId) => s.adminEvents.listDeliveries({ ...input, adminId }),
@@ -235,8 +273,14 @@ function resolvers(s: { idn: IdnServiceV2; ver: VerServiceV2; cat: CatServiceV2;
   };
 }
 
+/**
+ * The procedures `resolvers` wires, read without building a service: each entry is a closure that touches its service
+ * only when called. Since Story 13.5 it is the whole registry (composition-access.test.ts proves it).
+ */
+export const WIRED_PROCEDURES: readonly string[] = Object.keys(resolvers({} as Parameters<typeof resolvers>[0]));
+
 export function compose({
-  pool, clock, sessions, handlers = {}, storage = UNWIRED_STORAGE, scanner = UNWIRED_SCANNER, feed = UNWIRED_FEED, fx = UNWIRED_FX, ipHmacKey,
+  pool, clock, sessions, handlers = {}, storage = UNWIRED_STORAGE, scanner = UNWIRED_SCANNER, feed = UNWIRED_FEED, fx = UNWIRED_FX, ipHmacKey, jobsSecret, log, auth,
 }: AppDeps) {
   const ids = new CuidIds();
   const transactions = new PgTransactionRunner(pool);
@@ -286,9 +330,40 @@ export function compose({
   });
   const dispatcher = new OutboxDispatcherV2({ transactions, clock }, { collections: collectionsHandler(col), listings: listingsHandler(inv), commission: commissionHandler(com), ...handlers });
   const adminEvents = new AdminEventsServiceV2({ repo, transactions, clock, ids, outbox, audit, dispatcher });
+  // The four job routes (Story 1.6, ARCH §13). `commission-reconcile` single-flights inside COM-3 (P2).
+  const work: Record<JobName, JobWork> = {
+    'trm-fetch': { singleFlight: 'runner', triggers: ['tick', 'daily-morning'], run: async (trigger) => ({ skipped: false, result: await cat.fetchTrm({ trigger: trigger === 'daily-morning' ? 'daily-morning' : 'tick' }) }) },
+    'expiry-materialize': {
+      singleFlight: 'runner', triggers: JOB_TRIGGERS,
+      run: async (trigger) => ({ skipped: false, result: { orders: await ord.expireDueOrders({ scope: 'all', trigger }), offers: await trd.expireDueOffers({ trigger }) } }),
+    },
+    'commission-reconcile': {
+      singleFlight: 'work', triggers: ['daily-night'],
+      run: async () => {
+        const result = await com.reconcile({ businessId: null, actor: { kind: 'job' } });
+        return { skipped: 'skipped' in result, result };
+      },
+    },
+    'outbox-sweep': { singleFlight: 'runner', triggers: JOB_TRIGGERS, run: async (trigger) => ({ skipped: false, result: await adminEvents.sweep({ trigger }) }) },
+  };
+  const runner = new JobRunner({ repo: new PgJobRunRepository(), locks: new PgJobLocks(pool), transactions, clock, ids, ...(log ? { log } : {}) });
+  const identity = new IdentityGateV2({ sessions, repo, transactions, idn });
+  const ipHmac = ipHmacKey ? requestIpHmac(ipHmacKey) : () => null;
+  const authGuard: AuthGuard = {
+    checkAuthThrottle: (input) => idn.checkAuthThrottle(input),
+    recordAuthThrottleEvent: (input) => idn.recordAuthThrottleEvent(input),
+    accountIdForEmail: (email) => idn.accountIdForEmail(email),
+  };
   return {
-    identity: new IdentityGateV2({ sessions, repo, transactions, idn }),
-    ipHmac: ipHmacKey ? requestIpHmac(ipHmacKey) : () => null,
+    identity,
+    ipHmac,
     router: buildAppRouter(resolvers({ idn, ver, cat, inv, dsc, ord, com, msg, contact, trd, col, val, rep, adminEvents })),
+    /** `/api/auth/*` (Story 2.6). */
+    auth: (req: Request) => {
+      if (!auth) throw new UnexpectedError('compose: no Better Auth instance for /api/auth');
+      return serveAuth(req, { auth, guard: authGuard, clock, ipHmacOf: ipHmac });
+    },
+    /** `/api/jobs/<job>` (Story 1.6). */
+    jobs: (req: Request) => serveJob(req, { secret: jobsSecret ?? '', clock, identity, runner, work, ...(log ? { log } : {}) }),
   };
 }

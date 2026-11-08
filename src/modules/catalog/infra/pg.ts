@@ -4,9 +4,10 @@
 import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoDate, IsoInstant } from '../../../shared-kernel/types.js';
+import type { Breaker, BreakerState } from '../domain/breaker.js';
 import type { RunKey } from '../domain/cat.js';
 import type { BrowseCatalogResponse, CatalogEntryDTO, CatalogFilters, FeedRunDTO, ObservedPriceDTO, ValidFeedRow } from '../dto/cat.v2.dto.js';
-import type { BatchCounts, CatRepository, FeedRunStatus, FxRateRow, ObservationRow, QuarantineListRow, QuarantineRow, RunState, StoredEntry } from '../ports/cat.v2.js';
+import type { BatchCounts, CatRepository, FeedRunStatus, FxRateRow, LockedBreaker, ObservationRow, QuarantineListRow, QuarantineRow, RunState, StoredEntry } from '../ports/cat.v2.js';
 import type { ReferencePriceDTO } from '../dto/cat.dto.js';
 import type { ICatalogEntryRepository, IFeedRunRepository, IReferencePriceRepository } from '../ports/cat.js';
 
@@ -247,10 +248,21 @@ export class PgCatRepository implements CatRepository {
     return new Set(rows.map((r) => r.id));
   }
 
+  /**
+   * Per entry, its latest observation at or before `asOf` (ties by source, then id), or none: one `LIMIT 1` walk of
+   * `reference_price_as_of` ("catalogEntryId", "observedAt" DESC, source, id) per distinct id, so the read touches one row
+   * per entry instead of sorting every observation of the batch (decision log Impl-2 #36: a 480-entry batch sorted 43,200
+   * rows, spilling to disk, to keep 480). An entry with no observation by `asOf` has no row: no price is made up.
+   */
   async latestObservations(tx: Tx, ids: CuidId[], asOf: IsoInstant): Promise<Map<CuidId, ObservedPriceDTO>> {
     const { rows } = await tx.query<ObservedRow & { catalogEntryId: CuidId }>(
-      `SELECT DISTINCT ON ("catalogEntryId") "catalogEntryId", ${OBSERVED_COLUMNS} FROM "ReferencePriceObservation"
-       WHERE "catalogEntryId" = ANY($1) AND "observedAt" <= $2 ORDER BY "catalogEntryId", "observedAt" DESC, source, id`,
+      `SELECT e.id AS "catalogEntryId", ${OBSERVED_COLUMNS}
+       FROM (SELECT DISTINCT unnest($1::text[]) AS id) e
+       CROSS JOIN LATERAL (
+         SELECT * FROM "ReferencePriceObservation" r
+         WHERE r."catalogEntryId" = e.id AND r."observedAt" <= $2
+         ORDER BY r."observedAt" DESC, r.source, r.id LIMIT 1
+       ) o`,
       [ids, asOf],
     );
     return new Map(rows.map((r) => [r.catalogEntryId, observed(r)]));
@@ -355,4 +367,38 @@ export class PgCatRepository implements CatRepository {
       [o.id, o.catalogEntryId, o.source, o.observedAt, o.usdCents, o.cop, o.copDerivation, o.fxRateDate, o.runId, now],
     );
   }
+
+  async lockFxSourceBreaker(tx: Tx, now: IsoInstant): Promise<LockedBreaker> {
+    // A concurrent first insert waits on the unique key and then does nothing, so both callers lock the one row.
+    await tx.query(
+      `INSERT INTO "FxSourceBreaker" (port, state, "consecutiveFailures", "openedAt", "retryAt", "probeToken", "createdAt", "updatedAt")
+       VALUES ($1, 'closed', 0, NULL, NULL, NULL, $2, $2) ON CONFLICT (port) DO NOTHING`,
+      [FX_PORT, now],
+    );
+    const { rows } = await tx.query<BreakerRow & { version: number }>(`SELECT ${BREAKER_COLUMNS}, version FROM "FxSourceBreaker" WHERE port = $1 FOR UPDATE`, [FX_PORT]);
+    return { breaker: breakerOf(rows[0]!), version: rows[0]!.version };
+  }
+
+  async saveFxSourceBreaker(tx: Tx, from: LockedBreaker, b: Breaker, now: IsoInstant): Promise<boolean> {
+    // AD-SYS-5 rule 1 (architecture audit F2): the from-state and version predicate, under the row lock; the version bumps.
+    const { rows } = await tx.query(
+      `UPDATE "FxSourceBreaker" SET state = $2, "consecutiveFailures" = $3, "openedAt" = $4, "retryAt" = $5, "probeToken" = $6, "updatedAt" = $7, version = version + 1
+       WHERE port = $1 AND state = $8 AND version = $9 RETURNING version`,
+      [FX_PORT, b.state, b.consecutiveFailures, b.openedAt, b.retryAt, b.probeToken, now, from.breaker.state, from.version],
+    );
+    return rows.length === 1;
+  }
+
+  async readFxSourceBreaker(tx: Tx): Promise<Breaker | null> {
+    const { rows } = await tx.query<BreakerRow>(`SELECT ${BREAKER_COLUMNS} FROM "FxSourceBreaker" WHERE port = $1`, [FX_PORT]);
+    return rows[0] ? breakerOf(rows[0]) : null;
+  }
 }
+
+/** Story 4.6: the one port the breaker guards in V1 (the table's CHECK). */
+const FX_PORT = 'FxRateSource';
+const BREAKER_COLUMNS = `state, "consecutiveFailures", "openedAt", "retryAt", "probeToken"`;
+type BreakerRow = { state: BreakerState; consecutiveFailures: number; openedAt: Date | null; retryAt: Date | null; probeToken: string | null };
+const breakerOf = (r: BreakerRow): Breaker => ({
+  state: r.state, consecutiveFailures: r.consecutiveFailures, openedAt: r.openedAt?.toISOString() ?? null, retryAt: r.retryAt?.toISOString() ?? null, probeToken: r.probeToken,
+});

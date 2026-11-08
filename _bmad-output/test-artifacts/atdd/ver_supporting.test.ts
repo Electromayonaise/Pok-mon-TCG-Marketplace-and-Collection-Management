@@ -1,28 +1,16 @@
 // ATDD — VER supporting contracts, offered ports and read models (contracts.md §15). Split from ver_contracts.test.ts (test review R-7..R-12).
 import { describe, expect, it } from 'vitest';
 import { VerServiceV2 } from '../../../src/modules/identity/index.js';
-import type { SubmitApplicationRequest } from '../../../src/modules/identity/index.js';
 import { useTestDatabase } from '../../../test-support/db.js';
 import { caught } from '../../../test-support/errors.js';
 import { codeOf, race } from '../../../test-support/concurrency.js';
 import { admin, at, business, DAY, id, ins, rejectionReason, rows, user, wiring } from '../../../test-support/solu2/fixtures.js';
 
 const db = useTestDatabase();
-const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]);
 
 function setup() {
   const w = wiring(db);
   return { w, ver: new VerServiceV2(w) };
-}
-function application(businessId: string, w: ReturnType<typeof wiring>, o: Partial<SubmitApplicationRequest> = {}): SubmitApplicationRequest {
-  const key = `business-document/${businessId}/doc1`;
-  w.storage.simulateDirectUpload(key, PDF, 'application/pdf');
-  return {
-    businessId, businessName: 'Cartas Andrés', legalIdentity: { type: 'NIT', number: '9001234568' }, documentUploadKeys: [key],
-    externalPresenceUrl: 'https://instagram.com/cartasandres', city: 'Medellín',
-    paymentInstructions: { bankName: 'Bancolombia', accountType: 'savings', accountNumber: '12345678901', holderName: 'Andrés', qrUploadKey: null },
-    consentAccepted: true, consentVersion: 'privacy-v1', ...o,
-  };
 }
 
 describe('Supporting VER contracts (contracts.md §15)', () => {

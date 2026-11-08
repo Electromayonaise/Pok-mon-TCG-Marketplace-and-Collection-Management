@@ -4,7 +4,7 @@ import type { AuditLog } from '../../../shared-kernel/audit.js';
 import type { OutboxV2 } from '../../../shared-kernel/events.js';
 import type { Clock, IdGenerator, TransactionRunner } from '../../../shared-kernel/ports.js';
 import type { GetEntriesRequest, GetEntriesResponse, ResolveItemRefsRequest, ResolveItemRefsResponse } from '../../catalog/index.js';
-import type { GetSellerVerificationRequest, GetSellerVerificationResponse, RequireListingEligibilityRequest, RequireListingEligibilityResponse } from '../../identity/index.js';
+import type { GetSellerKindsRequest, GetSellerKindsResponse, GetSellerVerificationRequest, GetSellerVerificationResponse, RequireListingEligibilityRequest, RequireListingEligibilityResponse } from '../../identity/index.js';
 
 /** Neighbour port: `catalog`, as consumed by INV. Declared by the consumer and bound to the provider's
  * application service in the composition root, or to a fake in tests (Plan-2 §3, AD-1). */
@@ -20,6 +20,8 @@ export interface CatalogForInv {
 export interface IdentityForInv {
   /** IDN-2 */
   requireListingEligibility(input: RequireListingEligibilityRequest): Promise<RequireListingEligibilityResponse>;
+  /** S-FR-IDN-6.kinds */
+  getSellerKinds(input: GetSellerKindsRequest): Promise<GetSellerKindsResponse>;
   /** P-IDN.verification */
   getSellerVerification(input: GetSellerVerificationRequest): Promise<GetSellerVerificationResponse>;
 }
@@ -39,7 +41,9 @@ export interface InvV2Deps {
 
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { Condition, CuidId, IsoInstant } from '../../../shared-kernel/types.js';
+import type { AdminFactsReader } from '../../identity/index.js';
 import type { ProjectionState } from '../domain/inv.js';
+import type { ListingHideReason, ListingModerationLogRow } from '../dto/inv.v2.dto.js';
 
 /** INV-2 Q1.1: the one unit of `(sellerId, catalogEntryId, condition)` after the insert-or-link. */
 export interface ResolvedUnit {
@@ -121,11 +125,37 @@ export interface AvailabilityCandidate {
   priceCop: number;
 }
 
+/** S-FR-REP-5: what a moderated listing's log row snapshots (AD-REP-3 rule 1): a bundle's title, or a single's catalog entry. */
+export interface ModeratedListing {
+  sellerId: CuidId;
+  /** A bundle's title; null for a single listing, whose title is its catalog entry's name. */
+  title: string | null;
+  /** A single listing's catalog entry; null for a bundle. */
+  unitEntryId: CuidId | null;
+}
+
+/** One `"ListingModerationLog"` row (S-FR-REP-5 Q; append-only). */
+export interface NewListingModerationLog {
+  id: CuidId;
+  listingId: CuidId;
+  action: 'hide' | 'unhide';
+  reasonCode: ListingHideReason;
+  note: string | null;
+  adminId: CuidId;
+  titleSnapshot: string;
+  sellerId: CuidId;
+  now: IsoInstant;
+}
+
 /**
  * Repository port of INV (review A-4): the only way its application service reads or writes
  * its own tables (AD-8). Every method takes the transaction it runs in; `infra/pg.ts` implements them.
+ * The admin facts come from identity's reader (AD-16, S-FR-REP-5), as REP's and COM's ports do.
  */
-export interface InvRepository {
+export type InvRepository = InvTablesRepository & AdminFactsReader;
+
+/** INV's own tables. */
+export interface InvTablesRepository {
   /** INV-2 Q1.1, AD-INV-1 rule 1: `INSERT … ON CONFLICT DO NOTHING`, then the unit as it now stands. */
   resolveUnit(tx: Tx, unit: { id: CuidId; sellerId: CuidId; catalogEntryId: CuidId; condition: Condition; quantity: number; now: IsoInstant }): Promise<ResolvedUnit>;
   /**
@@ -181,4 +211,14 @@ export interface InvRepository {
   availabilityCandidates(tx: Tx, entryIds: CuidId[], area: { lat: number; lng: number; radiusKm: number } | null): Promise<AvailabilityCandidate[]>;
   /** P-INV.units: the unit ids of a single listing or a bundle, in id order; [] for an unknown id. */
   listingUnitIds(tx: Tx, listingId: CuidId): Promise<CuidId[]>;
+  /** S-FR-REP-5 (AD-REP-3 rule 1): `NULL → hidden` only from visible; what the log snapshots, or null on 0 rows. */
+  hideVisibleListing(tx: Tx, hide: { listingId: CuidId; reasonCode: ListingHideReason; adminId: CuidId; now: IsoInstant }): Promise<ModeratedListing | null>;
+  /** S-FR-REP-5 unhide (AD-REP-3 rule 2): the mirror, only from hidden; what the log snapshots, or null on 0 rows. */
+  unhideHiddenListing(tx: Tx, unhide: { listingId: CuidId; now: IsoInstant }): Promise<ModeratedListing | null>;
+  /** S-FR-REP-5 on 0 rows: the listing's current hide, read `FOR UPDATE`, or null when the id is unknown. */
+  readListingHide(tx: Tx, listingId: CuidId): Promise<{ hiddenAt: IsoInstant | null; hiddenBy: CuidId | null } | null>;
+  /** S-FR-REP-5 Q: one append-only log row with the title snapshot. */
+  insertListingModerationLog(tx: Tx, row: NewListingModerationLog): Promise<void>;
+  /** S-FR-REP-6.listing: the log newest first by `("createdAt", id)`, after the keyset when given, optionally of one reason. */
+  listListingModerationLog(tx: Tx, page: { after: { createdAt: IsoInstant; id: CuidId } | null; reasonCode: ListingHideReason | null; limit: number }): Promise<ListingModerationLogRow[]>;
 }

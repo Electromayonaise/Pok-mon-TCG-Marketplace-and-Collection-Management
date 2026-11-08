@@ -1,0 +1,101 @@
+# Evidence 36 — the runtime pool's checkout timeout, and where the slow benchmark's time goes (decision log Impl-2 #35)
+# Branch impl-2, local Docker Postgres 16 on 127.0.0.1:55432, 2026-11-06.
+# Commits: 811dceb fix(pool) · 0370255 test(nfr-val-2) · the docs commit that adds this file.
+
+# ===== 1. Pool starvation: RUNTIME_POOL = { max: 2, connectionTimeoutMillis: 10_000 } (src/server/db.ts) =====
+# Why 10 s: outside starvation a checkout waits only for the short transactions queued ahead of it (a job's work
+# transaction covers one order, one delivery or one account; trm-fetch calls the TRM source outside any transaction;
+# k6's 200 requests/s answer in ms). 10 s never fails a healthy request, and it is far under the 50 s batch bound of
+# expiry-materialize and commission-reconcile, so a starved run fails, writes its row and frees its lock long before a
+# healthy run would have ended.
+# How a starved run is recorded (src/shared-kernel/jobs.ts): the run's end is written in its lock's own transaction
+# (JobHold.release(last)), so a run that holds job:<name> needs no further checkout to end `failed` / `Unexpected`.
+# A run refused even the lock's connection has written nothing: it logs job.lock.acquireFailed and answers 500.
+
+$ npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/sys_jobs.test.ts --reporter=verbose
+ ✓ [S-SYS.jobs.auth] … ✓ [S-SYS.jobs.trigger] … ✓ [S-SYS.jobs.h] … ✓ [S-SYS.jobs.failed] … ✓ [S-SYS.sweep.h] …
+ ✓ [S-SYS.jobs.single] … ✓ [S-SYS.jobs.C1] …
+ ✓ [S-SYS.jobs.pool] … on a pool of 1 a job is refused at once and its run is failed
+ ✓ [S-SYS.jobs.starved] on the runtime pool (max 2, a checkout timeout), a job whose second connection another run holds fails within the timeout as a failed JobRun; one refused its first connection answers 500 and writes nothing
+      Tests  9 passed (9)
+   Duration  2.36s
+# [S-SYS.jobs.starved]: runtimePool(url, { connectionTimeoutMillis: 200 }); another run's PgJobLocks holds job:trm-fetch on one
+# connection; POST expiry-materialize → [500, 'Unexpected'], its JobRun ['expiry-materialize', 'failed', 'Unexpected', finished],
+# the due order not expired; with both connections held, POST outbox-sweep → [500, 'Unexpected'] and no new row; once the pool
+# is free, expiry-materialize → 200 and the unit is released. Bounded by the 200 ms pool timeout, no timer of its own.
+
+$ npx vitest run --project impl1-unit src/shared-kernel/job-runner.test.ts src/shared-kernel/jobs.test.ts src/server/jobs.test.ts
+ Test Files  3 passed (3)
+      Tests  20 passed (20)
+
+# Mutation 1: the runner throws when its `running` row is refused (the behaviour before #35: no row):
+     × [S-SYS.jobs.pool] … AssertionError: expected [ …(4) ] to deeply equal [ …(5) ]
+     × [S-SYS.jobs.starved] … AssertionError: expected [] to deeply equal [ [ 'expiry-materialize', …(3) ] ]
+      Tests  2 failed | 7 skipped (9)
+# Mutation 2: runtimePool without connectionTimeoutMillis (pg's default 0, wait forever):
+     × [S-SYS.jobs.starved] … Error: Test timed out in 60000ms.
+# Both mutations reverted.
+
+# ===== 2. The slow benchmark [NFR-VAL-2.trend] =====
+# Phases, measured with a temporary probe in the test (reverted; the measured workload is unchanged):
+#   seed (seedMarketplace: set-based, generate_series for 187,700 observations)   4,333 ms / 4,764 ms
+#   first trend call                                                                    83 ms
+#   50 warm-up pairs (valueCollection + valuationTrend)                              8,243 ms   (≈ 165 ms a pair)
+#   500 measured pairs                                                              ≈ 85–90 s
+# The protocol's 550 calls are about 92 % of the test. ANALYZE after the seed changes nothing (autovacuum had already
+# analyzed the tables; pair p50 141 ms before, 143 ms after). No setup step is slow: no row-by-row seeding of the big
+# tables, no per-day loop, no fixture regeneration.
+# Inside a pair: three as-of price reads (catalog latestObservations, DISTINCT ON). EXPLAIN (ANALYZE, BUFFERS):
+#   Sort … rows=43200 … Sort Method: external merge  Disk: 6184kB … Execution Time: 60.596 ms   (480 rows kept)
+#   pg_stat_database.temp_bytes: 1,842,790 bytes per read; work_mem 4MB.
+#   An alternative per-entry read (unnest + LATERAL … ORDER BY "observedAt" DESC, source, id LIMIT 1) returns the same
+#   480 rows in 148 ms for 20 reads (7 ms each) against 1,228 ms (61 ms each). Not applied: open decision (#36 draft).
+# "256 s alone" in #35 was the whole val2 file (3 tests), not the trend test.
+
+# Baseline: the whole solu2-nfr project, serial (fileParallelism false), before any change (18:09–18:21):
+   Duration  703.79s (tests 100%)   30 passed
+   top durations: [NFR-VAL-2.history] 116 s · [NFR-VAL-2.trend] 104 s · [NFR-COM-2.drift] 85 s · [NFR-DSC-1.scale] 43 s · [NFR-VAL-2.current] 39 s
+   nfr-val-2-trend   {"n":500,"p50":174.1,"p95":229.0,"max":475.3}
+   nfr-val-2-history {"n":500,"p50":192.9,"p95":247.9,"max":388.2}
+# Every NFR file seeds through seedMarketplace (≈ 4.5 s); the top three are long because of their measured calls
+# (550 × ≈ 170–210 ms for VAL-2, COM-2's drift operations), not their seeding. Nothing to batch.
+
+# [NFR-VAL-2.trend] alone, three runs:
+run 1  Duration 100.57s  {"n":500,"p50":170.7,"p95":212.3,"max":263.6}
+run 2  Duration 101.81s  {"n":500,"p50":169.5,"p95":197.0,"max":244.6}
+run 3  Duration  97.14s  {"n":500,"p50":163.6,"p95":193.2,"max":254.7}
+# Inside the full serial solu2-nfr run of test:ci below: p95 207.3 ms (p50 170.7, max 619.7); history p95 238.0 ms.
+# Before → after: ≈ 103 s alone / 104 s in the suite → 97–102 s alone (unchanged code; nothing to speed up in setup).
+# Threshold 1,500 ms, dataset and 50 + 500 iterations unchanged. Bound kept at 600 s (≈ 5.5–6 × the real time):
+# test:ci run 1 of #35, the one that timed out, took 79 min against 13 min for run 2, so the machine was ≈ 6 × slower.
+
+# ===== 3. GATE: npm run db:up && npm run test:ci (18:31:42–18:45:06, 13 min 24 s): EXIT 0 =====
+# lint and gate:deps print nothing on success (0 lint warnings).
+no-sleep: 351 files checked, 7 rules proven on planted violations, 0 problems
+56 models, each tagged with its owning module; prisma/schema.prisma is current
+ Test Files  72 passed (72)
+      Tests  757 passed (757)
+All files          |   99.07 |    97.56 |     100 |     100 |
+144 operations, 113 ingress procedures, 163 schemas, 37 core operations checked against contracts.md; surface is current
+43 pages, 328 states (139 data, 77 refusal, 112 client), 0 problems
+204 code citations checked, 0 problems
+222 test ids cited by contracts.md; 430 defined under _bmad-output/test-artifacts; 37 core operations
+trace: 96 FRs, 56 NFRs, 62 AD rows, 32 risks, 115 clauses, 430 test ids (430 enforced green), 4 journeys, 1 k6 scripts; gate PASS; 0 problems
+_bmad-output/planning-artifacts/epics.md is current: 13 epics, 72 stories
+14 domain files checked, 0 problems
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+solu2-atdd: 384 tests in 26 files; 0 red for the right reason; 384 green for done stories (430 contracts or test ids done); 0 not as expected
+solu2-nfr: 30 tests in 15 files; 0 red for the right reason; 30 green for done stories (430 contracts or test ids done); 0 not as expected
+EXIT 0
+# Pre-existing, not from this change: impl1-unit prints MaxListenersExceededWarning (11 error listeners on a BoundPool),
+# raised by @prisma/adapter-pg's PrismaPgAdapterFactory.connect on a test pool shared by many Prisma clients.
+
+# ===== 4. Playwright: npx playwright test (production build; db.ts now builds the pool through runtimePool) =====
+  ✓  1 [chromium] › binder.spec.ts › Julián re-sorts his binder … (4.7s)
+  ✓  2 [chromium] › inbox.spec.ts › Camila reads a conversation … (2.3s)
+  ✓  3 [chromium] › inbox.spec.ts › a wrong password keeps Camila on the sign-in page … (1.1s)
+  ✓  4 [chromium] › profile.spec.ts › a visitor with no session reads Lucía’s rating and reviews … (815ms)
+  ✓  5 [chromium] › profile.spec.ts › an id that is no seller shows the es-CO Not-available page (844ms)
+  ✓  6 [chromium] › smoke.spec.ts › a visitor opens TEZG and sees the service ready (656ms)
+  6 passed (34.6s)

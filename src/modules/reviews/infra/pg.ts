@@ -6,7 +6,8 @@ import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { IReviewRepository } from '../ports/rep.js';
 import type { ReviewHideReason } from '../domain/rep.js';
-import type { NewReview, NewReviewModerationLog, PairReview, RepTablesRepository, ReviewSnapshot } from '../ports/rep.v2.js';
+import type { ProfileReviewDTO, ReviewAdminRowDTO, ReviewModerationLogRow } from '../dto/rep.v2.dto.js';
+import type { KeysetPage, NewReview, NewReviewModerationLog, PairReview, RepTablesRepository, ReviewSnapshot } from '../ports/rep.v2.js';
 
 export class PgReviewRepository implements IReviewRepository {
   constructor(protected readonly sql: Sql) {}
@@ -22,6 +23,12 @@ export class PgReviewRepository implements IReviewRepository {
   async sumsAndCounts(): Promise<never> {
     throw new NotImplementedError('PgReviewRepository.sumsAndCounts');
   }
+}
+
+/** `($n, $m)` keyset predicate over `("createdAt", id)` for a page, appending its parameters; '' for the first page. */
+function after(page: KeysetPage, params: unknown[]): string {
+  if (page.after === null) return '';
+  return ` AND ("createdAt", id) < ($${params.push(page.after.at)}::timestamptz, $${params.push(page.after.id)})`;
 }
 
 /** REP's own tables (AD-8): `"Review"` and `"ReviewModerationLog"`. `DELETE` is revoked on `"Review"` (AD-12). */
@@ -100,5 +107,37 @@ export class PgRepRepository implements RepTablesRepository {
       [sellerIds],
     );
     return rows.map((r) => ({ sellerId: r.sellerId, count: BigInt(r.count), sum: BigInt(r.sum) }));
+  }
+
+  async visibleReviewPage(tx: Tx, targetUserId: CuidId, page: { offset: number; limit: number }): Promise<ProfileReviewDTO[]> {
+    // review_visible_by_target ("targetUserId", "createdAt" DESC) WHERE "hiddenAt" IS NULL serves the read.
+    const { rows } = await tx.query<Omit<ProfileReviewDTO, 'createdAt' | 'editedAt'> & { createdAt: Date; editedAt: Date | null }>(
+      `SELECT id AS "reviewId", rating, text, "purchaseVerified", "createdAt", "editedAt" FROM "Review"
+        WHERE "targetUserId" = $1 AND "hiddenAt" IS NULL ORDER BY "createdAt" DESC, id DESC LIMIT $2 OFFSET $3`,
+      [targetUserId, page.limit, page.offset],
+    );
+    return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString(), editedAt: r.editedAt?.toISOString() ?? null }));
+  }
+
+  async searchReviews(tx: Tx, pattern: string, page: KeysetPage): Promise<ReviewAdminRowDTO[]> {
+    const params: unknown[] = [pattern, page.limit];
+    const { rows } = await tx.query<Omit<ReviewAdminRowDTO, 'createdAt'> & { createdAt: Date }>(
+      `SELECT id AS "reviewId", "targetUserId", rating, text, "hiddenAt" IS NOT NULL AS hidden, "createdAt" FROM "Review"
+        WHERE tezg_unaccent_lower(text) LIKE '%' || tezg_unaccent_lower($1) || '%' ESCAPE '\\'${after(page, params)}
+        ORDER BY "createdAt" DESC, id DESC LIMIT $2`,
+      params,
+    );
+    return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+  }
+
+  async listReviewModerationLog(tx: Tx, reasonCode: ReviewHideReason | null, page: KeysetPage): Promise<ReviewModerationLogRow[]> {
+    const params: unknown[] = [page.limit];
+    const reason = reasonCode === null ? '' : ` AND "reasonCode" = $${params.push(reasonCode)}`;
+    const { rows } = await tx.query<Omit<ReviewModerationLogRow, 'at'> & { at: Date }>(
+      `SELECT id AS "logId", "reviewId", action, "reasonCode", "adminId", "ratingSnapshot", "textSnapshot", "createdAt" AS at
+         FROM "ReviewModerationLog" WHERE TRUE${reason}${after(page, params)} ORDER BY "createdAt" DESC, id DESC LIMIT $1`,
+      params,
+    );
+    return rows.map((r) => ({ ...r, at: r.at.toISOString() }));
   }
 }

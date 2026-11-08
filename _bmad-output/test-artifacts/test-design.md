@@ -1,9 +1,9 @@
 ---
-title: "TEZG Solu-2 — Risk-based test design"
+title: "TEZG — Risk-based test design (Solu-2 system level, extended for Impl-2 in §7)"
 phase: "3 — Test Preparation (TEA)"
 deliverable: "3.1 (task-statement.md §6)"
 test-lead: "Martín Gómez (decisions relayed by Mateo Rubio, decision log Solu-2 #10)"
-skill: "bmad-testarch-test-design (system level)"
+skill: "bmad-testarch-test-design (system level; Impl-2 epic level in §7, decided by Mateo Rubio, decision log Impl-2 #1–#7)"
 inputs:
   - _bmad-output/planning-artifacts/prd.md (FRs, NFRs, §3 seed, §7 measurement protocol)
   - _bmad-output/planning-artifacts/detailed-design/contracts.md (37 core operations, 39 supporting contracts, §14 AD bindings)
@@ -67,11 +67,23 @@ The *Red tests* column lists the test ids that turn red when the mitigation is r
 | R-18 | A module writes another module's tables, or the app role rewrites an append-only log | SYS | Data integrity | 2 | 2 | 4 | P1 | Table-ownership scan; revoked grants | `[SYS-AD8]`, `[SYS-R2]`, `[SYS-R2.grants]` | Static + integration |
 | R-19 | A wall-clock read makes a test or a deadline non-deterministic | SYS | Determinism | 2 | 2 | 4 | P1 | `Clock` port; no `now()` in SQL; socket guard | `[SYS-6.R1]`, `[SYS-6.R4]` | Static (fitness) |
 | R-20 | Purchase (`createOrder`) misses its 800 ms p95 under the §3 seed | ORD | Performance | 2 | 2 | 4 | P1 | One transaction; ascending unit locks; indexed visibility | `[NFR-ORD-2.p95]` | NFR benchmark |
+| R-21 | A job runs without the `JOBS_SECRET` bearer, or two runs of one job overlap and apply an expiry twice (Impl-2, Story 1.6) | SYS | Security | 2 | 3 | 6 | P0 | Constant-time bearer check before any write; `pg_try_advisory_xact_lock(job:<name>)` held for the run; one JobRun row per run | `[S-SYS.jobs.auth]`, `[S-SYS.jobs.single]`, `[S-SYS.jobs.C1]` | Integration (race) |
+| R-22 | The 11th failed sign-in in 15 min is not refused, a sign-up burst from one IP is not throttled, or a throttle row stores a raw IP or an empty key (Impl-2, Story 2.6) | IDN | Security | 3 | 3 | 9 | P0 | The auth guard checks `checkAuthThrottle` before Better Auth; one `AuthThrottleEvent` per known key after a failure; keys are account ids or `ipHmac` | `[S-FR-IDN-7.signin.throttle]`, `[S-FR-IDN-7.signup.throttle]`, `[S-FR-IDN-7.signin.unknown]` | Integration |
+| R-23 | Reconcile reports a false discrepancy while deductions commit, writes to an account, or two nightly runs both run; drift over many operations (Impl-2, Story 8.5) | COM | Money | 3 | 3 | 9 | P0 | `FOR SHARE` on the account before the sums, one transaction per account; one run row and nothing else; `job:commission-reconcile` in COM-3 P2 | `[COM-3.C1]`, `[COM-3.C2]`, `[NFR-COM-2.drift]`, `[COM-3.Q2]` | Integration (race) + NFR |
+| R-24 | Two runs of the nightly reconcile overlap and both reconcile, writing two runs for one schedule (Impl-2, Story 8.5; planned in §7.2, registered at the Impl-2 close) | COM | Concurrency | 2 | 2 | 4 | P1 | `pg_try_advisory_xact_lock(job:commission-reconcile)` held for the run (COM-3 P2); a held lock makes the job path a skipped no-op with its own JobRun row | `[COM-3.P2]`, `[COM-3.C2]` | Integration (race) |
+| R-25 | A new commission rate applies before its `effectiveFrom`, or a past-dated rate is accepted and charges orders retroactively (Impl-2, Story 8.6; planned in §7.2, registered at the Impl-2 close) | COM | Money | 2 | 3 | 6 | P0 | The pure `rateInForce`: the greatest `effectiveFrom` ≤ the trigger instant (COM-1's `rateAt` rule); `setCommissionRate` refuses an `effectiveFrom` more than 60 s before now with `CommissionRateNotFutureDated` (AD-COM-2 rule 6) | `[S-FR-COM-7.h]`, `[S-FR-COM-7.f]` | Integration + pure |
+| R-26 | Concurrent or stale `markRead` calls lower `lastReadSeq`, a reader sees the other side's read state, or a non-participant reads or writes a conversation (Impl-2, Story 9.6) | MSG | Correctness/trust | 3 | 2 | 6 | P0 | `UPDATE … SET "lastReadSeq" = LEAST(:seq, c."lastSeq") WHERE "lastReadSeq" < …`; the inbox and thread select only the caller's own participant row; every read and command joins the caller's participant row first | `[S-FR-MSG-7.f]`, `[S-FR-MSG-7.C1]`, `[S-FR-MSG-7.f2]` | Integration (race) |
+| R-27 | The binder order differs between two reads with ties (Impl-2, Story 11.5; planned in §7.2, registered at the Impl-2 close) | COL | Determinism | 3 | 1 | 3 | P2 | Every binder sort ends with `entryId` as the last tie-break; a set with no card entries has a null completion, never a division | `[S-FR-COL-5.h]`, `[S-FR-COL-5.f]` | Integration |
+| R-28 | A non-https or scripted link (`javascript:`, `data:`, an `HTTP://` spoof, userinfo, a scheme-relative `//host`, an over-long URL) is stored and later rendered (Impl-2, Story 11.6) | COL | Security | 2 | 3 | 6 | P0 | The pure `validateExternal` before any read or write: a lowercase `https://` prefix, a parsed https URL with a host and no userinfo, ≤ 2,048 characters, no whitespace or control characters; the `CollectionEntry` CHECK `externalUrl ~ '^https://'` behind it; images render client-side with `referrerpolicy="no-referrer"` (S-12) | `[S-FR-COL-3.f]`, `[S-FR-COL-3.f2]` | Integration + pure |
+| R-29 | A profile's aggregate and its first page come from different snapshots around a hide, so the rating and the list disagree (Impl-2, Story 13.5) | REP | Correctness/trust | 3 | 3 | 9 | P0 | AD-REP-2 rule 2: the aggregate and the first page of 20 in one `REPEATABLE READ` read-only transaction; both select `"hiddenAt" IS NULL` | `[S-FR-REP-7.h]`, `[S-FR-REP-7.C1]` | Integration (race) |
+| R-30 | The profile read misses p95 ≤ 300 ms (NFR-REP-2) at N = 1, or under load on the production build (100 requests/s per endpoint, decision log Impl-2 #21) (Impl-2, Story 13.5) | REP | Performance | 2 | 2 | 4 | P1 | One read-only `REPEATABLE READ` transaction on one connection: identity's target and name reads on it (AD-SYS-4 rule 9), the one-statement aggregate and the page of 20 on `review_visible_by_target`; no cache, so a hide shows on the next read | `[NFR-REP-2.profile]` (benchmark), k6 `reputation-profile` (`npm run nfr:k6`) | NFR benchmark + load |
+| R-31 | An admin search for `100%` matches every review (an unescaped `LIKE` wildcard), or two concurrent hides of one listing log twice (Impl-2, Story 13.6) | REP | Correctness/trust | 3 | 2 | 6 | P0 | `\`, `%` and `_` escaped before `tezg_unaccent_lower(text) LIKE … ESCAPE '\'` (AD-REP-3 rule 4); the conditional `UPDATE … WHERE "hiddenAt" IS NULL RETURNING` with the log row only on 1 row, and a locked re-read for the explained no-op (AD-REP-3 rule 1) | `[S-FR-REP-6.f]`, `[S-FR-REP-5.f]`, `[S-FR-REP-5.C1]` | Integration (race) + pure |
+| R-32 | A down TRM source is called by every tick and retry, two concurrent fetches (a tick racing `catalog.fx.retry`) both probe a half-open source, or a lost failure count keeps the breaker closed (Impl-2, Story 4.6) | CAT | Reliability | 3 | 2 | 6 | P0 | The pure breaker (`domain/breaker.ts`): 3 failures in a row open it for 30 min on the Clock, then one probe; its one `"FxSourceBreaker"` row moved only under `SELECT … FOR UPDATE`, with the source call outside any transaction; `circuitOpen` keeps the last stored rate, never a fabricated one | `[S-FR-CAT-8.breaker.open]`, `[S-FR-CAT-8.breaker.halfOpen]`, `[S-FR-CAT-8.breaker.C1]`, `[S-FR-CAT-8.breaker.C2]` | Integration (race) + pure |
 
-Twenty risks are registered:
+Twenty risks were registered in Solu-2, and Impl-2 adds its own (§7.2) as each story's red tests land:
 
-- 15 are P0: the 12 MECs plus R-13, R-14 and R-15.
-- 5 are P1.
+- Solu-2: 15 are P0 (the 12 MECs plus R-13, R-14 and R-15) and 5 are P1.
+- Impl-2: R-21 to R-32, 12 risks: 9 P0, 2 P1 (R-24, R-30) and 1 P2 (R-27). R-32 (Story 4.6, the TRM source's circuit breaker) was added by decision log Impl-2 #31, after the Impl-2 close. R-24, R-25 and R-27 belong to Stories 8.5, 8.6 and 11.5; they were planned in §7.2 but entered this register only at the Impl-2 close, with the tests §7.2 named for them.
 
 Every P0 and P1 risk has at least one red test. The test-id gate (`npm run gate:ids:solu2`) and the trace gate prove that each id exists.
 
@@ -126,3 +138,70 @@ Every P0 and P1 risk has at least one red test. The test-id gate (`npm run gate:
   - the test-quality review is triaged.
 
 **Martín's scope (decision log Solu-2 #10).** Full ATDD: the core operations plus the supporting contracts. The plan above, red NFR benchmarks, and a new Solu-2 CI workflow.
+
+## 7. Impl-2 test design (epic level)
+
+Impl-2 implements the 7 reserved stories and two new ones (decision log Impl-2 #1, #7), and pairs each with a testing flow of the Impl-2 statement. This section decides the flow, the new red tests and the thresholds **before any production code**. Each planned risk enters the register in §2 together with its red tests, in the story's red commit (decision log Impl-2 #6), because `gate:trace:solu2` refuses a risk citing an id that does not exist yet.
+
+### 7.1 Flow per story
+
+| Story | Kind | Highest risk | Flow | Why this flow |
+|---|---|---|---|---|
+| 1.6 Run scheduled jobs single-flight behind `JOBS_SECRET` (new) | Skeleton | An unauthenticated caller runs a job, or two runs overlap (S-9, AD-SYS-4 rule 7) | **A** ATDD-first | Security boundary and single-flight are strict contracts |
+| 2.6 Sign up, sign in and throttle failed attempts (new) | Failure-state | Brute force: the 11th failed sign-in is not refused (AD-IDN-3) | **A** ATDD-first | Security contract; the throttle is a numeric rule |
+| 8.5 Reconcile ledgers and report, never repair | Failure-state | A false discrepancy while deductions commit, or a "repair" write (AD-COM-1) | **A** + **D** | Atomic read contract; concurrency hammer against live deductions |
+| 8.6 Set commission rates and read the ledger | Supporting | A rate applied retroactively, or at the wrong boundary | **B** test-along | Well-understood rule; unit tests of the boundary written with the code |
+| 9.6 Read the inbox, mark threads read and mute | Supporting | A stale tab lowers `lastReadSeq` (AD-MSG-3) | **A** + **D** + **E** | Monotonic state under concurrent tabs; interactive inbox |
+| 11.5 Binder, external cards, moves and wishlist | Supporting | An unstable binder order; a wishlist price from a non-purchasable listing | **B** + **E** | Read-model logic built with its unit tests; interactive binder |
+| 11.6 Refuse unsafe links, foreign entries and unknown wishlist cards | Failure-state | An unsafe URL stored and rendered (XSS) | **A** | Pure refusal contracts |
+| 13.5 Profiles, moderation logs and listing hides | Supporting | Profile aggregate and first page disagree around a hide; p95 over 300 ms | **D** + **E** | NFR-REP-2 latency and snapshot consistency under load; public profile page |
+| 13.6 Refuse invalid moderation and bad aggregate requests | Failure-state | `100%` matches everything (LIKE wildcard); a double hide logs twice | **A** | Pure refusal contracts |
+| 4.6 Open a circuit breaker when the TRM source keeps failing (new, decision log Impl-2 #31) | Failure-state | Two concurrent fetches both probe a half-open source, or a failure count is lost (NFR-CAT-4) | **A** ATDD-first | A shared state machine under concurrency: the race contract comes first; the pure transitions get unit tests |
+| Impl-1 code | — | Weakly-green lock tests that sleep 200 ms (test review MEDIUM-1/2) | **C** test-after | Backfill and hardening of existing code |
+
+### 7.2 Planned risks (enter §2 with their red tests)
+
+| Planned id | Story | Risk | P × I | Priority | Planned red tests (new ids marked *) |
+|---|---|---|---|---|---|
+| R-21 | 1.6 | A job runs without the `JOBS_SECRET` bearer, or two runs of one job overlap | 2 × 3 | P0 | `[S-SYS.jobs.auth]`*, `[S-SYS.jobs.single]`* |
+| R-22 | 2.6 | The 11th failed sign-in in 15 min is not refused, or the IP is stored in clear | 3 × 3 | P0 | `[S-FR-IDN-7.signin.throttle]`*, `[S-FR-IDN-7.signin.h]`* |
+| R-23 | 8.5 | Reconcile reports a false discrepancy while deductions commit, or writes to an account | 3 × 3 | P0 | `[COM-3.Q1]`, `[COM-3.I1]`, `[COM-3.C1]`* |
+| R-24 | 8.5 | Two job runs of reconcile both run | 2 × 2 | P1 | `[COM-3.P2]`, `[COM-3.C2]`* |
+| R-25 | 8.6 | A new rate applies before its `effectiveFrom`, or a past-dated rate is accepted | 2 × 3 | P0 | `[S-FR-COM-7.h]`, `[S-FR-COM-7.f]` |
+| R-26 | 9.6 | Concurrent or stale `markRead` calls lower `lastReadSeq`, or a reader sees the other side's read state | 3 × 2 | P0 | `[S-FR-MSG-7.f]`, `[S-FR-MSG-7.C1]`* |
+| R-27 | 11.5 | The binder order differs between two reads with ties | 3 × 1 | P2 | `[S-FR-COL-5.h]`, `[S-FR-COL-5.f]` |
+| R-28 | 11.6 | A non-https or scripted link (`javascript:`, `data:`, an `HTTP://` spoof) is stored | 2 × 3 | P0 | `[S-FR-COL-3.f]`, `[S-FR-COL-3.f2]`* |
+| R-29 | 13.5 | A profile's aggregate and its first page come from different snapshots around a hide | 3 × 3 | P0 | `[S-FR-REP-7.h]`, `[S-FR-REP-7.C1]`* |
+| R-30 | 13.5 | The profile read misses p95 ≤ 300 ms (NFR-REP-2) | 2 × 2 | P1 | `[NFR-REP-2.profile]`* (benchmark), k6 `reputation-profile` |
+| R-31 | 13.6 | A search for `100%` matches everything, or two concurrent hides log twice | 3 × 2 | P0 | `[S-FR-REP-6.f]`, `[S-FR-REP-5.f]`, `[S-FR-REP-5.C1]`* |
+| R-32 | 4.6 | Two concurrent fetches both probe a half-open TRM source, or a failure count is lost | 3 × 2 | P0 | `[S-FR-CAT-8.breaker.C1]`*, `[S-FR-CAT-8.breaker.C2]`*, `[S-FR-CAT-8.breaker.open]`* |
+
+Every P0 risk keeps the §1 rule: a red test before code, a story, and a CI gate.
+
+### 7.3 Levels and the 70 / 20 / 10 + NFR pyramid
+
+| Level | Impl-2 content | Where | Target share of new tests |
+|---|---|---|---|
+| Unit (pure, < 10 ms, no I/O) | Domain rules: rate resolution, reconcile arithmetic, binder sort and completion, link validation, LIKE escaping, read-state clamp, throttle window | colocated `src/modules/*/domain/*.test.ts` | ≈ 70 % |
+| Integration | ATDD contracts over real Postgres 16, repository adapters, job route handlers, concurrency hammers (50 connections) | `_bmad-output/test-artifacts/atdd/`, colocated `application/*.test.ts` | ≈ 20 % |
+| E2E (browser) | Three journeys through Page Objects: public seller profile, inbox read and mute, binder sort and add | `_bmad-output/test-artifacts/e2e/` (Playwright) | ≈ 10 % |
+| NFR | k6 at a fixed arrival rate on the public profile and catalog reads (p95, p99, error rate, dropped iterations); PRD §7 benchmarks for NFR-REP-2 and NFR-COL-2 | `_bmad-output/test-artifacts/nfr/` | Separate layer |
+
+The share is counted on the tests Impl-2 adds and reported in `walkthrough-impl2.md`. Coverage: ≥ 90 % branches over `src/modules/*/domain/**`, enforced by the Vitest coverage threshold in `npm test`.
+
+### 7.4 Thresholds added for Impl-2
+
+| Kind | Threshold | Source | Proof |
+|---|---|---|---|
+| Load (k6) | p95 ≤ 300 ms and p99 ≤ 800 ms for `reputation.profile`; p95 ≤ 1,000 ms for `catalog.browse`; 0 % 5xx; error rate < 1 %; dropped iterations < 1 % of the planned, at a constant arrival rate of 100 requests/s per endpoint for 60 s (at most 50 VUs each, decision log Impl-2 #21) | NFR-REP-2, NFR-SYS-9 | `npm run nfr:k6`, its summary in `nfr-evidence.md` |
+| Concurrency | 50 connections: 0 false discrepancies, `lastReadSeq` equal to the highest seq, exactly one log row per hide, exactly one job run | NFR-SYS-10, AD-COM-1, AD-MSG-3, AD-REP-3, AD-SYS-4 rule 7 | the `.C*` tests above |
+| Determinism | 0 `waitForTimeout`, 0 sleep-as-synchronization (`setTimeout` resolving a promise, `pg_sleep`) in tests | Impl-2 statement checklist | `npm run gate:no-sleep` |
+| E2E | Page Objects only (no locator in a spec), web-first assertions, `trace: 'on-first-retry'` | Impl-2 statement §3 | `gate:no-sleep` also refuses `page.locator(` in `*.spec.ts` |
+| Accessibility (usability) | 0 axe-core violations of the WCAG 2.0, 2.1 and 2.2 A and AA rules (tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa`) at each meaningful state of the journeys: home, sign-in and its refusal, inbox and thread, collections list, binder, add-by-link and its field error, seller profile and its Not-available page. The manual audit (screen reader, keyboard walk-through, contrast of dynamic states) stays on the launch checklist | NFR-SYS-11, decision log Impl-2 #31, #33 | `npx playwright test` (`BasePage.expectNoA11yViolations()`, which lists each rule, impact and target on failure); the planted-violation run in `evidence/impl2/34-a11y-axe.log` proves it can fail |
+
+### 7.5 The four testing traps, as rules
+
+- **Ice cream cone:** a behaviour is proven at the lowest level that can prove it; E2E specs assert journeys, never business rules already proven below.
+- **Flaky sleeper:** waits are on a condition (`pg_stat_activity` lock wait, a barrier, a web-first assertion), never on time.
+- **Mocking mirage:** the unit under test is never faked. Fakes stand only at module seams and external ports; contract tests run on real Postgres.
+- **Blindly green:** every test asserts an observable outcome (a value, a row count, a code); the red run proves each new test can fail.

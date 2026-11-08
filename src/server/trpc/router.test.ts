@@ -23,12 +23,12 @@ const call = async (path: string, input: unknown, o: { method?: 'GET' | 'POST'; 
 const gate = (over: Partial<IdentityGate>): IdentityGate => ({ ...UNWIRED_IDENTITY, resolveSession: vi.fn(async () => actor), ...over });
 
 describe('registry routers (AD-SYS-8 rules 1–2)', () => {
-  it('registers the 108 non-job ingress procedures, grouped per module, each on its builder', () => {
+  it('registers the 109 non-job ingress procedures (catalog.fx.breaker: Story 4.6), grouped per module, each on its builder', () => {
     const shapes = describeProceduresV2();
-    expect(shapes).toHaveLength(108);
+    expect(shapes).toHaveLength(109);
     const perModule: Record<string, number> = {};
     for (const s of shapes) perModule[s.procedure.split('.')[0]!] = (perModule[s.procedure.split('.')[0]!] ?? 0) + 1;
-    expect(perModule).toEqual({ access: 2, verification: 11, catalog: 7, discovery: 2, inventory: 12, orders: 14, commission: 13, trading: 10, messaging: 5, collections: 17, valuation: 3, reputation: 8, admin: 4 });
+    expect(perModule).toEqual({ access: 2, verification: 11, catalog: 8, discovery: 2, inventory: 12, orders: 14, commission: 13, trading: 10, messaging: 5, collections: 17, valuation: 3, reputation: 8, admin: 4 });
     expect(shapes.filter((s) => s.builder === 'public').map((s) => s.procedure).sort()).toEqual(['catalog.browse', 'catalog.provenance', 'discovery.cardDetail', 'discovery.search', 'inventory.get', 'orders.supportContact.get', 'reputation.profile']);
     expect(shapes.find((s) => s.procedure === 'inventory.get')).toEqual({ procedure: 'inventory.get', kind: 'query', builder: 'public', inputKeys: ['listingId'] });
     expect(shapes.find((s) => s.procedure === 'orders.supportContact.get')?.inputKeys).toEqual([]);

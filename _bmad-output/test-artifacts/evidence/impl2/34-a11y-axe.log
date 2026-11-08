@@ -1,0 +1,117 @@
+# axe-core scans in the Playwright journeys (NFR-SYS-11, decision log Impl-2 #31 approval, #33 record).
+#
+# @axe-core/playwright 4.14.0 (axe-core 4.14.0, peer playwright-core 1.64.1), exact-pinned devDependency, approved in scripts/check-deps.mjs.
+# BasePage.expectNoA11yViolations() runs AxeBuilder.withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa']) and asserts
+# the violation list is [] (any impact, stricter than AD-SYS-6 rule 8's serious/critical floor); on failure it prints id, impact, help, targets.
+# Captured 2026-11-06T19:21:38Z on branch impl-2 at 7c9adf2 + this change's working tree, Docker Postgres 16 on 127.0.0.1:55432.
+#
+# ===== 1. PLANTED VIOLATION (proof the check can fail; reverted, never committed) =====
+# Planted in app/page.tsx (home), after the intro paragraph:
+#   <img src="/planted.png" width={16} height={16} />   (no alt)
+#   <input type="text" name="planted" />                 (no label)
+$ npx playwright test smoke --retries=0 --reporter=list   # rebuilds the production app
+Running 1 test using 1 worker
+
+  ✘  1 [chromium] › _bmad-output\test-artifacts\e2e\smoke.spec.ts:8:1 › a visitor opens TEZG and sees the service ready (1.1s)
+
+
+  1) [chromium] › _bmad-output\test-artifacts\e2e\smoke.spec.ts:8:1 › a visitor opens TEZG and sees the service ready 
+
+    Error: axe-core found 2 WCAG A/AA violation(s) on http://127.0.0.1:3100/:
+      - image-alt (critical): Images must have alternative text
+          img
+      - label (critical): Form elements must have labels
+          input
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 18
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "help": "Images must have alternative text",
+    +     "id": "image-alt",
+    +     "impact": "critical",
+    +     "targets": Array [
+    +       "img",
+    +     ],
+    +   },
+    +   Object {
+    +     "help": "Form elements must have labels",
+    +     "id": "label",
+    +     "impact": "critical",
+    +     "targets": Array [
+    +       "input",
+    +     ],
+    +   },
+    + ]
+
+       at pages\BasePage.ts:42
+
+      40 |     const found = violations.map((v) => ({ id: v.id, impact: v.impact ?? 'unknown', help: v.help, targets: v.nodes.map((n) => n.target.join(' ')) }));
+      41 |     const report = found.map((v) => [`  - ${v.id} (${v.impact}): ${v.help}`, ...v.targets.map((t) => `      ${t}`)].join('\n')).join('\n');
+    > 42 |     expect(found, `axe-core found ${found.length} WCAG A/AA violation(s) on ${this.page.url()}:\n${report}`).toEqual([]);
+         |                                                                                                              ^
+      43 |   }
+      44 | }
+      45 |
+        at HomePage.expectNoA11yViolations (C:\Users\Usuario\Desktop\Universidad\S9\daia\final_project\Pok-mon-TCG-Marketplace-and-Collection-Management\_bmad-output\test-artifacts\e2e\pages\BasePage.ts:42:110)
+        at C:\Users\Usuario\Desktop\Universidad\S9\daia\final_project\Pok-mon-TCG-Marketplace-and-Collection-Management\_bmad-output\test-artifacts\e2e\smoke.spec.ts:15:3
+
+# EXIT 1. app/page.tsx restored from the copy (git diff app/page.tsx empty).
+#
+# ===== 2. VIOLATIONS FOUND AND FIXED =====
+# The first real run (before any app/ change) found 0 violations on all 14 scans. axe also reports 'incomplete' (needs review) results;
+# a temporary probe (console.log of violations / passes / incomplete per scan, reverted) showed, on /perfil/<seller>:
+#   AXE-INCOMPLETE aria-prohibited-attr p[aria-label="4,5 de 5"] :: <p aria-label="4,5 de 5"><span class="price">4,5</span> <span aria-hidden="true">★★★★★</span></p> :: 
+#   AXE-INCOMPLETE color-contrast p[aria-label="4,5 de 5"] > span[aria-hidden="true"] :: <span aria-hidden="true">★★★★★</span> :: Element content contains only non-text characters
+#   AXE-INCOMPLETE color-contrast li[aria-label="5 de 5"] > p:nth-child(1) > span[aria-hidden="true"] :: <span aria-hidden="true">★★★★★</span> :: Element content contains only non-text characters
+#   AXE-INCOMPLETE color-contrast li[aria-label="4 de 5"] > p:nth-child(1) > span[aria-hidden="true"] :: <span aria-hidden="true">★★★★☆</span> :: Element content contains only non-text characters
+# Fixed: aria-prohibited-attr. A <p> (role paragraph) may not carry aria-label (ARIA 1.2), so a screen reader could drop 'de 5' from
+#   the average. app/perfil/[userId]/page.tsx now wraps the average and its stars in <span role="img" aria-label="4,5 de 5">; the look
+#   is unchanged and SellerProfilePage.average('4,5 de 5') still finds it by label. Rules passed on that page: 22 -> 24.
+# Not a defect: color-contrast 'incomplete' x3 on the aria-hidden star glyphs (axe cannot rate symbol-only text; they are
+#   --ink-primary #0F1B2D on #FFFFFF, far above 4.5:1). Left to the manual contrast audit at launch.
+#
+# Per-scan probe after the fix (path, violations, rules passed, incomplete):
+#   AXE-PROBE /coleccion/e2ekantox000000000000000 violations=0 rulesPassed=26 incomplete=none
+#   AXE-PROBE /coleccion/e2ekantox000000000000000 violations=0 rulesPassed=26 incomplete=none
+#   AXE-PROBE /coleccion/e2ekantox000000000000000/agregar violations=0 rulesPassed=23 incomplete=none
+#   AXE-PROBE /coleccion/e2ekantox000000000000000/agregar violations=0 rulesPassed=23 incomplete=none
+#   AXE-PROBE /coleccion/e2ekantox000000000000000 violations=0 rulesPassed=26 incomplete=none
+#   AXE-PROBE /coleccion violations=0 rulesPassed=21 incomplete=none
+#   AXE-PROBE /ingresar violations=0 rulesPassed=23 incomplete=none
+#   AXE-PROBE /mensajes violations=0 rulesPassed=24 incomplete=none
+#   AXE-PROBE /mensajes violations=0 rulesPassed=24 incomplete=none
+#   AXE-PROBE /mensajes violations=0 rulesPassed=23 incomplete=none
+#   AXE-PROBE /ingresar violations=0 rulesPassed=23 incomplete=none
+#   AXE-PROBE /perfil/e2eluciax000000000000000 violations=0 rulesPassed=24 incomplete=color-contrastx3
+#   AXE-PROBE /perfil/e2enadiex000000000000000 violations=0 rulesPassed=18 incomplete=none
+#   AXE-PROBE / violations=0 rulesPassed=18 incomplete=none
+#
+# ===== 3. PASSING RUN (the committed code, default config: production build, retries 1 locally) =====
+$ npx playwright test
+Running 6 tests using 1 worker
+  ✓  1 [chromium] › _bmad-output\test-artifacts\e2e\binder.spec.ts:19:1 › Julián re-sorts his binder, the order survives a reload, and a promo added by an https link lands in a pocket after an http:// link is refused (5.3s)
+  ✓  2 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:16:1 › Camila reads a conversation, its badge clears, and muting another takes it out of her unread total (3.0s)
+  ✓  3 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:55:1 › a wrong password keeps Camila on the sign-in page with the es-CO error (1.4s)
+  ✓  4 [chromium] › _bmad-output\test-artifacts\e2e\profile.spec.ts:15:1 › a visitor with no session reads Lucía’s rating and reviews, without the review moderation hid (969ms)
+  ✓  5 [chromium] › _bmad-output\test-artifacts\e2e\profile.spec.ts:33:1 › an id that is no seller shows the es-CO Not-available page (953ms)
+  ✓  6 [chromium] › _bmad-output\test-artifacts\e2e\smoke.spec.ts:8:1 › a visitor opens TEZG and sees the service ready (806ms)
+  6 passed (30.6s)
+#
+# ===== 4. GATES =====
+$ npm run gate:deps
+24 dependencies in 2 manifests: exact, approved, no high or critical advisory
+$ npm run gate:no-sleep
+no-sleep: 350 files checked, 7 rules proven on planted violations, 0 problems
+$ npm run gate:trace:solu2
+trace: 96 FRs, 56 NFRs, 61 AD rows, 32 risks, 115 clauses, 425 test ids (425 enforced green), 4 journeys, 1 k6 scripts; gate PASS; 0 problems
+# traceability-matrix.md: NFR-SYS-11 | ... | e2e/binder.spec.ts, e2e/inbox.spec.ts, e2e/profile.spec.ts, e2e/smoke.spec.ts | npx playwright test > e2e | Green — gate, Deferred — launch | PASS (a part deferred to launch)
+# Waived to the launch checklist: none. Passing in scope, with a part deferred to launch: NFR-SYS-11, NFR-VER-4, NFR-ORD-2. Unmapped: 0.
+$ npm run gate:epics:solu2
+_bmad-output/planning-artifacts/epics.md is current: 13 epics, 72 stories
+$ npm run lint && npx tsc --noEmit && npm run gate:ui:solu2
+# lint clean, typecheck exit 0, ui: 43 pages, 327 states (138 data, 77 refusal, 112 client), 0 problems

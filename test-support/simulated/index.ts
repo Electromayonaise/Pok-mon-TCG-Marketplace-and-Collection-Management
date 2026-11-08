@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import type { AuditEntry, AuditLog } from '../../src/shared-kernel/audit.js';
 import { EVENT_SCHEMA_VERSIONS, EVENT_SUBSCRIBERS, type EventEnvelope, type EventPayloads, type EventType, type OutboxV2 } from '../../src/shared-kernel/events.js';
 import type {
-  Bucket, CatalogFeedSource, FxRateSource, MalwareScanner, ObjectStorage, FeedSourceRow, TopUpConfirmationPort,
+  Bucket, CatalogFeedSource, EmailSender, FxRateSource, MalwareScanner, ObjectStorage, FeedSourceRow, TopUpConfirmationPort,
 } from '../../src/shared-kernel/external.js';
 import type { Clock, IdGenerator, Tx } from '../../src/shared-kernel/ports.js';
 
@@ -217,3 +217,17 @@ export class AdminTopUpConfirmation implements TopUpConfirmationPort {
   async confirm(topUpRequestId: string, actorId: string) { await this.commission.confirmTopUp({ topUpRequestId, adminId: actorId }); }
   async reject(topUpRequestId: string, reason: string, actorId: string) { await this.commission.rejectTopUp({ topUpRequestId, adminId: actorId, reason }); }
 }
+
+// ------------------------------------------------------------------ email (AD-IDN-3, Story 2.6)
+
+/** Captures every verification email instead of sending it; `down` makes the next send throw. */
+export class CapturingEmailSender implements EmailSender {
+  readonly sent: { to: string; url: string }[] = [];
+  down = false;
+
+  async sendVerificationEmail(message: { to: string; url: string }): Promise<void> {
+    if (this.down) throw new Error('email provider unavailable');
+    this.sent.push(message);
+  }
+}
+

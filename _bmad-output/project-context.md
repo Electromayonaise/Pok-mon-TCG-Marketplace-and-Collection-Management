@@ -4,7 +4,7 @@ user_name: 'Martin'
 date: '2026-09-01'
 sections_completed: ['technology_stack', 'language_specific_rules', 'framework_specific_rules', 'testing_rules', 'code_quality_style_rules', 'development_workflow_rules', 'critical_dont_miss_rules']
 status: 'complete'
-rule_count: 47
+rule_count: 58
 optimized_for_llm: true
 existing_patterns_found: 0
 ---
@@ -75,7 +75,20 @@ _No source tree exists yet (pre-implementation, planning-only repo) — these ru
 **Event-Driven Test Rules (derived from AD-9/AD-10):**
 - Because subscriber errors are caught-and-logged rather than propagated (AD-10), a test asserting "subscriber X ran" must check for the subscriber's side effect directly — asserting on the publisher's response will never reveal a failed subscriber
 
-**Not yet decided:** test framework/runner, coverage requirements, unit/integration file-organization split, mocking conventions — add once the team picks a framework.
+**Runner, levels and coverage (decided in Impl-1 and Impl-2):**
+- Vitest projects: `impl1-unit` (colocated `src/**/*.test.ts` and `app/**/*.test.ts`; pure domain tests are `src/modules/<m>/<x>-domain.test.ts`), `solu2-atdd` (bracketed acceptance tests in `_bmad-output/test-artifacts/atdd/`), `solu2-nfr` (PRD §7 benchmarks), `solu2-fitness`. Integration tests run on real PostgreSQL 16, one database per test file. Playwright E2E lives in `_bmad-output/test-artifacts/e2e/`, and k6 in `nfr/k6/`, run as the `grafana/k6` Docker image
+- Every file of `src/modules/*/domain/**` keeps ≥ 90 % branch coverage; `npm run test:unit` fails per file below it (`vitest.config.ts`, Impl-2 decision log #8)
+
+**Impl-2 testing rules (the gates enforce most of them):**
+- No sleeps or hard waits anywhere: no `waitForTimeout`, `time.sleep`, `pg_sleep`, `sleep(n)` or a `setTimeout` that resolves a promise. `npm run gate:no-sleep` (`scripts/check-no-sleep.mjs`) runs in `test:ci` and fails on any of them (Impl-2 #8)
+- A wait is on a condition, never on time. For a lock, wait with `untilBlockedOnLock` (`test-support/locks.ts`) until Postgres reports the statement waiting on a lock; never "sleep, then assert it is still blocked". For a race, start the callers on the `race` barrier (`test-support/concurrency.ts`) and rethrow the first rejection (`if (rejected.length > 0) throw rejected[0]`), so a failure shows its real cause (Impl-2 #8, #11)
+- Never assume an order between rows written at the same frozen `VirtualClock` instant (the id breaks the tie at random); advance the clock between the writes (Story 1.6)
+- Playwright specs reach the DOM only through Page Objects in `e2e/pages/` (role- and label-based locators). A spec never builds a locator (`page.locator(`, `page.getBy…(`): `gate:no-sleep` refuses it (Impl-2 #10)
+- E2E assertions are web-first and auto-retrying (`await expect(locator).toBeVisible()`, `toHaveText()`, `toHaveCount()`), bounded by `expect.timeout`. Keep `trace: 'on-first-retry'` in `playwright.config.ts` (Impl-2 #10)
+- The NFR benchmarks run one file at a time (`fileParallelism: false` on `solu2-nfr`), so no benchmark measures another one's load (Impl-2 #25). k6 runs at a constant arrival rate with no `sleep()` (Impl-2 #21)
+- A new acceptance test is a bracketed id bound to its story in `epics.source.mjs` and committed red before the story's code. While the story is not `done` it must fail on `NotImplementedError`, and `gate:atdd-red:impl1` rejects any other failure (Impl-2 #6)
+- A test asserts an observable outcome unconditionally: no `if (…) expect(…)` (Impl-2 #9). It never fakes the unit under test; fakes stand only at module seams and external ports
+- Tests do not depend on their order: every Vitest project must pass under `--sequence.shuffle` (Impl-2 #25). Reset shared clocks and fixtures in a `beforeEach`
 
 ### Code Quality & Style Rules
 
@@ -136,4 +149,4 @@ _No source tree exists yet (pre-implementation, planning-only repo) — these ru
 - Review quarterly for outdated rules
 - Remove rules that become obvious over time
 
-Last Updated: 2026-09-01
+Last Updated: 2026-11-04 (the testing rules of Impl-2; the rest is from 2026-09-01)

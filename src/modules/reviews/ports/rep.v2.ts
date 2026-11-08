@@ -39,6 +39,10 @@ import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { AdminFactsReader } from '../../identity/index.js';
 import type { ReviewHideReason } from '../domain/rep.js';
+import type { ProfileReviewDTO, ReviewAdminRowDTO, ReviewModerationLogRow } from '../dto/rep.v2.dto.js';
+
+/** An admin list page's keyset: newest first by `(at desc, id desc)`, after `after` when given. */
+export interface KeysetPage { after: { at: IsoInstant; id: CuidId } | null; limit: number }
 
 /** A review row as REP-1 Q1 inserts it. */
 export interface NewReview {
@@ -95,4 +99,10 @@ export interface RepTablesRepository {
   insertReviewModerationLog(tx: Tx, row: NewReviewModerationLog): Promise<void>;
   /** REP-3 Q1 (AD-REP-2 rule 1): one statement, the visible reviews' count and rating sum per target that has any. */
   visibleReviewTotals(tx: Tx, sellerIds: readonly CuidId[]): Promise<{ sellerId: CuidId; count: bigint; sum: bigint }[]>;
+  /** S-FR-REP-7 (AD-REP-2 rule 2): a page of the target's visible reviews, newest first by `("createdAt", id)`. */
+  visibleReviewPage(tx: Tx, targetUserId: CuidId, page: { offset: number; limit: number }): Promise<ProfileReviewDTO[]>;
+  /** S-FR-REP-6.search (AD-REP-3 rule 4): reviews, hidden ones included, whose text contains `pattern` (already LIKE-escaped). */
+  searchReviews(tx: Tx, pattern: string, page: KeysetPage): Promise<ReviewAdminRowDTO[]>;
+  /** S-FR-REP-6.log (AD-REP-3 rule 5): the moderation log, optionally of one reason. */
+  listReviewModerationLog(tx: Tx, reasonCode: ReviewHideReason | null, page: KeysetPage): Promise<ReviewModerationLogRow[]>;
 }

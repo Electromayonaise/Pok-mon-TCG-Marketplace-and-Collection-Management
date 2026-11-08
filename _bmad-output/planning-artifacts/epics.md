@@ -27,7 +27,7 @@ Each module epic holds 3–6 stories. One is a dedicated **MEC** story, which ow
 
 Event subscribers never depend on their publisher's story. Payloads are shared-kernel types (AD-9), and each subscriber's tests deliver the event directly. The one subscriber whose publisher comes later, `listings`' commission projection (Story 5.5 ← Epic 8), is fail-closed until events arrive (AD-INV-3 rule 3).
 
-**Totals:** 13 epics and 69 stories. They bind 142 registry operations and 391 test ids, each to exactly one story, and trace 96/96 PRD FRs.
+**Totals:** 13 epics and 72 stories. They bind 144 registry operations and 430 test ids, each to exactly one story, and trace 96/96 PRD FRs.
 
 ### Story format
 
@@ -241,7 +241,7 @@ All 56 NFRs. Each has a metric, an artifact and a status in `_bmad-output/test-a
 | FR-IDN-4 | 2.1, 2.2, 3.1, 3.3 |
 | FR-IDN-5 | 2.5 |
 | FR-IDN-6 | 2.5, 9.1 |
-| FR-IDN-7 | 2.4 |
+| FR-IDN-7 | 2.4, 2.6 |
 | FR-VER-1 | 2.1, 2.2, 3.1, 3.3 |
 | FR-VER-2 | 3.4, 3.5 |
 | FR-VER-3 | 3.2, 3.3 |
@@ -258,7 +258,7 @@ All 56 NFRs. Each has a metric, an artifact and a status in `_bmad-output/test-a
 | FR-CAT-5 | 4.4 |
 | FR-CAT-6 | 4.4, 6.3, 6.4 |
 | FR-CAT-7 | 4.4 |
-| FR-CAT-8 | 4.4 |
+| FR-CAT-8 | 4.4, 4.6 |
 | FR-INV-1 | 5.1, 5.3 |
 | FR-INV-2 | 5.6 |
 | FR-INV-3 | 5.2, 5.4 |
@@ -336,10 +336,10 @@ All 56 NFRs. Each has a metric, an artifact and a status in `_bmad-output/test-a
 
 | Epic | Module | Goal | Stories | MEC story |
 |---|---|---|---|---|
-| 1. Walking skeleton: errors, audit, outbox and determinism | shared-kernel, server/trpc | Build the cross-module platform every story stands on: one typed error body, an audit trail with a regulated-data redactor, exactly-once event delivery, deterministic time and boundaries, and the admin event panel. | 5 | — |
-| 2. User, role and seller-type access (IDN) | IDN (`identity`) | Give every account exactly one seller track and derive its capabilities from facts, never from a client claim. | 5 | 2.2 |
+| 1. Walking skeleton: errors, audit, outbox and determinism | shared-kernel, server/trpc | Build the cross-module platform every story stands on: one typed error body, an audit trail with a regulated-data redactor, exactly-once event delivery, deterministic time and boundaries, and the admin event panel. | 6 | — |
+| 2. User, role and seller-type access (IDN) | IDN (`identity`) | Give every account exactly one seller track and derive its capabilities from facts, never from a client claim. | 6 | 2.2 |
 | 3. Business verification workflow (VER) | VER (`identity`) | Let a business apply once with its legal identity, and let admins decide each application exactly once. | 5 | 3.2 |
-| 4. Catalog and price reference (CAT) | CAT (`catalog`) | Ingest the card catalog with stable ids and serve reference prices that are always a stored observation. | 5 | 4.2 |
+| 4. Catalog and price reference (CAT) | CAT (`catalog`) | Ingest the card catalog with stable ids and serve reference prices that are always a stored observation. | 6 | 4.2 |
 | 5. Listings and shared inventory (INV) | INV (`listings`) | Let sellers list from one stock pool per (seller, item, condition). | 6 | 5.2 |
 | 6. Marketplace browse and location discovery (DSC) | DSC (`listings`, no tables) | Let buyers find listings by area through one query path. | 4 | 6.3 |
 | 7. Orders and comprobante confirmation (ORD) | ORD (`orders`) | Let buyers order from businesses and pay by bank transfer outside the platform. | 5 | 7.2 |
@@ -396,7 +396,7 @@ Build the cross-module platform every story stands on: one typed error body, an 
 - **Binding invariants:** AD-9 — Snapshot payloads (Payload = ADD-§5 exactly; subscribers read only the payload); AD-10 — Post-commit, in-process dispatch with an outbox (`outbox.enqueue(tx)` + sweeper); AD-SYS-2 — Transactional outbox; at most 3 automatic attempts (`EventDelivery` attempt procedure)
 - **Files:** `src/shared-kernel/admin-events.ts` (`AdminEventsServiceV2.replayEventDelivery`), `src/shared-kernel/dispatcher.ts` (`OutboxDispatcherV2.dispatch`, `OutboxDispatcherV2.sweep`, `OutboxDispatcherV2.replay`), `src/shared-kernel/events.ts` (`OutboxV2`, `EVENT_SUBSCRIBERS`), `src/shared-kernel/infra/pg-outbox.ts` (`PgOutboxV2 (new: the production twin of test-support SqlOutboxV2)`)
 - **Schema/DTO:** DTOs `ReplayEventDeliveryRequest` → `ReplayEventDeliveryResponse`; tables `"OutboxEvent"`, `"EventDelivery"`, `"EventReplayLog"`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/sys_contracts.test.ts` › `[SYS-2.R4]`, `[SYS-2.R4.code]`, `[SYS-2.R6]`, `[SYS-2.R6.young]`, `[S-SYS.replay.h]`, `[S-SYS.replay.f]`; `_bmad-output/test-artifacts/fitness/sys_fitness.test.ts` › `[SYS-AD9]`; `_bmad-output/test-artifacts/nfr/outbox_crash_sweep.test.ts` › `[NFR-SYS-6.sweep]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/sys_contracts.test.ts` › `[SYS-2.R4]`, `[SYS-2.R4.code]`, `[SYS-2.R6]`, `[SYS-2.R6.young]`; `_bmad-output/test-artifacts/fitness/sys_fitness.test.ts` › `[SYS-AD9]`; `_bmad-output/test-artifacts/nfr/outbox_crash_sweep.test.ts` › `[NFR-SYS-6.sweep]`; `_bmad-output/test-artifacts/atdd/sys_admin.test.ts` › `[S-SYS.replay.h]`, `[S-SYS.replay.f]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** `CommissionBalanceExhausted` committed with one `pending` delivery to `listings`, and the process died before dispatch. **When:** the sweeper runs 61 s later. **Then:** the `listings` handler runs once with the R-1 envelope `{ eventId, type, occurredAt, schemaVersion: 1, payload }`, the delivery is `delivered`, and a second sweep attempts nothing.
   - **Scenario (failure) — Given:** a `pending` delivery already counted 3 unrecorded attempts, and another delivery is still `pending`. **When:** the sweeper reaches the first, and an admin replays the second. **Then:** the first becomes `failed` with `DeliveryAttemptsExhausted` and its handler never runs again; the replay is `EventDeliveryNotReplayable` (409) with zero writes.
@@ -428,11 +428,27 @@ Build the cross-module platform every story stands on: one typed error body, an 
 - **Binding invariants:** also cited by its clauses: AD-SYS-2
 - **Files:** `src/shared-kernel/admin-events.ts` (`AdminEventsServiceV2.getTickHealth`, `AdminEventsServiceV2.listDeliveries`, `AdminEventsServiceV2.getDeliveryHealth`)
 - **Schema/DTO:** DTOs `GetTickHealthRequest` → `GetTickHealthResponse`, `ListDeliveriesRequest` → `ListDeliveriesResponse`, `GetDeliveryHealthRequest` → `GetDeliveryHealthResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/sys_contracts.test.ts` › `[S-SYS.tick.h]`, `[S-SYS.deliveries.h]`, `[S-SYS.health.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/sys_admin.test.ts` › `[S-SYS.tick.h]`, `[S-SYS.deliveries.h]`, `[S-SYS.health.h]`, `[S-SYS.tick.jobs]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** 27 failed deliveries, one `pending` for 25 h and one `pending` for 23 h. **When:** an admin opens page 2.3's Entregas tab. **Then:** failed rows list by `firstFailedAt`, 25 per page with a next cursor; the 25-hour delivery is the only stuck row; the badge counts the failed rows and the stuck one.
   - **Scenario (failure) — Given:** the last tick started at 10:00 Bogotá. **When:** an admin reads tick health at 13:01. **Then:** `tickSilent=true` citing `lastTickStartedAt`; read at 11:00 it is `false`.
-- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+
+### Story 1.6: Run scheduled jobs single-flight behind JOBS_SECRET
+
+- **Kind:** Skeleton
+- **Description:** As the platform operator, I want every scheduled job to run only for the scheduler, once at a time, and to leave one JobRun row, so that expiries, the TRM, reconciliation and stuck deliveries are processed without anyone else triggering them (S-9, AD-SYS-4 rule 7).
+- **Contracts:** `S-SYS.sweep` sweep · **Also proves:** `S-SYS.jobs` (§15 clause)
+- **Depends on:** Story 1.3, Story 1.5
+- **Traceability:** FR: none (cross-cutting) · NFR-SYS-6 · Risk R-21 (P0)
+- **Binding invariants:** AD-SYS-4 — Transaction handles, pooler-safe state, global lock order (`tx` first; `db()` ambient client; ascending unit locks; `job:<name>` held for the run on one of the pool's 2 minimum connections (rule 7; `TEZG_PG_POOL_MAX`, #38)); also cited by its clauses: AD-SYS-2
+- **Files:** `src/shared-kernel/admin-events.ts` (`AdminEventsServiceV2.sweep`)
+- **Schema/DTO:** DTOs `SweepDeliveriesRequest` → `SweepDeliveriesResponse`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/sys_jobs.test.ts` › `[S-SYS.jobs.auth]`, `[S-SYS.jobs.trigger]`, `[S-SYS.jobs.h]`, `[S-SYS.jobs.failed]`, `[S-SYS.sweep.h]`, `[S-SYS.jobs.single]`, `[S-SYS.jobs.C1]`, `[S-SYS.jobs.pool]`, `[S-SYS.jobs.starved]`
+- **Gherkin:**
+  - **Scenario (happy) — Given:** a due unpaid order and a delivery stuck `pending` for 120 s. **When:** the hourly tick calls `jobs/expiry-materialize` and `jobs/outbox-sweep` with the `JOBS_SECRET` bearer. **Then:** the order expires and releases its unit once, the delivery is delivered, and each run leaves one `succeeded` JobRun row with the tick trigger, which tick health reads.
+  - **Scenario (failure) — Given:** a request without the bearer, and another run already holding `job:expiry-materialize`. **When:** each calls the route. **Then:** the first is 401 `NotAuthenticated` with no JobRun row; the second is a `skipped` no-op with its row; 20 concurrent runs release the unit exactly once.
+- **DoD:** the shared DoD, plus: the 9 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; `JOBS_SECRET` is validated at start-up like `IP_HMAC_KEY`, and `.env.example`, `docker-compose.yml`, the Playwright web server and CI set a local value.
 
 ## Epic 2: User, role and seller-type access (IDN)
 
@@ -476,15 +492,15 @@ Give every account exactly one seller track and derive its capabilities from fac
 - **Description:** As Andrés, whose application was rejected, I want the listing form to tell me why I cannot list and when I may reapply, so that I never fill in a form I cannot submit.
 - **Contracts:** `IDN-2` requireListingEligibility, `P-IDN.capabilities` getCapabilities, `P-IDN.verification` getSellerVerification
 - **Depends on:** Story 2.1
-- **Traceability:** FR-IDN-1, FR-IDN-3 · UI 1.1 (dev), 1.2, 4.1
-- **Binding invariants:** AD-16 — Roles derived server-side (`deriveCapabilities`; no role-like input key); AD-SYS-4 — Transaction handles, pooler-safe state, global lock order (`tx` first; `db()` ambient client; ascending unit locks); also cited by its clauses: AD-IDN-1
+- **Traceability:** FR-IDN-1, FR-IDN-3 · NFR-IDN-1 · UI 1.1 (dev), 1.2, 4.1
+- **Binding invariants:** AD-16 — Roles derived server-side (`deriveCapabilities`; no role-like input key); AD-SYS-4 — Transaction handles, pooler-safe state, global lock order (`tx` first; `db()` ambient client; ascending unit locks; `job:<name>` held for the run on one of the pool's 2 minimum connections (rule 7; `TEZG_PG_POOL_MAX`, #38)); also cited by its clauses: AD-IDN-1
 - **Files:** `src/modules/identity/application/idn.v2.ts` (`IdnServiceV2.requireListingEligibility`, `IdnServiceV2.getCapabilities`, `IdnServiceV2.getSellerVerification`), `src/modules/identity/ports/idn.v2.ts` (`IdnRepository`), `src/modules/identity/domain/idn.ts`, `src/modules/identity/infra/pg.ts`
 - **Schema/DTO:** tables `"BusinessApplication"`, `"User"`; DTOs `RequireListingEligibilityRequest` → `RequireListingEligibilityResponse`, `GetCapabilitiesRequest` → `GetCapabilitiesResponse`, `GetSellerVerificationRequest` → `GetSellerVerificationResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_contracts.test.ts` › `[IDN-2.Q1]`, `[IDN-2.QF1]`, `[IDN-2.QF2]`, `[IDN-2.I1]`, `[P-IDN.capabilities.h]`, `[P-IDN.verification.h]`; `_bmad-output/test-artifacts/atdd/sys_contracts.test.ts` › `[SYS-4.R9]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_contracts.test.ts` › `[IDN-2.Q1]`, `[IDN-2.QF1]`, `[IDN-2.QF2]`, `[IDN-2.I1]`, `[P-IDN.capabilities.h]`, `[P-IDN.verification.h]`; `_bmad-output/test-artifacts/atdd/sys_contracts.test.ts` › `[SYS-4.R9]`; `_bmad-output/test-artifacts/nfr/idn1_latency.test.ts` › `[NFR-IDN-1.capabilities]`, `[NFR-IDN-1.eligibility]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Andrés's application is Pending. **When:** `listings` asks `requireListingEligibility`. **Then:** he may list, unverified, with the `ListingUnverified` notice citing FR-IDN-3; the verification port answers inside the caller's transaction even with a pool of one connection.
   - **Scenario (failure) — Given:** Andrés's latest application is Rejected with a reapply date, and another account has no track. **When:** the eligibility check runs for each. **Then:** `SellerNotVerified` (409) citing the application and `reapplyNotBefore`, and `IndividualSellerProfileIncomplete` citing `sellerKind: 'none'`; an admin flag never turns an individual into a business.
-- **DoD:** the shared DoD, plus: the 7 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 9 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 2.4: Refuse unverified buyers and throttle failed sign-ins
 
@@ -493,9 +509,9 @@ Give every account exactly one seller track and derive its capabilities from fac
 - **Contracts:** `S-FR-IDN-7.canBuy` requireCanBuy, `S-FR-IDN-7.throttle` checkAuthThrottle
 - **Depends on:** Story 1.1
 - **Traceability:** FR-IDN-7
-- **Binding invariants:** AD-IDN-3 — `canBuy` gate and auth throttle (`requireCanBuy`; `AuthThrottleEvent` count); also cited by its clauses: AD-16, AD-SYS-8
+- **Binding invariants:** AD-IDN-3 — `canBuy` gate and auth throttle (`requireCanBuy`; `AuthThrottleEvent` count; consent set in the sign-up insert); also cited by its clauses: AD-16, AD-SYS-8
 - **Files:** `src/modules/identity/application/idn.v2.ts` (`IdnServiceV2.requireCanBuy`, `IdnServiceV2.checkAuthThrottle`), `src/modules/identity/ports/idn.v2.ts` (`IdnRepository`), `src/modules/identity/domain/idn.ts`, `src/modules/identity/infra/pg.ts`
-- **Schema/DTO:** tables `"AuthThrottleEvent"`, `"Session"`; DTOs `RequireCanBuyRequest` → `RequireCanBuyResponse`, `CheckAuthThrottleRequest` → `CheckAuthThrottleResponse`
+- **Schema/DTO:** tables `"Account"`, `"AuthThrottleEvent"`, `"Session"`, `"User"`; DTOs `RequireCanBuyRequest` → `RequireCanBuyResponse`, `CheckAuthThrottleRequest` → `CheckAuthThrottleResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_contracts.test.ts` › `[S-FR-IDN-7.h]`, `[S-FR-IDN-7.f]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Camila's email is verified. **When:** a `canBuy` procedure runs. **Then:** she passes, with the decision explained.
@@ -508,15 +524,31 @@ Give every account exactly one seller track and derive its capabilities from fac
 - **Description:** As an admin, I want to trace why an account holds each capability, audited, so that support can explain access without reading legal data.
 - **Contracts:** `IDN-3` traceCapabilities, `S-FR-IDN-6.kinds` getSellerKinds, `S-FR-IDN-6.target` getReviewTarget, `P-IDN.contact` getContactCard, `P-IDN.names` getDisplayNames
 - **Depends on:** Story 2.3
-- **Traceability:** FR-IDN-1, FR-IDN-5, FR-IDN-6 · NFR-SYS-8 · UI 1.3
+- **Traceability:** FR-IDN-1, FR-IDN-5, FR-IDN-6 · NFR-IDN-1, NFR-SYS-8 · UI 1.3
 - **Binding invariants:** AD-13 — `legalIdentity` under Ley 1581 (Split table; one repository reader); AD-IDN-1 — Capabilities from one pure function (`deriveCapabilities`; trace = projection); also cited by its clauses: AD-SYS-8, AD-VER-2
 - **Files:** `src/modules/identity/application/idn.v2.ts` (`IdnServiceV2.traceCapabilities`, `IdnServiceV2.getSellerKinds`, `IdnServiceV2.getReviewTarget`, `IdnServiceV2.getContactCard`, `IdnServiceV2.getDisplayNames`), `src/modules/identity/ports/idn.v2.ts` (`IdnRepository`), `src/modules/identity/domain/idn.ts`, `src/modules/identity/infra/pg.ts`
 - **Schema/DTO:** tables `"BusinessApplicationLegalIdentity"`, `"CapabilityAuditRead"`, `"User"`; DTOs `TraceCapabilitiesRequest` → `TraceCapabilitiesResponse`, `GetSellerKindsRequest` → `GetSellerKindsResponse`, `GetReviewTargetRequest` → `GetReviewTargetResponse`, `GetContactCardRequest` → `GetContactCardResponse`, `GetDisplayNamesRequest` → `GetDisplayNamesResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_contracts.test.ts` › `[IDN-3.Q1]`, `[IDN-3.Q2]`, `[IDN-3.P2]`, `[IDN-3.I1]`, `[IDN-3.I3]`, `[S-FR-IDN-6.h]`, `[S-FR-IDN-6.f]`, `[P-IDN.contact.h]`, `[P-IDN.names.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_contracts.test.ts` › `[IDN-3.Q1]`, `[IDN-3.Q2]`, `[IDN-3.P2]`, `[IDN-3.I1]`, `[IDN-3.I3]`, `[S-FR-IDN-6.h]`, `[S-FR-IDN-6.f]`, `[P-IDN.contact.h]`, `[P-IDN.names.h]`; `_bmad-output/test-artifacts/nfr/idn1_latency.test.ts` › `[NFR-IDN-1.sellerKinds]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Andrés is an Approved business. **When:** an admin traces his capabilities. **Then:** six capabilities in fixed order, each citing its source facts and equal to `getCapabilities`; one `CapabilityAuditRead` and one admin audit row.
   - **Scenario (failure) — Given:** the target id is unknown. **When:** an admin traces it. **Then:** `AccountNotFound` (404) with zero writes; no trace ever carries a legal-identity value.
-- **DoD:** the shared DoD, plus: the 9 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 10 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+
+### Story 2.6: Sign up, sign in and throttle failed attempts
+
+- **Kind:** Failure-state
+- **Description:** As Camila, I want to create my account with my consent recorded and sign in with my password, and as the platform, I want failed sign-ins and sign-up bursts throttled, so that accounts cannot be brute-forced (AD-IDN-3, S-8).
+- **Contracts:** — (no registry operation of its own) · **Also proves:** `S-FR-IDN-7` (§15 clause)
+- **Depends on:** Story 2.4
+- **Traceability:** FR-IDN-7 · Risk R-22 (P0)
+- **Binding invariants:** AD-IDN-3 — `canBuy` gate and auth throttle (`requireCanBuy`; `AuthThrottleEvent` count; consent set in the sign-up insert); also cited by its clauses: AD-16, AD-SYS-8
+- **Files:** —
+- **Schema/DTO:** tables `"Account"`, `"AuthThrottleEvent"`, `"Session"`, `"User"`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/idn_auth.test.ts` › `[S-FR-IDN-7.signup.h]`, `[S-FR-IDN-7.signup.f]`, `[S-FR-IDN-7.signup.throttle]`, `[S-FR-IDN-7.signin.h]`, `[S-FR-IDN-7.signin.throttle]`, `[S-FR-IDN-7.signin.unknown]`, `[S-FR-IDN-7.signup.unwired]`
+- **Gherkin:**
+  - **Scenario (happy) — Given:** a visitor with the privacy notice `privacy-v1` in front of her. **When:** Camila signs up accepting it, then signs in with her password before verifying her email. **Then:** her user stores the consent instant and version, her password only as a hash, one verification link is sent, and she is signed in, while `canBuy` still refuses `EmailNotVerified`.
+  - **Scenario (failure) — Given:** 10 failed sign-ins for her account in 15 minutes, a sign-up without consent, and a 6th sign-up from one IP within an hour. **When:** each arrives. **Then:** the 11th sign-in is 429 `AuthRateLimited` citing `retryAt` even with the right password; the sign-up without consent is 400 on `consentAccepted` with no user; the 6th sign-up is 429; every throttle row is keyed by an account id or a 64-hex `ipHmac`, never a raw IP or an empty key.
+- **DoD:** the shared DoD, plus: the 7 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; `app/api/auth/[...all]` serves `compose().auth`; production binds `UNWIRED_EMAIL` until a mail provider is chosen (launch checklist), and while it does the guard refuses sign-up before any write.
 
 ## Epic 3: Business verification workflow (VER)
 
@@ -661,9 +693,9 @@ Ingest the card catalog with stable ids and serve reference prices that are alwa
 - **Contracts:** `CAT-3` getPriceProvenance, `S-FR-CAT-8.fetch` fetchTrm, `S-FR-CAT-8.rate` getFxRate
 - **Depends on:** Story 4.2
 - **Traceability:** FR-CAT-5, FR-CAT-6, FR-CAT-7, FR-CAT-8 · NFR-CAT-1, NFR-CAT-3 · UI 2.3
-- **Binding invariants:** AD-CAT-2 — Observations immutable, aged at read (Append-only observations; `stale` computed); AD-CAT-3 — TRM never invented (`EXCLUDE` on validity ranges; no gap row); also cited by its clauses: AD-SYS-6, AD-SYS-7
+- **Binding invariants:** AD-CAT-2 — Observations immutable, aged at read (Append-only observations; `stale` computed); AD-CAT-3 — TRM never invented (`EXCLUDE` on validity ranges; no gap row); also cited by its clauses: AD-SYS-5, AD-SYS-6, AD-SYS-7
 - **Files:** `src/modules/catalog/application/cat.v2.ts` (`CatServiceV2.getPriceProvenance`, `CatServiceV2.fetchTrm`, `CatServiceV2.getFxRate`), `src/modules/catalog/ports/cat.v2.ts` (`CatRepository`), `src/modules/catalog/domain/cat.ts`, `src/modules/catalog/infra/pg.ts`
-- **Schema/DTO:** tables `"FxRate"`; DTOs `GetPriceProvenanceRequest` → `GetPriceProvenanceResponse`, `FetchTrmRequest` → `FetchTrmResponse`, `GetFxRateRequest` → `GetFxRateResponse`
+- **Schema/DTO:** tables `"FxRate"`, `"FxSourceBreaker"`; DTOs `GetPriceProvenanceRequest` → `GetPriceProvenanceResponse`, `FetchTrmRequest` → `FetchTrmResponse`, `GetFxRateRequest` → `GetFxRateResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/cat_contracts.test.ts` › `[CAT-3.Q1]`, `[CAT-3.Q4]`, `[CAT-3.Q5]`, `[CAT-3.P2]`, `[CAT-3.I1]`, `[S-FR-CAT-8.h]`, `[S-FR-CAT-8.f]`; `_bmad-output/test-artifacts/nfr/cat1_latency.test.ts` › `[NFR-CAT-1.provenance]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a card has a 30-day baseline of 40,000 and a latest observation of 45,000. **When:** Camila reads its provenance. **Then:** +12.50 % with the source and observation time; two sources at one instant give one stored row chosen by source order, never an average.
@@ -685,6 +717,22 @@ Ingest the card catalog with stable ids and serve reference prices that are alwa
   - **Scenario (happy) — Given:** the catalog holds Pikachu cards in two sets. **When:** Camila filters by pokemon. **Then:** only matches, in `(setId, numberSort, id)` order; neighbours read entries, refs, prices as of an instant, history and set summaries through the ports.
   - **Scenario (failure) — Given:** a filter names an unknown set, a match covers 20,001 entries, or an id is unknown. **When:** browse or a neighbour port runs. **Then:** an empty page with total 0, `tooBroad`, and the unknown id listed in `missing`, never thrown.
 - **DoD:** the shared DoD, plus: the 10 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+
+### Story 4.6: Open a circuit breaker when the TRM source keeps failing
+
+- **Kind:** Failure-state
+- **Description:** As an admin, I want the TRM fetch to stop calling a source that keeps failing and to probe it once after a cool-down, while prices keep using the last stored rate, so that a down source degrades gracefully instead of being hammered by every tick and retry (NFR-CAT-4).
+- **Contracts:** `S-FR-CAT-8.breaker` getFxSourceBreaker · **Also proves:** `S-FR-CAT-8` (§15 clause)
+- **Depends on:** Story 4.4, Story 1.6
+- **Traceability:** FR-CAT-8 · NFR-CAT-4 · Risk R-32 (P0) · UI 2.3
+- **Binding invariants:** AD-CAT-3 rule 7 — TRM source circuit breaker: closed, open after 3 failures in a row, one half-open probe after 30 min (One `"FxSourceBreaker"` row read `FOR UPDATE` per transition and moved by one `WHERE state = :from AND version = :v` UPDATE (AD-SYS-5 rule 1; `cat.v2-breaker.test.ts`); pure `admit` / `record` (`catalog/domain/breaker.ts`, unit-tested in `breaker-domain.test.ts`); `circuitOpen` with no source call); also cited by its clauses: AD-SYS-5
+- **Files:** `src/modules/catalog/application/cat.v2.ts` (`CatServiceV2.getFxSourceBreaker`), `src/modules/catalog/ports/cat.v2.ts` (`CatRepository`), `src/modules/catalog/domain/cat.ts`, `src/modules/catalog/infra/pg.ts`
+- **Schema/DTO:** tables `"FxRate"`, `"FxSourceBreaker"`; DTOs `GetFxSourceBreakerRequest` → `GetFxSourceBreakerResponse`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/cat_breaker.test.ts` › `[S-FR-CAT-8.breaker.h]`, `[S-FR-CAT-8.breaker.open]`, `[S-FR-CAT-8.breaker.halfOpen]`, `[S-FR-CAT-8.breaker.reset]`, `[S-FR-CAT-8.breaker.C1]`, `[S-FR-CAT-8.breaker.C2]`
+- **Gherkin:**
+  - **Scenario (happy) — Given:** the breaker has been open for 30 minutes after 3 failed hourly fetches. **When:** the next tick fetches the TRM and the source answers. **Then:** that one probe stores the rate of the day and closes the breaker; page 2.3 reads `closed` with 0 failures.
+  - **Scenario (failure) — Given:** the TRM source is down, and a tick races two admin retries; later 50 fetches meet an open breaker whose cool-down has passed. **When:** the fetches run. **Then:** the 3rd failure in a row opens the breaker with no failure lost; a fetch while open is `circuitOpen` (`FxRateCircuitOpen`) with no source call and no write, the rate of the day stays the one of yesterday, stale; and exactly one of the 50 probes the source.
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; migration `002_fx_source_breaker.sql` adds the catalog-owned `FxSourceBreaker` row; the lint rule, the fitness scan and the epics generator read every migration.
 
 ## Epic 5: Listings and shared inventory (INV)
 
@@ -713,7 +761,7 @@ Let sellers list from one stock pool per (seller, item, condition). Reserve that
 - **Contracts:** `INV-1` reserveForPurchase, `S-FR-INV-5` releaseReservation, `P-INV.purchase` getListingForPurchase, `P-INV.units` getInventoryUnitIds
 - **Depends on:** Story 5.1
 - **Traceability:** FR-INV-3, FR-INV-5, FR-INV-6 · NFR-INV-1, NFR-INV-2, NFR-INV-3, NFR-INV-4 · Risk R-05 (P0) · UI 4.3 (dev)
-- **Binding invariants:** AD-6 — `InventoryUnit` is the sole quantity owner (`CHECK (quantity >= 0)`; conditional decrement); AD-SYS-4 — Transaction handles, pooler-safe state, global lock order (`tx` first; `db()` ambient client; ascending unit locks); AD-INV-2 — Reserve and release in the caller's transaction (`tx` parameter; ascending conditional decrement); also cited by its clauses: AD-INV-1, AD-ORD-1, AD-ORD-2, AD-SYS-5
+- **Binding invariants:** AD-6 — `InventoryUnit` is the sole quantity owner (`CHECK (quantity >= 0)`; conditional decrement); AD-SYS-4 — Transaction handles, pooler-safe state, global lock order (`tx` first; `db()` ambient client; ascending unit locks; `job:<name>` held for the run on one of the pool's 2 minimum connections (rule 7; `TEZG_PG_POOL_MAX`, #38)); AD-INV-2 — Reserve and release in the caller's transaction (`tx` parameter; ascending conditional decrement); also cited by its clauses: AD-INV-1, AD-ORD-1, AD-ORD-2, AD-SYS-5
 - **Files:** `src/modules/listings/application/inv.v2.ts` (`InvServiceV2.reserveForPurchase`, `InvServiceV2.releaseReservation`, `InvServiceV2.getListingForPurchase`, `InvServiceV2.getInventoryUnitIds`), `src/modules/listings/ports/inv.v2.ts` (`InvRepository`), `src/modules/listings/domain/inv.ts`, `src/modules/listings/infra/pg.ts`
 - **Schema/DTO:** tables `"InventoryUnit"`; DTOs `ReserveForPurchaseRequest` → `ReserveForPurchaseResponse`, `ReleaseReservationRequest` → `ReleaseReservationResponse`, `GetListingForPurchaseRequest` → `GetListingForPurchaseResponse`, `GetInventoryUnitIdsRequest` → `GetInventoryUnitIdsResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_contracts.test.ts` › `[INV-1.Q1]`, `[INV-1.Q3]`, `[INV-1.I1]`, `[INV-1.I3]`, `[INV-1.MEC]`; `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-INV-5.h]`, `[S-FR-INV-5.f]`, `[P-INV.purchase.h]`, `[P-INV.units.h]`; `_bmad-output/test-artifacts/nfr/inv4_latency.test.ts` › `[NFR-INV-4.reserve]`, `[NFR-INV-4.bundle]`
@@ -965,7 +1013,7 @@ Keep each business's prepaid commission balance exact. Each order is charged exa
 - **Contracts:** `COM-1` applyOrderDeduction
 - **Depends on:** Story 8.1, Story 7.2
 - **Traceability:** FR-COM-4, FR-COM-5, FR-COM-6 · NFR-COM-1, NFR-COM-2, NFR-COM-3, NFR-COM-4 · Risk R-07 (P0) · UI 7.5 (dev)
-- **Binding invariants:** AD-19 — Atomic decrement; balance may go negative (Account `UPDATE … RETURNING`; no refusal path); AD-SYS-3 — Commission triggered by the first of two order events (`commissionTrigger(facts)`; partial unique on deductions); AD-SYS-7 — Branded money, one set of formulas (BigInt helpers; rounding CHECK on deductions); AD-COM-2 — Deduction keyed by `orderId`, priced at the trigger time (Partial unique; rate by `commissionTriggeredAt`); also cited by its clauses: AD-COM-1, AD-SYS-2
+- **Binding invariants:** AD-19 — Atomic decrement; balance may go negative (Account `UPDATE … RETURNING`; no refusal path); AD-SYS-3 — Commission triggered by the first of two order events (`commissionTrigger(facts)`; partial unique on deductions); AD-SYS-7 — Branded money, one set of formulas (BigInt helpers; rounding CHECK on deductions); AD-COM-2 — Deduction keyed by `orderId`, priced at the trigger time (Partial unique; rate by `commissionTriggeredAt`; `UNIQUE ("effectiveFrom")` on rate settings); also cited by its clauses: AD-COM-1, AD-SYS-2
 - **Files:** `src/modules/commission/application/com.v2.ts` (`ComServiceV2.applyOrderDeduction`), `src/modules/commission/ports/com.v2.ts` (`ComRepository`), `src/modules/commission/domain/com.ts`, `src/modules/commission/infra/pg.ts`
 - **Schema/DTO:** tables `"CommissionAccount"`, `"CommissionLedgerEntry"`, `"CommissionRateSetting"`, `"EventDelivery"`; DTOs `ApplyOrderDeductionRequest` → `ApplyOrderDeductionResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/com_contracts.test.ts` › `[COM-1.Q1]`, `[COM-1.Q3]`, `[COM-1.I1]`, `[COM-1.I3]`, `[COM-1.I4]`, `[COM-1.MEC]`, `[COM-1.MEC2]`; `_bmad-output/test-artifacts/nfr/com3_latency.test.ts` › `[NFR-COM-3.deduction]`
@@ -1011,16 +1059,16 @@ Keep each business's prepaid commission balance exact. Each order is charged exa
 - **Kind:** Failure-state
 - **Description:** As an admin, I want reconciliation to report every balance mismatch and sequence gap without changing anything, so that I can investigate (NFR-COM-2).
 - **Contracts:** `COM-3` reconcile, `COM-3.last` getLastReconciliation
-- **Depends on:** Story 8.2
-- **Traceability:** FR-COM-8 · NFR-COM-2 · UI 7.4, 7.5 (dev)
-- **Binding invariants:** AD-COM-1 — One atomic account update + one ledger entry (`UPDATE … RETURNING`; `UNIQUE (businessId, seq)`); also cited by its clauses: AD-19, AD-ORD-2, AD-SYS-1, AD-SYS-4
+- **Depends on:** Story 8.2, Story 1.6
+- **Traceability:** FR-COM-8 · NFR-COM-2 · Risk R-23 (P0), R-24 (P1) · UI 7.4, 7.5 (dev)
+- **Binding invariants:** AD-SYS-4 — Transaction handles, pooler-safe state, global lock order (`tx` first; `db()` ambient client; ascending unit locks; `job:<name>` held for the run on one of the pool's 2 minimum connections (rule 7; `TEZG_PG_POOL_MAX`, #38)); AD-COM-1 — One atomic account update + one ledger entry (`UPDATE … RETURNING`; `UNIQUE (businessId, seq)`); also cited by its clauses: AD-19, AD-ORD-2, AD-SYS-1
 - **Files:** `src/modules/commission/application/com.v2.ts` (`ComServiceV2.reconcile`, `ComServiceV2.getLastReconciliation`), `src/modules/commission/ports/com.v2.ts` (`ComRepository`), `src/modules/commission/domain/com.ts`, `src/modules/commission/infra/pg.ts`
 - **Schema/DTO:** tables `"CommissionAccount"`, `"CommissionLedgerEntry"`, `"ReconciliationRun"`, `"TopUpRequest"`; DTOs `ReconcileRequest` → `ReconcileResponse`, `GetLastReconciliationRequest` → `GetLastReconciliationResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/com_contracts.test.ts` › `[COM-3.Q1]`, `[COM-3.Q2]`, `[COM-3.I1]`, `[COM-3.Q4]`, `[COM-3.P2]`, `[COM-3.last.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/com_contracts.test.ts` › `[COM-3.Q1]`, `[COM-3.Q2]`, `[COM-3.I1]`, `[COM-3.Q4]`, `[COM-3.P2]`, `[COM-3.last.h]`; `_bmad-output/test-artifacts/atdd/com_reconcile.test.ts` › `[COM-3.C1]`, `[COM-3.C2]`; `_bmad-output/test-artifacts/nfr/com2_drift.test.ts` › `[NFR-COM-2.drift]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a consistent account. **When:** reconciliation runs. **Then:** 0 discrepancies and one run row, shown as the last run on page 7.4.
   - **Scenario (failure) — Given:** a tampered balance, a sequence gap, an unknown business, or another run holding the job lock. **When:** reconciliation runs. **Then:** `balanceMismatch` with decimal-string expected and actual values, never repaired; the gap reported; 0 accounts with an explained notice; the job path skipped.
-- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 9 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 8.6: Set commission rates and read the ledger
 
@@ -1028,15 +1076,15 @@ Keep each business's prepaid commission balance exact. Each order is charged exa
 - **Description:** As an admin, I want future-dated commission rates and a filterable ledger, so that pricing changes never apply retroactively.
 - **Contracts:** `S-FR-COM-7` setCommissionRate, `S-FR-COM-7.list` listCommissionRates, `S-FR-COM-8.ledger` getAccountLedger
 - **Depends on:** Story 8.2
-- **Traceability:** FR-COM-7, FR-COM-8 · UI 7.2, 7.4
-- **Binding invariants:** also cited by its clauses: AD-COM-1, AD-COM-2
+- **Traceability:** FR-COM-7, FR-COM-8 · Risk R-25 (P0) · UI 7.2, 7.4
+- **Binding invariants:** AD-COM-2 — Deduction keyed by `orderId`, priced at the trigger time (Partial unique; rate by `commissionTriggeredAt`; `UNIQUE ("effectiveFrom")` on rate settings); also cited by its clauses: AD-COM-1
 - **Files:** `src/modules/commission/application/com.v2.ts` (`ComServiceV2.setCommissionRate`, `ComServiceV2.listCommissionRates`, `ComServiceV2.getAccountLedger`), `src/modules/commission/ports/com.v2.ts` (`ComRepository`), `src/modules/commission/domain/com.ts`, `src/modules/commission/infra/pg.ts`
 - **Schema/DTO:** tables `"CommissionRateSetting"`; DTOs `SetCommissionRateRequest` → `SetCommissionRateResponse`, `ListCommissionRatesRequest` → `ListCommissionRatesResponse`, `GetAccountLedgerRequest` → `GetAccountLedgerResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/com_supporting.test.ts` › `[S-FR-COM-7.h]`, `[S-FR-COM-7.f]`, `[S-FR-COM-7.list.h]`, `[S-FR-COM-8.ledger.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/com_supporting.test.ts` › `[S-FR-COM-7.h]`, `[S-FR-COM-7.f]`, `[S-FR-COM-7.list.h]`, `[S-FR-COM-8.ledger.h]`, `[S-FR-COM-7.C1]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** only the seed rate of 800 bps exists. **When:** an admin schedules a new rate from tomorrow. **Then:** it applies only to triggers at or after its `effectiveFrom`; the ledger filtered by `buyerClosed` shows only those deductions.
   - **Scenario (failure) — Given:** an `effectiveFrom` 61 s in the past. **When:** the rate is set. **Then:** `CommissionRateNotFutureDated` (400), with zero writes.
-- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ## Epic 9: Contact handoff and in-app business messaging (MSG)
 
@@ -1128,15 +1176,15 @@ Let buyers contact individual sellers through a generated WhatsApp handoff, and 
 - **Description:** As Camila, I want my inbox with unread counts, read marks and mute, so that I see what is new without exposing my reading to the business.
 - **Contracts:** `S-FR-MSG-7.inbox` listInbox, `S-FR-MSG-7.thread` getThread, `S-FR-MSG-7.read` markRead, `S-FR-MSG-8` setMuted
 - **Depends on:** Story 9.2
-- **Traceability:** FR-MSG-7, FR-MSG-8 · UI 12.2
+- **Traceability:** FR-MSG-7, FR-MSG-8 · Risk R-26 (P0) · UI 12.2
 - **Binding invariants:** AD-MSG-3 — Read state monotonic (`WHERE "lastReadSeq" < :seq`)
 - **Files:** `src/modules/messaging/application/msg.v2.ts` (`MsgServiceV2.listInbox`, `MsgServiceV2.getThread`, `MsgServiceV2.markRead`, `MsgServiceV2.setMuted`), `src/modules/messaging/ports/msg.v2.ts` (`MsgRepository`), `src/modules/messaging/domain/msg.ts`, `src/modules/messaging/infra/pg.ts`
 - **Schema/DTO:** DTOs `ListInboxRequest` → `ListInboxResponse`, `GetThreadRequest` → `GetThreadResponse`, `MarkReadRequest` → `MarkReadResponse`, `SetMutedRequest` → `SetMutedResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/msg_contracts.test.ts` › `[S-FR-MSG-7.h]`, `[S-FR-MSG-7.f]`, `[S-FR-MSG-8.h]`, `[S-FR-MSG-8.f]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/msg_contracts.test.ts` › `[S-FR-MSG-7.h]`, `[S-FR-MSG-7.f]`, `[S-FR-MSG-8.h]`, `[S-FR-MSG-8.f]`; `_bmad-output/test-artifacts/atdd/msg_inbox.test.ts` › `[S-FR-MSG-7.C1]`, `[S-FR-MSG-7.f2]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Camila has unread messages from Andrés. **When:** she reads the thread and mutes another conversation. **Then:** unread drops to 0 without exposing Andrés's read state, and the muted conversation leaves her total unread count.
   - **Scenario (failure) — Given:** a stale tab marks an older seq as read, and a business mutes. **When:** the commands run. **Then:** `lastReadSeq` stays unchanged, and the business gets an explained no-op with zero writes (R-11).
-- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ## Epic 10: Trade offer negotiation (TRD)
 
@@ -1233,7 +1281,7 @@ Let collectors keep collections of catalog cards and external promos, organize t
 - **Contracts:** `S-FR-COL-1.create` createCollection, `S-FR-COL-1.rename` renameCollection, `S-FR-COL-1.delete` deleteCollection, `S-FR-COL-1.list` listCollections
 - **Depends on:** Story 1.2
 - **Traceability:** FR-COL-1 · UI 9.1, 9.2, 9.4, 10.1
-- **Binding invariants:** AD-COL-1 — Tagged-union entries; collections capped under an owner lock (CHECKs; `col:owner` lock)
+- **Binding invariants:** AD-COL-1 — Tagged-union entries; collections capped under an owner lock (CHECKs; `col:owner` lock, also over every binder position)
 - **Files:** `src/modules/collections/application/col.v2.ts` (`ColServiceV2.createCollection`, `ColServiceV2.renameCollection`, `ColServiceV2.deleteCollection`, `ColServiceV2.listCollections`), `src/modules/collections/ports/col.v2.ts` (`ColRepository`), `src/modules/collections/domain/col.ts`, `src/modules/collections/infra/pg.ts`
 - **Schema/DTO:** DTOs `CreateCollectionRequest` → `CreateCollectionResponse`, `RenameCollectionRequest` → `CollectionChangeResponse`, `DeleteCollectionRequest` → `DeleteCollectionResponse`, `ListCollectionsRequest` → `ListCollectionsResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/col_supporting.test.ts` › `[S-FR-COL-1.h]`, `[S-FR-COL-1.f]`, `[S-FR-COL-1.list.h]`, `[S-FR-COL-1.delete.h]`
@@ -1249,7 +1297,7 @@ Let collectors keep collections of catalog cards and external promos, organize t
 - **Contracts:** `COL-3` addEntry
 - **Depends on:** Story 11.1, Story 4.5
 - **Traceability:** FR-COL-1, FR-COL-2 · UI 9.2
-- **Binding invariants:** AD-7 — Catalog, listing and binder records are independent (Upsert `SET` list without `id`/`kind`; tagged-union CHECKs); AD-COL-1 — Tagged-union entries; collections capped under an owner lock (CHECKs; `col:owner` lock); also cited by its clauses: AD-SYS-1
+- **Binding invariants:** AD-7 — Catalog, listing and binder records are independent (Upsert `SET` list without `id`/`kind`; tagged-union CHECKs); AD-COL-1 — Tagged-union entries; collections capped under an owner lock (CHECKs; `col:owner` lock, also over every binder position); also cited by its clauses: AD-SYS-1
 - **Files:** `src/modules/collections/application/col.v2.ts` (`ColServiceV2.addEntry`), `src/modules/collections/ports/col.v2.ts` (`ColRepository`), `src/modules/collections/domain/col.ts`, `src/modules/collections/infra/pg.ts`
 - **Schema/DTO:** tables `"CatalogEntry"`, `"Collection"`, `"CollectionEntry"`; DTOs `AddEntryRequest` → `AddEntryResponse`
 - **ATDD path:** `_bmad-output/test-artifacts/atdd/col_contracts.test.ts` › `[COL-3.Q1]`, `[COL-3.Q2]`, `[COL-3.R1]`, `[COL-3.I2]`
@@ -1296,15 +1344,15 @@ Let collectors keep collections of catalog cards and external promos, organize t
 - **Description:** As Julián, I want a stable binder view, promo cards by link, moves and a wishlist with the lowest available price, so that I can manage cards outside the catalog too.
 - **Contracts:** `S-FR-COL-3` addExternalEntry, `S-FR-COL-4` moveOrCopyEntry, `S-FR-COL-5.binder` getBinder, `S-FR-COL-5.layout` setBinderLayout, `S-FR-COL-5.reorder` reorderEntries, `S-FR-COL-6.add` addWishlist, `S-FR-COL-6.remove` removeWishlist, `S-FR-COL-6.list` listWishlist
 - **Depends on:** Story 11.2, Story 5.6
-- **Traceability:** FR-COL-3, FR-COL-4, FR-COL-5, FR-COL-6 · UI 9.1, 9.2, 9.3
-- **Binding invariants:** AD-8 — Table ownership (No module writes another's tables; static scan of `infra/` SQL; shared-kernel owns only infra tables (+ `audit_events`, R-2)); also cited by its clauses: AD-1, AD-7, AD-COL-1
+- **Traceability:** FR-COL-3, FR-COL-4, FR-COL-5, FR-COL-6 · NFR-COL-2 · Risk R-27 (P2) · UI 9.1, 9.2, 9.3
+- **Binding invariants:** AD-8 — Table ownership (No module writes another's tables; static scan of `infra/` SQL; shared-kernel owns only infra tables (+ `audit_events`, R-2)); AD-COL-1 — Tagged-union entries; collections capped under an owner lock (CHECKs; `col:owner` lock, also over every binder position); also cited by its clauses: AD-1, AD-7
 - **Files:** `src/modules/collections/application/col.v2.ts` (`ColServiceV2.addExternalEntry`, `ColServiceV2.moveOrCopyEntry`, `ColServiceV2.getBinder`, `ColServiceV2.setBinderLayout`, `ColServiceV2.reorderEntries`, `ColServiceV2.addWishlist`, `ColServiceV2.removeWishlist`, `ColServiceV2.listWishlist`), `src/modules/collections/ports/col.v2.ts` (`ColRepository`), `src/modules/collections/domain/col.ts`, `src/modules/collections/infra/pg.ts`
 - **Schema/DTO:** tables `"CatalogEntry"`; DTOs `AddExternalEntryRequest` → `AddExternalEntryResponse`, `MoveOrCopyEntryRequest` → `MoveOrCopyEntryResponse`, `GetBinderRequest` → `GetBinderResponse`, `SetBinderLayoutRequest` → `CollectionChangeResponse`, `ReorderEntriesRequest` → `CollectionChangeResponse`, `AddWishlistRequest` → `ListWishlistResponse`, `RemoveWishlistRequest` → `ListWishlistResponse`, `ListWishlistRequest` → `ListWishlistResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/col_supporting.test.ts` › `[S-FR-COL-3.h]`, `[S-FR-COL-4.h]`, `[S-FR-COL-5.h]`, `[S-FR-COL-6.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/col_supporting.test.ts` › `[S-FR-COL-3.h]`, `[S-FR-COL-4.h]`, `[S-FR-COL-5.h]`, `[S-FR-COL-6.h]`, `[S-FR-COL-5.C1]`; `_bmad-output/test-artifacts/nfr/col2_latency.test.ts` › `[NFR-COL-2.binder]`, `[NFR-COL-2.wishlist]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** Julián's collection and a wishlist. **When:** he adds two promos by link, copies a purchase entry, sorts the binder twice and wishlists a card. **Then:** the catalog is untouched; the copy keeps its source and order id; both sorts give the same order with `entryId` as the last tie-break; the wishlisted card shows its lowest purchasable price.
   - **Scenario (failure) — Given:** the binder is read twice with equal ties. **When:** the sort runs. **Then:** the order is identical both times: no unstable ordering.
-- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 7 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 11.6: Refuse unsafe links, foreign entries and unknown wishlist cards
 
@@ -1312,15 +1360,15 @@ Let collectors keep collections of catalog cards and external promos, organize t
 - **Description:** As Julián, I want unsafe or foreign actions on entries refused with the field, so that nothing unsafe enters my collection.
 - **Contracts:** — (no registry operation of its own) · **Also proves:** `S-FR-COL-3` (operation owned by Story 11.5), `S-FR-COL-4` (operation owned by Story 11.5), `S-FR-COL-5` (§15 clause), `S-FR-COL-6` (§15 clause)
 - **Depends on:** Story 11.5
-- **Traceability:** FR-COL-3, FR-COL-4, FR-COL-5, FR-COL-6
+- **Traceability:** FR-COL-3, FR-COL-4, FR-COL-5, FR-COL-6 · Risk R-27 (P2), R-28 (P0)
 - **Binding invariants:** also cited by its clauses: AD-1, AD-7, AD-8, AD-COL-1
 - **Files:** —
 - **Schema/DTO:** tables `"CatalogEntry"`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/col_supporting.test.ts` › `[S-FR-COL-3.f]`, `[S-FR-COL-4.f]`, `[S-FR-COL-5.f]`, `[S-FR-COL-6.f]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/col_supporting.test.ts` › `[S-FR-COL-3.f]`, `[S-FR-COL-4.f]`, `[S-FR-COL-5.f]`, `[S-FR-COL-6.f]`; `_bmad-output/test-artifacts/atdd/col_links.test.ts` › `[S-FR-COL-3.f2]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** an `https://` promo link. **When:** Julián adds it. **Then:** it is added: the contrast case.
   - **Scenario (failure) — Given:** an `http://` URL; another owner's entry; a set with 0 card entries; an unknown catalog id on the wishlist. **When:** the action runs. **Then:** `InvalidExternalLink` citing the url field; `CollectionEntryNotFound`; completion null, never a division; `InvalidCatalogEntry`.
-- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ## Epic 12: Collection valuation and trends (VAL)
 
@@ -1440,7 +1488,7 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Gherkin:**
   - **Scenario (happy) — Given:** a 1-star review containing personal data. **When:** an admin hides it for Harassment. **Then:** `hiddenAt`, reason and admin are set, one log row snapshots the rating and text, and an admin audit row is written; the row is never deleted, and unhiding clears the columns with an `unhide` log row.
   - **Scenario (failure) — Given:** two admins hide the same review at once; an admin unhides a visible review; reason Other with a 5-character note; an unknown review. **When:** the commands run. **Then:** one hide, one log row and one explained no-op citing `hiddenAt` and `hiddenBy`; the unhide is an explained no-op with zero log rows; `RequestValidationFailed` (400) with zero writes; `ReviewNotFound` (404).
-- **DoD:** the shared DoD, plus: the 8 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 8 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 13.3: Keep reputation honest: paid is not enough, and a racing hide never skews the aggregate
 
@@ -1452,11 +1500,11 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Binding invariants:** AD-REP-2 — Aggregates from the same snapshot as the list (One statement; `REPEATABLE READ` profile read); also cited by its clauses: AD-12
 - **Files:** `src/modules/reviews/application/rep.v2.ts` (`RepServiceV2.getAggregates`), `src/modules/reviews/ports/rep.v2.ts` (`RepRepository`), `src/modules/reviews/domain/rep.ts`, `src/modules/reviews/infra/pg.ts`
 - **Schema/DTO:** tables `"Review"`; DTOs `GetAggregatesRequest` → `GetAggregatesResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[REP-1.MEC]`, `[REP-3.Q1]`, `[REP-3.I1]`, `[REP-3.MEC]`, `[REP-3.P1]`; `_bmad-output/test-artifacts/nfr/rep2_latency.test.ts` › `[NFR-REP-2.aggregates]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[REP-1.MEC]`; `_bmad-output/test-artifacts/atdd/rep_reads.test.ts` › `[REP-3.Q1]`, `[REP-3.I1]`, `[REP-3.MEC]`, `[REP-3.P1]`; `_bmad-output/test-artifacts/nfr/rep2_latency.test.ts` › `[NFR-REP-2.aggregates]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** ratings 5, 4 and 4 for one seller, and one hidden 1-star. **When:** aggregates are read. **Then:** 4.3 (43 tenths, BigInt half-up), in input order, with the hidden review neither counted nor summed; a seller with no review reads `null`, never 0.0.
   - **Scenario (failure) — Given:** an order Paid but not closed, 100 review attempts; a hide racing a new post on one seller, 100 times; duplicate seller ids. **When:** the reviews, the race and the read run. **Then:** `NotVerifiedPurchaser` citing `latestState: 'Paid'` every time, with zero rows; after each race the aggregate counts exactly the visible committed set; `RequestValidationFailed`.
-- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7); NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 6 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; the MEC proof runs its full repetition count against Postgres with real connections, and its runtime is recorded in the story file (TG-7).
 
 ### Story 13.4: Refuse self, unknown and duplicate reviews
 
@@ -1480,15 +1528,15 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Description:** As a buyer and as an admin, I want seller profiles with consistent aggregates, a searchable moderation log, and listing hides that leave discovery at once, so that reputation and moderation stay visible and auditable.
 - **Contracts:** `S-FR-REP-5` setListingHidden, `S-FR-REP-6.listing` listListingModerationLog, `S-FR-REP-6.search` searchReviews, `S-FR-REP-6.log` listReviewModerationLog, `S-FR-REP-7` getProfile · **Also proves:** `REP-3` (operation owned by Story 13.3)
 - **Depends on:** Story 13.2, Story 5.1
-- **Traceability:** FR-REP-3, FR-REP-5, FR-REP-6, FR-REP-7 · NFR-REP-1, NFR-REP-2 · UI 11.2, 11.3, 11.4
-- **Binding invariants:** also cited by its clauses: AD-12, AD-REP-2, AD-REP-3
+- **Traceability:** FR-REP-3, FR-REP-5, FR-REP-6, FR-REP-7 · NFR-REP-1, NFR-REP-2 · Risk R-29 (P0), R-30 (P1) · UI 11.2, 11.3, 11.4
+- **Binding invariants:** AD-REP-2 — Aggregates from the same snapshot as the list (One statement; `REPEATABLE READ` profile read); also cited by its clauses: AD-12, AD-REP-3
 - **Files:** `src/modules/listings/application/inv.v2.ts` (`InvServiceV2.setListingHidden`, `InvServiceV2.listListingModerationLog`), `src/modules/listings/ports/inv.v2.ts` (`InvRepository`), `src/modules/listings/domain/inv.ts`, `src/modules/listings/infra/pg.ts`, `src/modules/reviews/application/rep.v2.ts` (`RepServiceV2.searchReviews`, `RepServiceV2.listReviewModerationLog`, `RepServiceV2.getProfile`), `src/modules/reviews/ports/rep.v2.ts` (`RepRepository`), `src/modules/reviews/domain/rep.ts`, `src/modules/reviews/infra/pg.ts`
 - **Schema/DTO:** tables `"ListingModerationLog"`, `"Review"`; DTOs `SetListingHiddenRequest` → `SetListingHiddenResponse`, `ListListingModerationLogRequest` → `ListListingModerationLogResponse`, `SearchReviewsRequest` → `SearchReviewsResponse`, `ListReviewModerationLogRequest` → `ListReviewModerationLogResponse`, `GetProfileRequest` → `GetProfileResponse`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.h]`; `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[S-FR-REP-6.h]`, `[S-FR-REP-7.h]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.h]`; `_bmad-output/test-artifacts/atdd/rep_reads.test.ts` › `[S-FR-REP-6.h]`, `[S-FR-REP-7.h]`, `[S-FR-REP-7.C1]`; `_bmad-output/test-artifacts/nfr/rep2_latency.test.ts` › `[NFR-REP-2.profile]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a seller with a visible and a hidden review, and a listing to moderate. **When:** a buyer opens the profile, and an admin hides the listing and reads the log. **Then:** the profile lists and counts only the visible review; the listing leaves discovery with a title snapshot logged; the log reads newest first by `(at desc, id)`.
   - **Scenario (failure) — Given:** the profile read and a hide happen around the same instant. **When:** the profile is read. **Then:** the aggregate and the first page come from one snapshot, so they never disagree.
-- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`; NFR-REP-2: add its benchmark next to `_bmad-output/test-artifacts/nfr/ord1_latency.test.ts` with the shared harness and assert the PRD threshold (`nfr-evidence.md`).
+- **DoD:** the shared DoD, plus: the 5 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 
 ### Story 13.6: Refuse invalid moderation and bad aggregate requests
 
@@ -1496,13 +1544,13 @@ Let buyers review sellers. Business reviews require a closed purchase, and aggre
 - **Description:** As an admin, I want invalid moderation actions and malformed reads refused with the reason, so that the moderation log stays exact.
 - **Contracts:** — (no registry operation of its own) · **Also proves:** `S-FR-REP-5` (operation owned by Story 13.5), `S-FR-REP-6` (§15 clause), `S-FR-REP-7` (operation owned by Story 13.5)
 - **Depends on:** Story 13.5
-- **Traceability:** FR-REP-5, FR-REP-6, FR-REP-7
-- **Binding invariants:** also cited by its clauses: AD-12, AD-REP-2, AD-REP-3
+- **Traceability:** FR-REP-5, FR-REP-6, FR-REP-7 · Risk R-31 (P0)
+- **Binding invariants:** AD-12 — Hide, never delete (`DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate); AD-REP-3 — Hide and unhide conditional and logged (`WHERE hiddenAt IS NULL`; log with snapshots); also cited by its clauses: AD-REP-2
 - **Files:** —
 - **Schema/DTO:** tables `"ListingModerationLog"`
-- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.f]`; `_bmad-output/test-artifacts/atdd/rep_contracts.test.ts` › `[S-FR-REP-6.f]`, `[S-FR-REP-7.f]`
+- **ATDD path:** `_bmad-output/test-artifacts/atdd/inv_supporting.test.ts` › `[S-FR-REP-5.f]`, `[S-FR-REP-5.C1]`; `_bmad-output/test-artifacts/atdd/rep_reads.test.ts` › `[S-FR-REP-6.f]`, `[S-FR-REP-7.f]`
 - **Gherkin:**
   - **Scenario (happy) — Given:** a listing hidden once, and a known seller's profile. **When:** an admin hides the listing, and a buyer opens the profile. **Then:** one hide with one log row, and the profile: the contrast cases.
   - **Scenario (failure) — Given:** a listing hidden twice; a search for "100%"; a profile for an unknown user. **When:** the command or read runs. **Then:** one log row and an explained no-op; only the literal "100%" text matches; `TargetNotFound` (404).
-- **DoD:** the shared DoD, plus: the 3 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
+- **DoD:** the shared DoD, plus: the 4 bound tests pass, and `npm run gate:atdd-red:solu2` stays green with this story `done` in `sprint-status.yaml`.
 

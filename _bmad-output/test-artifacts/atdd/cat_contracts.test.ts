@@ -6,7 +6,7 @@ import { useTestDatabase } from '../../../test-support/db.js';
 import { caught, citedInputs, httpOf } from '../../../test-support/errors.js';
 import { codeOf, race } from '../../../test-support/concurrency.js';
 import { FixtureFeedSource, FixtureFxRateSource, type FeedFiles } from '../../../test-support/simulated/index.js';
-import { admin, at, catalogEntry, collection, DAY, entry, explainAssert, feedRun, HOUR, id, ins, listing, observation, rows, unit, user, wiring } from '../../../test-support/solu2/fixtures.js';
+import { admin, at, catalogEntry, catalogSet, collection, DAY, entry, explainAssert, feedRun, fxRate, HOUR, id, ins, listing, observation, rows, unit, user, wiring } from '../../../test-support/solu2/fixtures.js';
 
 const db = useTestDatabase();
 const NO_FILES: FeedFiles = { current: [], previous: [], defects: [], renamed: [] };
@@ -23,7 +23,7 @@ const row = (o: Partial<ValidFeedRow> = {}): ValidFeedRow => ({
   pokemon: 'Pikachu', colour: 'Lightning', style: null, artist: 'Atsuko Nishida', imageUrl: null, ...o,
 });
 async function setSv1(): Promise<void> {
-  await ins(db, 'CatalogSet', { id: id('setsv1'), code: 'SV1', name: 'Escarlata y Púrpura', era: 'SV' });
+  await catalogSet(db, { id: id('setsv1'), code: 'SV1', name: 'Escarlata y Púrpura' });
 }
 
 describe('CAT-1 — startFeedRun (contracts.md §3)', () => {
@@ -75,7 +75,7 @@ describe('CAT-2 — upsertCatalogEntry (contracts.md §3)', () => {
   it('[CAT-2.Q2] a renamed row updates the existing entry in place and writes one revision', async () => {
     await setSv1();
     await feedRun(db, id('run1'), { status: 'Running', leaseUntil: at(HOUR) });
-    await ins(db, 'CatalogEntry', { id: id('pika'), externalKey: 'sv1-025', setId: id('setsv1'), kind: 'card', name: 'Pikachu', number: '025', numberSort: 25 });
+    await catalogEntry(db, id('pika'), { externalKey: 'sv1-025', setId: id('setsv1'), name: 'Pikachu', number: '025', numberSort: 25 });
     const result = await db.transactions.run((tx) => setup().cat.upsertCatalogEntry(tx, { row: row({ name: 'Pikachu ex' }), runId: id('run1'), rowNumber: 1 }));
     expect(result).toMatchObject({ catalogEntryId: id('pika'), outcome: 'updated' });
     expect(result.changedFields).toContain('name');
@@ -85,7 +85,7 @@ describe('CAT-2 — upsertCatalogEntry (contracts.md §3)', () => {
   it('[CAT-2.QF1] a row whose kind differs is quarantined as KindChanged and the entry is untouched', async () => {
     await setSv1();
     await feedRun(db, id('run1'), { status: 'Running', leaseUntil: at(HOUR) });
-    await ins(db, 'CatalogEntry', { id: id('pika'), externalKey: 'sv1-025', setId: id('setsv1'), kind: 'card', name: 'Pikachu', number: '025', numberSort: 25 });
+    await catalogEntry(db, id('pika'), { externalKey: 'sv1-025', setId: id('setsv1'), name: 'Pikachu', number: '025', numberSort: 25 });
     const result = await db.transactions.run((tx) => setup().cat.upsertCatalogEntry(tx, { row: row({ kind: 'sealedProduct' }), runId: id('run1'), rowNumber: 7 }));
     expect(result).toEqual({ catalogEntryId: id('pika'), outcome: 'quarantinedKindChanged', changedFields: ['kind'] });
     expect(await rows(db, 'QuarantinedFeedRow')).toMatchObject([{ runId: id('run1'), rowNumber: 7, reasonCode: 'KindChanged' }]);
@@ -105,7 +105,7 @@ describe('CAT-2 — upsertCatalogEntry (contracts.md §3)', () => {
   it('[CAT-2.I3] [CAT-2.MEC] a reprinted card keeps its id; its 3 listings and 2 binder entries are byte-identical afterwards (AD-7)', async () => {
     await setSv1();
     await feedRun(db, id('run1'), { status: 'Running', leaseUntil: at(HOUR) });
-    await ins(db, 'CatalogEntry', { id: id('pika'), externalKey: 'sv1-025', setId: id('setsv1'), kind: 'card', name: 'Pikachu', number: '025', numberSort: 25 });
+    await catalogEntry(db, id('pika'), { externalKey: 'sv1-025', setId: id('setsv1'), name: 'Pikachu', number: '025', numberSort: 25 });
     await user(db, { id: id('valentina'), sellerTrack: 'individual' });
     await unit(db, { id: id('u1'), sellerId: id('valentina'), catalogEntryId: id('pika'), quantity: 3 });
     for (const l of ['l1', 'l2', 'l3']) await listing(db, { id: id(l), sellerId: id('valentina'), unitId: id('u1'), sellerKind: 'individual' });
@@ -188,9 +188,9 @@ describe('CAT-3 — getPriceProvenance (contracts.md §3)', () => {
 describe('Supporting CAT contracts (contracts.md §15)', () => {
   it('[S-FR-CAT-1.h] filtering by pokemon returns only matches, in (setId, numberSort, id) order', async () => {
     await setSv1();
-    await ins(db, 'CatalogEntry', { id: id('p2'), externalKey: 'k2', setId: id('setsv1'), kind: 'card', name: 'Pikachu', number: '090', numberSort: 90, pokemon: 'Pikachu' });
-    await ins(db, 'CatalogEntry', { id: id('p1'), externalKey: 'k1', setId: id('setsv1'), kind: 'card', name: 'Pikachu', number: '025', numberSort: 25, pokemon: 'Pikachu' });
-    await ins(db, 'CatalogEntry', { id: id('c1'), externalKey: 'k3', setId: id('setsv1'), kind: 'card', name: 'Charmander', number: '004', numberSort: 4, pokemon: 'Charmander' });
+    await catalogEntry(db, id('p2'), { externalKey: 'k2', setId: id('setsv1'), name: 'Pikachu', number: '090', numberSort: 90, pokemon: 'Pikachu' });
+    await catalogEntry(db, id('p1'), { externalKey: 'k1', setId: id('setsv1'), name: 'Pikachu', number: '025', numberSort: 25, pokemon: 'Pikachu' });
+    await catalogEntry(db, id('c1'), { externalKey: 'k3', setId: id('setsv1'), name: 'Charmander', number: '004', numberSort: 4, pokemon: 'Charmander' });
     const result = await setup().cat.browseCatalog({ filters: { pokemon: 'Pikachu' }, page: 1, pageSize: 24 });
     expect(result.entries.map((e) => e.catalogEntryId)).toEqual([id('p1'), id('p2')]);
     expect(result.total).toBe(2);
@@ -203,7 +203,7 @@ describe('Supporting CAT contracts (contracts.md §15)', () => {
   });
 
   it('[S-FR-CAT-8.h] a fetch on a day already covered writes nothing and makes no source call', async () => {
-    await ins(db, 'FxRate', { id: id('fx1'), copPerUsdCentavos: 413_000, validFrom: '2026-10-01', validTo: '2026-10-01', source: 'fixture', fetchedAt: at(-HOUR) }, 'created');
+    await fxRate(db, { id: id('fx1'), copPerUsdCentavos: 413_000, validFrom: '2026-10-01', fetchedAt: at(-HOUR) });
     const { cat, fx } = setup();
     const result = await cat.fetchTrm({ trigger: 'daily-morning' });
     expect(result.outcome).toBe('alreadyCovered');
@@ -212,7 +212,7 @@ describe('Supporting CAT contracts (contracts.md §15)', () => {
   });
 
   it("[S-FR-CAT-8.f] with the source down no row is written, and today's rate is yesterday's, stale, FxRateCarriedForward", async () => {
-    await ins(db, 'FxRate', { id: id('fx0'), copPerUsdCentavos: 412_337, validFrom: '2026-09-30', validTo: '2026-09-30', source: 'fixture', fetchedAt: at(-DAY) }, 'created');
+    await fxRate(db, { id: id('fx0'), copPerUsdCentavos: 412_337, validFrom: '2026-09-30' });
     const { cat, fx } = setup();
     fx.fault = 'down';
     expect((await cat.fetchTrm({ trigger: 'tick' })).outcome).toBe('sourceUnavailable');

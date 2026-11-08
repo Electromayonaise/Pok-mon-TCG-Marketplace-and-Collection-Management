@@ -375,8 +375,8 @@ export class TrdServiceV2 implements TrdV2UseCases {
 
   /**
    * S-FR-TRD-9 (AD-TRD-1 rule 5): per seller with due offers, `trd:seller` and the conditional `Open → Expired`, with a
-   * system audit row each. No reservation changes: an Open offer holds none. The jobs route (tick, crons, single-flight,
-   * `JOBS_SECRET`) that calls it is not built yet; expiry is already correct at every read and command.
+   * system audit row each. No reservation changes: an Open offer holds none. The `expiry-materialize` job route calls it
+   * (Story 1.6); expiry is already correct at every read and command without it.
    */
   async expireDueOffers(input: ExpireDueOffersRequest): Promise<ExpireDueOffersResponse> {
     const { repo, transactions, clock } = this.deps;

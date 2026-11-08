@@ -1,0 +1,334 @@
+# Evidence 38 — the re-audit documentation update: greps behind the walkthrough's traps section, the pyramid recount,
+# a k6 re-run on the current pool, the evidence-checksum gate and its mutation proofs, the link check and the gates.
+# Branch impl-2, local Docker Postgres 16 on 127.0.0.1:55432, Windows 11, 2026-11-07. Base commit 94b42e7 (SHA256SUMS,
+# gate:evidence, ci-runs.json, trace §2), then the docs commit that adds this file. Decision log Impl-2 #31 (gaps 2-4).
+# SHA256SUMS is written after this file, over every file of evidence/impl2/ including this one.
+
+# ===== 1. The Flaky Sleeper: a timed-wait call with a number, anywhere in the code (decision log #31, gap 1) =====
+$ git grep -n -E 'waitForTimeout\([0-9]|time\.sleep\([0-9]|pg_sleep\([0-9]|(^|[^.a-zA-Z_])sleep\([0-9]' -- src app test-support scripts tools .github _bmad-output/test-artifacts playwright.config.ts vitest.config.ts | wc -l
+0
+$ git grep -l -E 'waitForTimeout\([0-9]|time\.sleep\([0-9]|pg_sleep\([0-9]|(^|[^.a-zA-Z_])sleep\([0-9]' | cut -d/ -f1-2 | sort | uniq -c   # the whole repository
+     67 .agents/skills
+     67 .claude/skills
+     67 .cline/skills
+      1 _bmad-output/decision-logs
+$ git grep -n -E 'waitForTimeout\([0-9]|time\.sleep\([0-9]|pg_sleep\([0-9]|(^|[^.a-zA-Z_])sleep\([0-9]' -- _bmad-output | cut -c1-120
+_bmad-output/decision-logs/impl-2-ai-decision-log.md:15:| #8 | `[CORRECTED]` | Impl-1 AI tests (written by the BMad agen
+_bmad-output/decision-logs/impl-2-ai-decision-log.md:109:- **Prompt (summary):** The statement's checklist forbids sleep
+_bmad-output/decision-logs/impl-2-ai-decision-log.md:549:    1. The no-sleep gate's own planted samples (`waitForTimeout
+# 0 in the code, tests, scripts, lint tools, workflows and configs. The repository-wide matches are the vendored BMad
+# skill guides (.agents/, .claude/, .cline/: bad examples in the TEA knowledge base) and the decision log's prose about
+# the removed waits. The gate's own planted samples are assembled at run time (scripts/check-no-sleep.mjs, 0a29548).
+
+# ===== 2. The Mocking Mirage: what is faked =====
+$ git grep -n -E 'vi\.(mock|doMock)\(' -- '*.ts' '*.mjs' ':!.agents' ':!.claude' ':!.cline' | wc -l
+0
+$ git grep -o -h -E '\bvi\.[a-zA-Z]+' -- '*.ts' | sort | uniq -c
+      3 vi.fn
+      1 vi.spyOn
+      1 vi.stubGlobal
+      1 vi.unstubAllGlobals
+$ git grep -n -E '\bvi\.(fn|spyOn|stubGlobal)\(' -- '*.ts' | cut -c1-150
+app/_client/api.test.ts:9:  vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => { calls.push({ url, init }); return respond(); });
+src/modules/identity/application/idn.v2.test.ts:133:    const now = vi.spyOn(w.clock, 'now');
+src/server/trpc/router.test.ts:23:const gate = (over: Partial<IdentityGate>): IdentityGate => ({ ...UNWIRED_IDENTITY, resolveSession: vi.fn(async () =
+src/server/trpc/router.test.ts:87:    const requireAdmin = vi.fn(async () => raise('AdminOnly', [{ rule: 'AD-SYS-8 rule 1', inputs: {} }]));
+src/server/trpc/router.test.ts:94:    const requireCanBuy = vi.fn(async () => raise('EmailNotVerified', [{ rule: 'AD-SYS-8 rule 1', inputs: {} }]));
+$ git grep -o -h 'fake<[A-Za-z]*>' -- '*.ts' | sort | uniq -c | sort -rn
+     13 fake<FxRateSource>
+     13 fake<CatalogFeedSource>
+      5 fake<ListingsForCol>
+      4 fake<IdentityForDsc>
+      4 fake<IdentityForCom>
+      4 fake<CatalogForDsc>
+      4 fake<CatalogForCol>
+      3 fake<OrdersForRep>
+      3 fake<ListingsForOrd>
+      3 fake<IdentityForOrd>
+      3 fake<IdentityForInv>
+      3 fake<CatalogForInv>
+      2 fake<ListingsForTrd>
+      2 fake<IdentityForRep>
+      2 fake<IdentityForMsg>
+      2 fake<IdentityForContact>
+      2 fake<CatalogForVal>
+      1 fake<CatalogForContact>
+$ git grep -l 'fake<' -- '*.ts' | wc -l
+36
+# vi.mock: 0. vi.fn / vi.spyOn / vi.stubGlobal: 5 uses in 3 files, each on a port: the IdentityGate the router consults
+# (router.test.ts), a spy that counts reads of the VirtualClock without replacing it (idn.v2.test.ts), and fetch, the
+# browser client's external port (api.test.ts). fake<T> (test-support/solu2/fixtures.ts:235, a proxy that fails loudly
+# on any call the test did not provide) is used in 36 files over 18 port types: 2 external ports (FxRateSource,
+# CatalogFeedSource) and 16 neighbour ports <Module>For<Module>. No unit under test is faked. Integration tests compose
+# the real Pg*Repository adapters (wiring(db)); only pure unit tests, such as job-runner.test.ts, run a service over
+# in-memory ports.
+
+# ===== 3. The Blindly Green: conditional assertions, skipped tests, files with no assertion =====
+$ git grep -n -E 'if \(.*\) *expect\(|if \(.*\) *\{ *expect\(' -- '*.test.ts' '*.spec.ts' '*.test.mjs' | wc -l   # one-line conditional assertions
+0
+$ git grep -n -A4 -E '^\s*(if|else if) \(.*\{\s*$|^\s*\} else \{\s*$' -- '*.test.ts' '*.spec.ts' | grep -c 'expect('   # an expect inside an if block
+0
+$ git grep -n -E '^\s*(it|test|describe)\.(skip|only|todo)\b' -- '*.test.ts' '*.spec.ts' | wc -l
+0
+$ git grep -L -E 'expect|assert' -- '*.test.ts' '*.spec.ts' '*.test.mjs' | wc -l   # test files with no assertion
+0
+
+# ===== 4. The pyramid, recounted on the committed trees =====
+# The rule of test-review.md "The pyramid": it/test blocks (an it.each table once, a k6 scenario once); unit = no test
+# database; integration = a file that registers one (useTestDatabase, a test-support suite or the composed app) plus
+# the ATDD, fitness and fixture proofs; E2E = Playwright specs; NFR = the benchmarks and the k6 scenarios.
+# The script (run from the repository root; not committed elsewhere):
+#   // Pyramid count, the method of test-review.md "The pyramid": it/test blocks (an it.each table once, a k6 scenario once).
+#   // Unit = no test database; integration = a file that registers one (useTestDatabase, a test-support suite or the composed
+#   // app), plus the ATDD, fitness and fixture proofs; E2E = Playwright specs; NFR = the benchmarks and the k6 scenarios.
+#   // Usage: node pyramid.mjs <git-rev>   (reads each file at that revision through git)
+#   import { execFileSync } from 'node:child_process';
+#   const rev = process.argv[2] ?? 'HEAD';
+#   const git = (...a) => execFileSync('git', a, { encoding: 'utf8', maxBuffer: 1 << 28 });
+#   const all = git('ls-tree', '-r', '--name-only', rev).split('\n').filter((f) => f && !/^\.(agents|claude|cline)\//.test(f) && !f.startsWith('_bmad/') && !f.includes('node_modules/'));
+#   const files = all.filter((f) => /\.(test|spec)\.(ts|mjs)$/.test(f));
+#   const count = { unit: 0, integration: 0, e2e: 0, nfr: 0 };
+#   const BLOCK = /(?<![\w.])(?:it|test)(?:\.each\s*(?:\([^)]*\)|`[^`]*`))?(?:\.(?:concurrent|sequential))?\s*\(\s*['"`]/g;
+#   for (const f of files) {
+#     const src = git('show', `${rev}:${f}`);
+#     const blocks = (src.match(BLOCK) ?? []).length;
+#     const integration = /useTestDatabase\s*\(|test-support\/(suites\/|http-app)/.test(src) || /^_bmad-output\/test-artifacts\/(atdd|fitness|fixtures)\//.test(f);
+#     const level = f.endsWith('.spec.ts') ? 'e2e' : f.startsWith('_bmad-output/test-artifacts/nfr/') ? 'nfr' : integration ? 'integration' : 'unit';
+#     count[level] += blocks;
+#   }
+#   let scenarios = 0;
+#   for (const f of all.filter((x) => /^_bmad-output\/test-artifacts\/nfr\/k6\/[^/]+\.js$/.test(x))) {
+#     const m = git('show', `${rev}:${f}`).match(/\n\s*scenarios\s*:\s*\{([^}]*)\}/);
+#     scenarios += m ? (m[1].match(/^\s*\w+\s*:/gm) ?? []).length : 0;
+#   }
+#   count.nfr += scenarios;
+#   const pyr = count.unit + count.integration + count.e2e;
+#   const pct = (n) => `${((100 * n) / pyr).toFixed(1)} %`;
+#   console.log(`${rev}: unit ${count.unit} (${pct(count.unit)}), integration ${count.integration} (${pct(count.integration)}), e2e ${count.e2e} (${pct(count.e2e)}); nfr ${count.nfr} (${count.nfr - scenarios} benchmarks, ${scenarios} k6 scenarios); total ${pyr + count.nfr}`);
+$ for r in a7c5d81 727c74f 3bc7543 94b42e7; do node pyramid.mjs $r; done
+a7c5d81: unit 181 (21.0 %), integration 680 (79.0 %), e2e 0 (0.0 %); nfr 23 (23 benchmarks, 0 k6 scenarios); total 884
+727c74f: unit 282 (27.3 %), integration 745 (72.1 %), e2e 6 (0.6 %); nfr 32 (30 benchmarks, 2 k6 scenarios); total 1065
+3bc7543: unit 283 (27.3 %), integration 747 (72.1 %), e2e 6 (0.6 %); nfr 32 (30 benchmarks, 2 k6 scenarios); total 1068
+94b42e7: unit 296 (27.7 %), integration 768 (71.8 %), e2e 6 (0.6 %); nfr 32 (30 benchmarks, 2 k6 scenarios); total 1102
+# test-review.md counted 284 / 745 / 6 / 32 at 727c74f; this recount gives 282 there (2 unit blocks fewer), so the
+# shares agree to 0.2 points. Added by Impl-2 (94b42e7 minus a7c5d81): unit 115, integration 88, e2e 6, nfr 9;
+# 115 / 209 = 55.0 %, 88 / 209 = 42.1 %, 6 / 209 = 2.9 %. Whole suite: 296 / 1,070 = 27.7 %, 768 / 1,070 = 71.8 %, 0.6 %.
+
+# ===== 5. k6 re-run on the current runtime pool (max: 2, connectionTimeoutMillis: 10_000; decision log #34-#36) =====
+# The committed k6 runs (24-k6.log locally, 32-ci-run.log run 3 on CI) predate audit fix F1; the server then used pg's
+# default pool of 10. Two runs of `npm run nfr:k6` at 94b42e7, minutes apart on the same machine. After each run the
+# committed k6-summary.json was restored with `git checkout --`, so this log is the only record of both.
+# --- Run A, 2026-11-07T15:14:22Z-15:15:48Z, src/server/db.ts as committed: RUNTIME_POOL = { max: 2, ... } ---
+  █ THRESHOLDS 
+    dropped_iterations
+    ✗ 'count<120' count=1347
+      {scenario:browse}
+      ✗ 'count<60' count=689
+      {scenario:profile}
+      ✗ 'count<60' count=658
+    http_req_duration{endpoint:browse}
+    ✓ 'p(95)<1000' p(95)=665.38ms
+    http_req_duration{endpoint:profile}
+    ✗ 'p(95)<300' p(95)=659.84ms
+    ✓ 'p(99)<800' p(99)=793.29ms
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+      {endpoint:browse}
+      ✓ 'rate<0.01' rate=0.00%
+      {endpoint:profile}
+      ✓ 'rate<0.01' rate=0.00%
+    http_reqs{endpoint:browse}
+    ✓ 'count>0' count=5312
+    http_reqs{endpoint:profile}
+    ✓ 'count>0' count=5343
+    server_errors_5xx
+    ✓ 'count==0' count=0
+      {endpoint:browse}
+      ✓ 'count==0' count=0
+      {endpoint:profile}
+      ✓ 'count==0' count=0
+  █ TOTAL RESULTS 
+    checks_total.......: 10655   170.308221/s
+    checks_succeeded...: 100.00% 10655 out of 10655
+    checks_failed......: 0.00%   0 out of 10655
+    ✓ profile answers 200
+    ✓ browse answers 200
+    CUSTOM
+    server_errors_5xx..............: 0      0/s
+      { endpoint:browse }..........: 0      0/s
+      { endpoint:profile }.........: 0      0/s
+    HTTP
+    http_req_duration..............: avg=534.37ms min=11.47ms med=536.4ms  max=875.41ms p(90)=614.47ms p(95)=660.37ms p(99)=796.76ms
+      { endpoint:browse }..........: avg=544.59ms min=16.5ms  med=541.08ms max=875.41ms p(90)=618.41ms p(95)=665.38ms p(99)=804.54ms
+      { endpoint:profile }.........: avg=537.06ms min=11.47ms med=534.41ms max=868.35ms p(90)=613.32ms p(95)=659.84ms p(99)=793.29ms
+      { expected_response:true }...: avg=534.37ms min=11.47ms med=536.4ms  max=875.41ms p(90)=614.47ms p(95)=660.37ms p(99)=796.76ms
+    http_req_failed................: 0.00%  0 out of 10905
+      { endpoint:browse }..........: 0.00%  0 out of 5312
+      { endpoint:profile }.........: 0.00%  0 out of 5343
+    http_reqs......................: 10905  174.304191/s
+      { endpoint:browse }..........: 5312   84.90636/s
+      { endpoint:profile }.........: 5343   85.401861/s
+    EXECUTION
+    dropped_iterations.............: 1347   21.530284/s
+      { scenario:browse }..........: 689    11.012892/s
+      { scenario:profile }.........: 658    10.517392/s
+    iteration_duration.............: avg=541.12ms min=14.99ms med=538.06ms max=875.63ms p(90)=615.83ms p(95)=662.63ms p(99)=800.9ms 
+    iterations.....................: 10655  170.308221/s
+    vus............................: 98     min=0          max=100
+    vus_max........................: 100    min=50         max=100
+    NETWORK
+    data_received..................: 51 MB  816 kB/s
+    data_sent......................: 2.0 MB 32 kB/s
+browse  ✓ [ 100% ] 00/50 VUs  1m0s  100.00 iters/s
+profile ✓ [ 100% ] 00/50 VUs  1m0s  100.00 iters/s
+time="2026-11-07T15:15:47Z" level=error msg="thresholds on metrics 'dropped_iterations, dropped_iterations{scenario:browse}, dropped_iterations{scenario:profile}, http_req_duration{endpoint:profile}' have been crossed"
+nfr-k6: k6 exited with 99
+EXIT 99
+# --- Run B, 2026-11-07T15:16:07Z-15:17:36Z, src/server/db.ts edited for this run only to { max: 10, ... }, then restored
+#     from a copy (git diff src/ empty afterwards) ---
+  █ THRESHOLDS 
+    dropped_iterations
+    ✓ 'count<120' count=0
+      {scenario:browse}
+      ✓ 'count<60' count=0
+      {scenario:profile}
+      ✓ 'count<60' count=0
+    http_req_duration{endpoint:browse}
+    ✓ 'p(95)<1000' p(95)=30.95ms
+    http_req_duration{endpoint:profile}
+    ✓ 'p(95)<300' p(95)=26.89ms
+    ✓ 'p(99)<800' p(99)=49.64ms
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+      {endpoint:browse}
+      ✓ 'rate<0.01' rate=0.00%
+      {endpoint:profile}
+      ✓ 'rate<0.01' rate=0.00%
+    http_reqs{endpoint:browse}
+    ✓ 'count>0' count=6000
+    http_reqs{endpoint:profile}
+    ✓ 'count>0' count=6001
+    server_errors_5xx
+    ✓ 'count==0' count=0
+      {endpoint:browse}
+      ✓ 'count==0' count=0
+      {endpoint:profile}
+      ✓ 'count==0' count=0
+  █ TOTAL RESULTS 
+    checks_total.......: 12001   191.300076/s
+    checks_succeeded...: 100.00% 12001 out of 12001
+    checks_failed......: 0.00%   0 out of 12001
+    ✓ browse answers 200
+    ✓ profile answers 200
+    CUSTOM
+    server_errors_5xx..............: 0      0/s
+      { endpoint:browse }..........: 0      0/s
+      { endpoint:profile }.........: 0      0/s
+    HTTP
+    http_req_duration..............: avg=23.28ms min=7.04ms  med=15.84ms max=838.31ms p(90)=26.44ms p(95)=36.02ms p(99)=309.13ms
+      { endpoint:browse }..........: avg=19.9ms  min=12.99ms med=17.81ms max=113.27ms p(90)=27.02ms p(95)=30.95ms p(99)=46.68ms 
+      { endpoint:profile }.........: avg=13.51ms min=7.04ms  med=10.79ms max=106.19ms p(90)=19.16ms p(95)=26.89ms p(99)=49.64ms 
+      { expected_response:true }...: avg=23.28ms min=7.04ms  med=15.84ms max=838.31ms p(90)=26.44ms p(95)=36.02ms p(99)=309.13ms
+    http_req_failed................: 0.00%  0 out of 12251
+      { endpoint:browse }..........: 0.00%  0 out of 6000
+      { endpoint:profile }.........: 0.00%  0 out of 6001
+    http_reqs......................: 12251  195.285162/s
+      { endpoint:browse }..........: 6000   95.642068/s
+      { endpoint:profile }.........: 6001   95.658008/s
+    EXECUTION
+    dropped_iterations.............: 0      0/s
+      { scenario:browse }..........: 0      0/s
+      { scenario:profile }.........: 0      0/s
+    iteration_duration.............: avg=16.97ms min=7.19ms  med=15.97ms max=113.51ms p(90)=25.5ms  p(95)=29.9ms  p(99)=49.73ms 
+    iterations.....................: 12001  191.300076/s
+    vus............................: 3      min=0          max=9 
+    vus_max........................: 50     min=50         max=50
+    NETWORK
+    data_received..................: 58 MB  916 kB/s
+    data_sent......................: 2.2 MB 35 kB/s
+browse  ✓ [ 100% ] 00/25 VUs  1m0s  100.00 iters/s
+profile ✓ [ 100% ] 00/25 VUs  1m0s  100.00 iters/s
+nfr-k6: k6 exited with 0
+EXIT 0
+# Reading: with 2 connections the 100 VUs of one `next start` process queue for the pool (median 536.4 ms, no error,
+# no 5xx); with 10 connections the same build and seed pass every threshold. At HEAD the NFR load proof fails, and the
+# CI nfr-k6 job would fail on the next push. The fix is a design choice (draft decision #38); nothing was changed here.
+
+# ===== 6. gate:evidence (scripts/evidence-sums.mjs --check) can fail: three mutations on 94b42e7, each reverted =====
+$ printf "x" >> 37-price-lookup.log   # one byte appended
+evidence: 46 files listed in _bmad-output/test-artifacts/evidence/impl2/SHA256SUMS, 46 on disk; 1 problems
+  ✗ 37-price-lookup.log: its SHA-256 differs from SHA256SUMS
+exit 1
+$ echo new > 39-unlisted.log   # a file with no digest
+evidence: 46 files listed in _bmad-output/test-artifacts/evidence/impl2/SHA256SUMS, 47 on disk; 1 problems
+  ✗ 39-unlisted.log: not listed in SHA256SUMS; run npm run gen:evidence
+exit 1
+$ rm traces-ci/smoke-service-ready.zip   # a listed trace missing
+evidence: 46 files listed in _bmad-output/test-artifacts/evidence/impl2/SHA256SUMS, 45 on disk; 1 problems
+  ✗ traces-ci/smoke-service-ready.zip: listed in SHA256SUMS but missing
+exit 1
+$ (all restored)
+evidence: 46 files listed in _bmad-output/test-artifacts/evidence/impl2/SHA256SUMS, 46 on disk; 0 problems
+exit 0
+$ cd _bmad-output/test-artifacts/evidence/impl2 && sha256sum -c --quiet SHA256SUMS && echo "sha256sum -c OK"   # on 94b42e7
+sha256sum -c OK
+
+# ===== 7. Links: every relative link and anchor of the touched docs (GitHub heading slugs) =====
+# The checker (not committed elsewhere):
+#   // Relative-link and anchor check for Markdown files (GitHub slug rules). Usage: node linkcheck.mjs <file.md>...
+#   import fs from 'node:fs';
+#   import path from 'node:path';
+#   const slug = (h) => h.trim().toLowerCase().replace(/<[^>]+>/g, '').replace(/[`*_~]/g, (c) => (c === '_' ? '_' : '')).replace(/[^\p{L}\p{N}\s_-]/gu, '').replace(/\s/g, '-');
+#   const anchorsOf = (file) => {
+#     const seen = new Map(); const out = new Set();
+#     let fence = false;
+#     for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+#       if (/^```/.test(line)) fence = !fence;
+#       if (fence) continue;
+#       const m = /^#{1,6}\s+(.*)$/.exec(line);
+#       if (!m) continue;
+#       let s = slug(m[1]); const n = seen.get(s) ?? 0; seen.set(s, n + 1); if (n) s = `${s}-${n}`; out.add(s);
+#     }
+#     return out;
+#   };
+#   let links = 0; const broken = [];
+#   for (const file of process.argv.slice(2)) {
+#     let fence = false;
+#     for (const [i, line] of fs.readFileSync(file, 'utf8').split('\n').entries()) {
+#       if (/^\s*```/.test(line)) fence = !fence;
+#       if (fence) continue;
+#       for (const m of line.replace(/`[^`]*`/g, '').matchAll(/\]\(([^)\s]+)\)/g)) {
+#         const target = m[1];
+#         if (/^(https?:|mailto:)/.test(target)) continue;
+#         links++;
+#         const [p, anchor] = target.split('#');
+#         const resolved = p ? path.resolve(path.dirname(file), decodeURIComponent(p)) : path.resolve(file);
+#         if (!fs.existsSync(resolved)) { broken.push(`${file}:${i + 1} ${target} (no such path)`); continue; }
+#         if (anchor && resolved.endsWith('.md') && !anchorsOf(resolved).has(anchor)) broken.push(`${file}:${i + 1} ${target} (no such heading)`);
+#       }
+#     }
+#   }
+#   console.log(`links: ${links} relative links checked in ${process.argv.length - 2} files; ${broken.length} broken`);
+#   for (const b of broken) console.log(`  ✗ ${b}`);
+#   process.exit(broken.length ? 1 : 0);
+$ node linkcheck.mjs _bmad-output/implementation-artifacts/walkthrough-impl2.md docs/impl-2/README.md README.md docs/README.md _bmad-output/README.md _bmad-output/test-artifacts/traceability-matrix.md
+links: 139 relative links checked in 6 files; 0 broken
+# The checker catches a bad anchor and a missing path (a two-line sample file: "2 broken", exit 1).
+
+# ===== 8. Gates on the final tree of the docs commit (the full test:ci is left to the main agent) =====
+$ npm run lint
+exit 0
+$ npm run typecheck
+exit 0
+$ npm run gate:no-sleep
+no-sleep: 352 files checked, 7 rules proven on planted violations, 0 problems
+exit 0
+$ npm run gate:trace:solu2
+trace: 96 FRs, 56 NFRs, 62 AD rows, 32 risks, 115 clauses, 430 test ids (430 enforced green), 4 journeys, 1 k6 scripts; gate PASS; 0 problems
+exit 0
+$ npm run gate:epics:solu2
+_bmad-output/planning-artifacts/epics.md is current: 13 epics, 72 stories
+exit 0
+# lint and typecheck print nothing on success. gate:no-sleep counts 352 files (351 in evidence 37, plus
+# scripts/evidence-sums.mjs). gate:evidence runs after SHA256SUMS is regenerated over this file; its line is in the
+# commit message of the commit that adds both.
