@@ -15,6 +15,8 @@
 #           JSON is uploaded, pass or fail.
 #   release — the PASS / FAIL decision: it passes only when every job above passed.
 # The Solu-2 gate stays as manual (workflow_dispatch) evidence.
+# The service lives in backend/: every `run` step of the gate, e2e and nfr-k6 jobs starts there
+# (defaults.run.working-directory), and the artifact paths, which are relative to the workspace, carry the prefix.
 name: impl2-quality-gate
 
 on:
@@ -51,12 +53,16 @@ jobs:
           --health-interval 2s
           --health-timeout 2s
           --health-retries 30
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version-file: backend/.nvmrc
           cache: npm
+          cache-dependency-path: backend/package-lock.json
       - name: Install (postinstall also installs the isolated tools/lint toolchain)
         run: npm ci
       - name: "Postgres allows 200 connections, as docker-compose.yml (decision log Impl-2 #28)"
@@ -75,13 +81,13 @@ jobs:
       - name: npm test without db:up
         run: npm run test:ci
       - name: The Solu-2 workflow and its docs mirror are identical
-        run: cmp .github/workflows/solu2-quality-gate.yml _bmad-output/test-artifacts/ci/quality-gate.yml
+        run: cmp ../.github/workflows/solu2-quality-gate.yml _bmad-output/test-artifacts/ci/quality-gate.yml
       - name: Upload the coverage summary
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage
-          path: .coverage/
+          path: backend/.coverage/
           if-no-files-found: ignore
 
   e2e:
@@ -101,18 +107,22 @@ jobs:
           --health-interval 2s
           --health-timeout 2s
           --health-retries 30
+    defaults:
+      run:
+        working-directory: backend
     steps:
+      - uses: actions/checkout@v4
       - name: "The Postgres service's host port (picked by the runner, decision log Impl-2 #42)"
         run: |
           port="$(docker port ${{ job.services.postgres.id }} 5432/tcp | head -n 1 | sed 's/.*://')"
           test -n "$port"
           echo "TEZG_PG_PORT=$port" >> "$GITHUB_ENV"
           echo "E2E_DATABASE_URL=postgresql://tezg:tezg@127.0.0.1:$port/tezg_e2e" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version-file: backend/.nvmrc
           cache: npm
+          cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
@@ -128,15 +138,15 @@ jobs:
         with:
           name: playwright
           path: |
-            playwright-report/
-            test-results/
+            backend/playwright-report/
+            backend/test-results/
           if-no-files-found: ignore
       - name: Upload the forensic traces
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-traces
-          path: test-results-forensic/**/trace.zip
+          path: backend/test-results-forensic/**/trace.zip
           if-no-files-found: error
 
   nfr-k6:
@@ -156,12 +166,16 @@ jobs:
           --health-interval 2s
           --health-timeout 2s
           --health-retries 30
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version-file: backend/.nvmrc
           cache: npm
+          cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - name: "Postgres allows 200 connections, as docker-compose.yml (decision log Impl-2 #28)"
         # A service container takes no server flags, so the setting is written and the container restarted.
@@ -184,7 +198,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: k6-summary
-          path: _bmad-output/test-artifacts/evidence/impl2/k6-summary.json
+          path: backend/_bmad-output/test-artifacts/evidence/impl2/k6-summary.json
           if-no-files-found: ignore
 
   release:

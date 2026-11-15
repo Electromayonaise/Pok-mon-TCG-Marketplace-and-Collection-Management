@@ -1,0 +1,6 @@
+# Root ignores. Each app has its own: backend/.gitignore, and frontend/.gitignore once it is scaffolded.
+# Course statements are kept out of version control (anchored to the root).
+/task*
+.playwright-mcp/
+node_modules/
+.env

@@ -60,7 +60,7 @@ Colombian Pokémon TCG collectors, buyers, individual sellers, and small busines
 
 ## Running TEZG
 
-Run every command from the repository folder unless a step says otherwise.
+This is the backend of TEZG. It lives in `backend/`; the repository root has the general [README](../README.md) and the frontend is planned in [`frontend/`](../frontend/README.md). Run every command from `backend/` unless a step says otherwise.
 
 ### Prerequisites
 
@@ -74,7 +74,7 @@ On Windows, clone with long paths, because some paths under `.agents/skills/` ar
 
 ```bash
 git clone -c core.longpaths=true https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management.git tezg
-cd tezg
+cd tezg/backend
 ```
 
 ### Option A: Docker only (quick start)
@@ -121,7 +121,7 @@ Things to know:
 
 - **`.env` is required for `npm run dev`** and any deployment. `src/shared-kernel/config.ts` refuses to start if `JOBS_SECRET`, `BETTER_AUTH_SECRET` or `IP_HMAC_KEY` is missing or shorter than 32 characters. `JOBS_SECRET` is the bearer every scheduled job call sends (`POST /api/jobs/<job>?trigger=tick`). `.env.example` already contains valid local values, and `docker-compose.yml` sets its own. The tests need no `.env`.
 - **`TEZG_PG_POOL_MAX`** (2–50, default 2) sizes the database pool. Keep 2 for normal use; set 10 when you load-test a long-lived server.
-- `npm run dev` writes an `AGENTS.md` file in the repository root. Git ignores it.
+- `npm run dev` writes an `AGENTS.md` file in `backend/`. Git ignores it.
 - `npm ci` with npm 11 warns that the install scripts of `@prisma/engines` and `prisma` are "not yet covered by allowScripts". The warning is harmless: the project's own `postinstall` still generates the Prisma client.
 - `npm run db:reset` drops and recreates the dev database. `npm run db:down` stops PostgreSQL, and because the data is on tmpfs, that deletes every database.
 

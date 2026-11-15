@@ -1,0 +1,3 @@
+# Every text file is checked out with LF, on every OS: the gates and fitness tests parse
+# docs with LF-anchored regexes, and the generators compare byte-for-byte.
+* text=auto eol=lf
