@@ -10,6 +10,7 @@
   "scripts": {
     "postinstall": "prisma generate && npm --prefix tools/lint ci --no-audit --no-fund",
     "dev": "next dev",
+    "demo": "node scripts/demo.mjs",
     "build": "next build",
     "start": "next start",
     "db:up": "docker compose up -d --wait postgres",

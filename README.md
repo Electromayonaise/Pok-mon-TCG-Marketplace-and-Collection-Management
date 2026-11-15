@@ -16,6 +16,7 @@
 <br/>
 
 ![Status](https://img.shields.io/badge/status-Impl--2%3A%2072%20of%2072%20stories%20done-brightgreen?style=for-the-badge)
+![Scope](https://img.shields.io/badge/scope-backend%20only%20(for%20now)-orange?style=for-the-badge)
 ![Region](https://img.shields.io/badge/region-Colombia-8A2BE2?style=for-the-badge)
 ![Made with BMAD](https://img.shields.io/badge/planned%20with-BMAD%2FWDS-2596BE?style=for-the-badge)
 
@@ -37,6 +38,8 @@ Colombian Pokémon TCG collectors, buyers, individual sellers, and small busines
 
 > Collection‑tracking value ships first and stands on its own. Marketplace liquidity — the seller community — is built on top of it. That's a deliberate sequencing decision, not a gap.
 
+> **Today TEZG is backend only.** The service, its API and its test suites are built; the user-facing frontend is not. See [Current scope](#current-scope-backend-only).
+
 <div align="center">
 
 | | | | |
@@ -51,27 +54,53 @@ Colombian Pokémon TCG collectors, buyers, individual sellers, and small busines
 <img src="https://capsule-render.vercel.app/api?type=rect&color=0:3B4CCA,100:FFCB05&height=3&width=1000" width="100%" alt="divider" />
 </div>
 
-## Quick start
+## Current scope: backend only
+
+> **For now TEZG is a backend.** What runs today is the API service: a Next.js 16 app that serves tRPC 11 over HTTP on PostgreSQL 16, with Better Auth sessions, the scheduled-job routes and the health probes. There is **no finished frontend yet**. The handful of pages that exist (sign-in, inbox, binder, public seller profile) are a thin demo slice used to exercise the API and the E2E journeys, not the product UI. The real way to use TEZG today is through its API (see [Use the API directly](#use-the-api-directly-trpc-over-http)).
+
+## Running TEZG
+
+Run every command from the repository folder unless a step says otherwise.
+
+### Prerequisites
+
+| Tool | Version | Why |
+|---|---|---|
+| Node.js | 22 (see `.nvmrc`; `>=22` is required) | runs the service, the tests and the gates |
+| Docker Desktop | running | PostgreSQL 16 (port `55432`) and the k6 image |
+| Git | any | to clone the repository |
+
+On Windows, clone with long paths, because some paths under `.agents/skills/` are longer than 260 characters:
+
+```bash
+git clone -c core.longpaths=true https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management.git tezg
+cd tezg
+```
+
+### Option A: Docker only (quick start)
 
 You need Docker and nothing else:
 
 ```bash
-git clone https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management.git tezg
-cd tezg
-docker compose up -d --wait
+docker compose down              # start clean: removes old containers and the old network
+docker compose up -d --wait      # builds the service, starts PostgreSQL 16, migrates, serves :3000
 curl http://localhost:3000/api/health/ready
 # {"ready":true,"checks":{"database":"ok","migrations":"current"},"pending":[]}
 ```
 
-Compose builds the service, starts PostgreSQL 16, applies the migrations and serves the API on `http://localhost:3000`. Both health probes are green once `--wait` returns. The database runs on tmpfs, so `docker compose down` discards it.
+Compose builds the service, starts PostgreSQL 16, applies the migrations and serves the API on `http://localhost:3000`. Both health probes are green once `--wait` returns. The database runs on tmpfs, so `docker compose down` discards it. This database is **empty**: you can call the public API procedures, but there are no accounts. To get accounts, see [Demo data](#demo-data-and-the-demo-server).
 
-On Windows, clone with `git clone -c core.longpaths=true …`, because some paths under `.agents/skills/` exceed 260 characters.
+- **Always run `docker compose down` first.** `npm run db:up`, `npx playwright test` and `npm test` start the same `tezg-postgres-1` container on their own. If that container is days old, `docker compose up` reuses it and the app can fail to resolve it (`Error: getaddrinfo EAI_AGAIN postgres`). Running `down` first recreates both containers on a fresh network.
+- **Use `-d --wait`, not plain `docker compose up`.** Without `-d` the terminal stays attached, and Ctrl+C stops both containers.
+- **Options A and B both use port 3000.** `docker compose stop app` stops only the app container and keeps PostgreSQL running for Option B.
 
-The image build downloads the base images from Docker Hub and the npm packages from the registry. Behind a proxy that re-signs TLS, `npm ci` inside the build fails ("Exit handler never called"), because the build stage does not trust the proxy's certificate. The Dockerfile has no setting for that case; use the development setup below instead, with your proxy's CA configured for Node and npm on the host.
+Stop it with `docker compose down`.
 
-## Development setup
+The image build downloads the base images from Docker Hub and the npm packages from the registry. Behind a proxy that re-signs TLS, `npm ci` inside the build fails ("Exit handler never called"), because the build stage does not trust the proxy's certificate. The Dockerfile has no setting for that case; use Option B instead, with your proxy's CA configured for Node and npm on the host.
 
-You need Node.js 22 (`.nvmrc`) and Docker.
+### Option B: development setup (recommended)
+
+**Before `npm ci`, stop every Node process running from this folder** (`npm run dev`, `npm start`, a Playwright or k6 server). `npm ci` deletes `node_modules` first, and on Windows it cannot delete a file a running process has open (`EPERM ... next-swc.win32-x64-msvc.node`, see [Troubleshooting](#troubleshooting)).
 
 ```bash
 npm ci                    # also generates the Prisma client and installs the lint toolchain
@@ -81,17 +110,124 @@ npm run db:migrate        # creates tezg_dev and applies the migrations
 npm run dev               # http://localhost:3000
 ```
 
-`npm run dev` and any deployment need `JOBS_SECRET`, at least 32 bytes: it is the bearer every scheduled job call sends (`POST /api/jobs/<job>?trigger=tick`), and `src/shared-kernel/config.ts` refuses to start without it. `.env.example` gives a local value, and `docker-compose.yml` sets its own. The tests need no `.env`.
+Check it:
+
+```bash
+curl http://localhost:3000/api/health/live    # {"status":"ok"}
+curl http://localhost:3000/api/health/ready   # {"ready":true,...}
+```
+
+Things to know:
+
+- **`.env` is required for `npm run dev`** and any deployment. `src/shared-kernel/config.ts` refuses to start if `JOBS_SECRET`, `BETTER_AUTH_SECRET` or `IP_HMAC_KEY` is missing or shorter than 32 characters. `JOBS_SECRET` is the bearer every scheduled job call sends (`POST /api/jobs/<job>?trigger=tick`). `.env.example` already contains valid local values, and `docker-compose.yml` sets its own. The tests need no `.env`.
+- **`TEZG_PG_POOL_MAX`** (2–50, default 2) sizes the database pool. Keep 2 for normal use; set 10 when you load-test a long-lived server.
+- `npm run dev` writes an `AGENTS.md` file in the repository root. Git ignores it.
+- `npm ci` with npm 11 warns that the install scripts of `@prisma/engines` and `prisma` are "not yet covered by allowScripts". The warning is harmless: the project's own `postinstall` still generates the Prisma client.
+- `npm run db:reset` drops and recreates the dev database. `npm run db:down` stops PostgreSQL, and because the data is on tmpfs, that deletes every database.
+
+### Demo data and the demo server
+
+**Sign-up is refused on purpose.** No mail provider is wired yet, so `POST /api/auth/sign-up/email` answers `500 Unexpected` before it writes anything (Story 2.6). To sign in you need accounts created by a seed. The simplest seed is the Playwright E2E run: it creates the `tezg_e2e` database, fills it with demo accounts and data, and keeps them after the run.
+
+1. **Create the demo data** (once per PostgreSQL start):
+
+   ```bash
+   npx playwright install chromium   # first time only
+   npx playwright test               # starts Postgres, builds the app, seeds tezg_e2e, runs the 6 journeys
+   ```
+
+   Expect `6 passed`. The first run takes a few minutes because it makes a production build.
+
+2. **Start the demo server:**
+
+   ```bash
+   npm run demo        # http://localhost:4000
+   ```
+
+   The demo has its own port, **4000**, so it never collides with Option A or `npm run dev` (3000), the Playwright server (3100) or k6 (3200). `scripts/demo.mjs` starts PostgreSQL if needed, checks that the demo accounts exist in `tezg_e2e` (and tells you to run `npx playwright test` if they don't), then starts the app with `DATABASE_URL` pointing at `tezg_e2e` and `BETTER_AUTH_URL=http://localhost:4000`, so Better Auth never answers "Invalid origin". It needs no `.env` changes. Open `http://localhost:4000` (use `localhost`, not `127.0.0.1`) and stop it with Ctrl+C. For another port: `$env:DEMO_PORT = "4100"; npm run demo` in PowerShell, or `DEMO_PORT=4100 npm run demo` in Git Bash.
+
+**Demo accounts:**
+
+| Who | Email | Password | What they have |
+|---|---|---|---|
+| Julián (collector) | `julian.e2e@tezg.test` | `clave-segura-de-julian` | the binder "Kanto 151" with 4 cards |
+| Camila (buyer) | `camila.e2e@tezg.test` | `clave-segura-de-camila` | an inbox with two shops, "Cartas Andrés" and "Tienda Pokeparadise" |
+| Lucía (seller) | — (public profile, no sign-in) | — | a 4.5 rating from 2 visible reviews and 1 review hidden by moderation |
+
+**Demo pages.** These are the thin test slice described in [Current scope](#current-scope-backend-only), not a product frontend. Their text is in Spanish (es-CO), because the product targets Colombia.
+
+| Page | URL | Try this |
+|---|---|---|
+| Home | `http://localhost:4000/` | shows "Servicio listo" when the server, database and migrations are healthy |
+| Sign in | `/ingresar` | sign in as Julián or Camila. A wrong password shows the es-CO error; after 10 failed attempts in 15 minutes the account is throttled |
+| My collections | `/coleccion` | as Julián: open "Kanto 151" |
+| Binder | `/coleccion/<collectionId>` | re-sort the cards and reload: the order persists. "Add by link" refuses an `http://` link and adds an `https://` one to a pocket |
+| Inbox | `/mensajes` | as Camila: open a conversation and see the unread badge clear; mute the other one and see the unread total drop |
+| Seller profile | `/perfil/e2eluciax000000000000000` | public: Lucía's rating and reviews, without the hidden one. Any other id shows the "Not available" page |
+
+The pages that need a session (`/coleccion`, `/mensajes`) send you to `/ingresar` first and then bring you back.
+
+### Use the API directly (tRPC over HTTP)
+
+This is the main way to use TEZG today. Every procedure is one HTTP request; batching is off:
+
+- **Query:** `GET /api/trpc/<procedure>?input=<URL-encoded JSON>`
+- **Mutation:** `POST /api/trpc/<procedure>` with a JSON body
+- **Success:** `{"result":{"data":...}}`
+- **Refusal:** `{"error":{"code","httpStatus","decision":{"humanMessage",...}}}`. The `humanMessage` is in es-CO and the decision cites the rule that refused the call.
+
+The full list of 109 procedures is in [`openapi.yaml`](_bmad-output/planning-artifacts/detailed-design/schemas/openapi.yaml). The examples below use Git Bash and the demo server (`npm run demo`, port 4000), because they read the demo accounts. In PowerShell, write `curl.exe` instead of `curl`.
+
+**Public reads (no session):**
+
+```bash
+# catalog page 1, 3 entries:  {"filters":{},"page":1,"pageSize":3}
+curl "http://localhost:4000/api/trpc/catalog.browse?input=%7B%22filters%22%3A%7B%7D%2C%22page%22%3A1%2C%22pageSize%22%3A3%7D"
+
+# Lucía's public profile:  {"userId":"e2eluciax000000000000000","page":1}
+curl "http://localhost:4000/api/trpc/reputation.profile?input=%7B%22userId%22%3A%22e2eluciax000000000000000%22%2C%22page%22%3A1%7D"
+```
+
+**Sign in, then call procedures that need a session.** The session lives in a cookie, kept in `jar.txt`:
+
+```bash
+curl -c jar.txt -H "content-type: application/json" \
+  -d '{"email":"julian.e2e@tezg.test","password":"clave-segura-de-julian"}' \
+  http://localhost:4000/api/auth/sign-in/email
+
+curl -b jar.txt "http://localhost:4000/api/trpc/collections.list?input=%7B%7D"
+# {"result":{"data":{"collections":[{"collectionId":"e2ekantox000000000000000","name":"Kanto 151","entryCount":4}]}}}
+
+curl -b jar.txt -H "content-type: application/json" -d '{"name":"Demo"}' \
+  http://localhost:4000/api/trpc/collections.create
+# {"result":{"data":{"collectionId":"...","name":"Demo","decision":{"outcome":"allowed","reasonCode":"CollectionCreated",...}}}}
+```
+
+Without the cookie, the same call is refused: `401 NotAuthenticated` with "Inicia sesión para continuar."
+
+**Scheduled jobs.** These are what a cron scheduler would call. They need the `JOBS_SECRET` from your `.env` as a bearer token:
+
+```bash
+JOBS_SECRET=$(grep '^JOBS_SECRET=' .env | cut -d= -f2-)
+curl -X POST -H "Authorization: Bearer $JOBS_SECRET" \
+  "http://localhost:4000/api/jobs/outbox-sweep?trigger=tick"
+# {"job":"outbox-sweep","trigger":"tick","runId":"...","outcome":"succeeded","result":{"attempted":0,"delivered":0,"failed":0}}
+```
+
+The jobs are `trm-fetch`, `expiry-materialize`, `commission-reconcile` and `outbox-sweep`; the trigger is `tick`, `daily-morning` or `daily-night`. A missing or wrong bearer gets `401` and no run is recorded. Two runs of the same job never overlap: the second is a `skipped` no-op.
+
+### Tests and quality gates
 
 | Command | What it does |
 |---|---|
-| `npm test` | `npm run db:up`, then `npm run test:ci` |
-| `npm run test:ci` | The full suite against a running PostgreSQL: lint, the dependency, no-sleep, evidence-checksum and Prisma gates, the unit tests with the 90 % per-file branch threshold on the domain cores, then `gate:impl1` (typecheck, the Solu-2 contract gates, the trace gate, `gate:purity`, the fitness suite and the red gates for the ATDD tests and NFR benchmarks). CI runs this command; it takes about 12 minutes, most of it the benchmarks, which run one file at a time |
-| `npx playwright test` | The E2E journeys: it starts the Compose PostgreSQL, recreates the `tezg_e2e` database, builds and serves the app on port 3100, and runs the specs through their Page Objects, with axe-core WCAG scans (`trace: 'on-first-retry'`) |
-| `npm run nfr:k6` | The k6 load run: it seeds `tezg_k6`, serves the production build on port 3200 and runs `grafana/k6` in Docker at a fixed arrival rate; it fails on any p95, p99, error-rate, 5xx or dropped-iteration threshold |
+| `npm test` | `npm run db:up`, then `npm run test:ci` (~12 min) |
+| `npm run test:ci` | The full suite against a running PostgreSQL: lint, the dependency, no-sleep, evidence-checksum and Prisma gates, 757 unit/integration tests with the 90 % per-file branch threshold on the domain cores, then `gate:impl1` (typecheck, the Solu-2 contract gates, the trace gate, `gate:purity`, the fitness suite, 384 ATDD tests and 30 NFR benchmarks). CI runs this command; it takes about 12 minutes, most of it the benchmarks, which run one file at a time |
+| `npm run test:unit` | Only the unit and integration tests colocated with the code (`*.test.ts`), with coverage (~30 s) |
+| `npx playwright test` | The 6 E2E journeys (1–3 min): it starts the Compose PostgreSQL, recreates and seeds `tezg_e2e`, builds and serves the app on port 3100, and runs the specs through their Page Objects with 14 axe-core WCAG scans (`trace: 'on-first-retry'`; add `--trace on` for a `trace.zip` per test in `test-results/`) |
+| `npm run nfr:k6` | The k6 load run (~3 min): it seeds `tezg_k6`, serves the production build on port 3200 and runs `grafana/k6` in Docker at 100 requests/s per endpoint for 60 s; it fails on any p95, p99, error-rate, 5xx or dropped-iteration threshold |
 | `npm run gate:no-sleep` | Refuses timed waits (`waitForTimeout`, `pg_sleep`, promise sleeps) everywhere, and locators built in a Playwright spec |
 | `npm run gate:evidence` | Recomputes the SHA-256 digest of every run-evidence file in `_bmad-output/test-artifacts/evidence/impl2/` and fails if one differs from `SHA256SUMS`, is missing or is not listed; `npm run gen:evidence` rewrites `SHA256SUMS` |
-| `npm run test:unit` | The unit and integration tests colocated with the code (`*.test.ts`) |
+| `npm run gen:trace:solu2` | Regenerates `_bmad-output/test-artifacts/traceability-matrix.md` (final verdict: PASS) |
 | `npm run lint` | ESLint, run from its own toolchain in `tools/lint/` |
 | `npm run typecheck` | TypeScript 7, no emit |
 | `npm run db:migrate` / `db:reset` | Applies the pending migrations / drops the database and migrates from scratch |
@@ -103,20 +239,32 @@ npm run dev               # http://localhost:3000
 
 The Vitest tests need only `npm run db:up`; Playwright and k6 start it themselves, and k6 also needs Docker for its image. Each test file gets its own database, cloned from a template migrated once per run. They reach PostgreSQL through `TEZG_PG_HOST`, `TEZG_PG_PORT`, `TEZG_PG_USER`, `TEZG_PG_PASSWORD` and `TEZG_PG_DB` (defaults: `127.0.0.1:55432`, user, password and maintenance database `tezg`).
 
-### Troubleshooting: port 55432 on Windows
+Run one story's bound tests, for example the Story 4.6 circuit breaker, or open a committed Playwright trace:
 
-Windows (WinNAT/Hyper-V) can reserve a port range that includes 55432. `npm run db:up` (or `docker compose up`) then fails because the port is not available. `netsh interface ipv4 show excludedportrange protocol=tcp` lists the reserved ranges. There are two fixes:
+```bash
+npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/cat_breaker.test.ts
+npx playwright show-trace _bmad-output/test-artifacts/evidence/impl2/traces/binder-sort-and-add-link.zip
+```
 
-- **Release the range.** In an administrator PowerShell, run `net stop winnat` and then `net start winnat`. Then run `npm test` as usual.
-- **Use another port.** Start PostgreSQL 16 on a free port and point the tests at it:
+Results and evidence: the walkthrough [`walkthrough-impl2.md`](_bmad-output/implementation-artifacts/walkthrough-impl2.md), the traceability matrix and verdict [`traceability-matrix.md`](_bmad-output/test-artifacts/traceability-matrix.md), the run logs, k6 summary, traces and `SHA256SUMS` in `_bmad-output/test-artifacts/evidence/impl2/`, the sprint status [`sprint-status.yaml`](_bmad-output/implementation-artifacts/sprint-status.yaml), the AI decision log [`impl-2-ai-decision-log.md`](_bmad-output/decision-logs/impl-2-ai-decision-log.md) and the deliverable map [`docs/impl-2/README.md`](docs/impl-2/README.md).
 
-  ```bash
-  docker run -d --name tezg-pg-alt -p 15432:5432 -e POSTGRES_USER=tezg -e POSTGRES_PASSWORD=tezg postgres:16.6
-  export TEZG_PG_PORT=15432
-  npm run test:ci
-  ```
+### Troubleshooting
 
-  For `npm run dev`, also change the port in `DATABASE_URL` in `.env`.
+| Symptom | Cause | Fix |
+|---|---|---|
+| `docker compose up` → `app-1 Error: getaddrinfo EAI_AGAIN postgres` and `app-1 exited with code 1` | The `tezg-postgres-1` container was reused from an earlier `npm run db:up`, Playwright or test run, and the new app container did not join its network | `docker compose down`, then `docker compose up -d --wait` |
+| `npm ci` → `EPERM: operation not permitted, unlink ...\node_modules\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node` | A Node process from this folder still has Next's native binary open, usually a forgotten `npm run dev` or `next start` | Stop it with Ctrl+C in its terminal. If you cannot find it, list the Node processes in PowerShell with `Get-CimInstance Win32_Process -Filter "Name='node.exe'" \| Select ProcessId,CommandLine` and stop the ones pointing into this folder with `Stop-Process -Id <id>`. Close VS Code too if it still fails, then rerun `npm ci` |
+| The app opens on **3001** and sign-in always fails (`[Better Auth]: Invalid origin: http://localhost:3001`, `POST /api/auth/sign-in/email 403`) | Port 3000 was taken, usually by Option A's app container, so Next moved to 3001. Better Auth only trusts `BETTER_AUTH_URL` (`http://localhost:3000`) | Use `npm run demo` (port 4000 with a matching `BETTER_AUTH_URL`). For `npm run dev` itself, run `docker compose stop app` first |
+| Port 3000 already in use | Option A's app container and `npm run dev` both use port 3000 | `docker compose stop app`, or `npx next dev -p 3001` with `BETTER_AUTH_URL=http://localhost:3001` |
+| Sign-in says the email or password is wrong, even with the demo password | The dev server reads `tezg_dev` (the `.env` default), which has no accounts, or a PostgreSQL restart wiped the demo data | Use `npm run demo`, which always reads `tezg_e2e`; if the accounts are gone, rerun `npx playwright test` |
+| `npm run db:up` fails: port 55432 not available (Windows) | WinNAT/Hyper-V reserved a port range that includes 55432 (`netsh interface ipv4 show excludedportrange protocol=tcp` lists them) | In an **administrator** PowerShell, `net stop winnat` then `net start winnat`. Or run PostgreSQL on another port: `docker run -d --name tezg-pg-alt -p 15432:5432 -e POSTGRES_USER=tezg -e POSTGRES_PASSWORD=tezg postgres:16.6`, set `TEZG_PG_PORT=15432` for the tests, and change the port in `DATABASE_URL` for `npm run dev` |
+| `npm run dev` exits naming a variable | `.env` is missing, or a secret is shorter than 32 characters | `cp .env.example .env` |
+| Sign-up answers `500 Unexpected` | Expected: no mail provider is wired, so sign-up is refused before any write | Use the demo accounts |
+| Sign-in answers `429` | The brute-force throttle: 10 failed sign-ins per account or 30 per IP in 15 minutes | Wait for the retry time shown, or rerun `npx playwright test`, which resets the demo accounts |
+| The demo accounts are gone | PostgreSQL runs on tmpfs, so a container restart wipes every database | Rerun `npx playwright test` |
+| `gate:evidence` fails after `npm run nfr:k6` | k6 overwrites the committed `k6-summary.json` | `git checkout -- _bmad-output/test-artifacts/evidence/impl2/k6-summary.json`, or record the new run with `npm run gen:evidence` |
+| `sorry, too many clients already` | Postgres allows fewer than the 200 connections the race tests use | Use the Compose Postgres (`npm run db:up`), which sets `max_connections=200` |
+| `docker compose up` build fails at `npm ci` behind a proxy | The build stage does not trust the proxy's certificate | Use Option B |
 
 ## What Impl-2 delivers
 
