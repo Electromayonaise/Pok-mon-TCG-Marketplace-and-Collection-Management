@@ -1,23 +1,6 @@
-.playwright-mcp/
+# Root ignores. Each app has its own: backend/.gitignore, and frontend/.gitignore once it is scaffolded.
 # Course statements are kept out of version control (anchored to the root).
 /task*
+.playwright-mcp/
 node_modules/
-coverage/
-.vitest-results/
-# Local environment (copy .env.example), Next.js build output and the generated Prisma client.
 .env
-.next/
-next-env.d.ts
-generated/
-tools/lint/node_modules/
-*.tsbuildinfo
-# Written on every `next dev` by Next.js 16 (node_modules/next/dist/server/lib/generate-agent-files.js);
-# not a project file (decision log Impl-1 #39).
-/AGENTS.md
-
-# Impl-2 test outputs (decision log Impl-2 #8, #10): Playwright report and traces, V8 coverage
-/playwright-report/
-/test-results/
-/test-results-forensic/
-/.coverage/
-/.coverage-baseline/

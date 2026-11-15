@@ -1,5 +1,6 @@
 # Solu-2 quality gate (bmad-testarch-ci). Mirrored byte-for-byte at
-# _bmad-output/test-artifacts/ci/quality-gate.yml (the deliverable path); the first step fails on drift.
+# backend/_bmad-output/test-artifacts/ci/quality-gate.yml (the deliverable path); the first step fails on drift.
+# The service lives in backend/: every `run` step of the two jobs starts there (defaults.run.working-directory).
 # It proves, when run:
 #   1. the stubs, DTOs, ports and tests typecheck;
 #   2. the generated surface (openapi.yaml, dto.ts, v2 stubs, ports) is current with
@@ -44,14 +45,18 @@ jobs:
     env:
       TEZG_PG_HOST: 127.0.0.1
       TEZG_PG_PORT: '55432'
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - name: The deliverable mirror equals this workflow
-        run: cmp .github/workflows/solu2-quality-gate.yml _bmad-output/test-artifacts/ci/quality-gate.yml
+        run: cmp ../.github/workflows/solu2-quality-gate.yml _bmad-output/test-artifacts/ci/quality-gate.yml
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version-file: backend/.nvmrc
           cache: npm
+          cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - name: Typecheck (stubs, DTOs, ports, tests)
         run: npm run typecheck
@@ -78,7 +83,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: solu2-vitest-results
-          path: .vitest-results/
+          path: backend/.vitest-results/
           retention-days: 14
 
   burn-in:
@@ -102,12 +107,16 @@ jobs:
     env:
       TEZG_PG_HOST: 127.0.0.1
       TEZG_PG_PORT: '55432'
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version-file: backend/.nvmrc
           cache: npm
+          cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - name: GREEN project × 5
         run: for i in $(seq 1 5); do npm run test:fitness:solu2 || exit 1; done

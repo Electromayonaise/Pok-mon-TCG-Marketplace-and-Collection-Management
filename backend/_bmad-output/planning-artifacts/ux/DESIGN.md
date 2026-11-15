@@ -417,6 +417,8 @@ components:
     note: 'static blocks matching the final layout; no shimmer (reduced-motion safe by construction)'
 ---
 
+> **Colours and themes superseded for the frontend (2026-11-14).** The colour tokens, the flat-surface rule and the single-theme assumption of this file are replaced by [`frontend/docs/THEMES.md`](../../../../frontend/docs/THEMES.md): a purple "Classic" theme in light and dark, and a purple CRT/VHS theme. The component inventory, the four-class state mapping, the typography roles and the Do's and Don'ts about meaning (colour never alone, signs on ledger amounts, no codes on buyer surfaces) stay in force. The mock-ups in `mockups/` still show the original palette.
+
 ## Brand & Style
 
 Plan-2 does not change what TEZG looks like; it extends the same ledger to the places Plan-1 never drew. Those places are:
