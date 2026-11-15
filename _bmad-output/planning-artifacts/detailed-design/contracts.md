@@ -365,7 +365,7 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
   - P3 `period ∈ {7, 30, 90}`, default 30. Violation: `RequestValidationFailed`.
 - **Postcondition (Q):**
   - Q1 One element per input id, in input order. Two indexed statements (AD-CAT-2 rule 4):
-    - the latest observation per entry, `DISTINCT ON` ordered by `("observedAt" DESC, source ASC, id ASC)` (deterministic tie-break, Solu-1 review F-11);
+    - the latest observation per entry, ordered by `("observedAt" DESC, source ASC, id ASC)` (deterministic tie-break, Solu-1 review F-11): one `LIMIT 1` walk of `reference_price_as_of` per distinct id (decision log Impl-2 #36);
     - the latest observation at or before `now − period days`, as the baseline.
   - Q2 `changePercentHundredths = changePercent(baseline.cop, latest.cop)`, by the ADD-§2.2 BigInt formula, rounded half away from zero. It is `null` when there is no baseline or `baseline.cop = 0`.
   - Q3 Zero writes; a read path. No audit.
@@ -796,7 +796,8 @@ DSC and VAL own no tables. Their "R" coverage is a concurrency-safe, repeat-safe
 - **Invariant (I):**
   - I1 After the seed and every suite, reconciliation reports 0 discrepancies. Bound to: AD-COM-1 rule 4, AD-19 (NFR-COM-2: 10,000 random top-ups and deductions with 20 % duplicate deliveries → difference 0).
   - I2 `"CommissionAccount"`, `"CommissionLedgerEntry"` and `"TopUpRequest"` are never written by reconcile. Bound to: AD-COM-1.
-- **Concurrency / idempotency:** two admin runs at once → two run rows with equal results over unchanged data. Two job runs → one runs and one is skipped. A run concurrent with deductions → no false discrepancy (Q1).
+- **Concurrency / idempotency:** two admin runs at once → two run rows with equal results over unchanged data. Two job runs → one runs and one is skipped. A run concurrent with deductions → no false discrepancy (Q1). Proven by `[COM-3.C1]` (50 concurrent deductions, 20 repetitions) and `[COM-3.C2]` (the job path through `/api/jobs/commission-reconcile`); NFR-COM-2's measurement by `[NFR-COM-2.drift]` (decision log Impl-2 #13).
+- **Batch bound (decision log Impl-2 #13):** the all-accounts run checks accounts in ascending `businessId` until 50 s of `Clock` time have passed; its decision then cites `partial: true` with `accountsChecked`, and the next run starts again from the first account.
 - **Time:** `Clock`, once per run.
 - **Latency budget (NFR):** the single-account admin call is a command, p95 ≤ 800 ms at N = 1 (NFR-SYS-9). The all-accounts job has no PRD latency target; it is bounded by the job's 50 s batch rule (AD-ORD-2 rule 7 pattern) and resumes on the next run.
 
@@ -1267,6 +1268,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `EventDeliveryReplayInProgress` | — (stored only) | shared-kernel | `admin.events.replay` on a row another replay holds (S-SYS; decision log Impl-1 #16) | "Otro reintento de esta entrega está en curso; su estado sigue en {status}." | yes |
 | `TickOnSchedule` | — (stored only) | shared-kernel | `admin.jobs.tickHealth` read with a tick started in the previous 3 h, or outside 10:17–23:17 Bogotá (S-SYS.tick; the rule of decision log Impl-1 #16) | "La tarea horaria no está en silencio; la última empezó a las {lastTickStartedAt}." | no |
 | `TickSilent` | — (stored only) | shared-kernel | `admin.jobs.tickHealth` read between 10:17 and 23:17 Bogotá with no tick started in the previous 3 h (S-SYS.tick, ARCH §4; the rule of decision log Impl-1 #16) | "Ninguna tarea horaria empezó en las últimas 3 horas; la última empezó a las {lastTickStartedAt}." | no |
+| `ScheduledJobsDegraded` | — (stored only) | shared-kernel | `admin.jobs.tickHealth` read with the tick not silent, while a job run failed in the 24 h before the read or a run that started in them is still `running` 15 min after its start, citing `{ failedRuns, stuckRuns, lastTickStartedAt, readAt }` (S-SYS.tick; architecture audit F3, decision log Impl-2 #34) | "Hay tareas programadas con problemas: {failedRuns} ejecuciones fallidas y {stuckRuns} sin terminar en las últimas 24 horas." | no |
 | `NotAuthenticated` | 401 | identity | Any non-public procedure without a session (S-FR-IDN-7) | "Inicia sesión para continuar." | no |
 | `AdminOnly` | 403 | identity | Every admin procedure (VER-1, CAT-1, COM-2, COM-3, REP-2, IDN-3, …) | "Esta acción es solo para administradores." | no |
 | `EmailNotVerified` | 403 | identity | `requireCanBuy` (ORD-1, MSG-1, MSG-2, REP-1, S-FR-TRD-1) | "Verifica tu correo para comprar, ofertar o escribir; abre el enlace que te enviamos." | no |
@@ -1315,6 +1317,9 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `FxRateAlreadyCovered` | — (stored only) | catalog | `trm-fetch` on a day a stored TRM already covers (S-FR-CAT-8, AD-CAT-3 rule 1); the rule of decision log Impl-1 #16 | "La TRM de hoy ya estaba guardada; no consultamos la fuente." | no |
 | `FxRateSourceUnavailable` | — (stored only) | catalog | `trm-fetch` with the source down or without a rate for today (S-FR-CAT-8, AD-CAT-3 rule 5); the rule of decision log Impl-1 #16 | "La fuente de la TRM no respondió; mantenemos la última tasa publicada como desactualizada." | no |
 | `FxRateSourceMismatch` | — (stored only) | catalog | `trm-fetch` received a different value for a stored day; the stored row is kept (S-FR-CAT-8, AD-CAT-3 rule 4). A DecisionCode that had no template; the rule of decision log Impl-1 #16 | "La fuente publicó otro valor para una fecha ya guardada; conservamos el valor guardado y lo reportamos." | no |
+| `FxRateCircuitOpen` | — (stored only) | catalog | `trm-fetch` or `catalog.fx.retry` while the TRM source's breaker is open or a probe is in flight, citing `{ consecutiveFailures, retryAt, trigger }` (S-FR-CAT-8, NFR-CAT-4; Story 4.6, decision log Impl-2 #31); also the `catalog.fx.breaker` read of an open breaker | "La fuente de la TRM falló {consecutiveFailures} veces seguidas; no la consultamos hasta {retryAt} y mantenemos la última tasa publicada como desactualizada." | yes |
+| `FxSourceHealthy` | — (stored only) | catalog | `catalog.fx.breaker` read of a closed breaker, citing `{ consecutiveFailures, failureThreshold }` (S-FR-CAT-8.breaker; Story 4.6) | "La fuente de la TRM responde; fallos seguidos: {consecutiveFailures} de {failureThreshold} antes de pausarla." | no |
+| `FxSourceProbing` | — (stored only) | catalog | `catalog.fx.breaker` read of a half-open breaker: one probe is in flight, citing `{ consecutiveFailures, retryAt }` (S-FR-CAT-8.breaker; Story 4.6) | "Estamos probando de nuevo la fuente de la TRM con una sola consulta; la prueba vence a las {retryAt}." | no |
 | `ListingActive` | — (stored only) | listings | INV-2 Q4 and S-FR-INV-10 `allowed`: a listing that is visible, unpaused and, for a business, verified (the rule of decision log Impl-1 #16) | "La publicación está activa." | no |
 | `ListingPausedBalanceExhausted` | — (stored only) | listings | INV-2 Q4 and INV-3 Q4 `paused`: a business listing whose commission projection is absent or paused (AD-INV-3 rule 3). A DecisionCode (list below) that had no template (the rule of decision log Impl-1 #16) | "La publicación está pausada hasta que la tienda recargue su saldo de comisión." | no |
 | `ListingHidden` | — (stored only) | listings | S-FR-INV-10: the owner reads a listing an admin hid; the reason is cited, not interpolated (the rule of decision log Impl-1 #16) | "Un administrador ocultó esta publicación; el motivo está en el detalle." | no |
@@ -1326,6 +1331,10 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `ListingRanked` | — (stored only) | listings | DSC-1 Q4 and DSC-2: each row's `ranked` explanation, citing `{ distanceKm, priceCop, rankKey }` (FR-DSC-5; the rule of decision log Impl-1 #16) | "Ordenamos esta publicación por distancia cuando eliges una zona, luego por precio y luego por su identificador." | no |
 | `SearchRanked` | — (stored only) | listings | DSC-1 Q4: the response decision when no listing was excluded for its location (FR-DSC-5; the rule of decision log Impl-1 #16) | "Ordenamos los resultados por distancia cuando eliges una zona, luego por precio y luego por identificador." | no |
 | `ListingLocationUnusable` | — (stored only) | listings | DSC-1 Q4: the response decision when listings with no usable location were counted, citing `{ unusableLocation }` (FR-DSC-3). A DecisionCode (list below) that had no template; the rule of decision log Impl-1 #16 | "Algunas publicaciones no tienen una ubicación utilizable; no entran en la búsqueda por zona y las contamos aparte." | no |
+| `ListingHiddenByAdmin` | — (stored only) | listings | S-FR-REP-5 hide `hidden`: the listing leaves discovery on the next request and its title is snapshotted into the moderation log, citing `{ listingId, reasonCode }` (FR-REP-5, AD-REP-3 rule 1; Story 13.5, decision log Impl-2 #18). The reason is cited, not interpolated | "Ocultaste la publicación; salió de la búsqueda y su título quedó en el registro de moderación." | no |
+| `ListingAlreadyHidden` | — (stored only) | listings | S-FR-REP-5 hide `allowedWithNotice`: the listing was already hidden, citing `{ hiddenAt, hiddenBy }`, with zero writes (FR-REP-5, AD-REP-3 rule 1; Story 13.5, decision log Impl-2 #18) | "Esta publicación ya estaba oculta desde el {hiddenAt}; no se registró otra acción." | no |
+| `ListingUnhiddenByAdmin` | — (stored only) | listings | S-FR-REP-5 unhide `allowed`: the listing is visible again and the unhide is logged with its title, citing `{ listingId, reasonCode }` (FR-REP-5, AD-REP-3 rule 2; Story 13.5, decision log Impl-2 #18) | "Volviste a mostrar la publicación; la acción quedó en el registro de moderación." | no |
+| `ListingNotHidden` | — (stored only) | listings | S-FR-REP-5 unhide `allowedWithNotice`: the listing was not hidden, citing `{ listingId }`, with zero writes (FR-REP-5, AD-REP-3 rule 2; Story 13.5, decision log Impl-2 #18) | "Esta publicación no estaba oculta; no se registró ninguna acción." | no |
 | `InvalidItemRef` | 400 | listings | INV-2 P3; TRD-2 P3; S-FR-TRD-1 | "La carta {itemRef} no existe o no corresponde al tipo elegido." | no |
 | `InvalidPrice` | 400 | listings | INV-2 P4 | "El precio debe estar entre $1.000 y $100.000.000 COP." | no |
 | `InvalidLocation` | 400 | listings | INV-2 P5 | "El punto de encuentro debe estar en Colombia." | no |
@@ -1379,6 +1388,10 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `MessagingEligible` | — (stored only) | identity | MSG-3 Q1 `allowed`: the business is `Approved`, citing `{ businessId, status }` (FR-IDN-6; decision log Impl-1 #34) | "Esta tienda está verificada; puedes escribirle." | no |
 | `RecipientNotYetVerified` | — (stored only) | messaging | MSG-3 Q1 and MSG-1 Q4 `allowedWithNotice`: a `Pending` business. A DecisionCode (list below) that had no template (FR-MSG-4; decision log Impl-1 #34) | "Esta tienda aún no ha sido verificada por TEZG." | no |
 | `MessageSent` | — (stored only) | messaging | MSG-1 Q4 `allowed`: the message is stored for an `Approved` business, citing `{ recipientStatus }` (FR-MSG-4; decision log Impl-1 #34) | "Mensaje enviado." | no |
+| `ConversationThreadShown` | — (stored only) | messaging | S-FR-MSG-7.thread `allowed`: the caller's messages after `afterSeq`, at most 100, citing `{ afterSeq, returned, lastSeq }` (AD-MSG-3 rule 3; Story 9.6, decision log Impl-2 #15) | "Estos son los mensajes de la conversación." | no |
+| `ConversationMuted` | — (stored only) | messaging | S-FR-MSG-8 `allowed`: the buyer muted the conversation, which leaves the unread total, citing `{ muted }` (FR-MSG-8; Story 9.6) | "Silenciaste esta conversación." | no |
+| `ConversationUnmuted` | — (stored only) | messaging | S-FR-MSG-8 `allowed`: the buyer unmuted the conversation, citing `{ muted }` (FR-MSG-8; Story 9.6) | "Ya no está silenciada." | no |
+| `MuteNotAvailableToBusiness` | — (stored only) | messaging | S-FR-MSG-8 `allowedWithNotice`: a business's mute is a no-op with zero writes, citing `{ role, muted }` (FR-MSG-8, C-GAP-4; Story 9.6) | "Silenciar es solo para compradores; la conversación sigue igual." | no |
 | `ContactMessageGenerated` | — (stored only) | listings | MSG-2 Q4 `allowed`: the handoff is composed, citing `{ truncated, truncationSteps, urlLength }` (FR-MSG-2; decision log Impl-1 #34) | "Tu mensaje está listo; ábrelo en el chat o cópialo." | no |
 | `TopUpAmountInvalid` | 400 | commission | S-FR-COM-2 | "La recarga debe estar entre $20.000 y $10.000.000 COP." | no |
 | `TopUpNotPending` | 409 | commission | COM-2 P3 | "Esta recarga ya fue {status} por {decidedBy} el {decidedAt}." | no |
@@ -1387,6 +1400,11 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `TopUpNotFound` | 404 | commission | COM-2 P2 | "No encontramos esa recarga." | no |
 | `CommissionRateNotFutureDated` | 400 | commission | S-FR-COM-7 | "La tarifa debe empezar desde ahora o después ({effectiveFrom})." | no |
 | `CommissionAccountNotOpen` † | 409 | commission | S-FR-COM-2 (C-GAP-3) | "Tu cuenta de comisiones se está abriendo; intenta la recarga en unos minutos." | yes |
+| `ReconciliationClean` | — (stored only) | commission | COM-3 Q4 `allowed`: 0 discrepancies, citing `{ accountsChecked, discrepancies }` (FR-COM-8; Story 8.5, decision log Impl-2 #13) | "Conciliación sin diferencias; cuentas revisadas: {accountsChecked}." | no |
+| `ReconciliationDiscrepancies` | — (stored only) | commission | COM-3 Q4 `allowedWithNotice`: one citation per discrepancy, `{ businessId, expected, actual }` (FR-COM-8; Story 8.5) | "La conciliación encontró una diferencia en la cuenta {businessId}: esperado {expected}, registrado {actual}. No se corrigió nada." | no |
+| `ReconciliationAccountNotFound` | — (stored only) | commission | COM-3 Q4 `allowedWithNotice`: an unknown `businessId`, citing `{ businessId, accountFound }` (FR-COM-8; Story 8.5) | "No hay cuenta de comisiones para {businessId}; se revisaron 0 cuentas." | no |
+| `ReconciliationPartial` | — (stored only) | commission | COM-3 batch bound `allowedWithNotice`: the run stopped at 50 s, citing `{ accountsChecked, partial }` (Story 8.5, decision log Impl-2 #13) | "La conciliación se detuvo a los 50 s (cuentas revisadas: {accountsChecked}); la próxima ejecución empieza de nuevo." | yes |
+| `CommissionRateScheduled` | — (stored only) | commission | S-FR-COM-7 `allowed`: the setting is stored, citing `{ rateBps, effectiveFrom }` (FR-COM-7; Story 8.6) | "La tarifa de {rateBps} pb rige desde {effectiveFrom}." | no |
 | `TopUpSelfDecision` | 409 | commission | COM-2 P3a; COM-2.reject (decision log Impl-1 #33) | "No puedes decidir una recarga de tu propia tienda; pídele a otro administrador que la revise." | no |
 | `SelfTradeNotAllowed` | 409 | trading | S-FR-TRD-1 | "No puedes ofertar por tu propia publicación." | no |
 | `EmptyTradeOffer` | 400 | trading | TRD-2 P2; S-FR-TRD-1 | "Agrega una carta o un monto a tu oferta." | no |
@@ -1420,7 +1438,9 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 | `PromptNotFound` | 404 | collections | COL-1 P1 | "No encontramos esa sugerencia." | no |
 | `CollectionCreated` | — (stored only) | collections | S-FR-COL-1.create `allowed`: the collection is created, citing `{ collectionId, count }` (FR-COL-1; decision log Impl-1 #36) | "Creaste la colección." | no |
 | `CollectionDeleted` | — (stored only) | collections | S-FR-COL-1.delete `allowed`: the collection and its entries are removed, citing `{ entriesRemoved, platformPurchaseEntriesRemoved }` (FR-COL-1, review G-15; decision log Impl-1 #36) | "Borraste la colección. Entradas quitadas: {entriesRemoved}; de compras: {platformPurchaseEntriesRemoved}." | no |
-| `CollectionEntryAdded` | — (stored only) | collections | COL-3 Q4 `allowed`: one Manual entry is added, citing `{ entryId, source, createdGeneral }` (FR-COL-2; decision log Impl-1 #36) | "Agregaste la carta a tu colección." | no |
+| `CollectionEntryAdded` | — (stored only) | collections | COL-3 Q4 `allowed`: one Manual entry is added, citing `{ entryId, source, createdGeneral }` (FR-COL-2; decision log Impl-1 #36). S-FR-COL-3 Q `allowed`: one link-added entry, citing `{ entryId, cardKind, source }` (FR-COL-3; Story 11.5) | "Agregaste la carta a tu colección." | no |
+| `CollectionEntryMoved` | — (stored only) | collections | S-FR-COL-4 move `allowed`: the entry is now last in the target collection, citing `{ entryId, fromCollectionId, toCollectionId }` (FR-COL-4; Story 11.5, decision log Impl-2 #17) | "Moviste la carta a otra colección." | no |
+| `CollectionEntryCopied` | — (stored only) | collections | S-FR-COL-4 copy `allowed`: a new entry keeps the source's `source` and `orderId`, citing `{ entryId, copiedFromEntryId, toCollectionId, source }` (FR-COL-4; Story 11.5, decision log Impl-2 #17) | "Copiaste la carta en otra colección." | no |
 | `PromptAccepted` | — (stored only) | collections | COL-1 Q4 `allowed`: the prompt is Accepted and one entry per line (split at 999 copies) is added, citing `{ promptId, orderId, entryCount }` (FR-COL-7; decision log Impl-1 #36) | "Agregamos tu compra a la colección. Entradas nuevas: {entryCount}." | no |
 | `PromptDismissed` | — (stored only) | collections | COL-1.dismiss `allowed`: the prompt is Dismissed with no entry, citing `{ promptId, orderId }` (FR-COL-7; decision log Impl-1 #36) | "Descartaste la sugerencia." | no |
 | `CollectionValued` | — (stored only) | collections | VAL-1 Q4 `allowed`: the collection is valued from the latest reference prices, citing `{ valuedCount, notValuedCount, staleCount, conversionDriftBoundCop }` (FR-VAL-1; decision log Impl-1 #37) | "Sumamos el valor de tus cartas con sus precios de referencia más recientes." | no |
@@ -1456,7 +1476,7 @@ Codes marked † were proposed by this document (§16) and adopted at the Phase 
 
 ## 14. Invariant Binding Table
 
-There is one row per AD, and no AD is left unbound (Phase 3 gate: "no AD without a test that goes red"). The test column names the Phase 3 ATDD test that turns red when the enforcement point is removed. `sys` is `_bmad-output/test-artifacts/atdd/sys_contracts.test.ts`: the shared-kernel and cross-module suite, which also holds the walking skeleton. Every other prefix is `<module>_contracts.test.ts` or `<module>_supporting.test.ts`. The static `sys` proofs (`SYS-AD1`, `SYS-AD8`, `SYS-AD9`, `SYS-6.R1`, `SYS-6.R4`) are green fitness functions in `_bmad-output/test-artifacts/fitness/sys_fitness.test.ts`: they turn red on a violation, as their planted-violation probes prove.
+There is one row per AD, and no AD is left unbound (Phase 3 gate: "no AD without a test that goes red"). The test column names the Phase 3 ATDD test that turns red when the enforcement point is removed. `sys` is `_bmad-output/test-artifacts/atdd/sys_contracts.test.ts`: the shared-kernel and cross-module suite, which also holds the walking skeleton. Every other prefix is `<module>_contracts.test.ts` or `<module>_supporting.test.ts`. The Impl-2 race proofs live in their stories' files and are cited by file name (`sys_jobs`, `com_reconcile`, `msg_inbox`, `rep_reads`, `inv_supporting`, `idn_auth`, `cat_breaker`); they were bound here at the Impl-2 close (architecture audit F7, decision log Impl-2 #34). The static `sys` proofs (`SYS-AD1`, `SYS-AD8`, `SYS-AD9`, `SYS-6.R1`, `SYS-6.R4`) are green fitness functions in `_bmad-output/test-artifacts/fitness/sys_fitness.test.ts`: they turn red on a violation, as their planted-violation probes prove.
 
 | Invariant | AD | Enforcement point | Red test |
 |---|---|---|---|
@@ -1471,7 +1491,7 @@ There is one row per AD, and no AD is left unbound (Phase 3 gate: "no AD without
 | Snapshot payloads | AD-9 | Payload = ADD-§5 exactly; subscribers read only the payload | `sys › [SYS-AD9] payload schema per event`, `col › [COL-2.I2]` |
 | Post-commit, in-process dispatch with an outbox | AD-10 | `outbox.enqueue(tx)` + sweeper | `sys › [SYS-2.R6] crash between commit and dispatch → delivered once` |
 | One owner per error code | AD-11 | Registry `owner`; `raise` checks the caller module | `sys › [SYS-1.R2] non-owner raise fails` |
-| Hide, never delete | AD-12 | `DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate | `rep › [REP-2.I1]`, `dsc › [DSC-1.I2]` |
+| Hide, never delete | AD-12 | `DELETE` revoked on `Review` and `Listing`; `hiddenAt IS NULL` default predicate | `rep › [REP-2.I1]`, `dsc › [DSC-1.I2]`, `inv_supporting › [S-FR-REP-5.C1]` |
 | `legalIdentity` under Ley 1581 | AD-13 | Split table; one repository reader | `ver › [VER-3.I2]`, `idn › [IDN-3.I1]` |
 | Signed URLs, 10-minute TTL | AD-14 | `ObjectStorage.sign(key, 600)` | `ver › [VER-3.I3]` |
 | Business sees an order from `buyerPaidConfirmedAt` | AD-15 | One visibility predicate | `ord › [ORD-3.I3]`, `ord › [ORD-3.MEC]` |
@@ -1482,20 +1502,21 @@ There is one row per AD, and no AD is left unbound (Phase 3 gate: "no AD without
 | One Decision shape and one code registry | AD-SYS-1 | `codes.ts`; error formatter; `explain_assert` | `sys › [SYS-1.R6] every code triggered with full shape` |
 | Transactional outbox; at most 3 automatic attempts | AD-SYS-2 | `EventDelivery` attempt procedure | `sys › [SYS-2.R4] 3 unrecorded attempts → failed DeliveryAttemptsExhausted` |
 | Commission triggered by the first of two order events | AD-SYS-3 | `commissionTrigger(facts)`; partial unique on deductions | `com › [COM-1.I4]` |
-| Transaction handles, pooler-safe state, global lock order | AD-SYS-4 | `tx` first; `db()` ambient client; ascending unit locks | `inv › [INV-1.I3]`, `sys › [SYS-4.R9] neighbour query in tx with pool of 1` |
+| Transaction handles, pooler-safe state, global lock order | AD-SYS-4 | `tx` first; `db()` ambient client; ascending unit locks; `job:<name>` held for the run on one of the pool's 2 minimum connections (rule 7; `TEZG_PG_POOL_MAX`, #38) | `inv › [INV-1.I3]`, `sys › [SYS-4.R9] neighbour query in tx with pool of 1`, `sys_jobs › [S-SYS.jobs.C1]`, `sys_jobs › [S-SYS.jobs.pool]`, `sys_jobs › [S-SYS.jobs.starved]`, `com_reconcile › [COM-3.C2]` |
 | Every transition is one conditional UPDATE | AD-SYS-5 | `WHERE <from-state>` + loser re-read | `ver › [VER-1.MEC]`, `trd › [TRD-2.I3]` |
 | Determinism boundary (Clock, IdGenerator, no network) | AD-SYS-6 | `Clock` port; network guard; no SQL `now()` | `sys › [SYS-6.R1] no wall-clock reads`, `sys › [SYS-6.R4] socket guard` |
 | Branded money, one set of formulas | AD-SYS-7 | BigInt helpers; rounding CHECK on deductions | `com › [COM-1.I3]`, `val › [VAL-2.I3]` |
 | Server-side authorization, regulated data, uploads | AD-SYS-8 | Procedure builders; redactor; quarantine promotion | `sys › [SYS-8.R2]`, `ver › [VER-2.P3]` |
 | Capabilities from one pure function | AD-IDN-1 | `deriveCapabilities`; trace = projection | `idn › [IDN-3.I3]` |
 | Seller-track exclusivity | AD-IDN-2 | Conditional `UPDATE "User"."sellerTrack"` | `idn › [IDN-1.I1]` |
-| `canBuy` gate and auth throttle | AD-IDN-3 | `requireCanBuy`; `AuthThrottleEvent` count | `idn › [S-FR-IDN-7.f]` |
+| `canBuy` gate and auth throttle | AD-IDN-3 | `requireCanBuy`; `AuthThrottleEvent` count; consent set in the sign-up insert | `idn › [S-FR-IDN-7.f]`, `idn_auth › [S-FR-IDN-7.signup.h]`, `idn_auth › [S-FR-IDN-7.signup.f]`, `idn_auth › [S-FR-IDN-7.signup.throttle]`, `idn_auth › [S-FR-IDN-7.signup.unwired]`, `idn_auth › [S-FR-IDN-7.signin.throttle]` |
 | One decision with its audit row and event | AD-VER-1 | `WHERE status='Pending'`; unique decision log | `ver › [VER-1.I1]` |
 | Legal identity has one reader; reads and denials logged | AD-VER-2 | `legalIdentityRepository`; access log | `ver › [VER-3.I1]` |
 | One pending application; reapplication from the snapshot | AD-VER-3 | Partial unique `(businessId) WHERE Pending` | `ver › [VER-2.I1]` |
 | Resumable leased ingestion | AD-CAT-1 | Partial unique `Running`; lease token | `cat › [CAT-1.I1]`, `cat › [CAT-2.I1]` |
 | Observations immutable, aged at read | AD-CAT-2 | Append-only observations; `stale` computed | `cat › [CAT-3.I1]` |
 | TRM never invented | AD-CAT-3 | `EXCLUDE` on validity ranges; no gap row | `cat › [S-FR-CAT-8.f]` |
+| TRM source circuit breaker: closed, open after 3 failures in a row, one half-open probe after 30 min | AD-CAT-3 rule 7 | One `"FxSourceBreaker"` row read `FOR UPDATE` per transition and moved by one `WHERE state = :from AND version = :v` UPDATE (AD-SYS-5 rule 1; `cat.v2-breaker.test.ts`); pure `admit` / `record` (`catalog/domain/breaker.ts`, unit-tested in `breaker-domain.test.ts`); `circuitOpen` with no source call | `cat › [S-FR-CAT-8.breaker.h]`, `cat › [S-FR-CAT-8.breaker.open]`, `cat › [S-FR-CAT-8.breaker.halfOpen]`, `cat › [S-FR-CAT-8.breaker.reset]`, `cat › [S-FR-CAT-8.breaker.C1]`, `cat › [S-FR-CAT-8.breaker.C2]` |
 | One unit per (seller, item, condition) | AD-INV-1 | `UNIQUE (sellerId, catalogEntryId, condition)` | `inv › [INV-2.I1]` |
 | Reserve and release in the caller's transaction | AD-INV-2 | `tx` parameter; ascending conditional decrement | `inv › [INV-1.MEC]` |
 | Fail-closed purchasability, newer facts only | AD-INV-3 | Seq gate; `AppliedApplicationDecision` | `inv › [INV-3.I1]`, `inv › [S-FR-INV-8.f]` |
@@ -1504,22 +1525,22 @@ There is one row per AD, and no AD is left unbound (Phase 3 gate: "no AD without
 | Creation serialized per buyer | AD-ORD-1 | `orders:buyer` advisory lock + derived count | `ord › [ORD-1.I2]` |
 | Facts set once; expiry derived and materialized once | AD-ORD-2 | `IS NULL` predicates; `expiresAt > now` | `ord › [ORD-2.MEC]`, `ord › [ORD-4.MEC]` |
 | One visibility predicate; locked comprobante | AD-ORD-3 | Visibility SQL; comprobante update predicate | `ord › [ORD-3.I3]`, `ord › [S-FR-ORD-2.f]` |
-| One atomic account update + one ledger entry | AD-COM-1 | `UPDATE … RETURNING`; `UNIQUE (businessId, seq)` | `com › [COM-3.I1]` |
-| Deduction keyed by `orderId`, priced at the trigger time | AD-COM-2 | Partial unique; rate by `commissionTriggeredAt` | `com › [COM-1.I1]` |
+| One atomic account update + one ledger entry | AD-COM-1 | `UPDATE … RETURNING`; `UNIQUE (businessId, seq)` | `com › [COM-3.I1]`, `com_reconcile › [COM-3.C1]` |
+| Deduction keyed by `orderId`, priced at the trigger time | AD-COM-2 | Partial unique; rate by `commissionTriggeredAt`; `UNIQUE ("effectiveFrom")` on rate settings | `com › [COM-1.I1]`, `com › [S-FR-COM-7.C1]` |
 | Top-ups have one domain path | AD-COM-3 | `WHERE status='Pending'`; unique TopUp entry | `com › [COM-2.I1]` |
 | Offer action = one conditional update | AD-TRD-1 | `status`, `turn`, `version`, `expiresAt` predicate | `trd › [TRD-2.I3]` |
 | Accept serialized per seller | AD-TRD-2 | `trd:seller` advisory lock | `trd › [TRD-1.MEC]` |
 | Completion computed; cancel releases once | AD-TRD-3 | `WHERE status='Accepted' AND no confirmation` | `trd › [TRD-3.I1]` |
 | Contact messages deterministic and rate-limited | AD-MSG-1 | Pure composer; fixed-order advisory locks | `msg › [MSG-2.I1]`, `msg › [MSG-2.MEC]` |
 | One conversation per pair; idempotent send | AD-MSG-2 | Unique keys; `lastSeq` allocation | `msg › [MSG-1.I3]` |
-| Read state monotonic | AD-MSG-3 | `WHERE "lastReadSeq" < :seq` | `msg › [S-FR-MSG-7.f]` |
-| Tagged-union entries; collections capped under an owner lock | AD-COL-1 | CHECKs; `col:owner` lock | `col › [COL-3.I2]`, `col › [S-FR-COL-1.f]` |
+| Read state monotonic | AD-MSG-3 | `WHERE "lastReadSeq" < :seq` | `msg › [S-FR-MSG-7.f]`, `msg_inbox › [S-FR-MSG-7.C1]` |
+| Tagged-union entries; collections capped under an owner lock | AD-COL-1 | CHECKs; `col:owner` lock, also over every binder position | `col › [COL-3.I2]`, `col › [S-FR-COL-1.f]`, `col › [S-FR-COL-5.C1]` |
 | One prompt per closed order; entries once | AD-COL-2 | `UNIQUE orderId`; `WHERE status='Pending'` | `col › [COL-1.MEC]` |
 | Valuation is a pure BigInt function | AD-VAL-1 | Pure function; brand types | `val › [VAL-1.I1]`, `val › [VAL-1.MEC]` |
 | Trend and history recomputed, no zero division | AD-VAL-2 | `roundHalfAwayFromZero`; null baseline | `val › [VAL-2.I1]` |
 | Business reviews purchase-verified; one per pair | AD-REP-1 | `review_business_iff_verified`; unique pair | `rep › [REP-1.I1]` |
-| Aggregates from the same snapshot as the list | AD-REP-2 | One statement; `REPEATABLE READ` profile read | `rep › [REP-3.MEC]` |
-| Hide and unhide conditional and logged | AD-REP-3 | `WHERE hiddenAt IS NULL`; log with snapshots | `rep › [REP-2.I2]` |
+| Aggregates from the same snapshot as the list | AD-REP-2 | One statement; `REPEATABLE READ` profile read | `rep › [REP-3.MEC]`, `rep_reads › [S-FR-REP-7.C1]` |
+| Hide and unhide conditional and logged | AD-REP-3 | `WHERE hiddenAt IS NULL`; log with snapshots | `rep › [REP-2.I2]`, `inv_supporting › [S-FR-REP-5.C1]` |
 | `audit_events` is append-only and written in the writer's transaction | AD-SYS-2 rule 10 as refined by R-2 | Grants (`UPDATE`/`DELETE` revoked); `AuditLog.record(tx)` | `sys › [SYS-R2] audit row rolls back with its transaction; grants` |
 
 ---
@@ -1542,6 +1563,8 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *Errors:* `NotAuthenticated` (HTTP 401, identity), `AdminOnly` (HTTP 403, identity), `AuthRateLimited` (HTTP 429, identity), `EmailNotVerified` (HTTP 403, identity).
   - *I:* AD-16, AD-IDN-3, AD-SYS-8 rules 1–2.
   - *Tests:* `[S-FR-IDN-7.h]` an admin passes `adminProcedure`; `[S-FR-IDN-7.f]` the 11th failed sign-in in 15 min → `AuthRateLimited` citing `retryAt`.
+  - *Sign-up and sign-in (Story 2.6, decision log Impl-2 #11, #12):* Better Auth's `/api/auth/*` behind a guard (`src/server/auth-routes.ts`). Sign-up requires `consentAccepted = true` and the current `consentVersion` (else `RequestValidationFailed` on the field, no user), passes the per-IP sign-up limit, and writes `signupConsentAt` (the Clock) and `signupConsentVersion` in the user insert (AD-IDN-3 rule 1); it sends one verification link through the `EmailSender` port. An unverified user may sign in; `requireCanBuy` still refuses (rule 2). Sign-in passes the account and IP limits first; a failed one inserts one `"AuthThrottleEvent"` per known key (the account id, the `ipHmac`), never an empty key (rules 3–4). Better Auth's own rate limiter is off. While no mail provider is wired, sign-up is refused before any write (`NotImplemented`, answered as the platform's 500 `Unexpected` body; Impl-2 code review F2).
+  - *Tests (Story 2.6):* `[S-FR-IDN-7.signup.h]` consent instant, hashed password, one link, an ipHmac-keyed row; `[S-FR-IDN-7.signup.f]` no consent or an old version → 400 on the field and no user; `[S-FR-IDN-7.signup.throttle]` the 6th sign-up from one IP in an hour → 429; `[S-FR-IDN-7.signin.h]` an unverified user signs in and `canBuy` refuses; `[S-FR-IDN-7.signin.throttle]` the 11th attempt after 10 failures → 429 citing `retryAt`, then 15 min later it signs in; `[S-FR-IDN-7.signin.unknown]` an unknown email keys only the ipHmac, and no IP keys nothing; `[S-FR-IDN-7.signup.unwired]` with `UNWIRED_EMAIL` a sign-up answers 500 and writes no `"User"`, `"Account"` or `"AuthThrottleEvent"` row.
 
 ### VER
 
@@ -1584,6 +1607,13 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *Errors:* none to users. A different value for a covered date keeps the stored row and logs `FxRateSourceMismatch`.
   - *I:* AD-CAT-3; `EXCLUDE USING gist (daterange(validFrom, validTo, '[]') WITH &&)`.
   - *Tests:* `[S-FR-CAT-8.h]` a rerun on a covered day writes nothing; `[S-FR-CAT-8.f]` with the source `down`, no row is written and `getFxRate(today)` returns yesterday's rate with `stale=true`.
+  - *Circuit breaker (Story 4.6, decision log Impl-2 #31):* the `FxRateSource` call is guarded by a breaker whose state is one `"FxSourceBreaker"` row (catalog, migrations `002_fx_source_breaker.sql` and `003_fx_source_breaker_version.sql`; no row reads `closed`), shared by every instance. The pure state machine (`domain/breaker.ts`) runs on `Clock` instants:
+    - `closed`: the call passes. A `sourceUnavailable` result (a thrown error, `null`, or a row that does not cover today) adds 1 to `consecutiveFailures`; any delivered row covering today resets it to 0. The 3rd failure in a row opens the breaker: `openedAt = now`, `retryAt = now + 30 min`.
+    - `open`, before `retryAt`: `fetchTrm` answers `circuitOpen` (`allowedWithNotice`, `FxRateCircuitOpen`, citing `NFR-CAT-4` with `{ consecutiveFailures, retryAt, trigger }`) with no source call and no write; `getFxRate` keeps serving the last stored rate, stale (`FxRateCarriedForward`). At or after `retryAt`, the first fetch becomes the one probe: `halfOpen`, with a probe token and a 60 s lease in `retryAt`.
+    - `halfOpen`: every other fetch answers `circuitOpen` while the lease runs; a lapsed lease lets the next fetch take over the probe. The probe's success closes the breaker (`consecutiveFailures = 0`); its failure reopens it for a new 30 min. A result whose admission state is gone (a late call, a stale probe token) moves nothing.
+    - Each transition is one short transaction over `SELECT … FOR UPDATE` on the row (inserted `ON CONFLICT DO NOTHING` first), which then moves it with one conditional `UPDATE … WHERE state = :from AND version = :v` that bumps `version` (AD-SYS-5 rule 1; architecture audit F2). A transition that moves 0 rows is a conflict: `Unexpected` (HTTP 500) and a rollback, never ignored. The source call runs between two such transactions, outside any transaction. So two concurrent fetches (a tick racing `catalog.fx.retry`) never both probe, and no failure is lost.
+    - A covered day still answers `alreadyCovered` first, without touching the breaker. `catalog.fx.retry` passes through the same breaker. `catalog.fx.breaker` (S-FR-CAT-8.breaker, §15) shows the state on page 2.3.
+  - *Tests (Story 4.6):* `[S-FR-CAT-8.breaker.h]` a deployment with no breaker row reads `closed`, 0 failures, threshold 3; `[S-FR-CAT-8.breaker.open]` the 3rd failure in a row opens the breaker, and the 4th fetch is `circuitOpen` with no source call while yesterday's rate is served stale; `[S-FR-CAT-8.breaker.halfOpen]` after the cool-down one probe runs: a failure reopens for a new 30 min, a success closes and stores the rate; `[S-FR-CAT-8.breaker.reset]` a success between failures resets the count; `[S-FR-CAT-8.breaker.C1]` 50 concurrent fetches on an expired open breaker send exactly one probe to the source; `[S-FR-CAT-8.breaker.C2]` 3 concurrent failing fetches from `closed`, 20 rounds, open the breaker every round with exactly 3 failures counted.
 
 ### INV
 
@@ -1683,10 +1713,10 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *Tests:* `[S-FR-COM-2.h]` a pending request is created and the balance is unchanged; `[S-FR-COM-2.f]` 19,999 → `TopUpAmountInvalid`, with zero rows.
 - **S-FR-COM-7 — `commission.admin.setRate({ rateBps, effectiveFrom })`.** Inbound Port.
   - *P:* admin; `rateBps` 0–10,000; `effectiveFrom ≥ now − 60 s`.
-  - *Q:* append a `"CommissionRateSetting"` with `effectiveFrom = max(effectiveFrom, now)`, plus an audit row.
-  - *Errors:* `AdminOnly` (HTTP 403, identity), `CommissionRateNotFutureDated` (HTTP 400, commission).
+  - *Q:* append a `"CommissionRateSetting"` with `effectiveFrom = max(effectiveFrom, now)`, plus an audit row. The decision is `CommissionRateScheduled`, citing `{ rateBps, effectiveFrom }` (Story 8.6).
+  - *Errors:* `AdminOnly` (HTTP 403, identity), `CommissionRateNotFutureDated` (HTTP 400, commission), citing `{ effectiveFrom, now }`. A second setting from the same stored instant breaks `UNIQUE (effectiveFrom)` and is `RequestValidationFailed` (HTTP 400, shared-kernel) on `effectiveFrom`, with zero writes (Story 8.6).
   - *I:* AD-COM-2 rule 6; `UNIQUE (effectiveFrom)`; append-only grants.
-  - *Tests:* `[S-FR-COM-7.h]` a new rate applies only to triggers after its `effectiveFrom`; `[S-FR-COM-7.f]` `effectiveFrom = now − 61 s` → `CommissionRateNotFutureDated`.
+  - *Tests:* `[S-FR-COM-7.h]` a new rate applies only to triggers after its `effectiveFrom`; `[S-FR-COM-7.f]` `effectiveFrom = now − 61 s` → `CommissionRateNotFutureDated`; `[S-FR-COM-7.C1]` 20 concurrent settings from the same instant store one rate and one audit row, and 19 are refused with zero writes, 10 rounds (architecture audit F8).
 - **S-FR-COM-9 — `commission.myAccount` / `myLedger` (low-balance notice).** Inbound Port.
   - *P:* a business session.
   - *Q:* the balance, state and ledger (newest first). `lowBalance = 0 < balance < lowBalanceThresholdCop` (20,000, display only). `neededToResumeCop = 1 − balance` when `balance ≤ 0`. With no account → `account: null` (a "no account yet" state). Zero writes.
@@ -1739,7 +1769,8 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
     - the other side's `lastReadSeq` is never returned.
   - *Errors:* `ConversationNotVisibleToCaller` (HTTP 403, messaging).
   - *I:* AD-MSG-3.
-  - *Tests:* `[S-FR-MSG-7.h]` reading a thread lowers unread to 0; `[S-FR-MSG-7.f]` `markRead` with an older `seq` from a stale tab leaves `lastReadSeq` unchanged.
+  - *Pages (decision log Impl-2 #15):* the inbox returns 20 conversations per page by `(lastMessageAt desc, id)`, with an opaque keyset cursor; a cursor this service did not issue is `RequestValidationFailed`. `thread` returns at most 100 messages with `seq > afterSeq` per call, ascending.
+  - *Tests:* `[S-FR-MSG-7.h]` reading a thread lowers unread to 0; `[S-FR-MSG-7.f]` `markRead` with an older `seq` from a stale tab leaves `lastReadSeq` unchanged; `[S-FR-MSG-7.C1]` 50 concurrent `markRead` calls with random seqs, 20 rounds: `lastReadSeq` ends at the highest seq sent, clamped to `lastSeq`, and never decreases; `[S-FR-MSG-7.f2]` a non-participant never sees the conversation in its inbox, and `thread`, `markRead` and `setMuted` are `ConversationNotVisibleToCaller` with zero writes (decision log Impl-2 #15).
 - **S-FR-MSG-8 — `messaging.setMuted({ conversationId, muted })`.** Inbound Port.
   - *P:* a participant.
   - *Q:* for the buyer, `mutedAt = now` or `null`, which removes the conversation from the unread total. For a business, an explained no-op: `allowedWithNotice`, zero writes (C-GAP-4).
@@ -1760,7 +1791,7 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *Q:* an entry with `cardKind = 'external'`, plus an audit row. No server fetch, and no `"CatalogEntry"` write.
   - *Errors:* `InvalidExternalLink` (HTTP 400, collections), `CollectionNotFound` (HTTP 404, collections).
   - *I:* AD-COL-1 rule 4, AD-7, AD-8.
-  - *Tests:* `[S-FR-COL-3.h]` 2 promos are added and the `"CatalogEntry"` count is unchanged; `[S-FR-COL-3.f]` an `http://` URL → `InvalidExternalLink`, citing `url`.
+  - *Tests:* `[S-FR-COL-3.h]` 2 promos are added and the `"CatalogEntry"` count is unchanged; `[S-FR-COL-3.f]` an `http://` URL → `InvalidExternalLink`, citing `url`; `[S-FR-COL-3.f2]` `javascript:`, `data:`, an uppercase `HTTP://` spoof, `https://user:pass@host` userinfo, a scheme-relative `//host` and a 2,049-character URL are each `InvalidExternalLink` citing `url`, and a non-https `imageUrl` citing `imageUrl`, with zero writes (decision log Impl-2 #17).
 - **S-FR-COL-4 — `collections.moveEntry` / `copyEntry`.** Inbound Port.
   - *P:* the owner of the entry and of the target collection.
   - *Q:* move changes `collectionId` and `manualPosition`. Copy inserts a new entry keeping `source` and `orderId`. Audit row.
@@ -1771,8 +1802,8 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *P:* the owner; `binderRows` and `binderCols` are 1–5.
   - *Q:* a deterministic order with `entryId` as the last tie-break. Completion is `floor(owned × 100 / cardEntryCount)`, or `null` when the count is 0.
   - *Errors:* `CollectionNotFound` (HTTP 404, collections).
-  - *I:* AD-COL-1 rule 5.
-  - *Tests:* `[S-FR-COL-5.h]` the same sort twice gives the same order; `[S-FR-COL-5.f]` a set with 0 card entries → completion `null`, never a division.
+  - *I:* AD-COL-1 rule 5; every binder position (`addExternalEntry`, move, copy, `reorder`) is assigned under `col:owner` (AD-COL-1 rule 1).
+  - *Tests:* `[S-FR-COL-5.h]` the same sort twice gives the same order; `[S-FR-COL-5.f]` a set with 0 card entries → completion `null`, never a division; `[S-FR-COL-5.C1]` 20 concurrent adds by link, moves, copies and a reorder into one collection leave distinct positions, 10 rounds (architecture audit F8).
 - **S-FR-COL-6 — `collections.wishlist.add` / `remove` / `list`.** Inbound Port.
   - *P:* a session; the catalog id exists.
   - *Q:* `INSERT … ON CONFLICT (ownerId, catalogEntryId) DO NOTHING`. `list` composes `listings.getAvailabilitySummary` (≤ 500 ids per call).
@@ -1787,7 +1818,7 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *Q:* a conditional `hiddenAt` change plus one `"ListingModerationLog"` with `titleSnapshot`. The listing leaves discovery on the next request. Reservations are untouched. Audit row.
   - *Errors:* `AdminOnly` (HTTP 403, identity), `ListingNotFound` (HTTP 404, listings).
   - *I:* AD-REP-3, AD-12.
-  - *Tests:* `[S-FR-REP-5.h]` a hidden listing is absent from the next search; `[S-FR-REP-5.f]` hiding twice → one log row and an explained no-op.
+  - *Tests:* `[S-FR-REP-5.h]` a hidden listing is absent from the next search; `[S-FR-REP-5.f]` hiding twice → one log row and an explained no-op; `[S-FR-REP-5.C1]` 20 concurrent hides of one listing → exactly one hide, one `"ListingModerationLog"` row and one audit row, and every other call the explained no-op, with no error (decision log Impl-2 #18).
 - **S-FR-REP-6 — `reputation.admin.search` / `log` and `listings.listingModerationLog`, merged in the 11.4 RSC.** Inbound Port.
   - *P:* admin.
   - *Q:* the two queries are merged by `(at desc, id)`, 50 per page. Search uses `tezg_unaccent_lower(text) LIKE … ESCAPE '\'` with `\`, `%` and `_` escaped. Zero writes.
@@ -1799,7 +1830,7 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
   - *Q:* the aggregate (REP-3) plus a page of 20 visible reviews, read in one `REPEATABLE READ` read-only transaction. Zero writes.
   - *Errors:* `TargetNotFound` (HTTP 404, reviews).
   - *I:* AD-REP-2 rule 2.
-  - *Tests:* `[S-FR-REP-7.h]` a hidden review is neither listed nor counted; `[S-FR-REP-7.f]` an unknown user → `TargetNotFound`.
+  - *Tests:* `[S-FR-REP-7.h]` a hidden review is neither listed nor counted; `[S-FR-REP-7.f]` an unknown user → `TargetNotFound`; `[S-FR-REP-7.C1]` 100 rounds of profile reads racing hides and unhides of that seller's reviews (≤ 20, so one page lists them all): in every read the aggregate's count and average are exactly those of the visible reviews it lists, i.e. one snapshot (decision log Impl-2 #18).
 
 ### Offered ports (§15.11)
 
@@ -1840,16 +1871,19 @@ The core operations bind 58 FRs. The 38 below get a compact contract each (decis
 | COM-2.queue | `commission.admin.topUpQueue` (7.3) | admin | `Pending` requests oldest first | AD-COM-3 | `[COM-2.queue.h]` |
 | S-FR-COM-2.mine | `commission.myTopUps` (7.1) | a business, else `NotBusinessAccount` (HTTP 409, identity, propagated) | own requests only, newest first | AD-COM-3 rule 4 | `[S-FR-COM-2.mine.h]` |
 | S-FR-COM-2.url | `commission.topUpProofUrl` (7.1, 7.3) | the owner or an admin; otherwise `TopUpNotVisibleToCaller` (HTTP 403, commission) | a signed URL for the sanitized rendition (600 s) | AD-14, AD-COM-3 rule 4 | `[S-FR-COM-2.url.h]` another business gets a body identical to an unknown id |
-| S-FR-COM-8.ledger | `commission.admin.ledger` (7.2) | admin | any account's ledger, newest first, filterable by `trigger` | AD-COM-1, FR-COM-8 | `[S-FR-COM-8.ledger.h]` `trigger=buyerClosed` shows only those deductions |
-| S-FR-COM-7.list | `commission.admin.rates` (7.4) | admin | every rate setting plus the rate in force at `now` | AD-COM-2 rule 6 | `[S-FR-COM-7.list.h]` the seed rate of 800 bps is current with no other row |
+| S-FR-COM-8.ledger | `commission.admin.ledger` (7.2) | admin | any account's balance, state and ledger, 50 lines per page newest first by `seq DESC`, filterable by `trigger`, with an opaque cursor bound to the account; a cursor this service did not issue for that account is `RequestValidationFailed` (HTTP 400, shared-kernel); an unknown account reads `balanceCop: null` and no lines (decision log Impl-2 #13) | AD-COM-1, FR-COM-8 | `[S-FR-COM-8.ledger.h]` `trigger=buyerClosed` shows only those deductions |
+| S-FR-COM-7.list | `commission.admin.rates` (7.4) | admin | every rate setting, newest `effectiveFrom` first, plus the rate in force at `now` | AD-COM-2 rule 6 | `[S-FR-COM-7.list.h]` the seed rate of 800 bps is current with no other row |
 | COM-3.last | `commission.admin.lastReconciliation` (7.4) | admin | the latest `ReconciliationRun`, or `null` | AD-COM-1 rule 4 | `[COM-3.last.h]` |
 | S-FR-TRD-3.mine | `trading.mine` (8.1, 8.3) | a session | offers where the actor is the proposer or the seller, status derived at read, 20 per page by the immutable `(createdAt DESC, id)` (decision log Impl-1 #35) | AD-TRD-1 rules 4–5 | `[S-FR-TRD-3.mine.h]` an expired `Open` offer reads `Expired` without the job |
 | COL-1.list | `collections.prompts.list` (9.4, 6.2) | a session | the actor's prompts, optionally by status | AD-COL-2 | `[COL-1.list.h]` |
 | S-FR-COL-1.list | `collections.list` (9.1, 9.2, 9.4, 10.1). **Not in Plan-2** | a session | the owner's collections with entry counts, ordered by `nameKey` | AD-COL-1 | `[S-FR-COL-1.list.h]` |
 | REP-1.edit | `reputation.edit` (11.1). A Plan-2 procedure; FR-REP-1 "they can edit it" | `canBuy`; the reviewer's own, visible review | `UPDATE … SET rating, text, "editedAt"=:now WHERE id AND "reviewerId"=:actor AND "hiddenAt" IS NULL`; 0 rows → `ReviewNotFound` (HTTP 404, reviews) (EC-32); one audit row | AD-REP-1 rule 4 | `[REP-1.edit.f]` editing a hidden review → `ReviewNotFound`, text unchanged |
 | REP-1.check | `reputation.eligibility` (11.1). **Not in Plan-2** | a session; the target is a review target, else `TargetNotFound` (HTTP 404, reviews) | `{ eligible, existingReview }` from the same rules as REP-1 P2–P5, with no insert | AD-REP-1 | `[REP-1.check.h]` a paid-not-closed buyer reads `eligible=false`, citing `latestState` |
-| S-SYS.tick | `admin.jobs.tickHealth` (2.3) | admin | `{ lastTickStartedAt, tickSilent }` derived at read from `JobRun`: silent when read between 10:17 and 23:17 Bogotá with no tick in the previous 3 h | ARCH §4 | `[S-SYS.tick.h]` the virtual clock 3 h after the last tick reads `tickSilent=true` |
+| S-FR-CAT-8.breaker | `catalog.fx.breaker` (2.3; Story 4.6, decision log Impl-2 #31) | admin | the TRM source's breaker: `{ state, consecutiveFailures, failureThreshold, openedAt, retryAt }` from the `"FxSourceBreaker"` row (no row reads `closed` with 0 failures), explained by `FxSourceHealthy`, `FxRateCircuitOpen` or `FxSourceProbing` citing `NFR-CAT-4` | AD-CAT-3, NFR-CAT-4 | `[S-FR-CAT-8.breaker.h]` |
+| S-SYS.tick | `admin.jobs.tickHealth` (2.3) | admin | `{ lastTickStartedAt, tickSilent, jobs, degraded }` derived at read from `JobRun`, in one read-only snapshot: silent when read between 10:17 and 23:17 Bogotá with no tick in the previous 3 h. `jobs` has one row per job that ever ran, by name: `{ job, lastOutcome, lastErrorCode, lastStartedAt, failedInWindow, stuckRunning }`, where `failedInWindow` counts the `failed` runs started in the 24 h before the read and `stuckRunning` the runs started in that window still `running` 15 min after their start (Clock instants only). `degraded` is true when any job has a failed or stuck run. The decision is `TickSilent` when silent, else `ScheduledJobsDegraded` when degraded, else `TickOnSchedule`, citing `AD-SYS-2` with `{ lastTickStartedAt, readAt, failedRuns, stuckRuns }` (architecture audit F3, decision log Impl-2 #34) | ARCH §4, AD-SYS-2 rule 10 | `[S-SYS.tick.h]` the virtual clock 3 h after the last tick reads `tickSilent=true`; `[S-SYS.tick.jobs]` a failed `trm-fetch` and a run stuck `running` for 16 min turn the health `degraded` (`ScheduledJobsDegraded`), and 24 h later both have left the window |
 | S-SYS.deliveries | `admin.events.deliveries` (2.3) | admin | 25 rows: `failed` by `firstFailedAt`, or `pending` older than 24 h by `createdAt` | AD-SYS-2 rule 9 | `[S-SYS.deliveries.h]` |
+| S-SYS.jobs | `POST /api/jobs/<job>?trigger=tick\|daily-morning\|daily-night` (Story 1.6; decision log Impl-2 #11). The route of the four `jobs/*` procedures | the `JOBS_SECRET` bearer, compared in constant time; otherwise `NotAuthenticated` (HTTP 401, identity) and no `JobRun` row (S-9). An unknown job is 404 and a missing or unknown trigger `RequestValidationFailed` (HTTP 400), both with no row | one `JobRun` per run: `running` from the start, then `succeeded`, `skipped` (another run holds `job:<name>`, AD-SYS-4 rule 7) or `failed` with the error code, all instants from `Clock`; a failure answers 500 `Unexpected` with no message in the body. `commission-reconcile` single-flights inside COM-3 (P2), every other job in the route | ARCH §4, §13, AD-SYS-4 rule 7, S-9 | `[S-SYS.jobs.auth]` a missing or wrong bearer → 401 and no row; `[S-SYS.jobs.trigger]`; `[S-SYS.jobs.h]` the tick runs `trm-fetch` once; `[S-SYS.jobs.failed]`; `[S-SYS.jobs.single]` a held lock → `skipped`; `[S-SYS.jobs.C1]` 20 concurrent runs release a due order's unit exactly once; `[S-SYS.jobs.pool]` every job, the nightly `commission-reconcile` included, succeeds on a pool of exactly 2 connections that refuses a third checkout at once, and uses both (AD-SYS-4 rule 7, ARCH §4 `max: 2`, the minimum and serverless default of `TEZG_PG_POOL_MAX`, decision log Impl-2 #38; architecture audit F1); `[S-SYS.jobs.starved]` on the runtime pool (`max: 2` from `loadConfig()` with `TEZG_PG_POOL_MAX` unset, its checkout timeout shortened to 200 ms) a run whose second connection another run holds ends `failed` `Unexpected` within the timeout, its row written on its lock's connection, and a run refused its first connection answers 500 and writes no row (decision log Impl-2 #35) |
+| S-SYS.sweep | `jobs/outbox-sweep` (tick, `daily-morning`, `daily-night`; decision log Impl-2 #11, the `outbox-sweep` job of ARCH §13) | the job route (S-SYS.jobs) | `OutboxDispatcherV2.sweep()`: the attempt procedure on `pending` deliveries older than 60 s, at most 3 automatic attempts each | AD-SYS-2 rules 4 and 6, NFR-SYS-6 | `[S-SYS.sweep.h]` a delivery stuck `pending` for 120 s is delivered by one run |
 
 **Mirrors and ingress wrappers.** The registry also carries five entries that reuse a core contract:
 - `IDN-1.ingress` (`completeIndividualProfile`: IDN-1 then the profile insert);

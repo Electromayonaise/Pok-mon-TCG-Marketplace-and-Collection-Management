@@ -48,11 +48,11 @@ export interface DeleteCollectionResponse { entriesRemoved: number; platformPurc
 export interface AddExternalEntryRequest {
   ownerId: CuidId;
   collectionId: CuidId;
-  /** @pattern ^https:// @maxLength 2048 */
+  /** @maxLength 2048. The https rule is the service's, so an unsafe link is InvalidExternalLink, not the parser's RequestValidationFailed (S-FR-COL-3; decision log Impl-2 #20). */
   url: string;
   /** @minLength 1 @maxLength 120 */
   title: string;
-  /** @pattern ^https:// */
+  /** https or null: the service's rule, like `url` (decision log Impl-2 #20). */
   imageUrl: string | null;
   /** @minimum 1 @maximum 999 */
   qty: number;
@@ -82,6 +82,12 @@ export interface BinderEntryDTO {
   qty: number;
   acquiredAt: IsoDate;
   manualPosition: number;
+  /** The link of a link-added entry (FR-COL-3: its badge names the domain); null for a catalog entry. Never fetched by the server. */
+  externalUrl: string | null;
+  /** The catalog image, or the link's https `imageUrl`, loaded by the browser only (S-12); null when there is none. */
+  imageUrl: string | null;
+  /** The order of a PlatformPurchase entry ("Ver pedido"), else null. */
+  orderId: CuidId | null;
 }
 export interface GetBinderResponse { rows: number; cols: number; entries: BinderEntryDTO[]; completion: SetCompletionDTO | null }
 export interface SetBinderLayoutRequest {

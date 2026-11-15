@@ -1,0 +1,24 @@
+# Impl-2 close: the trace evidence run (decision log Impl-2 #10). 2026-11-04, local Windows laptop, Docker Desktop Postgres 16.6.
+# Command: npx playwright test --trace on   (playwright.config.ts keeps trace: 'on-first-retry'; --trace on overrides it for this run only)
+# Each test's test-results/<test>/trace.zip was copied to _bmad-output/test-artifacts/evidence/impl2/traces/:
+#   binder.spec.ts:17   -> binder-sort-and-add-link.zip
+#   inbox.spec.ts:15    -> inbox-read-and-mute.zip
+#   inbox.spec.ts:50    -> inbox-wrong-password.zip
+#   profile.spec.ts:14  -> profile-reviews-without-hidden.zip
+#   profile.spec.ts:31  -> profile-not-a-seller.zip
+#   smoke.spec.ts:7     -> smoke-service-ready.zip
+# View one with: npx playwright show-trace _bmad-output/test-artifacts/evidence/impl2/traces/<file>.zip
+# Output below, without the WebServer build lines:
+
+
+Running 6 tests using 1 worker
+
+  ✓  1 [chromium] › _bmad-output\test-artifacts\e2e\binder.spec.ts:17:1 › Julián re-sorts his binder, the order survives a reload, and a promo added by an https link lands in a pocket after an http:// link is refused (1.8s)
+  ✓  2 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:15:1 › Camila reads a conversation, its badge clears, and muting another takes it out of her unread total (984ms)
+  ✓  3 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:50:1 › a wrong password keeps Camila on the sign-in page with the es-CO error (538ms)
+  ✓  4 [chromium] › _bmad-output\test-artifacts\e2e\profile.spec.ts:14:1 › a visitor with no session reads Lucía’s rating and reviews, without the review moderation hid (288ms)
+  ✓  5 [chromium] › _bmad-output\test-artifacts\e2e\profile.spec.ts:31:1 › an id that is no seller shows the es-CO Not-available page (252ms)
+  ✓  6 [chromium] › _bmad-output\test-artifacts\e2e\smoke.spec.ts:7:1 › a visitor opens TEZG and sees the service ready (229ms)
+
+  6 passed (16.3s)
+EXIT 0

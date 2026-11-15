@@ -8,6 +8,10 @@ export type Subscriber = 'commission' | 'listings' | 'collections';
 export interface ReplayEventDeliveryRequest { adminId: CuidId; eventId: CuidId; subscriber: Subscriber }
 export interface ReplayEventDeliveryResponse { status: 'delivered' | 'failed'; replayed: boolean; decision: ExplanationDTO }
 
+/** S-SYS.sweep (Story 1.6): the `outbox-sweep` job's run of the attempt procedure (AD-SYS-2 rules 4 and 6). */
+export interface SweepDeliveriesRequest { trigger: 'tick' | 'daily-morning' | 'daily-night' }
+export interface SweepDeliveriesResponse { attempted: number; delivered: number; failed: number }
+
 export interface GetDeliveryHealthRequest { adminId: CuidId }
 export interface GetDeliveryHealthResponse {
   failedCount: number;
@@ -18,7 +22,21 @@ export interface GetDeliveryHealthResponse {
 
 // Read models found by the UI-state check (contracts.md §15.12)
 export interface GetTickHealthRequest { adminId: CuidId }
-export interface GetTickHealthResponse { lastTickStartedAt: IsoInstant | null; tickSilent: boolean; decision: ExplanationDTO }
+/**
+ * S-SYS.tick (architecture audit F3, decision log Impl-2 #34): one job's runs as tick health reads them. `failedInWindow`
+ * counts the `failed` runs started in the 24 h before the read; `stuckRunning` the runs still `running` that started in
+ * that window more than 15 min before the read.
+ */
+export interface JobHealthDTO {
+  job: string;
+  lastOutcome: 'running' | 'succeeded' | 'skipped' | 'failed';
+  lastErrorCode: string | null;
+  lastStartedAt: IsoInstant;
+  failedInWindow: number;
+  stuckRunning: number;
+}
+/** `degraded`: a job failed in the 24 h window or is stuck `running` (architecture audit F3); `tickSilent` stays the tick's own signal. */
+export interface GetTickHealthResponse { lastTickStartedAt: IsoInstant | null; tickSilent: boolean; jobs: JobHealthDTO[]; degraded: boolean; decision: ExplanationDTO }
 export interface ListDeliveriesRequest { adminId: CuidId; kind: 'failed' | 'stuck'; cursor: string | null }
 export interface DeliveryRowDTO {
   eventId: CuidId;

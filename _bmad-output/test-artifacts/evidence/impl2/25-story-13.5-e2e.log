@@ -1,0 +1,17 @@
+# Flow E — Story 13.5 (decision log Impl-2 #18). Captured 2026-11-04T06:23:02Z on branch impl-2 at f8f2b62 + the green working tree.
+# npx playwright test: the web server recreates and migrates tezg_e2e, builds and serves the app (the route /perfil/[userId] is new);
+# the list reporter's output. The profile journey needed two fixes before its first green run (a section, not a header, names the
+# seller block, and the Not-available alert is found inside main, apart from Next's route announcer).
+$ npx playwright test
+
+Running 6 tests using 1 worker
+
+  ✓  1 [chromium] › _bmad-output\test-artifacts\e2e\binder.spec.ts:16:1 › Julián re-sorts his binder, the order survives a reload, and a promo added by an https link lands in a pocket after an http:// link is refused (1.4s)
+  ✓  2 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:14:1 › Camila reads a conversation, its badge clears, and muting another takes it out of her unread total (773ms)
+  ✓  3 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:49:1 › a wrong password keeps Camila on the sign-in page with the es-CO error (444ms)
+  ✓  4 [chromium] › _bmad-output\test-artifacts\e2e\profile.spec.ts:13:1 › a visitor with no session reads Lucía’s rating and reviews, without the review moderation hid (278ms)
+  ✓  5 [chromium] › _bmad-output\test-artifacts\e2e\profile.spec.ts:30:1 › an id that is no seller shows the es-CO Not-available page (254ms)
+  ✓  6 [chromium] › _bmad-output\test-artifacts\e2e\smoke.spec.ts:6:1 › a visitor opens TEZG and sees the service ready (215ms)
+
+  6 passed (16.3s)
+EXIT 0

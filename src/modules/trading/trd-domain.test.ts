@@ -48,9 +48,22 @@ describe('term checks (FR-TRD-1, D6)', () => {
     expect(canonicalTerms(a)).toBe(canonicalTerms(b));
     expect(canonicalTerms(a)).not.toBe(canonicalTerms({ ...a, cashCop: 6 }));
   });
+
+  // Flow C backfill (decision log Impl-2 #8): every tie-break of the (itemRef, condition, qty) sort.
+  it('canonical terms sort by itemRef, then condition, then qty, whatever the input order', () => {
+    const rows = [{ itemRef: 'b', condition: 'NM', qty: 1 }, { itemRef: 'a', condition: 'NM', qty: 2 }, { itemRef: 'a', condition: 'LP', qty: 1 }, { itemRef: 'a', condition: 'NM', qty: 1 }];
+    const sorted = JSON.parse(canonicalTerms({ offeredItems: rows, cashCop: 0, requestedQty: 1 })).items;
+    expect(sorted).toEqual([['a', 'LP', 1], ['a', 'NM', 1], ['a', 'NM', 2], ['b', 'NM', 1]]);
+    expect(canonicalTerms({ offeredItems: [...rows].reverse(), cashCop: 0, requestedQty: 1 })).toBe(canonicalTerms({ offeredItems: rows, cashCop: 0, requestedQty: 1 }));
+  });
 });
 
 describe('the offers cursor', () => {
+  it('refuses a cursor whose instant is not the canonical ISO form', () => {
+    expect(decodeOfferCursor(encodeOfferCursor('2026-10-01T15:00:00Z', 'c'.repeat(24)))).toBeNull();
+    expect(decodeOfferCursor(encodeOfferCursor('yesterday', 'c'.repeat(24)))).toBeNull();
+  });
+
   it('round-trips, and refuses one this service never issued', () => {
     const id = 'a'.repeat(24);
     expect(decodeOfferCursor(encodeOfferCursor('2026-10-30T12:00:00.000Z', id))).toEqual({ createdAt: '2026-10-30T12:00:00.000Z', id });

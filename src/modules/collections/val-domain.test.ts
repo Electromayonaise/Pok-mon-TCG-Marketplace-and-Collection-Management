@@ -3,7 +3,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
-  addDays, assertSafeInteger, changePercentHundredths, chunks, isValuationPeriod, referencePrice, roundHalfAwayFromZero, series, valueEntries, type ValuationEntry,
+  addDays, assertSafeInteger, bogotaDayStart, changePercentHundredths, chunks, isValuationPeriod, referencePrice, roundHalfAwayFromZero, series, valueEntries, type ValuationEntry,
 } from './domain/val.js';
 import type { Cop } from '../../shared-kernel/types.js';
 
@@ -158,5 +158,13 @@ describe('valueEntries over 1,000 random collections (VAL-1 MEC, NFR-VAL-1; Stor
       expect(drift <= result.conversionDriftBoundCop).toBe(true);
       expect(result.conversionDriftBoundCop).toBe(fx.reduce((sum, { r }) => sum + BigInt(r.qty), 0n) / 2n);
     }), { numRuns: 1_000, seed: 20_261_030 });
+  });
+});
+
+describe('bogotaDayStart (AD-VAL-2, America/Bogota is UTC−5)', () => {
+  it('is 05:00 UTC of the calendar date, so an observation at 04:59 UTC still belongs to the day before', () => {
+    expect(new Date(bogotaDayStart('2026-10-01')).toISOString()).toBe('2026-10-01T05:00:00.000Z');
+    expect(Date.parse('2026-10-01T04:59:59.999Z') < bogotaDayStart('2026-10-01')).toBe(true);
+    expect(bogotaDayStart('2026-10-02') - bogotaDayStart('2026-10-01')).toBe(86_400_000);
   });
 });

@@ -15,7 +15,7 @@
 # by the same files once the stories are done (_bmad-output/test-artifacts/nfr-evidence.md).
 name: solu2-quality-gate
 
-# Manual evidence only since Impl-1 (decision log #9); impl1-quality-gate runs on push and PR.
+# Manual evidence only since Impl-1 (decision log #9); impl2-quality-gate runs on push and PR (Impl-2 #10).
 on:
   workflow_dispatch:
 

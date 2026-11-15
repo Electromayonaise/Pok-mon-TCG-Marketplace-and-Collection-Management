@@ -6,7 +6,7 @@ import { DomainError } from '../../../src/shared-kernel/errors.js';
 import { useTestDatabase } from '../../../test-support/db.js';
 import { caught, citedInputs, httpOf } from '../../../test-support/errors.js';
 import { codeOf, race } from '../../../test-support/concurrency.js';
-import { admin, business, catalogEntry, commissionState, explainAssert, fake, id, ins, listing, purchasableListing, rows, T0, unit, user, wiring } from '../../../test-support/solu2/fixtures.js';
+import { business, catalogEntry, commissionState, explainAssert, fake, id, ins, listing, purchasableListing, rows, T0, unit, user, wiring } from '../../../test-support/solu2/fixtures.js';
 
 const db = useTestDatabase();
 

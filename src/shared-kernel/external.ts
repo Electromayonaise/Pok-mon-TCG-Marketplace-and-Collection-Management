@@ -39,6 +39,14 @@ export interface FxRateSource {
   getRateCovering(date: IsoDate): Promise<{ valor: string; validFrom: IsoDate; validTo: IsoDate; source: string } | null>;
 }
 
+/**
+ * AD-IDN-3 (Story 2.6, decision log Impl-2 #11): Better Auth's verification email. The address is the
+ * account's own; the URL carries the one-time token, so neither is ever logged.
+ */
+export interface EmailSender {
+  sendVerificationEmail(message: { to: string; url: string }): Promise<void>;
+}
+
 /** ADD-§7: the one domain path for top-up decisions. V1 binds the admin action; v2 a webhook. */
 export interface TopUpConfirmationPort {
   confirm(topUpRequestId: CuidId, actorId: CuidId): Promise<void>;

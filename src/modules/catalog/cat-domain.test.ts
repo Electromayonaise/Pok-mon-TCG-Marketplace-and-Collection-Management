@@ -2,7 +2,7 @@
 // COP conversion, the Bogotá date, the CAT-2 attribute diff and the runs cursor; the ADD-§2.2
 // change percentage, the FR-CAT-7 staleness boundary and the ADD-§6 TRM parse.
 import { describe, expect, it } from 'vitest';
-import { bogotaDate, changePercent, copFromUsd, isStale, parseTrm, decodeQuarantineCursor, decodeRunCursor, encodeQuarantineCursor, diffAttributes, encodeRunCursor, numberSort, validateRow, type RawFeedRow } from './domain/cat.js';
+import { bogotaDate, changePercent, copFromUsd, isStale, observedAtOf, parseTrm, decodeQuarantineCursor, decodeRunCursor, encodeQuarantineCursor, diffAttributes, encodeRunCursor, numberSort, validateRow, type RawFeedRow } from './domain/cat.js';
 
 const NOW = '2026-10-01T15:00:00.000Z';
 const row = (o: RawFeedRow = {}): RawFeedRow => ({ externalKey: 'sv1-025', setCode: 'SV1', number: '025', name: 'Pikachu', kind: 'card', eraCode: 'SV', ...o });
@@ -114,5 +114,19 @@ describe('parseTrm (ADD-§6)', () => {
 
   it('refuses anything that is not a positive decimal', () => {
     for (const valor of ['', '4.012,37', '-4012', '0', 'abc', '4012.']) expect(parseTrm(valor)).toBeNull();
+  });
+});
+
+describe('observedAtOf (AD-CAT-2 rule 1)', () => {
+  it('a row with no instant is observed now; a past instant is kept, normalized to UTC milliseconds', () => {
+    expect(observedAtOf(row(), NOW)).toBe(NOW);
+    expect(observedAtOf(row({ observedAt: '' }), NOW)).toBe(NOW);
+    expect(observedAtOf(row({ observedAt: '2026-09-30T10:00:00Z' }), NOW)).toBe('2026-09-30T10:00:00.000Z');
+    expect(observedAtOf(row({ observedAt: NOW }), NOW)).toBe(NOW);
+  });
+
+  it('an instant in the future or that is not an ISO instant is no observation (null), never a guessed date', () => {
+    expect([observedAtOf(row({ observedAt: '2026-10-01T15:00:00.001Z' }), NOW), observedAtOf(row({ observedAt: 'ayer' }), NOW), observedAtOf(row({ observedAt: '2026-09-30' }), NOW)])
+      .toEqual([null, null, null]);
   });
 });

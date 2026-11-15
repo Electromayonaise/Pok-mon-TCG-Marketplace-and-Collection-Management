@@ -103,9 +103,19 @@ export default {
         {
           title: 'Show admins the delivery and tick health', kind: 'Skeleton',
           as: 'As an admin, I want the Entregas tab to show failed and stuck deliveries and a silent tick, so that nothing fails unseen (AD-SYS-2 rule 9).',
-          ops: ['S-SYS.tick', 'S-SYS.deliveries', 'S-SYS.health'], tests: ['S-SYS.tick.h', 'S-SYS.deliveries.h', 'S-SYS.health.h'], depends: ['1.3'],
+          ops: ['S-SYS.tick', 'S-SYS.deliveries', 'S-SYS.health'], tests: ['S-SYS.tick.h', 'S-SYS.deliveries.h', 'S-SYS.health.h', 'S-SYS.tick.jobs'], depends: ['1.3'],
           happy: ['27 failed deliveries, one `pending` for 25 h and one `pending` for 23 h.', 'an admin opens page 2.3\'s Entregas tab.', 'failed rows list by `firstFailedAt`, 25 per page with a next cursor; the 25-hour delivery is the only stuck row; the badge counts the failed rows and the stuck one.'],
           failure: ['the last tick started at 10:00 Bogotá.', 'an admin reads tick health at 13:01.', '`tickSilent=true` citing `lastTickStartedAt`; read at 11:00 it is `false`.'],
+        },
+        {
+          // Impl-2 (decision log Impl-2 #7, #11): the jobs route Impl-1 handed over, with the outbox sweep it lacked.
+          title: 'Run scheduled jobs single-flight behind JOBS_SECRET', kind: 'Skeleton',
+          as: 'As the platform operator, I want every scheduled job to run only for the scheduler, once at a time, and to leave one JobRun row, so that expiries, the TRM, reconciliation and stuck deliveries are processed without anyone else triggering them (S-9, AD-SYS-4 rule 7).',
+          ops: ['S-SYS.sweep'], contracts: ['S-SYS.jobs'],
+          tests: ['S-SYS.jobs.auth', 'S-SYS.jobs.trigger', 'S-SYS.jobs.h', 'S-SYS.jobs.failed', 'S-SYS.sweep.h', 'S-SYS.jobs.single', 'S-SYS.jobs.C1', 'S-SYS.jobs.pool', 'S-SYS.jobs.starved'], depends: ['1.3', '1.5'],
+          happy: ['a due unpaid order and a delivery stuck `pending` for 120 s.', 'the hourly tick calls `jobs/expiry-materialize` and `jobs/outbox-sweep` with the `JOBS_SECRET` bearer.', 'the order expires and releases its unit once, the delivery is delivered, and each run leaves one `succeeded` JobRun row with the tick trigger, which tick health reads.'],
+          failure: ['a request without the bearer, and another run already holding `job:expiry-materialize`.', 'each calls the route.', 'the first is 401 `NotAuthenticated` with no JobRun row; the second is a `skipped` no-op with its row; 20 concurrent runs release the unit exactly once.'],
+          dod: ['`JOBS_SECRET` is validated at start-up like `IP_HMAC_KEY`, and `.env.example`, `docker-compose.yml`, the Playwright web server and CI set a local value'],
         },
       ],
     },
@@ -131,7 +141,7 @@ export default {
         {
           title: 'Explain why an account may not list', kind: 'Failure-state',
           as: 'As Andrés, whose application was rejected, I want the listing form to tell me why I cannot list and when I may reapply, so that I never fill in a form I cannot submit.',
-          ops: ['IDN-2', 'P-IDN.capabilities', 'P-IDN.verification'], tests: ['IDN-2.Q1', 'IDN-2.QF1', 'IDN-2.QF2', 'IDN-2.I1', 'P-IDN.capabilities.h', 'P-IDN.verification.h', 'SYS-4.R9'], depends: ['2.1'],
+          ops: ['IDN-2', 'P-IDN.capabilities', 'P-IDN.verification'], tests: ['IDN-2.Q1', 'IDN-2.QF1', 'IDN-2.QF2', 'IDN-2.I1', 'P-IDN.capabilities.h', 'P-IDN.verification.h', 'SYS-4.R9', 'NFR-IDN-1.capabilities', 'NFR-IDN-1.eligibility'], depends: ['2.1'],
           happy: ['Andrés\'s application is Pending.', '`listings` asks `requireListingEligibility`.', 'he may list, unverified, with the `ListingUnverified` notice citing FR-IDN-3; the verification port answers inside the caller\'s transaction even with a pool of one connection.'],
           failure: ['Andrés\'s latest application is Rejected with a reapply date, and another account has no track.', 'the eligibility check runs for each.', '`SellerNotVerified` (409) citing the application and `reapplyNotBefore`, and `IndividualSellerProfileIncomplete` citing `sellerKind: \'none\'`; an admin flag never turns an individual into a business.'],
         },
@@ -145,9 +155,19 @@ export default {
         {
           title: 'Trace capabilities for admins and answer neighbours\' identity queries', kind: 'Supporting',
           as: 'As an admin, I want to trace why an account holds each capability, audited, so that support can explain access without reading legal data.',
-          ops: ['IDN-3', 'S-FR-IDN-6.kinds', 'S-FR-IDN-6.target', 'P-IDN.contact', 'P-IDN.names'], tests: ['IDN-3.Q1', 'IDN-3.Q2', 'IDN-3.P2', 'IDN-3.I1', 'IDN-3.I3', 'S-FR-IDN-6.h', 'S-FR-IDN-6.f', 'P-IDN.contact.h', 'P-IDN.names.h'], depends: ['2.3'],
+          ops: ['IDN-3', 'S-FR-IDN-6.kinds', 'S-FR-IDN-6.target', 'P-IDN.contact', 'P-IDN.names'], tests: ['IDN-3.Q1', 'IDN-3.Q2', 'IDN-3.P2', 'IDN-3.I1', 'IDN-3.I3', 'S-FR-IDN-6.h', 'S-FR-IDN-6.f', 'P-IDN.contact.h', 'P-IDN.names.h', 'NFR-IDN-1.sellerKinds'], depends: ['2.3'],
           happy: ['Andrés is an Approved business.', 'an admin traces his capabilities.', 'six capabilities in fixed order, each citing its source facts and equal to `getCapabilities`; one `CapabilityAuditRead` and one admin audit row.'],
           failure: ['the target id is unknown.', 'an admin traces it.', '`AccountNotFound` (404) with zero writes; no trace ever carries a legal-identity value.'],
+        },
+        {
+          // Impl-2 (decision log Impl-2 #7, #11, #12): Story 2.4's sign-in completion, which Impl-1 #26 handed over.
+          title: 'Sign up, sign in and throttle failed attempts', kind: 'Failure-state',
+          as: 'As Camila, I want to create my account with my consent recorded and sign in with my password, and as the platform, I want failed sign-ins and sign-up bursts throttled, so that accounts cannot be brute-forced (AD-IDN-3, S-8).',
+          ops: [], contracts: ['S-FR-IDN-7'],
+          tests: ['S-FR-IDN-7.signup.h', 'S-FR-IDN-7.signup.f', 'S-FR-IDN-7.signup.throttle', 'S-FR-IDN-7.signin.h', 'S-FR-IDN-7.signin.throttle', 'S-FR-IDN-7.signin.unknown', 'S-FR-IDN-7.signup.unwired'], depends: ['2.4'],
+          happy: ['a visitor with the privacy notice `privacy-v1` in front of her.', 'Camila signs up accepting it, then signs in with her password before verifying her email.', 'her user stores the consent instant and version, her password only as a hash, one verification link is sent, and she is signed in, while `canBuy` still refuses `EmailNotVerified`.'],
+          failure: ['10 failed sign-ins for her account in 15 minutes, a sign-up without consent, and a 6th sign-up from one IP within an hour.', 'each arrives.', 'the 11th sign-in is 429 `AuthRateLimited` citing `retryAt` even with the right password; the sign-up without consent is 400 on `consentAccepted` with no user; the 6th sign-up is 429; every throttle row is keyed by an account id or a 64-hex `ipHmac`, never a raw IP or an empty key.'],
+          dod: ['`app/api/auth/[...all]` serves `compose().auth`; production binds `UNWIRED_EMAIL` until a mail provider is chosen (launch checklist), and while it does the guard refuses sign-up before any write'],
         },
       ],
     },
@@ -232,6 +252,16 @@ export default {
           ops: ['S-FR-CAT-1', 'P-CAT.entry', 'P-CAT.entries', 'P-CAT.match', 'P-CAT.refs', 'P-CAT.asOf', 'P-CAT.history', 'P-CAT.sets'], tests: ['S-FR-CAT-1.h', 'S-FR-CAT-1.f', 'P-CAT.entry.h', 'P-CAT.entries.h', 'P-CAT.match.h', 'P-CAT.refs.h', 'P-CAT.asOf.h', 'P-CAT.history.h', 'P-CAT.sets.h', 'NFR-CAT-1.browse'], depends: ['4.2'],
           happy: ['the catalog holds Pikachu cards in two sets.', 'Camila filters by pokemon.', 'only matches, in `(setId, numberSort, id)` order; neighbours read entries, refs, prices as of an instant, history and set summaries through the ports.'],
           failure: ['a filter names an unknown set, a match covers 20,001 entries, or an id is unknown.', 'browse or a neighbour port runs.', 'an empty page with total 0, `tooBroad`, and the unknown id listed in `missing`, never thrown.'],
+        },
+        {
+          // Impl-2 (decision log Impl-2 #31): rubric 1's circuit breaker around the one outbound dependency, the TRM source.
+          title: 'Open a circuit breaker when the TRM source keeps failing', kind: 'Failure-state',
+          as: 'As an admin, I want the TRM fetch to stop calling a source that keeps failing and to probe it once after a cool-down, while prices keep using the last stored rate, so that a down source degrades gracefully instead of being hammered by every tick and retry (NFR-CAT-4).',
+          ops: ['S-FR-CAT-8.breaker'], contracts: ['S-FR-CAT-8'],
+          tests: ['S-FR-CAT-8.breaker.h', 'S-FR-CAT-8.breaker.open', 'S-FR-CAT-8.breaker.halfOpen', 'S-FR-CAT-8.breaker.reset', 'S-FR-CAT-8.breaker.C1', 'S-FR-CAT-8.breaker.C2'], depends: ['4.4', '1.6'],
+          happy: ['the breaker has been open for 30 minutes after 3 failed hourly fetches.', 'the next tick fetches the TRM and the source answers.', 'that one probe stores the rate of the day and closes the breaker; page 2.3 reads `closed` with 0 failures.'],
+          failure: ['the TRM source is down, and a tick races two admin retries; later 50 fetches meet an open breaker whose cool-down has passed.', 'the fetches run.', 'the 3rd failure in a row opens the breaker with no failure lost; a fetch while open is `circuitOpen` (`FxRateCircuitOpen`) with no source call and no write, the rate of the day stays the one of yesterday, stale; and exactly one of the 50 probes the source.'],
+          dod: ['migration `002_fx_source_breaker.sql` adds the catalog-owned `FxSourceBreaker` row; the lint rule, the fitness scan and the epics generator read every migration'],
         },
       ],
     },
@@ -399,14 +429,15 @@ export default {
         {
           title: 'Reconcile ledgers and report, never repair, discrepancies', kind: 'Failure-state',
           as: 'As an admin, I want reconciliation to report every balance mismatch and sequence gap without changing anything, so that I can investigate (NFR-COM-2).',
-          ops: ['COM-3', 'COM-3.last'], tests: ['COM-3.Q1', 'COM-3.Q2', 'COM-3.I1', 'COM-3.Q4', 'COM-3.P2', 'COM-3.last.h'], depends: ['8.2'],
+          // Impl-2 (decision log Impl-2 #13): Flow A + D adds the concurrency proofs and the NFR-COM-2 measurement; depends on 1.6 for the job path.
+          ops: ['COM-3', 'COM-3.last'], tests: ['COM-3.Q1', 'COM-3.Q2', 'COM-3.I1', 'COM-3.Q4', 'COM-3.P2', 'COM-3.last.h', 'COM-3.C1', 'COM-3.C2', 'NFR-COM-2.drift'], depends: ['8.2', '1.6'],
           happy: ['a consistent account.', 'reconciliation runs.', '0 discrepancies and one run row, shown as the last run on page 7.4.'],
           failure: ['a tampered balance, a sequence gap, an unknown business, or another run holding the job lock.', 'reconciliation runs.', '`balanceMismatch` with decimal-string expected and actual values, never repaired; the gap reported; 0 accounts with an explained notice; the job path skipped.'],
         },
         {
           title: 'Set commission rates and read the ledger', kind: 'Supporting',
           as: 'As an admin, I want future-dated commission rates and a filterable ledger, so that pricing changes never apply retroactively.',
-          ops: ['S-FR-COM-7', 'S-FR-COM-7.list', 'S-FR-COM-8.ledger'], tests: ['S-FR-COM-7.h', 'S-FR-COM-7.f', 'S-FR-COM-7.list.h', 'S-FR-COM-8.ledger.h'], depends: ['8.2'],
+          ops: ['S-FR-COM-7', 'S-FR-COM-7.list', 'S-FR-COM-8.ledger'], tests: ['S-FR-COM-7.h', 'S-FR-COM-7.f', 'S-FR-COM-7.list.h', 'S-FR-COM-8.ledger.h', 'S-FR-COM-7.C1'], depends: ['8.2'],
           happy: ['only the seed rate of 800 bps exists.', 'an admin schedules a new rate from tomorrow.', 'it applies only to triggers at or after its `effectiveFrom`; the ledger filtered by `buyerClosed` shows only those deductions.'],
           failure: ['an `effectiveFrom` 61 s in the past.', 'the rate is set.', '`CommissionRateNotFutureDated` (400), with zero writes.'],
         },
@@ -455,7 +486,8 @@ export default {
         {
           title: 'Read the inbox, mark threads read and mute', kind: 'Supporting',
           as: 'As Camila, I want my inbox with unread counts, read marks and mute, so that I see what is new without exposing my reading to the business.',
-          ops: ['S-FR-MSG-7.inbox', 'S-FR-MSG-7.thread', 'S-FR-MSG-7.read', 'S-FR-MSG-8'], tests: ['S-FR-MSG-7.h', 'S-FR-MSG-7.f', 'S-FR-MSG-8.h', 'S-FR-MSG-8.f'], depends: ['9.2'],
+          // Impl-2 (decision log Impl-2 #15): Flow A + D adds the stale-tab hammer and the non-participant proof.
+          ops: ['S-FR-MSG-7.inbox', 'S-FR-MSG-7.thread', 'S-FR-MSG-7.read', 'S-FR-MSG-8'], tests: ['S-FR-MSG-7.h', 'S-FR-MSG-7.f', 'S-FR-MSG-8.h', 'S-FR-MSG-8.f', 'S-FR-MSG-7.C1', 'S-FR-MSG-7.f2'], depends: ['9.2'],
           happy: ['Camila has unread messages from Andrés.', 'she reads the thread and mutes another conversation.', 'unread drops to 0 without exposing Andrés\'s read state, and the muted conversation leaves her total unread count.'],
           failure: ['a stale tab marks an older seq as read, and a business mutes.', 'the commands run.', '`lastReadSeq` stays unchanged, and the business gets an explained no-op with zero writes (R-11).'],
         },
@@ -539,14 +571,16 @@ export default {
         {
           title: 'Use the binder, add external cards, move entries and wishlist cards', kind: 'Supporting',
           as: 'As Julián, I want a stable binder view, promo cards by link, moves and a wishlist with the lowest available price, so that I can manage cards outside the catalog too.',
-          ops: ['S-FR-COL-3', 'S-FR-COL-4', 'S-FR-COL-5.binder', 'S-FR-COL-5.layout', 'S-FR-COL-5.reorder', 'S-FR-COL-6.add', 'S-FR-COL-6.remove', 'S-FR-COL-6.list'], tests: ['S-FR-COL-3.h', 'S-FR-COL-4.h', 'S-FR-COL-5.h', 'S-FR-COL-6.h'], depends: ['11.2', '5.6'],
+          // Impl-2 (decision log Impl-2 #17): Flow B + D adds the NFR-COL-2 benchmark, written with the code.
+          ops: ['S-FR-COL-3', 'S-FR-COL-4', 'S-FR-COL-5.binder', 'S-FR-COL-5.layout', 'S-FR-COL-5.reorder', 'S-FR-COL-6.add', 'S-FR-COL-6.remove', 'S-FR-COL-6.list'], tests: ['S-FR-COL-3.h', 'S-FR-COL-4.h', 'S-FR-COL-5.h', 'S-FR-COL-6.h', 'NFR-COL-2.binder', 'NFR-COL-2.wishlist', 'S-FR-COL-5.C1'], depends: ['11.2', '5.6'],
           happy: ['Julián\'s collection and a wishlist.', 'he adds two promos by link, copies a purchase entry, sorts the binder twice and wishlists a card.', 'the catalog is untouched; the copy keeps its source and order id; both sorts give the same order with `entryId` as the last tie-break; the wishlisted card shows its lowest purchasable price.'],
           failure: ['the binder is read twice with equal ties.', 'the sort runs.', 'the order is identical both times: no unstable ordering.'],
         },
         {
           title: 'Refuse unsafe links, foreign entries and unknown wishlist cards', kind: 'Failure-state',
           as: 'As Julián, I want unsafe or foreign actions on entries refused with the field, so that nothing unsafe enters my collection.',
-          contracts: ['S-FR-COL-3', 'S-FR-COL-4', 'S-FR-COL-5', 'S-FR-COL-6'], tests: ['S-FR-COL-3.f', 'S-FR-COL-4.f', 'S-FR-COL-5.f', 'S-FR-COL-6.f'], depends: ['11.5'],
+          // Impl-2 (decision log Impl-2 #17): Flow A adds the link-spoof proof (R-28), red before any 11.5/11.6 code.
+          contracts: ['S-FR-COL-3', 'S-FR-COL-4', 'S-FR-COL-5', 'S-FR-COL-6'], tests: ['S-FR-COL-3.f', 'S-FR-COL-4.f', 'S-FR-COL-5.f', 'S-FR-COL-6.f', 'S-FR-COL-3.f2'], depends: ['11.5'],
           happy: ['an `https://` promo link.', 'Julián adds it.', 'it is added: the contrast case.'],
           failure: ['an `http://` URL; another owner\'s entry; a set with 0 card entries; an unknown catalog id on the wishlist.', 'the action runs.', '`InvalidExternalLink` citing the url field; `CollectionEntryNotFound`; completion null, never a division; `InvalidCatalogEntry`.'],
         },
@@ -630,14 +664,17 @@ export default {
         {
           title: 'Read profiles, search moderation logs and hide listings', kind: 'Supporting',
           as: 'As a buyer and as an admin, I want seller profiles with consistent aggregates, a searchable moderation log, and listing hides that leave discovery at once, so that reputation and moderation stay visible and auditable.',
-          ops: ['S-FR-REP-5', 'S-FR-REP-6.listing', 'S-FR-REP-6.search', 'S-FR-REP-6.log', 'S-FR-REP-7'], contracts: ['REP-3'], tests: ['S-FR-REP-5.h', 'S-FR-REP-6.h', 'S-FR-REP-7.h'], depends: ['13.2', '5.1'],
+          // Impl-2 (decision log Impl-2 #18): Flow A adds the one-snapshot race (R-29), red before any 13.5/13.6 code;
+          // Flow D adds the NFR-REP-2 profile benchmark (R-30), written with the code.
+          ops: ['S-FR-REP-5', 'S-FR-REP-6.listing', 'S-FR-REP-6.search', 'S-FR-REP-6.log', 'S-FR-REP-7'], contracts: ['REP-3'], tests: ['S-FR-REP-5.h', 'S-FR-REP-6.h', 'S-FR-REP-7.h', 'S-FR-REP-7.C1', 'NFR-REP-2.profile'], depends: ['13.2', '5.1'],
           happy: ['a seller with a visible and a hidden review, and a listing to moderate.', 'a buyer opens the profile, and an admin hides the listing and reads the log.', 'the profile lists and counts only the visible review; the listing leaves discovery with a title snapshot logged; the log reads newest first by `(at desc, id)`.'],
           failure: ['the profile read and a hide happen around the same instant.', 'the profile is read.', 'the aggregate and the first page come from one snapshot, so they never disagree.'],
         },
         {
           title: 'Refuse invalid moderation and bad aggregate requests', kind: 'Failure-state',
           as: 'As an admin, I want invalid moderation actions and malformed reads refused with the reason, so that the moderation log stays exact.',
-          contracts: ['S-FR-REP-5', 'S-FR-REP-6', 'S-FR-REP-7'], tests: ['S-FR-REP-5.f', 'S-FR-REP-6.f', 'S-FR-REP-7.f'], depends: ['13.5'],
+          // Impl-2 (decision log Impl-2 #18): Flow A adds the 20-way hide race (R-31), red before any 13.5/13.6 code.
+          contracts: ['S-FR-REP-5', 'S-FR-REP-6', 'S-FR-REP-7'], tests: ['S-FR-REP-5.f', 'S-FR-REP-6.f', 'S-FR-REP-7.f', 'S-FR-REP-5.C1'], depends: ['13.5'],
           happy: ['a listing hidden once, and a known seller\'s profile.', 'an admin hides the listing, and a buyer opens the profile.', 'one hide with one log row, and the profile: the contrast cases.'],
           failure: ['a listing hidden twice; a search for "100%"; a profile for an unknown user.', 'the command or read runs.', 'one log row and an explained no-op; only the literal "100%" text matches; `TargetNotFound` (404).'],
         },

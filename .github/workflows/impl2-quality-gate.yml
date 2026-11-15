@@ -1,0 +1,203 @@
+# Impl-2 quality gate (bmad-testarch-ci, decision log Impl-2 #10). It replaces the Impl-1 gate
+# (Impl-1 #9) and keeps its first job unchanged in purpose. On every push and PR it proves:
+#   gate  — `npm run test:ci`, the same chain as `npm test` minus `db:up` (CI gets Postgres from the
+#           service container): lint, the dependency, no-sleep and Prisma gates; the unit and
+#           integration tests with the per-file 90 % branch threshold on the domain cores; the
+#           Solu-2 generated surface, citations, trace and fitness functions; every ATDD test and
+#           NFR benchmark green for a `done` story and red for the right reason otherwise.
+#   e2e   — `npx playwright test` against a production build: the Page Object journeys, with
+#           `trace: 'on-first-retry'`. The HTML report and every trace.zip are uploaded, pass or fail; a
+#           second run with `--trace on` uploads one trace.zip per journey as `playwright-traces` (#29).
+#   nfr-k6 — `npm run nfr:k6` (Story 13.5, decision log Impl-2 #18 and #21): the PRD §3 seed in `tezg_k6`, the
+#           production build on port 3200, and grafana/k6 in Docker on the host network: a fixed arrival rate of
+#           100 requests a second for 60 s on each of `reputation.profile` and `catalog.browse` (at most 50 VUs
+#           each), failing on p95/p99, the error rate, any 5xx or more than 1 % dropped iterations. The summary
+#           JSON is uploaded, pass or fail.
+#   release — the PASS / FAIL decision: it passes only when every job above passed.
+# The Solu-2 gate stays as manual (workflow_dispatch) evidence.
+name: impl2-quality-gate
+
+on:
+  push:
+    branches: [main, 'impl-*']
+  pull_request:
+
+concurrency:
+  group: impl2-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+# Each job's Postgres service binds a free host port the runner picks (`ports: [5432]`), never a fixed one: run 6
+# (42523796447) failed before any test because 55432 was already taken on the runner host (decision log Impl-2 #42).
+# A step exports that port to $GITHUB_ENV from `docker port`, after the max_connections restart where a job has one:
+# a restarted container is mapped to a new host port, so `job.services.postgres.ports` goes stale (run 7, #43).
+env:
+  TEZG_PG_HOST: 127.0.0.1
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.6
+        env:
+          POSTGRES_USER: tezg
+          POSTGRES_PASSWORD: tezg
+          POSTGRES_DB: tezg
+        ports:
+          - 5432
+        options: >-
+          --health-cmd "pg_isready -U tezg -d tezg"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install (postinstall also installs the isolated tools/lint toolchain)
+        run: npm ci
+      - name: "Postgres allows 200 connections, as docker-compose.yml (decision log Impl-2 #28)"
+        # A service container takes no server flags, so the setting is written and the container restarted.
+        # Each ATDD file's pool holds up to 60 connections and 3 files run at once (vitest.config.ts).
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U tezg -d tezg -c "ALTER SYSTEM SET max_connections = 200"
+          docker restart ${{ job.services.postgres.id }}
+          timeout 60 bash -c 'until docker exec ${{ job.services.postgres.id }} pg_isready -U tezg -d tezg; do :; done'
+          test "$(docker exec ${{ job.services.postgres.id }} psql -U tezg -d tezg -tAc 'SHOW max_connections')" = 200
+      - name: "The Postgres service's host port (picked by the runner, decision log Impl-2 #42)"
+        run: |
+          port="$(docker port ${{ job.services.postgres.id }} 5432/tcp | head -n 1 | sed 's/.*://')"
+          test -n "$port"
+          echo "TEZG_PG_PORT=$port" >> "$GITHUB_ENV"
+      - name: npm test without db:up
+        run: npm run test:ci
+      - name: The Solu-2 workflow and its docs mirror are identical
+        run: cmp .github/workflows/solu2-quality-gate.yml _bmad-output/test-artifacts/ci/quality-gate.yml
+      - name: Upload the coverage summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: .coverage/
+          if-no-files-found: ignore
+
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.6
+        env:
+          POSTGRES_USER: tezg
+          POSTGRES_PASSWORD: tezg
+          POSTGRES_DB: tezg
+        ports:
+          - 5432
+        options: >-
+          --health-cmd "pg_isready -U tezg -d tezg"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 30
+    steps:
+      - name: "The Postgres service's host port (picked by the runner, decision log Impl-2 #42)"
+        run: |
+          port="$(docker port ${{ job.services.postgres.id }} 5432/tcp | head -n 1 | sed 's/.*://')"
+          test -n "$port"
+          echo "TEZG_PG_PORT=$port" >> "$GITHUB_ENV"
+          echo "E2E_DATABASE_URL=postgresql://tezg:tezg@127.0.0.1:$port/tezg_e2e" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Playwright E2E (Page Objects, web-first assertions, trace on first retry)
+        run: npx playwright test
+      - name: "Forensic traces of the green journeys (decision log Impl-2 #29)"
+        # The gating run above keeps `trace: 'on-first-retry'`, so a green run records no trace. This second
+        # run records one trace.zip per journey (`--trace on`) as CI evidence; it does not gate on its own.
+        run: npx playwright test --trace on --output test-results-forensic
+      - name: Upload the Playwright report and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+      - name: Upload the forensic traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results-forensic/**/trace.zip
+          if-no-files-found: error
+
+  nfr-k6:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.6
+        env:
+          POSTGRES_USER: tezg
+          POSTGRES_PASSWORD: tezg
+          POSTGRES_DB: tezg
+        ports:
+          - 5432
+        options: >-
+          --health-cmd "pg_isready -U tezg -d tezg"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: "Postgres allows 200 connections, as docker-compose.yml (decision log Impl-2 #28)"
+        # A service container takes no server flags, so the setting is written and the container restarted.
+        # Each ATDD file's pool holds up to 60 connections and 3 files run at once (vitest.config.ts).
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U tezg -d tezg -c "ALTER SYSTEM SET max_connections = 200"
+          docker restart ${{ job.services.postgres.id }}
+          timeout 60 bash -c 'until docker exec ${{ job.services.postgres.id }} pg_isready -U tezg -d tezg; do :; done'
+          test "$(docker exec ${{ job.services.postgres.id }} psql -U tezg -d tezg -tAc 'SHOW max_connections')" = 200
+      - name: "The Postgres service's host port (picked by the runner, decision log Impl-2 #42)"
+        run: |
+          port="$(docker port ${{ job.services.postgres.id }} 5432/tcp | head -n 1 | sed 's/.*://')"
+          test -n "$port"
+          echo "TEZG_PG_PORT=$port" >> "$GITHUB_ENV"
+          echo "K6_DATABASE_URL=postgresql://tezg:tezg@127.0.0.1:$port/tezg_k6" >> "$GITHUB_ENV"
+      - name: k6 at a fixed arrival rate on the public profile and catalog reads (thresholds of test-design.md §7.4)
+        run: npm run nfr:k6
+      - name: Upload the k6 summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-summary
+          path: _bmad-output/test-artifacts/evidence/impl2/k6-summary.json
+          if-no-files-found: ignore
+
+  release:
+    needs: [gate, e2e, nfr-k6]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Quality gate decision
+        run: |
+          echo "gate=${{ needs.gate.result }} e2e=${{ needs.e2e.result }} nfr-k6=${{ needs.nfr-k6.result }}"
+          if [ "${{ needs.gate.result }}" = "success" ] && [ "${{ needs.e2e.result }}" = "success" ] && [ "${{ needs.nfr-k6.result }}" = "success" ]; then
+            echo "Quality gate: PASS"
+          else
+            echo "Quality gate: FAIL"
+            exit 1
+          fi

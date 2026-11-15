@@ -1,5 +1,6 @@
 import type { Cop, CuidId, IsoDate, IsoInstant } from '../../../shared-kernel/types.js';
 import type { ExplanationDTO } from '../../../shared-kernel/explanation.js';
+import type { BreakerState } from '../domain/breaker.js';
 import type { CatalogKind, CopDerivation } from '../domain/cat.js';
 
 // Solu-2 DTOs — CAT (contracts.md §3, §15).
@@ -95,13 +96,28 @@ export interface BrowseCatalogResponse {
 
 // S-FR-CAT-8 TRM
 export interface FetchTrmRequest { trigger: 'tick' | 'daily-morning' | 'admin' }
-export interface FetchTrmResponse { outcome: 'stored' | 'alreadyCovered' | 'sourceUnavailable' | 'mismatchKept'; decision: ExplanationDTO }
+/** `circuitOpen` (Story 4.6): the breaker short-circuited the call; no source call, nothing written, the last stored rate stays in use. */
+export interface FetchTrmResponse { outcome: 'stored' | 'alreadyCovered' | 'sourceUnavailable' | 'mismatchKept' | 'circuitOpen'; decision: ExplanationDTO }
 export interface GetFxRateRequest { date: IsoDate }
 export interface GetFxRateResponse {
   copPerUsdCentavos: number;
   validFrom: IsoDate;
   validTo: IsoDate;
   stale: boolean;
+  decision: ExplanationDTO;
+}
+
+// S-FR-CAT-8.breaker (Story 4.6): the TRM source's circuit breaker, as page 2.3 shows it
+export interface GetFxSourceBreakerRequest { actorId: CuidId }
+export interface GetFxSourceBreakerResponse {
+  state: BreakerState;
+  /** Failed fetches in a row since the last success. */
+  consecutiveFailures: number;
+  /** Failures in a row that open the breaker. */
+  failureThreshold: number;
+  openedAt: IsoInstant | null;
+  /** open: when the next fetch may probe the source; halfOpen: when the probe's lease ends; closed: null. */
+  retryAt: IsoInstant | null;
   decision: ExplanationDTO;
 }
 

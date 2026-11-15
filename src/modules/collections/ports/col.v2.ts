@@ -53,6 +53,35 @@ export interface NewEntry {
   acquiredPriceCop: number | null;
 }
 
+/** One link-added `"CollectionEntry"` (S-FR-COL-3); its position is assigned by the repository. */
+export interface NewExternalEntry {
+  id: CuidId;
+  url: string;
+  title: string;
+  imageUrl: string | null;
+  qty: number;
+  acquiredAt: IsoDate;
+}
+
+/** One `"CollectionEntry"` as the binder reads it (S-FR-COL-5); catalog attributes come from `catalog.getEntries`. */
+export interface BinderEntryRow {
+  entryId: CuidId;
+  cardKind: 'catalog' | 'external';
+  catalogEntryId: CuidId | null;
+  externalUrl: string | null;
+  externalTitle: string | null;
+  externalImageUrl: string | null;
+  source: 'Manual' | 'PlatformPurchase';
+  orderId: CuidId | null;
+  qty: number;
+  acquiredAt: IsoDate;
+  acquiredPriceCop: number | null;
+  manualPosition: number;
+}
+
+/** One `"WishlistEntry"` (S-FR-COL-6). */
+export interface WishlistRow { catalogEntryId: CuidId; maxPriceCop: number | null; createdAt: Date }
+
 export interface PromptRow { id: CuidId; orderId: CuidId; buyerId: CuidId; lines: OrderClosedLineV1[]; status: PromptStatus; resolvedAt: Date | null; acceptedIntoCollectionId: CuidId | null; buyerItemReceivedConfirmedAt: Date; createdAt: Date }
 
 /**
@@ -88,4 +117,26 @@ export interface ColRepository {
   readPrompt(tx: Tx, promptId: CuidId): Promise<PromptRow | null>;
   /** COL-1.list: the buyer's prompts, optionally by status, newest first by `("createdAt", id)`. */
   readPrompts(tx: Tx, buyerId: CuidId, status: PromptStatus | null): Promise<PromptRow[]>;
+  /** S-FR-COL-3 Q: one `cardKind = 'external'` entry (Manual, no catalog id) at `max("manualPosition") + 1` of the collection. */
+  insertExternalEntry(tx: Tx, collectionId: CuidId, e: NewExternalEntry, now: IsoInstant): Promise<void>;
+  /** S-FR-COL-4 P: the entry's collection when the owner holds it, read `FOR UPDATE`; null for a foreign or unknown entry. */
+  lockOwnedEntry(tx: Tx, entryId: CuidId, ownerId: CuidId): Promise<{ collectionId: CuidId; source: 'Manual' | 'PlatformPurchase' } | null>;
+  /** S-FR-COL-4 Q (move): the entry into the target collection at its `max("manualPosition") + 1`. */
+  moveEntry(tx: Tx, c: { entryId: CuidId; targetCollectionId: CuidId; now: IsoInstant }): Promise<void>;
+  /** S-FR-COL-4 Q (copy): a new entry with every field of the source (`source` and `orderId` included) at the end of the target. */
+  copyEntry(tx: Tx, c: { entryId: CuidId; newId: CuidId; targetCollectionId: CuidId; now: IsoInstant }): Promise<void>;
+  /** S-FR-COL-5: the owner's collection layout, or null for a foreign or unknown id. */
+  readBinderLayout(tx: Tx, collectionId: CuidId, ownerId: CuidId): Promise<{ rows: number; cols: number } | null>;
+  /** S-FR-COL-5: every entry of the collection, in `("manualPosition", id)` order. */
+  readBinderEntries(tx: Tx, collectionId: CuidId): Promise<BinderEntryRow[]>;
+  /** S-FR-COL-5.layout: the owner's collection's rows and cols; false for a foreign or unknown id. */
+  updateBinderLayout(tx: Tx, c: { collectionId: CuidId; ownerId: CuidId; rows: number; cols: number; now: IsoInstant }): Promise<boolean>;
+  /** S-FR-COL-5.reorder: `manualPosition` = the index of each id in `orderedEntryIds`, all of them entries of the collection. */
+  setManualPositions(tx: Tx, collectionId: CuidId, orderedEntryIds: CuidId[], now: IsoInstant): Promise<void>;
+  /** S-FR-COL-6.add: `INSERT … ON CONFLICT ("ownerId", "catalogEntryId") DO NOTHING`; true when it inserted. */
+  insertWishlistEntry(tx: Tx, w: { id: CuidId; ownerId: CuidId; catalogEntryId: CuidId; maxPriceCop: number | null; note: string | null; now: IsoInstant }): Promise<boolean>;
+  /** S-FR-COL-6.remove: the owner's wishlist entry of the card; the deleted entry's id, or null when there was none. */
+  deleteWishlistEntry(tx: Tx, ownerId: CuidId, catalogEntryId: CuidId): Promise<CuidId | null>;
+  /** S-FR-COL-6.list: the owner's wishlist, by `("createdAt", id)`. */
+  readWishlist(tx: Tx, ownerId: CuidId): Promise<WishlistRow[]>;
 }

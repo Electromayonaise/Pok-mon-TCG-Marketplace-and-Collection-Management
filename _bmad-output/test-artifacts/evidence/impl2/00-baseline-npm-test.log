@@ -1,0 +1,571 @@
+
+> tezg@0.0.0 test
+> npm run db:up && npm run test:ci
+
+
+> tezg@0.0.0 db:up
+> docker compose up -d --wait postgres
+
+ Image postgres:16.6 Pulling 
+ 9f4ee33118cf Pulling fs layer 0B
+ c29f5b76f736 Pulling fs layer 0B
+ 5d09b270019a Pulling fs layer 0B
+ 161b744b7149 Pulling fs layer 0B
+ 97dd3da5d022 Pulling fs layer 0B
+ 1b97e303d014 Pulling fs layer 0B
+ 071d7e2b1414 Pulling fs layer 0B
+ 92ce9438a1c4 Pulling fs layer 0B
+ ff1ae98c5afe Pulling fs layer 0B
+ f8a2f3f2bb57 Pulling fs layer 0B
+ 3b6992cf2918 Pulling fs layer 0B
+ 9d735a0b570c Pulling fs layer 0B
+ 6af5b0a8381b Pulling fs layer 0B
+ 820eeecfbadf Pulling fs layer 0B
+ fd4d5ed31524 Download complete 0B
+ ce9e3d0ca3b4 Downloading 2.097MB
+ 92ce9438a1c4 Download complete 0B
+ ce9e3d0ca3b4 Downloading 2.097MB
+ 9f4ee33118cf Download complete 0B
+ c29f5b76f736 Downloading 1.049MB
+ ce9e3d0ca3b4 Downloading 2.097MB
+ c29f5b76f736 Downloading 1.049MB
+ ce9e3d0ca3b4 Downloading 3.146MB
+ c29f5b76f736 Downloading 1.049MB
+ ce9e3d0ca3b4 Downloading 4.194MB
+ c29f5b76f736 Downloading 2.097MB
+ ce9e3d0ca3b4 Downloading 4.194MB
+ c29f5b76f736 Downloading 2.097MB
+ ce9e3d0ca3b4 Download complete 0B
+ c29f5b76f736 Downloading 3.146MB
+ c29f5b76f736 Downloading 3.146MB
+ 1b97e303d014 Downloading 1.049MB
+ c29f5b76f736 Downloading 3.146MB
+ 1b97e303d014 Downloading 1.049MB
+ 1b97e303d014 Downloading 1.049MB
+ c29f5b76f736 Downloading 3.146MB
+ 071d7e2b1414 Downloading 1.049MB
+ 1b97e303d014 Downloading 1.049MB
+ c29f5b76f736 Downloading 4.194MB
+ 071d7e2b1414 Downloading 2.097MB
+ c29f5b76f736 Downloading 4.194MB
+ 071d7e2b1414 Downloading 2.097MB
+ 1b97e303d014 Downloading 1.049MB
+ c29f5b76f736 Downloading 4.194MB
+ 071d7e2b1414 Downloading 3.146MB
+ 1b97e303d014 Downloading 1.049MB
+ 1b97e303d014 Downloading 2.097MB
+ c29f5b76f736 Downloading 5.243MB
+ 071d7e2b1414 Downloading 3.146MB
+ c29f5b76f736 Downloading 5.243MB
+ 071d7e2b1414 Downloading 4.194MB
+ 1b97e303d014 Downloading 2.097MB
+ c29f5b76f736 Downloading 5.243MB
+ 071d7e2b1414 Downloading 4.194MB
+ 1b97e303d014 Downloading 2.097MB
+ c29f5b76f736 Downloading 6.291MB
+ 071d7e2b1414 Downloading 5.243MB
+ 1b97e303d014 Downloading 2.097MB
+ 1b97e303d014 Downloading 2.097MB
+ c29f5b76f736 Downloading 6.291MB
+ 071d7e2b1414 Downloading 5.243MB
+ 1b97e303d014 Downloading 3.146MB
+ c29f5b76f736 Downloading 6.291MB
+ 071d7e2b1414 Downloading 6.291MB
+ 071d7e2b1414 Downloading 6.291MB
+ 1b97e303d014 Downloading 3.146MB
+ c29f5b76f736 Downloading 6.291MB
+ c29f5b76f736 Downloading 7.34MB
+ 071d7e2b1414 Downloading 7.34MB
+ 1b97e303d014 Downloading 3.146MB
+ 1b97e303d014 Downloading 3.146MB
+ c29f5b76f736 Downloading 7.34MB
+ 071d7e2b1414 Downloading 7.34MB
+ 071d7e2b1414 Downloading 8.389MB
+ 1b97e303d014 Downloading 3.146MB
+ c29f5b76f736 Downloading 7.34MB
+ c29f5b76f736 Downloading 8.389MB
+ 071d7e2b1414 Downloading 8.389MB
+ 1b97e303d014 Downloading 4.194MB
+ 1b97e303d014 Downloading 4.194MB
+ c29f5b76f736 Downloading 8.389MB
+ 071d7e2b1414 Downloading 9.437MB
+ 1b97e303d014 Download complete 0B
+ c29f5b76f736 Downloading 8.389MB
+ 071d7e2b1414 Downloading 9.437MB
+ c29f5b76f736 Downloading 9.437MB
+ 5d09b270019a Download complete 0B
+ 071d7e2b1414 Downloading 10.49MB
+ 97dd3da5d022 Downloading 128B
+ c29f5b76f736 Downloading 9.437MB
+ 071d7e2b1414 Downloading 10.49MB
+ 97dd3da5d022 Download complete 0B
+ c29f5b76f736 Downloading 10.49MB
+ 071d7e2b1414 Downloading 11.53MB
+ 161b744b7149 Download complete 0B
+ c29f5b76f736 Downloading 10.49MB
+ 071d7e2b1414 Downloading 12.58MB
+ c29f5b76f736 Downloading 10.49MB
+ 071d7e2b1414 Downloading 13.63MB
+ 6af5b0a8381b Download complete 0B
+ f8a2f3f2bb57 Downloading 3.14kB
+ c29f5b76f736 Downloading 11.53MB
+ 071d7e2b1414 Downloading 13.63MB
+ c29f5b76f736 Downloading 11.53MB
+ 071d7e2b1414 Downloading 14.68MB
+ f8a2f3f2bb57 Download complete 0B
+ c29f5b76f736 Downloading 11.53MB
+ 071d7e2b1414 Downloading 14.68MB
+ c29f5b76f736 Downloading 11.53MB
+ 071d7e2b1414 Downloading 15.73MB
+ c29f5b76f736 Downloading 12.58MB
+ 071d7e2b1414 Downloading 15.73MB
+ c29f5b76f736 Downloading 12.58MB
+ 071d7e2b1414 Downloading 16.78MB
+ c29f5b76f736 Downloading 12.58MB
+ 071d7e2b1414 Downloading 16.78MB
+ c29f5b76f736 Downloading 12.58MB
+ 071d7e2b1414 Downloading 17.83MB
+ c29f5b76f736 Downloading 13.63MB
+ 071d7e2b1414 Downloading 18.87MB
+ 9d735a0b570c Downloading 1.049MB
+ 9d735a0b570c Downloading 1.049MB
+ c29f5b76f736 Downloading 13.63MB
+ 071d7e2b1414 Downloading 18.87MB
+ c29f5b76f736 Downloading 13.63MB
+ 071d7e2b1414 Downloading 19.92MB
+ 9d735a0b570c Download complete 0B
+ c29f5b76f736 Downloading 14.68MB
+ 071d7e2b1414 Downloading 20.97MB
+ c29f5b76f736 Downloading 14.68MB
+ 071d7e2b1414 Downloading 20.97MB
+ 820eeecfbadf Download complete 0B
+ 071d7e2b1414 Downloading 22.02MB
+ c29f5b76f736 Downloading 14.68MB
+ c29f5b76f736 Downloading 14.68MB
+ 071d7e2b1414 Downloading 23.07MB
+ 071d7e2b1414 Downloading 23.07MB
+ c29f5b76f736 Downloading 15.73MB
+ c29f5b76f736 Downloading 15.73MB
+ 071d7e2b1414 Downloading 24.12MB
+ c29f5b76f736 Downloading 15.73MB
+ 071d7e2b1414 Downloading 25.17MB
+ c29f5b76f736 Downloading 15.73MB
+ 071d7e2b1414 Downloading 25.17MB
+ c29f5b76f736 Downloading 16.78MB
+ 071d7e2b1414 Downloading 26.21MB
+ 3b6992cf2918 Downloading 1.049MB
+ 3b6992cf2918 Download complete 0B
+ c29f5b76f736 Downloading 16.78MB
+ 071d7e2b1414 Downloading 27.26MB
+ c29f5b76f736 Downloading 16.78MB
+ 071d7e2b1414 Downloading 27.26MB
+ c29f5b76f736 Downloading 17.83MB
+ 071d7e2b1414 Downloading 28.31MB
+ c29f5b76f736 Downloading 17.83MB
+ 071d7e2b1414 Downloading 28.31MB
+ c29f5b76f736 Downloading 17.83MB
+ 071d7e2b1414 Downloading 29.36MB
+ c29f5b76f736 Downloading 17.83MB
+ 071d7e2b1414 Downloading 30.41MB
+ c29f5b76f736 Downloading 18.87MB
+ 071d7e2b1414 Downloading 30.41MB
+ ff1ae98c5afe Downloading 1.049MB
+ c29f5b76f736 Downloading 18.87MB
+ 071d7e2b1414 Downloading 31.46MB
+ ff1ae98c5afe Downloading 1.049MB
+ c29f5b76f736 Downloading 18.87MB
+ 071d7e2b1414 Downloading 31.46MB
+ ff1ae98c5afe Downloading 1.049MB
+ c29f5b76f736 Downloading 19.92MB
+ 071d7e2b1414 Downloading 32.51MB
+ ff1ae98c5afe Downloading 1.049MB
+ c29f5b76f736 Downloading 19.92MB
+ 071d7e2b1414 Downloading 32.51MB
+ ff1ae98c5afe Downloading 1.049MB
+ c29f5b76f736 Downloading 19.92MB
+ 071d7e2b1414 Downloading 33.55MB
+ ff1ae98c5afe Downloading 1.049MB
+ c29f5b76f736 Downloading 20.97MB
+ 071d7e2b1414 Downloading 33.55MB
+ ff1ae98c5afe Downloading 2.097MB
+ c29f5b76f736 Downloading 20.97MB
+ 071d7e2b1414 Downloading 33.55MB
+ ff1ae98c5afe Downloading 2.097MB
+ c29f5b76f736 Downloading 22.02MB
+ 071d7e2b1414 Downloading 34.6MB
+ ff1ae98c5afe Downloading 2.097MB
+ ff1ae98c5afe Downloading 2.097MB
+ c29f5b76f736 Downloading 22.02MB
+ 071d7e2b1414 Downloading 35.65MB
+ c29f5b76f736 Downloading 22.02MB
+ 071d7e2b1414 Downloading 35.65MB
+ ff1ae98c5afe Downloading 2.097MB
+ c29f5b76f736 Downloading 23.07MB
+ 071d7e2b1414 Downloading 36.7MB
+ ff1ae98c5afe Downloading 3.146MB
+ 071d7e2b1414 Downloading 36.7MB
+ ff1ae98c5afe Downloading 3.146MB
+ c29f5b76f736 Downloading 23.07MB
+ ff1ae98c5afe Downloading 3.146MB
+ c29f5b76f736 Downloading 23.07MB
+ 071d7e2b1414 Downloading 37.75MB
+ c29f5b76f736 Downloading 24.12MB
+ 071d7e2b1414 Downloading 37.75MB
+ ff1ae98c5afe Downloading 3.146MB
+ c29f5b76f736 Downloading 24.12MB
+ 071d7e2b1414 Downloading 38.8MB
+ ff1ae98c5afe Downloading 3.146MB
+ c29f5b76f736 Downloading 24.12MB
+ 071d7e2b1414 Downloading 38.8MB
+ ff1ae98c5afe Downloading 4.194MB
+ c29f5b76f736 Downloading 25.17MB
+ 071d7e2b1414 Downloading 39.85MB
+ ff1ae98c5afe Downloading 4.194MB
+ c29f5b76f736 Downloading 25.17MB
+ 071d7e2b1414 Downloading 39.85MB
+ ff1ae98c5afe Downloading 4.194MB
+ c29f5b76f736 Downloading 25.17MB
+ 071d7e2b1414 Downloading 40.89MB
+ ff1ae98c5afe Downloading 4.194MB
+ c29f5b76f736 Downloading 26.21MB
+ 071d7e2b1414 Downloading 40.89MB
+ ff1ae98c5afe Downloading 4.194MB
+ c29f5b76f736 Downloading 26.21MB
+ 071d7e2b1414 Downloading 41.94MB
+ ff1ae98c5afe Downloading 4.194MB
+ c29f5b76f736 Downloading 27.26MB
+ 071d7e2b1414 Downloading 41.94MB
+ ff1ae98c5afe Downloading 5.243MB
+ 071d7e2b1414 Downloading 42.99MB
+ ff1ae98c5afe Downloading 5.243MB
+ c29f5b76f736 Downloading 27.26MB
+ ff1ae98c5afe Downloading 5.243MB
+ c29f5b76f736 Downloading 27.26MB
+ 071d7e2b1414 Downloading 42.99MB
+ c29f5b76f736 Download complete 0B
+ 071d7e2b1414 Downloading 44.04MB
+ ff1ae98c5afe Downloading 5.243MB
+ c29f5b76f736 Extracting 1B
+ ff1ae98c5afe Downloading 5.243MB
+ 071d7e2b1414 Downloading 45.09MB
+ c29f5b76f736 Extracting 1B
+ 071d7e2b1414 Downloading 46.14MB
+ ff1ae98c5afe Downloading 5.243MB
+ c29f5b76f736 Extracting 1B
+ 071d7e2b1414 Downloading 46.14MB
+ ff1ae98c5afe Downloading 6.291MB
+ c29f5b76f736 Extracting 1B
+ 071d7e2b1414 Downloading 47.19MB
+ ff1ae98c5afe Downloading 6.291MB
+ c29f5b76f736 Extracting 1B
+ 071d7e2b1414 Downloading 48.23MB
+ ff1ae98c5afe Downloading 6.291MB
+ c29f5b76f736 Extracting 1B
+ ff1ae98c5afe Downloading 6.291MB
+ 071d7e2b1414 Downloading 49.28MB
+ c29f5b76f736 Extracting 1B
+ 071d7e2b1414 Downloading 50.33MB
+ ff1ae98c5afe Downloading 6.291MB
+ c29f5b76f736 Extracting 1B
+ 071d7e2b1414 Downloading 51.38MB
+ ff1ae98c5afe Downloading 6.291MB
+ c29f5b76f736 Extracting 1B
+ 071d7e2b1414 Downloading 51.38MB
+ ff1ae98c5afe Downloading 7.34MB
+ 1b97e303d014 Extracting 1B
+ 5d09b270019a Pull complete 0B
+ c29f5b76f736 Pull complete 0B
+ 071d7e2b1414 Downloading 52.43MB
+ ff1ae98c5afe Downloading 7.34MB
+ 1b97e303d014 Pull complete 0B
+ 9d735a0b570c Pull complete 0B
+ 071d7e2b1414 Downloading 53.48MB
+ ff1ae98c5afe Downloading 7.34MB
+ 071d7e2b1414 Downloading 54.53MB
+ ff1ae98c5afe Downloading 7.34MB
+ 071d7e2b1414 Downloading 55.57MB
+ ff1ae98c5afe Download complete 0B
+ ff1ae98c5afe Extracting 1B
+ 071d7e2b1414 Downloading 56.62MB
+ ff1ae98c5afe Extracting 1B
+ 071d7e2b1414 Downloading 57.67MB
+ 6af5b0a8381b Pull complete 0B
+ f8a2f3f2bb57 Pull complete 0B
+ 3b6992cf2918 Pull complete 0B
+ ff1ae98c5afe Pull complete 0B
+ 071d7e2b1414 Downloading 58.72MB
+ 071d7e2b1414 Downloading 59.77MB
+ 071d7e2b1414 Downloading 60.82MB
+ 071d7e2b1414 Downloading 60.82MB
+ 071d7e2b1414 Downloading 62.91MB
+ 071d7e2b1414 Downloading 62.91MB
+ 071d7e2b1414 Downloading 65.01MB
+ 071d7e2b1414 Downloading 65.01MB
+ 071d7e2b1414 Downloading 66.06MB
+ 071d7e2b1414 Downloading 67.11MB
+ 071d7e2b1414 Downloading 68.16MB
+ 071d7e2b1414 Downloading 69.21MB
+ 071d7e2b1414 Downloading 70.25MB
+ 071d7e2b1414 Downloading 71.3MB
+ 071d7e2b1414 Downloading 72.35MB
+ 071d7e2b1414 Downloading 73.4MB
+ 071d7e2b1414 Downloading 74.45MB
+ 071d7e2b1414 Downloading 76.55MB
+ 071d7e2b1414 Downloading 77.59MB
+ 071d7e2b1414 Downloading 78.64MB
+ 071d7e2b1414 Downloading 79.69MB
+ 071d7e2b1414 Downloading 80.74MB
+ 071d7e2b1414 Downloading 80.74MB
+ 071d7e2b1414 Downloading 81.79MB
+ 071d7e2b1414 Downloading 83.89MB
+ 071d7e2b1414 Downloading 84.93MB
+ 071d7e2b1414 Downloading 85.98MB
+ 071d7e2b1414 Downloading 87.03MB
+ 071d7e2b1414 Downloading 88.08MB
+ 071d7e2b1414 Downloading 89.13MB
+ 071d7e2b1414 Downloading 89.13MB
+ 071d7e2b1414 Downloading 90.18MB
+ 071d7e2b1414 Downloading 92.27MB
+ 071d7e2b1414 Downloading 93.32MB
+ 071d7e2b1414 Downloading 94.37MB
+ 071d7e2b1414 Downloading 95.42MB
+ 071d7e2b1414 Downloading 96.47MB
+ 071d7e2b1414 Downloading 97.52MB
+ 071d7e2b1414 Downloading 98.57MB
+ 071d7e2b1414 Downloading 99.61MB
+ 071d7e2b1414 Downloading 100.7MB
+ 071d7e2b1414 Downloading 101.7MB
+ 071d7e2b1414 Downloading 102.8MB
+ 071d7e2b1414 Downloading 103.8MB
+ 071d7e2b1414 Downloading 104.9MB
+ 071d7e2b1414 Downloading 105.9MB
+ 071d7e2b1414 Downloading 107MB
+ 071d7e2b1414 Downloading 108MB
+ 071d7e2b1414 Download complete 0B
+ 071d7e2b1414 Extracting 1B
+ 071d7e2b1414 Extracting 1B
+ 071d7e2b1414 Extracting 1B
+ 071d7e2b1414 Extracting 1B
+ 071d7e2b1414 Extracting 1B
+ 071d7e2b1414 Extracting 1B
+ 071d7e2b1414 Extracting 1B
+ 071d7e2b1414 Extracting 1B
+ 071d7e2b1414 Extracting 1B
+ 071d7e2b1414 Extracting 1B
+ 071d7e2b1414 Extracting 1B
+ 071d7e2b1414 Extracting 2B
+ 071d7e2b1414 Extracting 2B
+ 071d7e2b1414 Extracting 2B
+ 071d7e2b1414 Extracting 2B
+ 071d7e2b1414 Extracting 2B
+ 071d7e2b1414 Extracting 2B
+ 92ce9438a1c4 Pull complete 0B
+ 9f4ee33118cf Pull complete 0B
+ 97dd3da5d022 Pull complete 0B
+ 161b744b7149 Pull complete 0B
+ 820eeecfbadf Pull complete 0B
+ 071d7e2b1414 Pull complete 0B
+ Image postgres:16.6 Pulled 
+ Network tezg_default Creating 
+ Network tezg_default Creating 
+ Network tezg_default Created 
+ Network tezg_default Created 
+ Container tezg-postgres-1 Creating 
+ Container tezg-postgres-1 Created 
+ Container tezg-postgres-1 Starting 
+ Container tezg-postgres-1 Started 
+ Container tezg-postgres-1 Waiting 
+ Container tezg-postgres-1 Healthy 
+
+> tezg@0.0.0 test:ci
+> npm run lint && npm run gate:deps && npm run gate:prisma && npm run test:unit && npm run gate:impl1
+
+
+> tezg@0.0.0 lint
+> node tools/lint/node_modules/eslint/bin/eslint.js .
+
+
+C:\Users\Usuario\Desktop\Universidad\S9\daia\final_project\Pok-mon-TCG-Marketplace-and-Collection-Management\_bmad-output\test-artifacts\atdd\com_supporting.test.ts
+  23:7  warning  'ledger' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\Usuario\Desktop\Universidad\S9\daia\final_project\Pok-mon-TCG-Marketplace-and-Collection-Management\_bmad-output\test-artifacts\atdd\inv_contracts.test.ts
+  9:10  warning  'admin' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\Usuario\Desktop\Universidad\S9\daia\final_project\Pok-mon-TCG-Marketplace-and-Collection-Management\_bmad-output\test-artifacts\atdd\ver_supporting.test.ts
+  17:10  warning  'application' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+✖ 3 problems (0 errors, 3 warnings)
+
+
+> tezg@0.0.0 gate:deps
+> node scripts/check-deps.mjs
+
+21 dependencies in 2 manifests: exact, approved, no high or critical advisory
+(node:22460) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+> tezg@0.0.0 gate:prisma
+> node scripts/gen-prisma-schema.mjs --check
+
+55 models, each tagged with its owning module; prisma/schema.prisma is current
+
+> tezg@0.0.0 test:unit
+> vitest run --project impl1-unit
+
+
+ RUN  v5.0.5 C:/Users/Usuario/Desktop/Universidad/S9/daia/final_project/Pok-mon-TCG-Marketplace-and-Collection-Management
+
+
+ Test Files  46 passed (46)
+      Tests  582 passed (582)
+   Start at  09:40:44
+   Duration  10.69s (tests 71%, import 15%, transform 13%, setup 1%, worker 1%)
+
+
+> tezg@0.0.0 gate:impl1
+> npm run typecheck && npm run test:lint-rules && npm run gate:api:solu2 && npm run gate:ui:solu2 && npm run gate:codes:solu2 && npm run gate:ids:solu2 && npm run gate:trace:solu2 && npm run gate:epics:solu2 && npm run gate:purity && npm run test:fitness:solu2 && npm run gate:atdd-red:impl1 && npm run gate:nfr-red:impl1
+
+
+> tezg@0.0.0 typecheck
+> tsc --noEmit
+
+
+> tezg@0.0.0 test:lint-rules
+> node --test tools/lint/tezg-plugin.test.mjs
+
+▶ tezg/error-owner
+  ▶ valid
+    ✔ const raise = raiserFor('identity'); raise('AdminOnly', [c]); (24.8019ms)
+    ✔ const raise = raiserFor('shared-kernel'); raise('EventDeliveryNotReplayable', [c]); (2.3909ms)
+    ✔ throw new DomainError(code, citations); (2.0765ms)
+    ✔ const raise = raiserFor('identity'); raise(code, [c]); (1.7005ms)
+    ✔ raiserFor('identity')('AdminOnly', [c]); (1.558ms)
+    ✔ const raise = raiserFor(`identity`); raise(`AdminOnly`, [c]); (1.7158ms)
+  ✔ valid (34.8528ms)
+  ▶ invalid
+    ✔ raiserFor('reviews')('AdminOnly', [c]); (2.3279ms)
+    ✔ function f() { fail('AdminOnly', [c]); } const fail = raiserFor('reviews'); (2.3684ms)
+    ✔ const raise = raiserFor('reviews'); raise(`AdminOnly`, [c]); (2.1631ms)
+    ✔ const raise = raiserFor('identity'); (1.5918ms)
+    ✔ const raise = raiserFor('reviews'); raise('AdminOnly', [c]); (1.4912ms)
+    ✔ raiserFor('identity'); (1.0718ms)
+    ✔ throw new DomainError('ListingNotFound', [c]); (1.1873ms)
+  ✔ invalid (12.4783ms)
+✔ tezg/error-owner (47.6202ms)
+▶ tezg/table-owner
+  ▶ valid
+    ✔ q(`UPDATE "User" SET "sellerTrack" = $2 WHERE id = $1`); (1.3703ms)
+    ✔ q(`SELECT 1 FROM "EventDelivery" WHERE status = 'pending' FOR UPDATE SKIP LOCKED`); (0.9719ms)
+    ✔ q('INSERT INTO audit_events (id) VALUES ($1)'); (0.8344ms)
+    ✔ q(`INSERT INTO "User" (id) VALUES ($1) ON CONFLICT (id) DO UPDATE SET "sellerTrack" = $2`); (0.9543ms)
+    ✔ q(`SELECT 1 FROM "EventDelivery" WHERE "eventId" = $1 FOR NO KEY UPDATE`); (0.8758ms)
+    ✔ const why = 'could not update the listing'; (0.9253ms)
+  ✔ valid (6.098ms)
+  ▶ invalid
+    ✔ q(`UPDATE "CommissionAccount" SET balance = 0`); (1.2687ms)
+    ✔ q('DELETE FROM "Listing" WHERE id = $1'); (0.9159ms)
+    ✔ q(`INSERT INTO "Nowhere" (id) VALUES (${id})`); (1.329ms)
+  ✔ invalid (3.6107ms)
+✔ tezg/table-owner (9.8069ms)
+▶ tezg/regulated-select
+  ▶ valid
+    ✔ q(`SELECT "contactPhoneE164" FROM "IndividualSellerProfile" WHERE "userId" = $1`); (1.8404ms)
+    ✔ q(`SELECT m.body FROM "Message" m WHERE m."conversationId" = $1`); (0.9592ms)
+    ✔ q(`SELECT EXISTS (SELECT 1 FROM "IndividualSellerProfile" p WHERE p."userId" = u.id) FROM "User" u LEFT JOIN LATERAL (SELECT * FROM "BusinessApplication" b WHERE b."businessId" = u.id) a ON true`); (1.124ms)
+    ✔ q(`SELECT seq, "senderId" FROM "Message" WHERE "conversationId" = $1`); (1.0108ms)
+  ✔ valid (5.0393ms)
+  ▶ invalid
+    ✔ q(`SELECT body FROM "Message"`); (1.2921ms)
+    ✔ q(`SELECT s.token FROM "Session" s`); (1.0884ms)
+    ✔ q(`SELECT "contactPhoneE164" FROM "IndividualSellerProfile"`); (2.5457ms)
+    ✔ q('SELECT type FROM "BusinessApplicationLegalIdentity" WHERE "applicationId" = $1'); (2.0826ms)
+    ✔ q(`SELECT * FROM "IndividualSellerProfile" WHERE "userId" = $1`); (1.8007ms)
+    ✔ q(`SELECT "proofObjectKey" FROM "TopUpRequest"`); (2.1063ms)
+    ✔ q(`SELECT c.id, m.* FROM "Conversation" c JOIN "Message" m ON m."conversationId" = c.id`); (1.4563ms)
+    ✔ q(`SELECT m.body FROM "Conversation" c, "Message" m WHERE m."conversationId" = c.id`); (1.0043ms)
+    ✔ q(`SELECT "userId", * FROM "IndividualSellerProfile"`); (1.083ms)
+  ✔ invalid (14.8784ms)
+✔ tezg/regulated-select (20.0122ms)
+▶ tezg/legal-identity-confined
+  ▶ valid
+    ✔ q(`SELECT l.type FROM "BusinessApplicationLegalIdentity" l WHERE l."applicationId" = $1`); (0.9405ms)
+    ✔ q(`INSERT INTO "LegalIdentityAccessLog" (id) VALUES ($1)`); (1.0132ms)
+    ✔ const why = 'legal identity read'; (1.0435ms)
+  ✔ valid (3.0945ms)
+  ▶ invalid
+    ✔ q("BusinessApplicationLegalIdentity"); (0.9354ms)
+    ✔ q(`INSERT INTO "BusinessApplicationLegalIdentity" ("applicationId") VALUES ($1) RETURNING number`); (0.9279ms)
+    ✔ q(`SELECT 1 FROM "BusinessApplicationLegalIdentity" WHERE "applicationId" = ${id}`); (0.948ms)
+  ✔ invalid (2.8966ms)
+✔ tezg/legal-identity-confined (6.0868ms)
+▶ the rules read their sources of truth
+  ✔ every DOMAIN_ERRORS code is parsed with its owner (0.3509ms)
+  ✔ REGULATED_COLUMNS names real columns and covers every `-- regulated` marker in the schema (17.8707ms)
+✔ the rules read their sources of truth (18.326ms)
+ℹ tests 43
+ℹ suites 13
+ℹ pass 43
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1453.1632
+
+> tezg@0.0.0 gate:api:solu2
+> node scripts/gen-solu2-api.mjs --check
+
+142 operations, 111 ingress procedures, 159 schemas, 37 core operations checked against contracts.md; surface is current
+
+> tezg@0.0.0 gate:ui:solu2
+> node scripts/check-ui-states.mjs --check
+
+43 pages, 327 states (138 data, 77 refusal, 112 client), 0 problems
+
+> tezg@0.0.0 gate:codes:solu2
+> node scripts/check-code-citations.mjs _bmad-output/planning-artifacts/detailed-design/contracts.md
+
+200 code citations checked, 0 problems
+
+> tezg@0.0.0 gate:ids:solu2
+> node scripts/check-test-ids.mjs
+
+190 test ids cited by contracts.md; 391 defined under _bmad-output/test-artifacts; 37 core operations
+
+> tezg@0.0.0 gate:trace:solu2
+> node scripts/gen-solu2-trace.mjs --check
+
+trace: 96 FRs, 56 NFRs, 61 AD rows, 20 risks, 112 clauses, 391 tests; 0 problems
+
+> tezg@0.0.0 gate:epics:solu2
+> node scripts/gen-solu2-epics.mjs --check
+
+_bmad-output/planning-artifacts/epics.md is current: 13 epics, 69 stories
+
+> tezg@0.0.0 gate:purity
+> node scripts/check-domain-purity.mjs
+
+13 domain files checked, 0 problems
+
+> tezg@0.0.0 test:fitness:solu2
+> vitest run --project solu2-fitness
+
+
+ RUN  v5.0.5 C:/Users/Usuario/Desktop/Universidad/S9/daia/final_project/Pok-mon-TCG-Marketplace-and-Collection-Management
+
+
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+   Start at  09:41:02
+   Duration  9.77s (tests 95%, transform 3%, import 2%)
+
+
+> tezg@0.0.0 gate:atdd-red:impl1
+> node scripts/check-atdd-red.mjs solu2-atdd 352 --status _bmad-output/implementation-artifacts/sprint-status.yaml --epics _bmad-output/planning-artifacts/epics.md
+
+solu2-atdd: 352 tests in 19 files; 28 red for the right reason; 324 green for done stories (363 contracts or test ids done); 0 not as expected
+
+> tezg@0.0.0 gate:nfr-red:impl1
+> node scripts/check-atdd-red.mjs solu2-nfr 3 --status _bmad-output/implementation-artifacts/sprint-status.yaml --epics _bmad-output/planning-artifacts/epics.md
+
+solu2-nfr: 23 tests in 12 files; 0 red for the right reason; 23 green for done stories (363 contracts or test ids done); 0 not as expected
+EXIT 0

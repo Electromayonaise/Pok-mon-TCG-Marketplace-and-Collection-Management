@@ -2,7 +2,7 @@
 // submission verdict judged from the latest application's snapshot only (AD-VER-3, FR-VER-6).
 // MSG-3's eligibility mapping. S-FR-VER-7's copy, S-FR-VER-2's queue cursor and S-FR-VER-5.audit's access-log cursor.
 import { describe, expect, it } from 'vitest';
-import { decodeAccessLogCursor, decodeQueueCursor, encodeAccessLogCursor, encodeQueueCursor, evaluateSubmission, isValidCc, isValidNit, messagingEligibility, nitCheckDigit, verificationCopy } from './domain/ver.js';
+import { decodeAccessLogCursor, decodeQueueCursor, encodeAccessLogCursor, encodeQueueCursor, evaluateSubmission, isValidCc, isValidNit, messagingEligibility, nitCheckDigit, rejectionSnapshot, verificationCopy } from './domain/ver.js';
 
 describe('nitCheckDigit / isValidNit (ADD-§2.5)', () => {
   it.each([
@@ -102,5 +102,15 @@ describe('messagingEligibility (MSG-3 Q1, Q-fail)', () => {
     expect(messagingEligibility('Pending')).toEqual({ status: 'Pending', verified: false });
     expect(messagingEligibility('Rejected')).toBeNull();
     expect(messagingEligibility('none')).toBeNull();
+  });
+});
+
+describe('rejectionSnapshot (VER-1 Q2, AD-VER-1 rule 5)', () => {
+  const now = new Date('2026-10-01T15:00:00.000Z');
+
+  it('a barred reason bars with no date; a cooldown reason dates the reapplication from the decision; a zero cooldown allows it at once', () => {
+    expect(rejectionSnapshot({ barred: true, cooldownDays: null }, now)).toEqual({ reapplyBarred: true, reapplyNotBefore: null });
+    expect(rejectionSnapshot({ barred: false, cooldownDays: 7 }, now)).toEqual({ reapplyBarred: false, reapplyNotBefore: new Date('2026-10-08T15:00:00.000Z') });
+    expect(rejectionSnapshot({ barred: false, cooldownDays: 0 }, now)).toEqual({ reapplyBarred: false, reapplyNotBefore: now });
   });
 });

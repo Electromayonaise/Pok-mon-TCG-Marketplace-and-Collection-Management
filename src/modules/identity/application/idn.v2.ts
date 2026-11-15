@@ -290,6 +290,26 @@ export class IdnServiceV2 implements IdnV2UseCases {
     const names = await this.reading((tx) => this.deps.repo.readDisplayNames(tx, distinct));
     return { names: distinct.flatMap((userId) => (names.has(userId) ? [{ userId, displayName: names.get(userId)! }] : [])) };
   }
+
+  /**
+   * S-FR-IDN-7 Q (Story 2.6): one `"AuthThrottleEvent"` per known key of a failed sign-in or a sign-up,
+   * the account id and/or the caller's `ipHmac`, never `''` (AD-IDN-3 rules 3–4). A request with neither writes nothing.
+   */
+  async recordAuthThrottleEvent({ scope, accountId, ipHmac }: { scope: 'signInFail' | 'signUp'; accountId: CuidId | null; ipHmac: string | null }): Promise<void> {
+    const { repo, transactions, clock, ids } = this.deps;
+    // Deferred from the Epic 2 review: the clock's millisecond instant, so `retryAt` frees the key on time.
+    const createdAt = clock.now().toISOString();
+    const keys = [accountId, ipHmac].filter((key): key is string => key !== null && key !== '');
+    if (keys.length === 0) return;
+    await transactions.run(async (tx) => {
+      for (const key of keys) await repo.insertThrottleEvent(tx, { id: ids.next(), scope, key, createdAt });
+    });
+  }
+
+  /** The account a sign-in names, for the per-account throttle key (Story 2.6); emails compare lower-cased. */
+  async accountIdForEmail(email: string): Promise<CuidId | null> {
+    return this.reading((tx) => this.deps.repo.readUserIdByEmail(tx, email.trim().toLowerCase()));
+  }
 }
 
 const holds = (derived: DerivedCapabilities, name: CapabilityValue['name']): boolean =>

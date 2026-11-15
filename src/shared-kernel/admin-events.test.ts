@@ -3,8 +3,8 @@
 // silence window, the 3 h boundary, the deliveries cursor and its refusal, the latest digest.
 import { describe, expect, it } from 'vitest';
 import { useTestDatabase } from '../../test-support/db.js';
-import { admin, at, DAY, explainAssert, HOUR, id, ins, rows, T0, wiring } from '../../test-support/solu2/fixtures.js';
-import { AdminEventsServiceV2, decodeDeliveryCursor, encodeDeliveryCursor, isTickSilent } from './admin-events.js';
+import { admin, at, DAY, explainAssert, failedDelivery as failedOutboxDelivery, HOUR, id, ins, jobRun, rows, T0, wiring } from '../../test-support/solu2/fixtures.js';
+import { AdminEventsServiceV2, decodeDeliveryCursor, encodeDeliveryCursor, isJobHealthDegraded, isTickSilent, JOB_HEALTH_WINDOW_MS, JOB_STUCK_AFTER_MS, jobHealthWindow, jobRunTotals, tickHealthReason } from './admin-events.js';
 import { OutboxDispatcherV2 } from './dispatcher.js';
 import { DomainError } from './errors.js';
 
@@ -14,8 +14,7 @@ const inputs = { eventId: id('ev1'), subscriber: 'listings' };
 
 async function failedDelivery() {
   await admin(db);
-  await ins(db, 'OutboxEvent', { id: id('ev1'), type: 'CommissionBalanceExhausted', aggregateId: id('tienda'), schemaVersion: 1, payload: JSON.stringify({ businessId: id('tienda'), ledgerSeq: 1, balanceAfter: 0 }) }, 'created');
-  await ins(db, 'EventDelivery', { eventId: id('ev1'), subscriber: 'listings', status: 'failed', attempts: 3, lastErrorCode: 'DeliveryAttemptsExhausted', firstFailedAt: at(-DAY), lastFailedAt: at(-DAY) });
+  await failedOutboxDelivery(db, { eventId: id('ev1'), type: 'CommissionBalanceExhausted', aggregateId: id('tienda'), payload: { businessId: id('tienda'), ledgerSeq: 1, balanceAfter: 0 }, subscriber: 'listings' });
 }
 
 function service(fail?: () => Error) {
@@ -117,5 +116,55 @@ describe('AdminEventsServiceV2.getDeliveryHealth', () => {
     expect(await service().getDeliveryHealth({ adminId: id('admin') })).toEqual({
       failedCount: 0, oldestFirstFailedAt: null, stuckPendingCount: 0, latestDigest: { date: '2026-09-30', count: 2, stuckPendingCount: 1 },
     });
+  });
+});
+
+// Architecture audit F3 (decision log Impl-2 #34): tick health also reads each job's runs, so a failing or stuck job
+// turns the health degraded instead of reading "on schedule".
+describe('the job-health rule (pure)', () => {
+  it('the window starts 24 h before the read and a run is stuck 15 min after its start', () => {
+    expect(jobHealthWindow(new Date(T0))).toEqual({ readAt: T0, since: at(-DAY), stuckBefore: at(-15 * 60_000) });
+    expect([JOB_HEALTH_WINDOW_MS, JOB_STUCK_AFTER_MS]).toEqual([DAY, 15 * 60_000]);
+  });
+
+  it('is degraded when any job has a failed or a stuck run, and the totals add every job', () => {
+    const job = (failedInWindow: number, stuckRunning: number) => ({ failedInWindow, stuckRunning });
+    expect([isJobHealthDegraded([]), isJobHealthDegraded([job(0, 0), job(0, 0)]), isJobHealthDegraded([job(0, 0), job(1, 0)]), isJobHealthDegraded([job(0, 1)])])
+      .toEqual([false, false, true, true]);
+    expect(jobRunTotals([job(2, 0), job(1, 1), job(0, 3)])).toEqual({ failedRuns: 3, stuckRuns: 4 });
+  });
+
+  it('a silent tick is the reason first, then degraded jobs, else on schedule', () => {
+    expect([tickHealthReason(true, true), tickHealthReason(true, false), tickHealthReason(false, true), tickHealthReason(false, false)])
+      .toEqual(['TickSilent', 'TickSilent', 'ScheduledJobsDegraded', 'TickOnSchedule']);
+  });
+});
+
+describe('AdminEventsServiceV2.getTickHealth: the jobs (Postgres)', () => {
+  const run = (name: string, job: string, startedAt: string, outcome: 'running' | 'succeeded' | 'skipped' | 'failed', errorCode: string | null = null) =>
+    jobRun(db, { id: id(name), job, startedAt, outcome, errorCode });
+
+  it('counts failed runs after the window start only, stuck runs older than 15 min only, and reads each job\'s latest run', async () => {
+    await run('f-edge', 'trm-fetch', at(-DAY), 'failed', 'NotImplemented');
+    await run('f-in', 'trm-fetch', at(-DAY + 1), 'failed', 'NotImplemented');
+    await run('ok', 'trm-fetch', at(-HOUR), 'succeeded');
+    await run('s-edge', 'expiry-materialize', at(-15 * 60_000), 'running');
+    await run('s-in', 'outbox-sweep', at(-15 * 60_000 - 1), 'running');
+    await run('s-old', 'outbox-sweep', at(-DAY - 1), 'running');
+    // A run after the read is not seen yet (the Clock is the only time source).
+    await run('future', 'commission-reconcile', at(1), 'failed', 'Unexpected');
+    const health = await service().getTickHealth({ adminId: id('admin') });
+    expect(health.jobs).toEqual([
+      { job: 'expiry-materialize', lastOutcome: 'running', lastErrorCode: null, lastStartedAt: at(-15 * 60_000), failedInWindow: 0, stuckRunning: 0 },
+      { job: 'outbox-sweep', lastOutcome: 'running', lastErrorCode: null, lastStartedAt: at(-15 * 60_000 - 1), failedInWindow: 0, stuckRunning: 1 },
+      { job: 'trm-fetch', lastOutcome: 'succeeded', lastErrorCode: null, lastStartedAt: at(-HOUR), failedInWindow: 1, stuckRunning: 0 },
+    ]);
+    expect(health.degraded).toBe(true);
+    explainAssert(health.decision, { code: 'ScheduledJobsDegraded', outcome: 'allowed', rule: 'AD-SYS-2', inputs: { failedRuns: 1, stuckRuns: 1, readAt: T0 } });
+  });
+
+  it('with no job run at all it reads no jobs, not degraded, on schedule outside the silence window', async () => {
+    const health = await service().getTickHealth({ adminId: id('admin') });
+    expect([health.jobs, health.degraded, health.decision.reasonCode]).toEqual([[], false, 'TickOnSchedule']);
   });
 });

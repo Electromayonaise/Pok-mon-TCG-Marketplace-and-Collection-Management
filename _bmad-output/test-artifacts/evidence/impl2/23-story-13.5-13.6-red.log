@@ -1,0 +1,150 @@
+# Flow A red phase — Stories 13.5 and 13.6 (decision log Impl-2 #18). Captured 2026-11-04T05:43:15Z on branch impl-2 at a440983 + the red commit's working tree,
+# before any Story 13.5/13.6 code existed (InvServiceV2.setListingHidden, listListingModerationLog and RepServiceV2.searchReviews, listReviewModerationLog, getProfile throw NotImplementedError).
+# The 6 Solu-2 bound tests of 13.5 and 13.6 and the new [S-FR-REP-7.C1] (atdd/rep_contracts.test.ts) and [S-FR-REP-5.C1] (atdd/inv_supporting.test.ts) fail on NotImplemented.
+# solu2-atdd now runs 3 files at a time (vitest.config.ts maxWorkers): with 16 workers the 60-connection pools reached the server's 200 and done races failed on 53300.
+$ npx vitest run --project solu2-atdd inv_supporting.test.ts rep_contracts.test.ts -t "S-FR-REP-[567]"
+
+ RUN  v5.0.5 C:/Users/Usuario/Desktop/Universidad/S9/daia/final_project/Pok-mon-TCG-Marketplace-and-Collection-Management
+
+ ❯ |solu2-atdd| _bmad-output/test-artifacts/atdd/inv_supporting.test.ts (21 tests | 3 failed | 18 skipped) 243ms
+   ❯ Supporting INV contracts (contracts.md §15) (15)
+     × [S-FR-REP-5.h] an admin hide removes the listing from discovery and logs a title snapshot 36ms
+     × [S-FR-REP-5.f] hiding twice writes one log row and returns an explained no-op 33ms
+     × [S-FR-REP-5.C1] 20 concurrent hides of one listing: exactly one hide, one ListingModerationLog row and one audit row; every other call is the explained no-op 34ms
+ ❯ |solu2-atdd| _bmad-output/test-artifacts/atdd/rep_contracts.test.ts (27 tests | 5 failed | 22 skipped) 331ms
+   ❯ S-FR-REP-6 — admin review search and moderation log (contracts.md §15) (2)
+     × [S-FR-REP-6.h] the review log reads newest first by (at desc, id), the order the 11.4 RSC merges with the listing log 32ms
+     × [S-FR-REP-6.f] the query "100%" matches only the literal text: % and _ are escaped 29ms
+   ❯ S-FR-REP-7 — profile (contracts.md §15) (3)
+     × [S-FR-REP-7.h] a hidden review is neither listed nor counted; aggregate and page agree 27ms
+     × [S-FR-REP-7.C1] 100 rounds of profile reads racing hides and unhides of the seller’s reviews: every read’s aggregate counts and averages exactly the reviews it lists 87ms
+     × [S-FR-REP-7.f] an unknown user is TargetNotFound (404) 29ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/inv_supporting.test.ts > Supporting INV contracts (contracts.md §15) > [S-FR-REP-5.h] an admin hide removes the listing from discovery and logs a title snapshot
+NotImplementedError: NotImplemented: listings.setListingHidden
+ ❯ InvServiceV2.setListingHidden src/modules/listings/application/inv.v2.ts:584:11
+    582|
+    583|   async setListingHidden(_input: SetListingHiddenRequest): Promise<Set…
+    584|     throw new NotImplementedError('listings.setListingHidden');
+       |           ^
+    585|   }
+    586|
+ ❯ _bmad-output/test-artifacts/atdd/inv_supporting.test.ts:132:34
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/inv_supporting.test.ts > Supporting INV contracts (contracts.md §15) > [S-FR-REP-5.f] hiding twice writes one log row and returns an explained no-op
+NotImplementedError: NotImplemented: listings.setListingHidden
+ ❯ InvServiceV2.setListingHidden src/modules/listings/application/inv.v2.ts:584:11
+    582|
+    583|   async setListingHidden(_input: SetListingHiddenRequest): Promise<Set…
+    584|     throw new NotImplementedError('listings.setListingHidden');
+       |           ^
+    585|   }
+    586|
+ ❯ _bmad-output/test-artifacts/atdd/inv_supporting.test.ts:141:15
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/inv_supporting.test.ts > Supporting INV contracts (contracts.md §15) > [S-FR-REP-5.C1] 20 concurrent hides of one listing: exactly one hide, one ListingModerationLog row and one audit row; every other call is the explained no-op
+NotImplementedError: NotImplemented: listings.setListingHidden
+ ❯ InvServiceV2.setListingHidden src/modules/listings/application/inv.v2.ts:584:11
+    582|
+    583|   async setListingHidden(_input: SetListingHiddenRequest): Promise<Set…
+    584|     throw new NotImplementedError('listings.setListingHidden');
+       |           ^
+    585|   }
+    586|
+ ❯ _bmad-output/test-artifacts/atdd/inv_supporting.test.ts:152:62
+ ❯ test-support/concurrency.ts:14:68
+ ❯ race test-support/concurrency.ts:16:19
+ ❯ _bmad-output/test-artifacts/atdd/inv_supporting.test.ts:152:37
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/rep_contracts.test.ts > S-FR-REP-6 — admin review search and moderation log (contracts.md §15) > [S-FR-REP-6.h] the review log reads newest first by (at desc, id), the order the 11.4 RSC merges with the listing log
+NotImplementedError: NotImplemented: reviews.listReviewModerationLog
+ ❯ RepServiceV2.listReviewModerationLog src/modules/reviews/application/rep.v2.ts:252:11
+    250|
+    251|   async listReviewModerationLog(_input: ListReviewModerationLogRequest…
+    252|     throw new NotImplementedError('reviews.listReviewModerationLog');
+       |           ^
+    253|   }
+    254|
+ ❯ _bmad-output/test-artifacts/atdd/rep_contracts.test.ts:257:46
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/rep_contracts.test.ts > S-FR-REP-6 — admin review search and moderation log (contracts.md §15) > [S-FR-REP-6.f] the query "100%" matches only the literal text: % and _ are escaped
+NotImplementedError: NotImplemented: reviews.searchReviews
+ ❯ RepServiceV2.searchReviews src/modules/reviews/application/rep.v2.ts:248:11
+    246|
+    247|   async searchReviews(_input: SearchReviewsRequest): Promise<SearchRev…
+    248|     throw new NotImplementedError('reviews.searchReviews');
+       |           ^
+    249|   }
+    250|
+ ❯ _bmad-output/test-artifacts/atdd/rep_contracts.test.ts:266:47
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/rep_contracts.test.ts > S-FR-REP-7 — profile (contracts.md §15) > [S-FR-REP-7.h] a hidden review is neither listed nor counted; aggregate and page agree
+NotImplementedError: NotImplemented: reviews.getProfile
+ ❯ RepServiceV2.getProfile src/modules/reviews/application/rep.v2.ts:256:11
+    254|
+    255|   async getProfile(_input: GetProfileRequest): Promise<GetProfileRespo…
+    256|     throw new NotImplementedError('reviews.getProfile');
+       |           ^
+    257|   }
+    258| }
+ ❯ _bmad-output/test-artifacts/atdd/rep_contracts.test.ts:277:50
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/rep_contracts.test.ts > S-FR-REP-7 — profile (contracts.md §15) > [S-FR-REP-7.C1] 100 rounds of profile reads racing hides and unhides of the seller’s reviews: every read’s aggregate counts and averages exactly the reviews it lists
+NotImplementedError: NotImplemented: reviews.getProfile
+ ❯ RepServiceV2.getProfile src/modules/reviews/application/rep.v2.ts:256:11
+    254|
+    255|   async getProfile(_input: GetProfileRequest): Promise<GetProfileRespo…
+    256|     throw new NotImplementedError('reviews.getProfile');
+       |           ^
+    257|   }
+    258| }
+ ❯ read _bmad-output/test-artifacts/atdd/rep_contracts.test.ts:292:28
+ ❯ _bmad-output/test-artifacts/atdd/rep_contracts.test.ts:298:87
+ ❯ test-support/concurrency.ts:14:68
+ ❯ race test-support/concurrency.ts:16:19
+ ❯ _bmad-output/test-artifacts/atdd/rep_contracts.test.ts:298:39
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/rep_contracts.test.ts > S-FR-REP-7 — profile (contracts.md §15) > [S-FR-REP-7.f] an unknown user is TargetNotFound (404)
+AssertionError: expected 'NotImplementedError' to be 'TargetNotFound' // Object.is equality
+
+Expected: "TargetNotFound"
+Received: "NotImplementedError"
+
+ ❯ _bmad-output/test-artifacts/atdd/rep_contracts.test.ts:314:27
+    312|     await people();
+    313|     const error = await caught(() => setup({ targets }).rep.getProfile…
+    314|     expect(codeOf(error)).toBe('TargetNotFound');
+       |                           ^
+    315|     expect(httpOf(error)).toBe(404);
+    316|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  8 failed | 40 skipped (48)
+   Start at  00:43:17
+   Duration  792ms (tests 51%, import 25%, transform 22%, setup 1%, worker 1%)
+
+
+$ npm run gate:atdd-red:impl1
+> tezg@0.0.0 gate:atdd-red:impl1
+> node scripts/check-atdd-red.mjs solu2-atdd 352 --status _bmad-output/implementation-artifacts/sprint-status.yaml --epics _bmad-output/planning-artifacts/epics.md
+
+solu2-atdd: 372 tests in 24 files; 8 red for the right reason; 364 green for done stories (406 contracts or test ids done); 0 not as expected

@@ -1,0 +1,179 @@
+# Impl-2 close, the test-review remediation (decision log Impl-2 #24, 2026-11-04): key lines.
+# Changes: the seven files over 300 lines split by procedure into 23 (HIGH-1..7); a fresh composed app per test in
+# test-support/http-app.ts, the clock reset in atdd/sys_jobs.test.ts and an own id generator in pg-outbox.test.ts (HIGH-8
+# and the two order dependences a shuffled run of every project found); the factories of test-support/solu2/fixtures.ts
+# used where rows were inline (MEDIUM-1); 48 pure unit tests of the Impl-2 rules, each group broken once on purpose;
+# the three unused variables of Impl-1 LOW-2 removed. Then test-review.md re-run: 100 / 100 (A), Approve.
+
+## 1. The order dependence, before the fix (HEAD 5f445dc)
+$ npx vitest run --project impl1-unit src/server/composition.test.ts --sequence.shuffle --sequence.seed=3
+      Tests  3 failed | 64 passed (67)
+  FAIL completeIndividualProfile (:90), orders.create (:509), the inbox (:744): each instant 120 s late
+
+$ npx vitest run --project <p> --sequence.shuffle --sequence.seed=3   (every project, before the fix)
+impl1-unit     exit 1   Tests 4 failed | 674 passed (678)
+  FAIL src/server/composition.test.ts (the 3 above)
+  FAIL src/shared-kernel/infra/pg-outbox.test.ts > PgOutboxV2.enqueue > writes the event and one pending delivery per subscriber
+       expected eventId n…01, received n…04: wiring(db) shares one id sequence per file
+solu2-atdd     exit 1   Tests 1 failed | 372 passed (373)
+  FAIL atdd/sys_jobs.test.ts > [S-SYS.jobs.h]: startedAt/finishedAt 15:00:00.001Z, expected 15:00:00.000Z (a shared clock advanced by another test)
+solu2-fitness  exit 0   Tests 12 passed (12)
+
+## 2. After the fix: every project shuffled, five seeds (final code, commits 276c280 and 2501bf6)
+  seed 1 impl1-unit exit 0  Test Files 70 passed (70)  Tests 726 passed (726) 
+  seed 1 solu2-atdd exit 0  Test Files 25 passed (25)  Tests 373 passed (373) 
+  seed 1 solu2-fitness exit 0  Test Files 2 passed (2)  Tests 12 passed (12) 
+  seed 2 impl1-unit exit 0  Test Files 70 passed (70)  Tests 726 passed (726) 
+  seed 2 solu2-atdd exit 0  Test Files 25 passed (25)  Tests 373 passed (373) 
+  seed 2 solu2-fitness exit 0  Test Files 2 passed (2)  Tests 12 passed (12) 
+  seed 3 impl1-unit exit 0  Test Files 70 passed (70)  Tests 726 passed (726) 
+  seed 3 solu2-atdd exit 0  Test Files 25 passed (25)  Tests 373 passed (373) 
+  seed 3 solu2-fitness exit 0  Test Files 2 passed (2)  Tests 12 passed (12) 
+  seed 42 impl1-unit exit 0  Test Files 70 passed (70)  Tests 726 passed (726) 
+  seed 42 solu2-atdd exit 0  Test Files 25 passed (25)  Tests 373 passed (373) 
+  seed 42 solu2-fitness exit 0  Test Files 2 passed (2)  Tests 12 passed (12) 
+  seed 1234 impl1-unit exit 0  Test Files 70 passed (70)  Tests 726 passed (726) 
+  seed 1234 solu2-atdd exit 0  Test Files 25 passed (25)  Tests 373 passed (373) 
+  seed 1234 solu2-fitness exit 0  Test Files 2 passed (2)  Tests 12 passed (12) 
+
+## 3. solu2-nfr shuffled (seed 3)
+  default file parallelism, three runs: each 3 of 30 failed on p95 thresholds
+    run on a quiet machine: [NFR-IDN-1.capabilities] 52.8 ms, [.eligibility] 54.8 ms, [.sellerKinds] 108.2 ms (threshold 50; 4.2-13.1 ms at the close)
+    runs sharing the machine: also [NFR-MSG-1.contact] 235.5 ms (200) and [NFR-COM-3.deduction]
+  the three files alone, shuffled: Tests 7 passed (7)
+  --no-file-parallelism, shuffled:  Tests 30 passed (30)   Duration 878.01s (tests 100%)
+  then test:ci in file order failed twice the same way (Vitest runs last-failed files first; with no cache, by size):
+    solu2-nfr: 30 tests in 15 files; 0 red for the right reason; 27 green for done stories (419 contracts or test ids done); 3 not as expected
+    solu2-nfr: 30 tests in 15 files; 0 red for the right reason; 24 green for done stories (419 contracts or test ids done); 6 not as expected
+  agent default: vitest.config.ts solu2-nfr fileParallelism: false (section 6 is that run)
+
+## 4. Mutation checks of the 48 new pure tests
+  ## cursors: `src/modules/listings/domain/inv.ts`
+  - broken: `if (rest.length > 0 || !createdAt` -> `if (!createdAt`
+  - exit 1; Tests 1 failed | 10 passed (11)
+    - FAIL src/modules/listings/inv-domain.test.ts > the listing keyset cursor (S-FR-INV-10.mine, S-FR-REP-6.listing log) > refuses a non-canonical or impossible instant, a malformed id, a missing or extra part, and noise
+  
+  ## jobs: jobErrorCode: `src/shared-kernel/jobs.ts`
+  - broken: `if (error instanceof NotImplementedError) return 'NotImplemented';` -> `(removed)`
+  - exit 1; Tests 2 failed | 4 passed (6)
+    - FAIL src/shared-kernel/job-runner.test.ts > jobErrorCode (the errorCode a failed JobRun stores) > is a DomainError's own code, NotImplemented for a missing adapter, and Unexpected for anything else
+    - FAIL src/shared-kernel/job-runner.test.ts > JobRunner.run (AD-SYS-4 rule 7) > work that throws ends failed with its error code, returns the error for the log, and still releases the lock
+  
+  ## jobs: the runner's instants: `src/shared-kernel/jobs.ts`
+  - broken: `const finishedAt = clock.now().toISOString();` -> `const finishedAt = startedAt;`
+  - exit 1; Tests 1 failed | 5 passed (6)
+    - FAIL src/shared-kernel/job-runner.test.ts > JobRunner.run (AD-SYS-4 rule 7) > commits a running row before the work starts, then finishes it succeeded with the Clock's instants, and releases job:<name> last
+  
+  ## jobs: the trigger rule: `src/server/jobs.ts`
+  - broken: `if (!isTrigger(trigger) || !work.triggers.includes(trigger))` -> `if (!isTrigger(trigger))`
+  - exit 1; Tests 1 failed | 4 passed (5)
+    - FAIL src/server/jobs.test.ts > serveJob — every refusal comes before a run (S-9, AD-SYS-1) > a missing trigger, or one this job does not take, is 400 on trigger naming the triggers it takes
+  
+  ## jobs: the job-name rule: `src/server/jobs.ts`
+  - broken: `const job = url.pathname.replace(/^.*\/api\/jobs\//, '').replace(/\/$/, '');` -> `const job = url.pathname.replace(/^.*\/api\/jobs\//, '');`
+  - exit 1; Tests 1 failed | 4 passed (5)
+    - FAIL src/server/jobs.test.ts > serveJob — the run becomes the answer > a run is 200 with the job, its trigger, its run id, its outcome and its result; a trailing slash names the same job
+  
+  ## auth-routes: the consent rule: `src/server/auth-routes.ts`
+  - broken: `if (consentVersion !== CURRENT_CONSENT_VERSION) issues.push` -> `if (consentVersion === undefined) issues.push`
+  - exit 1; Tests 1 failed | 7 passed (8)
+    - FAIL src/server/auth-routes.test.ts > serveAuth — sign-up (AD-IDN-3 rule 1) > a missing consent and a stale version are both named, before the throttle; a body that is not a JSON object is refused
+  
+  ## auth-routes: the forwarded body: `src/server/auth-routes.ts`
+  - broken: `headers.delete('content-length');` -> `(removed)`
+  - exit 1; Tests 1 failed | 7 passed (8)
+    - FAIL src/server/auth-routes.test.ts > serveAuth — sign-up (AD-IDN-3 rule 1) > a valid sign-up is checked against the IP limit, forwarded without the consent fields or a stale length, then counted once
+  
+  ## auth-routes: the sign-in record: `src/server/auth-routes.ts`
+  - broken: `if (res.status === 401) await guard.recordAuthThrottleEvent` -> `if (res.status !== 0) await guard.recordAuthThrottleEvent`
+  - exit 1; Tests 1 failed | 7 passed (8)
+    - FAIL src/server/auth-routes.test.ts > serveAuth — sign-in (AD-IDN-3 rules 3–4) > checks the account and the IP before the password, and records one failure only when Better Auth answers 401
+  
+  ## moderation-log merge: `src/server/moderation-log.ts`
+  - broken: `a.at === b.at ? (a.logId < b.logId ? 1 : a.logId > b.logId ? -1 : 0)` -> `a.at === b.at ? (a.kind === b.kind ? (a.logId < b.logId ? 1 : -1) : a.kind === 'review' ? -1 : 1)`
+  - exit 1; Tests 1 failed | 2 passed (3)
+    - FAIL src/server/moderation-log.test.ts > mergeModerationLogs (AD-REP-3 rule 5) > breaks a tie at one instant by the id across the two logs, and a smaller limit keeps the newest rows of both
+  
+  ## destination: `app/ingresar/destination.ts`
+  - broken: `const WHITESPACE_OR_CONTROL = /[\s\u0000-\u001f\u007f-\u009f]/u;` -> `const WHITESPACE_OR_CONTROL = /[\s]/u;`
+  - exit 1; Tests 1 failed | 5 passed (6)
+    - FAIL app/ingresar/destination.test.ts > destination after sign-in (?siguiente=) > refuses a NUL, a DEL and a C1 control character, which the parser would percent-encode and keep on this site
+  
+  ## binder sort: `src/modules/collections/domain/col.ts`
+  - broken: `return sort.length <= MAX_SORT_KEYS && new Set(sort).size === sort.length;` -> `return sort.length <= MAX_SORT_KEYS;`
+  - exit 1; Tests 1 failed | 20 passed (21)
+    - FAIL src/modules/collections/col-domain.test.ts > the binder sort and the manual reorder (S-FR-COL-5, S-FR-COL-5.reorder) > a sort holds at most three keys and never repeats one; no keys is the manual order
+  
+  ## reorder: `src/modules/collections/domain/col.ts`
+  - broken: `return named.size === ordered.length && named.size === have.size && ordered.every((e) => have.has(e));` -> `return named.size === have.size && ordered.every((e) => have.has(e));`
+  - exit 1; Tests 1 failed | 20 passed (21)
+    - FAIL src/modules/collections/col-domain.test.ts > the binder sort and the manual reorder (S-FR-COL-5, S-FR-COL-5.reorder) > a reorder names every entry of the collection exactly once: none left out, repeated or foreign
+  
+  ## read state: `src/modules/messaging/domain/msg.ts`
+  - broken: `return clampReadSeq(seq, lastSeq) > lastReadSeq;` -> `return seq > lastReadSeq;`
+  - exit 1; Tests 1 failed | 8 passed (9)
+    - FAIL src/modules/messaging/msg-domain.test.ts > read state (AD-MSG-3 rules 1–2; Story 9.6) > a read mark moves only forward: a stale tab, the same seq or a seq past the last message already read writes nothing
+  
+  ## auth throttle: `src/modules/identity/domain/idn.ts`
+  - broken: `if (refusal === null || retryAt > refusal.retryAt) refusal` -> `if (refusal === null) refusal`
+  - exit 1; Tests 1 failed | 10 passed (11)
+    - FAIL src/modules/identity/idn-domain.test.ts > throttleRefusal (AD-IDN-3 rule 3, Story 2.6) > with both limits tripped the latest retryAt wins, whichever is listed first
+  
+  ## binder page rules: `app/coleccion/binder.ts`
+  - broken: `.slice(0, 3) as BinderSortKey[]` -> ` as BinderSortKey[]`
+  - exit 1; Tests 1 failed | 3 passed (4)
+    - FAIL app/coleccion/binder.test.ts > the binder URL parameters (?orden=, ?pagina=) > ?orden= keeps up to 3 distinct known keys in order; anything else falls back to the manual order
+  
+  ## the API client: `app/_client/api.ts`
+  - broken: `if (res.ok && body?.result) return` -> `if (res.ok) return`
+  - exit 1; Tests 1 failed | 2 passed (3)
+    - FAIL app/_client/api.test.ts > query and mutate (R-9: no batching) > a refusal keeps its status and ErrorBody; a body that is not JSON keeps the status with no error; a lost connection is status 0
+  
+  ## other domain rules: the comprobante key: `src/modules/orders/domain/ord.ts`
+  - broken: `return key.startsWith(prefix) && /^[a-z0-9]{1,64}$/.test(key.slice(prefix.length));` -> `return key.startsWith(prefix);`
+  - exit 1; Tests 1 failed | 14 passed (15)
+    - FAIL src/modules/orders/ord-domain.test.ts > the comprobante upload key (AD-SYS-8 rule 5.3) > is exactly the buyer's prefix and one id segment of 1–64 lowercase letters or digits, so no other object is named
+  
+  ## other domain rules: the rejection snapshot: `src/modules/identity/domain/ver.ts`
+  - broken: `(policy.cooldownDays ?? 0) * DAY_MS` -> `(policy.cooldownDays ?? 0) * DAY_MS - 1`
+  - exit 1; Tests 1 failed | 29 passed (30)
+    - FAIL src/modules/identity/ver-domain.test.ts > rejectionSnapshot (VER-1 Q2, AD-VER-1 rule 5) > a barred reason bars with no date; a cooldown reason dates the reapplication from the decision; a zero cooldown allows it at once
+  
+  ## restored: every file back as committed; the same tests: exit 0; Tests 132 passed (132)
+
+## 5. The pyramid (scripted count: it/test blocks, it.each once; integration = registers a test database)
+  a7c5d81 {'unit': 183, 'integration': 681, 'e2e': 0, 'nfr': 23} k6 0 shares {'unit': 21.2, 'integration': 78.8, 'e2e': 0.0} total 887
+  478e3c6 {'unit': 236, 'integration': 745, 'e2e': 6, 'nfr': 30} k6 2 shares {'unit': 23.9, 'integration': 75.5, 'e2e': 0.6} total 1019
+  HEAD {'unit': 284, 'integration': 745, 'e2e': 6, 'nfr': 30} k6 2 shares {'unit': 27.4, 'integration': 72.0, 'e2e': 0.6} total 1067
+  Impl-2 added (HEAD - a7c5d81): unit 101, integration 64, E2E 6 = 59.1 / 37.4 / 3.5 % (before: 53 / 64 / 6 = 43.1 / 52.0 / 4.9 %), NFR 9
+
+## 6. npm run test:ci (with solu2-nfr one file at a time; 11:07:20-11:22:50)
+  20:no-sleep: 346 files checked, 7 rules proven on planted violations, 0 problems
+  39: Test Files  70 passed (70)
+  40:      Tests  726 passed (726)
+  48:All files          |   99.05 |    97.48 |     100 |     100 |                   
+  161:143 operations, 112 ingress procedures, 160 schemas, 37 core operations checked against contracts.md; surface is current
+  166:43 pages, 327 states (138 data, 77 refusal, 112 client), 0 problems
+  171:204 code citations checked, 0 problems
+  181:trace: 96 FRs, 56 NFRs, 61 AD rows, 31 risks, 114 clauses, 419 test ids (419 enforced green), 4 journeys, 1 k6 scripts; gate PASS; 0 problems
+  191:13 domain files checked, 0 problems
+  194:> vitest run --project solu2-fitness
+  200: Test Files  2 passed (2)
+  201:      Tests  12 passed (12)
+  209:solu2-atdd: 373 tests in 25 files; 0 red for the right reason; 373 green for done stories (419 contracts or test ids done); 0 not as expected
+  214:solu2-nfr: 30 tests in 15 files; 0 red for the right reason; 30 green for done stories (419 contracts or test ids done); 0 not as expected
+  215:EXIT 0
+
+## 7. npx playwright test
+  [WebServer] ✓ Running next.config.ts took 37ms
+  [WebServer] ✓ Compiled successfully in 1055ms
+  [WebServer] ✓ Generating static pages using 15 workers (3/3) in 749ms
+  [WebServer] ✓ Ready in 302ms
+  [WebServer] ✓ Running next.config.ts took 49ms
+    ✓  1 [chromium] › _bmad-output\test-artifacts\e2e\binder.spec.ts:17:1 › Julián re-sorts his binder, the order survives a reload, and a promo added by an https link lands in a pocket after an http:// link is refused (2.4s)
+    ✓  2 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:15:1 › Camila reads a conversation, its badge clears, and muting another takes it out of her unread total (1.4s)
+    ✓  3 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:50:1 › a wrong password keeps Camila on the sign-in page with the es-CO error (1.1s)
+    ✓  4 [chromium] › _bmad-output\test-artifacts\e2e\profile.spec.ts:14:1 › a visitor with no session reads Lucía’s rating and reviews, without the review moderation hid (430ms)
+    ✓  5 [chromium] › _bmad-output\test-artifacts\e2e\profile.spec.ts:31:1 › an id that is no seller shows the es-CO Not-available page (411ms)
+    ✓  6 [chromium] › _bmad-output\test-artifacts\e2e\smoke.spec.ts:7:1 › a visitor opens TEZG and sees the service ready (379ms)
+    6 passed (24.0s)

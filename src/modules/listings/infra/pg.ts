@@ -7,7 +7,8 @@ import { COLOMBIA_BBOX, type Condition, type CuidId, type IsoInstant } from '../
 import { boundingBox, EARTH_RADIUS_KM, RADIUS_EPSILON_KM, type Area } from '../domain/dsc.js';
 import type { ContactListingRow, ContactRepository, ContactWindows } from '../ports/contact.v2.js';
 import type { DscRepository, ListingPage, ListingQuery, RankedListingRow } from '../ports/dsc.v2.js';
-import type { AvailabilityCandidate, InvRepository, ListingDetailRow, ListingHeader, ListingUnit, NewListingRow, ReserveFacts, ResolvedUnit } from '../ports/inv.v2.js';
+import type { ListingHideReason, ListingModerationLogRow } from '../dto/inv.v2.dto.js';
+import type { AvailabilityCandidate, InvTablesRepository, ListingDetailRow, ListingHeader, ListingUnit, ModeratedListing, NewListingModerationLog, NewListingRow, ReserveFacts, ResolvedUnit } from '../ports/inv.v2.js';
 import type { IDiscoveryQuery, IInventoryUnitRepository, IListingRepository } from '../ports/listings.js';
 
 export class PgListingRepository implements IListingRepository {
@@ -69,7 +70,7 @@ type DetailRow = Omit<ListingDetailRow, 'priceCop' | 'createdAt' | 'ledgerSeq'> 
 const detail = (r: DetailRow): ListingDetailRow => ({ ...r, priceCop: Number(r.priceCop), ledgerSeq: r.ledgerSeq === null ? null : Number(r.ledgerSeq), createdAt: r.createdAt.toISOString() });
 
 /** INV's repository port over `_bmad-output/planning-artifacts/detailed-design/schemas` (AD-8). */
-export class PgInvRepository implements InvRepository {
+export class PgInvRepository implements InvTablesRepository {
   async resolveUnit(tx: Tx, u: { id: CuidId; sellerId: CuidId; catalogEntryId: CuidId; condition: Condition; quantity: number; now: IsoInstant }): Promise<ResolvedUnit> {
     const inserted = await tx.query(
       `INSERT INTO "InventoryUnit" (id, "sellerId", "catalogEntryId", condition, quantity, "createdAt", "updatedAt")
@@ -272,6 +273,56 @@ export class PgInvRepository implements InvRepository {
   async listingUnitIds(tx: Tx, listingId: CuidId): Promise<CuidId[]> {
     const { rows } = await tx.query<{ unit: CuidId }>(`SELECT x.unit FROM (SELECT $1::text AS id) l, LATERAL (${LISTING_UNITS}) x ORDER BY x.unit`, [listingId]);
     return rows.map((r) => r.unit);
+  }
+
+  async hideVisibleListing(tx: Tx, h: { listingId: CuidId; reasonCode: ListingHideReason; adminId: CuidId; now: IsoInstant }): Promise<ModeratedListing | null> {
+    // AD-REP-3 rule 1: only the hide columns change; units, reservations and orders are untouched (rule 3).
+    const { rows } = await tx.query<ModeratedListing>(
+      `WITH h AS (
+         UPDATE "Listing" SET "hiddenAt" = $2, "hiddenReason" = $3, "hiddenBy" = $4, version = version + 1, "updatedAt" = $2
+          WHERE id = $1 AND "hiddenAt" IS NULL RETURNING "sellerId", title, "inventoryUnitId")
+       SELECT h."sellerId", h.title, u."catalogEntryId" AS "unitEntryId" FROM h LEFT JOIN "InventoryUnit" u ON u.id = h."inventoryUnitId"`,
+      [h.listingId, h.now, h.reasonCode, h.adminId],
+    );
+    return rows[0] ?? null;
+  }
+
+  async unhideHiddenListing(tx: Tx, u: { listingId: CuidId; now: IsoInstant }): Promise<ModeratedListing | null> {
+    const { rows } = await tx.query<ModeratedListing>(
+      `WITH h AS (
+         UPDATE "Listing" SET "hiddenAt" = NULL, "hiddenReason" = NULL, "hiddenBy" = NULL, version = version + 1, "updatedAt" = $2
+          WHERE id = $1 AND "hiddenAt" IS NOT NULL RETURNING "sellerId", title, "inventoryUnitId")
+       SELECT h."sellerId", h.title, u."catalogEntryId" AS "unitEntryId" FROM h LEFT JOIN "InventoryUnit" u ON u.id = h."inventoryUnitId"`,
+      [u.listingId, u.now],
+    );
+    return rows[0] ?? null;
+  }
+
+  async readListingHide(tx: Tx, listingId: CuidId): Promise<{ hiddenAt: IsoInstant | null; hiddenBy: CuidId | null } | null> {
+    const { rows } = await tx.query<{ hiddenAt: Date | null; hiddenBy: CuidId | null }>(`SELECT "hiddenAt", "hiddenBy" FROM "Listing" WHERE id = $1 FOR UPDATE`, [listingId]);
+    const row = rows[0];
+    return row === undefined ? null : { hiddenAt: row.hiddenAt?.toISOString() ?? null, hiddenBy: row.hiddenBy };
+  }
+
+  async insertListingModerationLog(tx: Tx, l: NewListingModerationLog): Promise<void> {
+    await tx.query(
+      `INSERT INTO "ListingModerationLog" (id, "listingId", action, "reasonCode", note, "adminId", "titleSnapshot", "sellerId", "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [l.id, l.listingId, l.action, l.reasonCode, l.note, l.adminId, l.titleSnapshot, l.sellerId, l.now],
+    );
+  }
+
+  async listListingModerationLog(tx: Tx, p: { after: { createdAt: IsoInstant; id: CuidId } | null; reasonCode: ListingHideReason | null; limit: number }): Promise<ListingModerationLogRow[]> {
+    const params: unknown[] = [p.limit];
+    const where: string[] = [];
+    if (p.reasonCode !== null) where.push(`"reasonCode" = $${params.push(p.reasonCode)}`);
+    if (p.after !== null) where.push(`("createdAt", id) < ($${params.push(p.after.createdAt)}::timestamptz, $${params.push(p.after.id)})`);
+    const { rows } = await tx.query<Omit<ListingModerationLogRow, 'at'> & { at: Date }>(
+      `SELECT id AS "logId", "listingId", action, "reasonCode", "adminId", "titleSnapshot", "createdAt" AS at
+         FROM "ListingModerationLog" ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY "createdAt" DESC, id DESC LIMIT $1`,
+      params,
+    );
+    return rows.map((r) => ({ ...r, at: r.at.toISOString() }));
   }
 }
 

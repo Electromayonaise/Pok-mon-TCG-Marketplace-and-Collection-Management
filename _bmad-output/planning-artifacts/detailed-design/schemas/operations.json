@@ -21,7 +21,7 @@
     { "id": "IDN-1.ingress", "module": "IDN", "method": "completeIndividualProfile", "request": "CompleteIndividualProfileRequest", "response": "CompleteIndividualProfileResponse", "layer": "Inbound Port", "consumers": [] },
     { "id": "IDN-2", "module": "IDN", "method": "requireListingEligibility", "request": "RequireListingEligibilityRequest", "response": "RequireListingEligibilityResponse", "layer": "Outbound Port", "consumers": ["INV"] },
     { "id": "IDN-3", "module": "IDN", "method": "traceCapabilities", "request": "TraceCapabilitiesRequest", "response": "TraceCapabilitiesResponse", "layer": "Inbound Port", "consumers": [] },
-    { "id": "S-FR-IDN-6.kinds", "module": "IDN", "method": "getSellerKinds", "request": "GetSellerKindsRequest", "response": "GetSellerKindsResponse", "layer": "Outbound Port", "consumers": ["DSC"] },
+    { "id": "S-FR-IDN-6.kinds", "module": "IDN", "method": "getSellerKinds", "request": "GetSellerKindsRequest", "response": "GetSellerKindsResponse", "layer": "Outbound Port", "consumers": ["DSC", "INV"] },
     { "id": "S-FR-IDN-6.target", "module": "IDN", "method": "getReviewTarget", "request": "GetReviewTargetRequest", "response": "GetReviewTargetResponse", "layer": "Outbound Port", "consumers": ["REP"] },
     { "id": "S-FR-IDN-7.canBuy", "module": "IDN", "method": "requireCanBuy", "request": "RequireCanBuyRequest", "response": "RequireCanBuyResponse", "layer": "Outbound Port", "consumers": [] },
     { "id": "S-FR-IDN-7.throttle", "module": "IDN", "method": "checkAuthThrottle", "request": "CheckAuthThrottleRequest", "response": "CheckAuthThrottleResponse", "layer": "Outbound Port", "consumers": [] },
@@ -49,6 +49,7 @@
     { "id": "S-FR-CAT-1", "module": "CAT", "method": "browseCatalog", "request": "BrowseCatalogRequest", "response": "BrowseCatalogResponse", "layer": "Inbound Port", "consumers": ["DSC"] },
     { "id": "S-FR-CAT-8.fetch", "module": "CAT", "method": "fetchTrm", "request": "FetchTrmRequest", "response": "FetchTrmResponse", "layer": "Inbound Port", "consumers": [] },
     { "id": "S-FR-CAT-8.rate", "module": "CAT", "method": "getFxRate", "request": "GetFxRateRequest", "response": "GetFxRateResponse", "layer": "Outbound Port", "consumers": ["VAL"] },
+    { "id": "S-FR-CAT-8.breaker", "module": "CAT", "method": "getFxSourceBreaker", "request": "GetFxSourceBreakerRequest", "response": "GetFxSourceBreakerResponse", "layer": "Inbound Port", "consumers": [] },
     { "id": "P-CAT.entry", "module": "CAT", "method": "getEntry", "request": "GetEntryRequest", "response": "GetEntryResponse", "layer": "Outbound Port", "consumers": ["DSC"] },
     { "id": "P-CAT.entries", "module": "CAT", "method": "getEntries", "request": "GetEntriesRequest", "response": "GetEntriesResponse", "layer": "Outbound Port", "consumers": ["COL", "INV", "CON"] },
     { "id": "P-CAT.match", "module": "CAT", "method": "matchEntryIds", "request": "MatchEntryIdsRequest", "response": "MatchEntryIdsResponse", "layer": "Outbound Port", "consumers": ["DSC"] },
@@ -171,7 +172,8 @@
     { "id": "S-SYS.tick", "module": "SYS", "method": "getTickHealth", "request": "GetTickHealthRequest", "response": "GetTickHealthResponse", "layer": "Inbound Port", "consumers": [] },
     { "id": "S-SYS.deliveries", "module": "SYS", "method": "listDeliveries", "request": "ListDeliveriesRequest", "response": "ListDeliveriesResponse", "layer": "Inbound Port", "consumers": [] },
     { "id": "S-SYS.replay", "module": "SYS", "method": "replayEventDelivery", "request": "ReplayEventDeliveryRequest", "response": "ReplayEventDeliveryResponse", "layer": "Inbound Port", "consumers": [] },
-    { "id": "S-SYS.health", "module": "SYS", "method": "getDeliveryHealth", "request": "GetDeliveryHealthRequest", "response": "GetDeliveryHealthResponse", "layer": "Inbound Port", "consumers": [] }
+    { "id": "S-SYS.health", "module": "SYS", "method": "getDeliveryHealth", "request": "GetDeliveryHealthRequest", "response": "GetDeliveryHealthResponse", "layer": "Inbound Port", "consumers": [] },
+    { "id": "S-SYS.sweep", "module": "SYS", "method": "sweep", "request": "SweepDeliveriesRequest", "response": "SweepDeliveriesResponse", "layer": "Inbound Port", "consumers": [] }
   ],
   "ingress": [
     { "procedure": "access.completeIndividualProfile", "kind": "mutation", "builder": "authed", "op": "IDN-1.ingress", "input": "CompleteIndividualProfileRequest", "omit": ["userId"], "errors": ["AlreadyVerifiedBusiness", "BusinessApplicationOnFile", "IndividualSellerProfileAlreadyComplete"] },
@@ -190,6 +192,7 @@
     { "procedure": "catalog.provenance", "kind": "query", "builder": "public", "op": "CAT-3", "input": "GetPriceProvenanceRequest", "omit": [], "errors": ["CatalogEntryNotFound"] },
     { "procedure": "catalog.browse", "kind": "query", "builder": "public", "op": "S-FR-CAT-1", "input": "BrowseCatalogRequest", "omit": [], "errors": [] },
     { "procedure": "catalog.fx.retry", "kind": "mutation", "builder": "admin", "op": "S-FR-CAT-8.fetch", "input": "FetchTrmRequest", "omit": ["trigger"], "errors": [] },
+    { "procedure": "catalog.fx.breaker", "kind": "query", "builder": "admin", "op": "S-FR-CAT-8.breaker", "input": "GetFxSourceBreakerRequest", "omit": ["actorId"], "errors": [] },
     { "procedure": "discovery.search", "kind": "query", "builder": "public", "op": "DSC-1", "input": "SearchRequest", "omit": [], "errors": ["InvalidSearchArea", "SearchFilterTooBroad"] },
     { "procedure": "discovery.cardDetail", "kind": "query", "builder": "public", "op": "DSC-2", "input": "GetCardDetailRequest", "omit": [], "errors": ["CatalogEntryNotFound", "InvalidSearchArea"] },
     { "procedure": "inventory.create", "kind": "mutation", "builder": "authed", "op": "INV-2", "input": "CreateListingRequest", "omit": ["sellerId"], "errors": ["IndividualSellerProfileIncomplete", "SellerNotVerified", "OpenToTradeNotAllowed", "InvalidItemRef", "InvalidPrice", "InvalidLocation"] },
@@ -284,7 +287,8 @@
     { "procedure": "admin.events.deliveries", "kind": "query", "builder": "admin", "op": "S-SYS.deliveries", "input": "ListDeliveriesRequest", "omit": ["adminId"], "errors": [] },
     { "procedure": "jobs/trm-fetch", "kind": "job", "builder": "job", "op": "S-FR-CAT-8.fetch", "input": null, "omit": [], "errors": [] },
     { "procedure": "jobs/expiry-materialize", "kind": "job", "builder": "job", "op": "S-FR-ORD-8", "input": null, "omit": [], "errors": [] },
-    { "procedure": "jobs/commission-reconcile", "kind": "job", "builder": "job", "op": "COM-3", "input": null, "omit": [], "errors": [] }
+    { "procedure": "jobs/commission-reconcile", "kind": "job", "builder": "job", "op": "COM-3", "input": null, "omit": [], "errors": [] },
+    { "procedure": "jobs/outbox-sweep", "kind": "job", "builder": "job", "op": "S-SYS.sweep", "input": null, "omit": [], "errors": [] }
   ],
   "platform": [
     { "path": "/api/health/live", "probe": "liveness", "summary": "Liveness: the process serves requests." },

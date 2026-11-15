@@ -1,0 +1,33 @@
+# Impl-2 code review fixes F1-F5 (2026-11-04): key lines of npm run test:ci (exit 0) and npx playwright test (exit 0).
+# F1 ?siguiente= origin check (app/ingresar/destination.ts), F2 sign-up refused while UNWIRED_EMAIL, F3 inbox REPEATABLE READ,
+# F4 lock release failure keeps the run outcome, F5 Reconciliation* plurals.
+
+## npm run test:ci
+19:✖ 3 problems (0 errors, 3 warnings)
+32:no-sleep: 318 files checked, 7 rules proven on planted violations, 0 problems
+47: Test Files  50 passed (50)
+48:      Tests  678 passed (678)
+56:All files          |   98.63 |    96.48 |     100 |     100 |                   
+173:143 operations, 112 ingress procedures, 160 schemas, 37 core operations checked against contracts.md; surface is current
+176:> node scripts/check-ui-states.mjs --check
+178:43 pages, 327 states (138 data, 77 refusal, 112 client), 0 problems
+183:204 code citations checked, 0 problems
+193:trace: 96 FRs, 56 NFRs, 61 AD rows, 28 risks, 114 clauses, 416 tests; 0 problems
+203:13 domain files checked, 0 problems
+212: Test Files  2 passed (2)
+213:      Tests  12 passed (12)
+221:solu2-atdd: 373 tests in 24 files; 0 red for the right reason; 373 green for done stories (416 contracts or test ids done); 0 not as expected
+226:solu2-nfr: 27 tests in 14 files; 0 red for the right reason; 27 green for done stories (416 contracts or test ids done); 0 not as expected
+EXIT 0
+
+## npx playwright test
+[WebServer]   Creating an optimized production build ...
+[WebServer] ✓ Compiled successfully in 1942ms
+  ✓  1 [chromium] › _bmad-output\test-artifacts\e2e\binder.spec.ts:16:1 › Julián re-sorts his binder, the order survives a reload, and a promo added by an https link lands in a pocket after an http:// link is refused (1.4s)
+  ✓  2 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:14:1 › Camila reads a conversation, its badge clears, and muting another takes it out of her unread total (746ms)
+  ✓  3 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:49:1 › a wrong password keeps Camila on the sign-in page with the es-CO error (444ms)
+  ✓  4 [chromium] › _bmad-output\test-artifacts\e2e\profile.spec.ts:13:1 › a visitor with no session reads Lucía’s rating and reviews, without the review moderation hid (300ms)
+  ✓  5 [chromium] › _bmad-output\test-artifacts\e2e\profile.spec.ts:30:1 › an id that is no seller shows the es-CO Not-available page (234ms)
+  ✓  6 [chromium] › _bmad-output\test-artifacts\e2e\smoke.spec.ts:6:1 › a visitor opens TEZG and sees the service ready (171ms)
+  6 passed (25.7s)
+EXIT 0

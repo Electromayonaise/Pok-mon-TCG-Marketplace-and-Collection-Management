@@ -1,0 +1,184 @@
+# Architecture audit fixes (Winston's close-phase audit, decision log Impl-2 #34; fixes for #35).
+# Commits on impl-2: a8f5d1a (F8), 2acf4e6 (F1, F2), 926e68a (F3), e9a5352 (F4-F7, F9); the audit update and this log follow.
+#
+# ===== F1: [S-SYS.jobs.pool], every job on a pool of exactly 2 (boundedPool refuses checkout 3 at once) =====
+$ npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/sys_jobs.test.ts --reporter=verbose
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Story 1.6 — the job routes are behind JOBS_SECRET (S-9) > [S-SYS.jobs.auth] a missing, wrong, truncated or non-bearer secret is 401 NotAuthenticated on every job, and no JobRun row is written 44ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Story 1.6 — the job routes are behind JOBS_SECRET (S-9) > [S-SYS.jobs.trigger] an unknown job is 404 and a missing or unknown trigger is 400 RequestValidationFailed, with no JobRun row 22ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Story 1.6 — each run writes one JobRun row (ARCHITECTURE §4) > [S-SYS.jobs.h] the tick runs trm-fetch: one succeeded JobRun with the tick trigger and the Clock's instants, and today's TRM is stored once 84ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Story 1.6 — each run writes one JobRun row (ARCHITECTURE §4) > [S-SYS.jobs.failed] a job whose work throws is 500 Unexpected with no message in the body, and its JobRun row is failed with the error code 57ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Story 1.6 — each run writes one JobRun row (ARCHITECTURE §4) > [S-SYS.sweep.h] the outbox sweep delivers a delivery stuck pending for over 60 s, and records the run 51ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Story 1.6 — single-flight under job:<name> (AD-SYS-4 rule 7) > [S-SYS.jobs.single] while another run holds job:expiry-materialize the route is a skipped no-op; once it is released the run expires the due order 75ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Story 1.6 — single-flight under job:<name> (AD-SYS-4 rule 7) > [S-SYS.jobs.C1] 20 concurrent expiry runs: each is succeeded or skipped, every one writes its JobRun row, and the due order releases its unit exactly once 100ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_jobs.test.ts > Architecture audit F1 — every job runs on the runtime pool of 2 connections (AD-SYS-4 rules 7 and 9) > [S-SYS.jobs.pool] trm-fetch, expiry-materialize, outbox-sweep and the nightly commission-reconcile each succeed on a pool of exactly 2 connections, and use both; on a pool of 1 a job is refused at once 194ms
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+
+# ===== F8: the binder race passes (no bug); mutation proof, run and NOT committed =====
+# Mutation: 'await repo.lockCollectionOwner(tx, ownerId);' removed from addExternalEntry, moveOrCopyEntry and reorderEntries
+# (src/modules/collections/application/col.v2.ts), then restored from a copy.
+ RUN  v5.0.5 C:/Users/Usuario/Desktop/Universidad/S9/daia/final_project/Pok-mon-TCG-Marketplace-and-Collection-Management
+ ❯ |solu2-atdd| _bmad-output/test-artifacts/atdd/col_supporting.test.ts (13 tests | 1 failed | 12 skipped) 635ms
+   ❯ Supporting COL contracts (contracts.md §15, §15.12) (13)
+     × [S-FR-COL-5.C1] 20 concurrent binder writes (adds by link, moves, copies and a reorder) leave every entry of each collection at a distinct position, 10 rounds 247ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/col_supporting.test.ts > Supporting COL contracts (contracts.md §15, §15.12) > [S-FR-COL-5.C1] 20 concurrent binder writes (adds by link, moves, copies and a reorder) leave every entry of each collection at a distinct position, 10 rounds
+AssertionError: round 0: expected [ { …(3) }, { …(3) } ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   {
++     "collectionId": "bind0x000000000000000000",
++     "manualPosition": 4,
++     "n": 16,
++   },
++   {
++     "collectionId": "bind0x000000000000000000",
++     "manualPosition": 5,
++     "n": 2,
++   },
++ ]
+ ❯ _bmad-output/test-artifacts/atdd/col_supporting.test.ts:141:40
+    139|       const duplicates = await db.query(
+    140|         `SELECT "collectionId", "manualPosition", count(*)::int AS n F…
+    141|       expect(duplicates, `round ${r}`).toEqual([]);
+       |                                        ^
+    142|       expect(await rows(db, 'CollectionEntry', `"collectionId" = $1`, …
+    143|     }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+ Test Files  1 failed (1)
+      Tests  1 failed | 12 skipped (13)
+   Start at  15:46:18
+   Duration  2.64s (tests 37%, transform 35%, import 26%, setup 1%, worker 1%)
+
+# ===== F8: the commission-rate race; mutation proof, run and NOT committed =====
+# Mutation: insertRateSetting as a check-then-insert without ON CONFLICT, and the test dropping
+# CONSTRAINT "CommissionRateSetting_effectiveFrom_key" first; both restored from copies.
+ RUN  v5.0.5 C:/Users/Usuario/Desktop/Universidad/S9/daia/final_project/Pok-mon-TCG-Marketplace-and-Collection-Management
+ ❯ |solu2-atdd| _bmad-output/test-artifacts/atdd/com_supporting.test.ts (14 tests | 1 failed | 13 skipped) 2190ms
+   ❯ Supporting COM contracts (contracts.md §15, §15.12) (14)
+     × [S-FR-COM-7.C1] 20 concurrent settings from the same effectiveFrom store one rate and one audit row; the other 19 are refused with zero writes, 10 rounds 693ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/com_supporting.test.ts > Supporting COM contracts (contracts.md §15, §15.12) > [S-FR-COM-7.C1] 20 concurrent settings from the same effectiveFrom store one rate and one audit row; the other 19 are refused with zero writes, 10 rounds
+AssertionError: round 1: expected [ 20, +0 ] to deeply equal [ 1, 19 ]
+- Expected
++ Received
+  [
+-   1,
+-   19,
++   20,
++   0,
+  ]
+ ❯ _bmad-output/test-artifacts/atdd/com_supporting.test.ts:116:81
+    114|       const unexpected = outcome.rejected.filter((e) => codeOf(e) !== …
+    115|       if (unexpected.length > 0) throw unexpected[0];
+    116|       expect([outcome.fulfilled.length, outcome.rejected.length], `rou…
+       |                                                                                 ^
+    117|       const stored = await rows<{ rateBps: number }>(db, 'CommissionRa…
+    118|       expect(stored.map((s) => s.rateBps)).toEqual([outcome.fulfilled[…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+ Test Files  1 failed (1)
+      Tests  1 failed | 13 skipped (14)
+   Start at  15:47:14
+   Duration  4.65s (tests 66%, transform 18%, import 15%, setup 1%, worker 1%)
+
+# ===== F8 and F1-F3 green: the new tests on the committed tree =====
+$ npx vitest run --project solu2-atdd (col_supporting, com_supporting, sys_contracts, cat_breaker) -t "S-FR-COL-5.C1|S-FR-COM-7.C1|S-SYS.tick|breaker" --reporter=verbose
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/cat_breaker.test.ts > Story 4.6 — the breaker opens after 3 failures in a row and short-circuits the TRM source (S-FR-CAT-8, NFR-CAT-4) > [S-FR-CAT-8.breaker.h] a deployment with no breaker row reads closed: 0 failures of a threshold of 3, explained, and the read writes nothing 52ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/cat_breaker.test.ts > Story 4.6 — the breaker opens after 3 failures in a row and short-circuits the TRM source (S-FR-CAT-8, NFR-CAT-4) > [S-FR-CAT-8.breaker.open] the 3rd hourly failure opens the breaker; a retry 10 min later is circuitOpen with no source call and no write, and today's rate stays yesterday's, stale 144ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_contracts.test.ts > S-SYS.tick — getTickHealth (ARCH §4) > [S-SYS.tick.h] 3 h after the last tick, read inside 10:17–23:17 Bogotá, tickSilent=true; 1 h after, false 61ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/sys_contracts.test.ts > S-SYS.tick — getTickHealth (ARCH §4) > [S-SYS.tick.jobs] a failed trm-fetch and an expiry run stuck running for 16 min turn the health degraded (ScheduledJobsDegraded); 24 h later both have left the window 47ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/cat_breaker.test.ts > Story 4.6 — the breaker opens after 3 failures in a row and short-circuits the TRM source (S-FR-CAT-8, NFR-CAT-4) > [S-FR-CAT-8.breaker.halfOpen] once the cool-down has passed one probe runs: its failure reopens the breaker for a new 30 min, and the next probe's success closes it and stores the rate 177ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/cat_breaker.test.ts > Story 4.6 — the breaker opens after 3 failures in a row and short-circuits the TRM source (S-FR-CAT-8, NFR-CAT-4) > [S-FR-CAT-8.breaker.reset] only failures in a row count: 2 failures, a success, then 2 failures the next day leave it closed at 2, and the 3rd opens it 172ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/cat_breaker.test.ts > Story 4.6 — every instance shares one breaker row, moved atomically (AD-8, NFR-SYS-10) > [S-FR-CAT-8.breaker.C1] 50 concurrent fetches on an open breaker whose cool-down has passed: exactly one probe reaches the source, and the other 49 answer circuitOpen 241ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/com_supporting.test.ts > Supporting COM contracts (contracts.md §15, §15.12) > [S-FR-COM-7.C1] 20 concurrent settings from the same effectiveFrom store one rate and one audit row; the other 19 are refused with zero writes, 10 rounds 339ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/cat_breaker.test.ts > Story 4.6 — every instance shares one breaker row, moved atomically (AD-8, NFR-SYS-10) > [S-FR-CAT-8.breaker.C2] 3 concurrent failing fetches from closed (a tick racing two admin retries), 20 rounds: all 3 reach the source and the breaker opens with exactly 3 failures counted 629ms
+ ✓ |solu2-atdd| _bmad-output/test-artifacts/atdd/col_supporting.test.ts > Supporting COL contracts (contracts.md §15, §15.12) > [S-FR-COL-5.C1] 20 concurrent binder writes (adds by link, moves, copies and a reorder) leave every entry of each collection at a distinct position, 10 rounds 1841ms
+ Test Files  4 passed (4)
+      Tests  10 passed | 43 skipped (53)
+$ npx vitest run --project impl1-unit cat.v2-breaker.test.ts breaker-domain.test.ts admin-events.test.ts --reporter=verbose
+ ✓ |impl1-unit| src/modules/catalog/breaker-domain.test.ts > the policy (agent defaults of Story 4.6) > opens after 3 failures in a row, for 30 minutes, with a 60 s probe lease 2ms
+ ✓ |impl1-unit| src/modules/catalog/breaker-domain.test.ts > admit > lets every call through a closed breaker, with no probe and nothing to store 0ms
+ ✓ |impl1-unit| src/modules/catalog/breaker-domain.test.ts > admit > short-circuits an open breaker until retryAt, citing it and the failures, and makes the first call at retryAt the probe 0ms
+ ✓ |impl1-unit| src/modules/catalog/breaker-domain.test.ts > admit > short-circuits every call while the probe holds its lease, and lets the next call take a lapsed lease over 0ms
+ ✓ |impl1-unit| src/modules/catalog/breaker-domain.test.ts > record > counts failures in a closed breaker and opens it at the 3rd, for 30 minutes from that instant 0ms
+ ✓ |impl1-unit| src/modules/catalog/breaker-domain.test.ts > record > a success resets a closed breaker; with no failure to reset it is left as it is 0ms
+ ✓ |impl1-unit| src/modules/catalog/breaker-domain.test.ts > record > the probe's success closes the breaker; its failure reopens it for a new cool-down and counts one more failure 0ms
+ ✓ |impl1-unit| src/modules/catalog/breaker-domain.test.ts > record > a closed-state call returning after the breaker opened moves nothing 0ms
+ ✓ |impl1-unit| src/modules/catalog/breaker-domain.test.ts > record > a closed-state call returning while a probe is in flight moves nothing 0ms
+ ✓ |impl1-unit| src/modules/catalog/breaker-domain.test.ts > record > a probe whose lease another probe took over moves nothing 0ms
+ ✓ |impl1-unit| src/modules/catalog/breaker-domain.test.ts > record > a stale probe returning after the breaker closed moves nothing 0ms
+ ✓ |impl1-unit| src/modules/catalog/breaker-domain.test.ts > record > a stale probe returning after the breaker reopened moves nothing 0ms
+ ✓ |impl1-unit| src/modules/catalog/breaker-domain.test.ts > a whole outage, step by step > 3 failed ticks open it, a retry is short-circuited, a failed probe reopens it, and the next probe closes it 1ms
+ ✓ |impl1-unit| src/modules/catalog/application/cat.v2-breaker.test.ts > PgCatRepository.saveFxSourceBreaker (AD-SYS-5 rule 1) > moves the row only from the state and version it was locked in, and bumps the version; a stale state or version moves 0 rows 46ms
+ ✓ |impl1-unit| src/shared-kernel/admin-events.test.ts > AdminEventsServiceV2.replayEventDelivery > a delivered replay is allowed, cites AD-SYS-2 with the new status, and logs one delivered row with the admin 61ms
+ ✓ |impl1-unit| src/modules/catalog/application/cat.v2-breaker.test.ts > CatServiceV2.fetchTrm when a breaker transition moves 0 rows (architecture audit F2) > raises Unexpected naming the conflict, and the failure count it would have stored rolls back 42ms
+ ✓ |impl1-unit| src/modules/catalog/application/cat.v2-breaker.test.ts > CatServiceV2.fetchTrm when a breaker transition moves 0 rows (architecture audit F2) > with the real lock, three failures in a row bump the version once per transition and open the breaker 68ms
+ ✓ |impl1-unit| src/shared-kernel/admin-events.test.ts > AdminEventsServiceV2.replayEventDelivery > a replay whose handler throws is rejected with the handler code and logs one failed row 46ms
+ ✓ |impl1-unit| src/shared-kernel/admin-events.test.ts > AdminEventsServiceV2.replayEventDelivery > a replay of a row another replay holds is an allowed no-op and logs one noop row 50ms
+ ✓ |impl1-unit| src/shared-kernel/admin-events.test.ts > isTickSilent (ARCH §4) > with no tick at all, it is silent only inside 10:17–23:17 Bogotá, both ends included 23ms
+ ✓ |impl1-unit| src/shared-kernel/admin-events.test.ts > isTickSilent (ARCH §4) > a tick exactly 3 h before the read no longer counts; one a minute later does 25ms
+ ✓ |impl1-unit| src/shared-kernel/admin-events.test.ts > AdminEventsServiceV2.listDeliveries: the cursor > round-trips the sort key it encodes 25ms
+ ✓ |impl1-unit| src/shared-kernel/admin-events.test.ts > AdminEventsServiceV2.listDeliveries: the cursor > a malformed cursor, or one the other list issued, is RequestValidationFailed citing the cursor 28ms
+ ✓ |impl1-unit| src/shared-kernel/admin-events.test.ts > AdminEventsServiceV2.listDeliveries: the cursor > the next page continues after the last row, across a tie on firstFailedAt, and ends with a null cursor 103ms
+ ✓ |impl1-unit| src/shared-kernel/admin-events.test.ts > AdminEventsServiceV2.getDeliveryHealth > returns the latest FailedDeliveryDigest row next to the live counts 33ms
+ ✓ |impl1-unit| src/shared-kernel/admin-events.test.ts > the job-health rule (pure) > the window starts 24 h before the read and a run is stuck 15 min after its start 24ms
+ ✓ |impl1-unit| src/shared-kernel/admin-events.test.ts > the job-health rule (pure) > is degraded when any job has a failed or a stuck run, and the totals add every job 23ms
+ ✓ |impl1-unit| src/shared-kernel/admin-events.test.ts > the job-health rule (pure) > a silent tick is the reason first, then degraded jobs, else on schedule 50ms
+ ✓ |impl1-unit| src/shared-kernel/admin-events.test.ts > AdminEventsServiceV2.getTickHealth: the jobs (Postgres) > counts failed runs after the window start only, stuck runs older than 15 min only, and reads each job's latest run 34ms
+ ✓ |impl1-unit| src/shared-kernel/admin-events.test.ts > AdminEventsServiceV2.getTickHealth: the jobs (Postgres) > with no job run at all it reads no jobs, not degraded, on schedule outside the silence window 24ms
+ Test Files  3 passed (3)
+      Tests  30 passed (30)
+
+
+# ===== test:ci run 1 (16:03-17:22): EXIT 1, one benchmark timed out; no changed code is on its path =====
+# Run 1 hit the 600 s timeout on [NFR-VAL-2.trend] (valuation reading catalog prices; none of the four commits touch it).
+solu2-nfr: 30 tests in 15 files; 0 red for the right reason; 29 green for done stories (429 contracts or test ids done); 1 not as expected
+  ✗ nfr/val2_latency.test.ts › [NFR-VAL-2.trend] 500 measured reads of the current value plus the 30-day trend of the 500-entry collection: p95 ≤ 1,500 ms: the story binding NFR-VAL-2.trend is done, so this test must pass — Error: Test timed out in 600000ms.
+# The file alone right after (17:26-17:31): 3 passed in 256 s; trend p95 251 ms (nfr-evidence.md records 281 ms).
+$ npx vitest run --project solu2-nfr _bmad-output/test-artifacts/nfr/val2_latency.test.ts
+      Tests  3 passed (3)
+   Duration  256.24s (tests 100%)
+# Run 2 of the whole gate, below, exits 0.
+
+# ===== GATE: npm run db:up && npm run test:ci (run 2) =====
+# lint (eslint with the tezg plugin) and gate:deps print nothing on success; typecheck passed (the chain reached the gates after it).
+no-sleep: 351 files checked, 7 rules proven on planted violations, 0 problems
+56 models, each tagged with its owning module; prisma/schema.prisma is current
+      Coverage enabled with v8
+ Test Files  72 passed (72)
+      Tests  751 passed (751)
+ % Coverage report from v8
+All files          |   99.07 |    97.56 |     100 |     100 |                   
+=============================== Coverage summary ===============================
+> npm run typecheck && npm run test:lint-rules && npm run gate:api:solu2 && npm run gate:ui:solu2 && npm run gate:codes:solu2 && npm run gate:ids:solu2 && npm run gate:trace:solu2 && npm run gate:epics:solu2 && npm run gate:purity && npm run test:fitness:solu2 && npm run gate:atdd-red:impl1 && npm run gate:nfr-red:impl1
+  ✔ every DOMAIN_ERRORS code is parsed with its owner (0.3273ms)
+144 operations, 113 ingress procedures, 163 schemas, 37 core operations checked against contracts.md; surface is current
+43 pages, 328 states (139 data, 77 refusal, 112 client), 0 problems
+204 code citations checked, 0 problems
+221 test ids cited by contracts.md; 429 defined under _bmad-output/test-artifacts; 37 core operations
+> tezg@0.0.0 gate:trace:solu2
+trace: 96 FRs, 56 NFRs, 62 AD rows, 32 risks, 115 clauses, 429 test ids (429 enforced green), 4 journeys, 1 k6 scripts; gate PASS; 0 problems
+_bmad-output/planning-artifacts/epics.md is current: 13 epics, 72 stories
+14 domain files checked, 0 problems
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+solu2-atdd: 383 tests in 26 files; 0 red for the right reason; 383 green for done stories (429 contracts or test ids done); 0 not as expected
+solu2-nfr: 30 tests in 15 files; 0 red for the right reason; 30 green for done stories (429 contracts or test ids done); 0 not as expected
+# test:ci run 2 (17:31-17:44): EXIT 0
+
+# ===== Playwright: npx playwright test (production build, the max: 2 pool; the journeys assert 0 axe-core violations) =====
+[WebServer] ✓ Running next.config.ts took 105ms
+[WebServer] ✓ Compiled successfully in 1818ms
+[WebServer] ✓ Generating static pages using 15 workers (3/3) in 1028ms
+[WebServer] ✓ Ready in 467ms
+[WebServer] ✓ Running next.config.ts took 76ms
+  ✓  1 [chromium] › _bmad-output\test-artifacts\e2e\binder.spec.ts:19:1 › Julián re-sorts his binder, the order survives a reload, and a promo added by an https link lands in a pocket after an http:// link is refused (5.5s)
+  ✓  2 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:16:1 › Camila reads a conversation, its badge clears, and muting another takes it out of her unread total (4.5s)
+  ✓  3 [chromium] › _bmad-output\test-artifacts\e2e\inbox.spec.ts:55:1 › a wrong password keeps Camila on the sign-in page with the es-CO error (1.3s)
+  ✓  4 [chromium] › _bmad-output\test-artifacts\e2e\profile.spec.ts:15:1 › a visitor with no session reads Lucía’s rating and reviews, without the review moderation hid (900ms)
+  ✓  5 [chromium] › _bmad-output\test-artifacts\e2e\profile.spec.ts:33:1 › an id that is no seller shows the es-CO Not-available page (808ms)
+  ✓  6 [chromium] › _bmad-output\test-artifacts\e2e\smoke.spec.ts:8:1 › a visitor opens TEZG and sees the service ready (760ms)
+  6 passed (36.7s)
+# EXIT 0

@@ -4,7 +4,7 @@ import type { AuditLog } from './audit.js';
 import type { OutboxV2 } from './events.js';
 import type { Clock, IdGenerator, TransactionRunner } from './ports.js';
 import type { DispatcherV2 } from './dispatcher.js';
-import type { GetDeliveryHealthRequest, GetDeliveryHealthResponse, GetTickHealthRequest, GetTickHealthResponse, ListDeliveriesRequest, ListDeliveriesResponse, ReplayEventDeliveryRequest, ReplayEventDeliveryResponse } from './admin-events.dto.js';
+import type { GetDeliveryHealthRequest, GetDeliveryHealthResponse, GetTickHealthRequest, GetTickHealthResponse, ListDeliveriesRequest, ListDeliveriesResponse, ReplayEventDeliveryRequest, ReplayEventDeliveryResponse, SweepDeliveriesRequest, SweepDeliveriesResponse } from './admin-events.dto.js';
 
 /** Everything SYS reaches outside its domain core: its repository, time, ids, the outbox, the audit log (AD-SYS-6, R-2), external systems behind ports that tests bind to simulated adapters, and its neighbours. */
 export interface AdminEventsV2Deps {
@@ -27,10 +27,12 @@ export interface AdminEventsV2UseCases {
   replayEventDelivery(input: ReplayEventDeliveryRequest): Promise<ReplayEventDeliveryResponse>;
   /** S-SYS.health · Inbound Port */
   getDeliveryHealth(input: GetDeliveryHealthRequest): Promise<GetDeliveryHealthResponse>;
+  /** S-SYS.sweep · Inbound Port */
+  sweep(input: SweepDeliveriesRequest): Promise<SweepDeliveriesResponse>;
 }
 // </gen-solu2-api>
 
-import type { DeliveryRowDTO, Subscriber } from './admin-events.dto.js';
+import type { DeliveryRowDTO, JobHealthDTO, Subscriber } from './admin-events.dto.js';
 import type { Decision } from './decision.js';
 import type { ReplayOutcome } from './dispatcher.js';
 import { MESSAGES, type MessageCode } from './messages.generated.js';
@@ -48,6 +50,13 @@ export const DELIVERIES_PAGE = 25;
 export const STUCK_AFTER_MS = 24 * HOUR;
 /** ARCH §4: the tick is silent when none started in this long, read inside the window below. */
 export const TICK_SILENCE_MS = 3 * HOUR;
+/** S-SYS.tick (architecture audit F3): failed and stuck job runs count when they started in this long before the read. */
+export const JOB_HEALTH_WINDOW_MS = 24 * HOUR;
+/**
+ * S-SYS.tick (architecture audit F3): a run still `running` this long after its start is stuck. Agent default: 15 min,
+ * far above the longest bounded run (the reconcile stops at 50 s, AD-COM-1 rule 4) and a serverless function's limit.
+ */
+export const JOB_STUCK_AFTER_MS = 15 * 60_000;
 /** ARCH §4: the silence window, 10:17–23:17 Bogotá inclusive, in minutes of the Bogotá day (UTC−5, no DST). */
 const SILENCE_WINDOW = { from: 10 * 60 + 17, to: 23 * 60 + 17 };
 const BOGOTA_OFFSET_MIN = -5 * 60;
@@ -72,6 +81,11 @@ export interface AdminEventsRepository {
   insertReplayLog(tx: Tx, row: ReplayLogRow): Promise<void>;
   /** S-SYS.tick: the latest `tick` JobRun started at or before `notAfter`, in any outcome. */
   readLastTickStartedAt(tx: Tx, notAfter: IsoInstant): Promise<IsoInstant | null>;
+  /**
+   * S-SYS.tick (architecture audit F3): per job with a run started at or before `window.readAt`, by job name: its latest
+   * run, its `failed` runs started after `window.since`, and its `running` runs started after `since` and before `stuckBefore`.
+   */
+  readJobHealth(tx: Tx, window: JobHealthWindow): Promise<JobHealthDTO[]>;
   /** S-SYS.deliveries: up to `limit` rows of one set, oldest first, after `after` when given. */
   listDeliveries(tx: Tx, q: { kind: DeliveryPageKey['kind']; stuckBefore: IsoInstant; after: DeliveryPageKey | null; limit: number }): Promise<DeliveryRowDTO[]>;
   /** S-SYS.health: the live counts and the latest FailedDeliveryDigest row. */
@@ -96,6 +110,37 @@ export function isTickSilent(now: Date, lastTickStartedAt: IsoInstant | null): b
   const msOfDay = (((now.getTime() + BOGOTA_OFFSET_MIN * 60_000) % DAY_MS) + DAY_MS) % DAY_MS;
   if (msOfDay < SILENCE_WINDOW.from * 60_000 || msOfDay > SILENCE_WINDOW.to * 60_000) return false;
   return lastTickStartedAt === null || now.getTime() - Date.parse(lastTickStartedAt) >= TICK_SILENCE_MS;
+}
+
+/** S-SYS.tick (architecture audit F3): the instants that bound a job-health read at `now`. */
+export interface JobHealthWindow {
+  readAt: IsoInstant;
+  /** Failed and stuck runs count when they started after this instant (24 h before the read). */
+  since: IsoInstant;
+  /** A `running` run that started before this instant (15 min before the read) is stuck. */
+  stuckBefore: IsoInstant;
+}
+
+export function jobHealthWindow(now: Date): JobHealthWindow {
+  const ms = now.getTime();
+  return { readAt: now.toISOString(), since: new Date(ms - JOB_HEALTH_WINDOW_MS).toISOString(), stuckBefore: new Date(ms - JOB_STUCK_AFTER_MS).toISOString() };
+}
+
+/** The window's failed and stuck runs over every job. */
+export function jobRunTotals(jobs: readonly Pick<JobHealthDTO, 'failedInWindow' | 'stuckRunning'>[]): { failedRuns: number; stuckRuns: number } {
+  return jobs.reduce((t, j) => ({ failedRuns: t.failedRuns + j.failedInWindow, stuckRuns: t.stuckRuns + j.stuckRunning }), { failedRuns: 0, stuckRuns: 0 });
+}
+
+/** Architecture audit F3: job health is degraded when a run failed in the window or a run is stuck. */
+export function isJobHealthDegraded(jobs: readonly Pick<JobHealthDTO, 'failedInWindow' | 'stuckRunning'>[]): boolean {
+  const { failedRuns, stuckRuns } = jobRunTotals(jobs);
+  return failedRuns > 0 || stuckRuns > 0;
+}
+
+/** The reason tick health reads as: a silent tick first (ARCH §4), then failing or stuck jobs, else on schedule. */
+export function tickHealthReason(tickSilent: boolean, degraded: boolean): 'TickSilent' | 'ScheduledJobsDegraded' | 'TickOnSchedule' {
+  if (tickSilent) return 'TickSilent';
+  return degraded ? 'ScheduledJobsDegraded' : 'TickOnSchedule';
 }
 
 const SUBSCRIBERS: readonly Subscriber[] = ['commission', 'listings', 'collections'];
@@ -132,15 +177,29 @@ function messageCodeOf(code: string | undefined): MessageCode {
 export class AdminEventsServiceV2 implements AdminEventsV2UseCases {
   constructor(protected readonly deps: AdminEventsV2Deps) {}
 
-  /** S-SYS.tick (ARCH §4): derived at read from the latest tick JobRun and `clock.now()`. */
+  /** S-SYS.sweep (Story 1.6): the `outbox-sweep` job runs the sweeper once (AD-SYS-2 rules 4 and 6). */
+  async sweep(_input: SweepDeliveriesRequest): Promise<SweepDeliveriesResponse> {
+    return this.deps.dispatcher.sweep();
+  }
+
+  /**
+   * S-SYS.tick (ARCH §4): derived at read from the latest tick JobRun and `clock.now()`, and, per job, from its runs in
+   * the 24 h before the read (architecture audit F3): its last outcome, its failed runs and its runs stuck `running`.
+   * One read-only snapshot; zero writes.
+   */
   async getTickHealth(_input: GetTickHealthRequest): Promise<GetTickHealthResponse> {
     const { repo, transactions, clock } = this.deps;
     const now = clock.now();
-    const readAt = now.toISOString();
-    const lastTickStartedAt = await transactions.run((tx) => repo.readLastTickStartedAt(tx, readAt), { readOnly: true });
+    const window = jobHealthWindow(now);
+    const readAt = window.readAt;
+    const { lastTickStartedAt, jobs } = await transactions.run(async (tx) => ({
+      lastTickStartedAt: await repo.readLastTickStartedAt(tx, readAt),
+      jobs: await repo.readJobHealth(tx, window),
+    }), { isolation: 'REPEATABLE READ', readOnly: true });
     const tickSilent = isTickSilent(now, lastTickStartedAt);
-    const reasonCode: MessageCode = tickSilent ? 'TickSilent' : 'TickOnSchedule';
-    const inputs = { lastTickStartedAt, readAt };
+    const degraded = isJobHealthDegraded(jobs);
+    const reasonCode: MessageCode = tickHealthReason(tickSilent, degraded);
+    const inputs = { lastTickStartedAt, readAt, ...jobRunTotals(jobs) };
     const decision: Decision = {
       outcome: 'allowed',
       reasonCode,
@@ -148,7 +207,7 @@ export class AdminEventsServiceV2 implements AdminEventsV2UseCases {
       citations: [{ rule: 'AD-SYS-2', inputs }],
       occurredAt: readAt,
     };
-    return { lastTickStartedAt, tickSilent, decision };
+    return { lastTickStartedAt, tickSilent, jobs, degraded, decision };
   }
 
   /** S-SYS.deliveries (AD-SYS-2 rule 9): 25 rows of `failed` by `firstFailedAt`, or of stuck `pending` by `createdAt`. */

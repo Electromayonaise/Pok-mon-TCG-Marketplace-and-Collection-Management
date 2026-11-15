@@ -1,10 +1,8 @@
 // ContactServiceV2.generateContactMessage (MSG-2) against Postgres: the edges the ATDD tests leave out — the buyer's
 // refusal for an incomplete seller profile (decision log Impl-1 #34), the trade path, the repeat that bypasses the
 // limit, the per-seller and per-IP windows with their retry times, and the window edges (now − w, now].
-import pg from 'pg';
 import { describe, expect, it } from 'vitest';
 import { PgTransactionRunner, useTestDatabase } from '../../../../test-support/db.js';
-import { PG } from '../../../../test-support/env.js';
 import { codeOf } from '../../../../test-support/concurrency.js';
 import { caught, citedInputs } from '../../../../test-support/errors.js';
 import { at, catalogEntry, DAY, fake, HOUR, id, individualSeller, ins, listing, rows, unit, user, wiring } from '../../../../test-support/solu2/fixtures.js';
@@ -13,6 +11,7 @@ import { IdnServiceV2 } from '../../identity/index.js';
 import type { CatalogFeedSource, FxRateSource } from '../../../shared-kernel/external.js';
 import type { IdentityForContact } from '../ports/contact.v2.js';
 import { ContactServiceV2 } from './contact.v2.js';
+import { singleConnectionPool } from '../../../../test-support/single-connection.js';
 
 const db = useTestDatabase();
 const IP = 'c'.repeat(64);
@@ -93,15 +92,12 @@ describe('ContactServiceV2.generateContactMessage (MSG-2)', () => {
 
   it('runs on a pool of 1: the catalog and identity reads join the contact transaction (AD-SYS-4 rule 9)', async () => {
     await seed();
-    const pool = new pg.Pool({ ...PG, database: (db.pool.options as { database: string }).database, max: 1 });
-    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    const pool = singleConnectionPool(db);
     try {
       const w = { ...wiring(db), transactions: new PgTransactionRunner(pool) };
       const svc = new ContactServiceV2({ ...w, catalog: new CatServiceV2({ ...w, feed: fake<CatalogFeedSource>('feed', {}), fx: fake<FxRateSource>('fx', {}) }), identity: new IdnServiceV2(w) });
-      const deadlock = new Promise<never>((_, reject) => { watchdog = setTimeout(() => reject(new Error('deadlock: a second connection was requested')), 3_000); });
-      expect((await Promise.race([purchase(lid(), svc), deadlock])).text).toContain('$45.000 COP');
+      expect((await purchase(lid(), svc)).text).toContain('$45.000 COP');
     } finally {
-      clearTimeout(watchdog);
       await pool.end();
     }
   });

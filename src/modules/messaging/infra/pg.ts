@@ -5,7 +5,8 @@ import { NotImplementedError } from '../../../shared-kernel/errors.js';
 import type { Sql, Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { IConversationRepository } from '../ports/msg.js';
-import type { ConversationRow, MsgTablesRepository } from '../ports/msg.v2.js';
+import type { InboxKey } from '../domain/msg.js';
+import type { ConversationRow, MsgTablesRepository, ParticipantView, ThreadMessageRow } from '../ports/msg.v2.js';
 
 export class PgConversationRepository implements IConversationRepository {
   constructor(protected readonly sql: Sql) {}
@@ -30,6 +31,18 @@ export class PgConversationRepository implements IConversationRepository {
 }
 
 type SentMessage = { conversationId: CuidId; messageId: CuidId; seq: number; recipientVerificationAtSend: 'Approved' | 'Pending' };
+
+/** The caller's own participant row joined to its conversation (AD-MSG-3 rule 4: never the other side's row). */
+const VIEW = `SELECT c.id AS "conversationId", c."buyerId", c."businessId", p.role, c."lastSeq", c."lastMessageAt", p."lastReadSeq", p."mutedAt"
+                FROM "ConversationParticipant" p JOIN "Conversation" c ON c.id = p."conversationId"`;
+/** `(lastMessageAt desc, id)` with no message yet last: `-infinity` stands for a null instant in the order and the keyset. */
+const AT = `COALESCE(c."lastMessageAt", '-infinity'::timestamptz)`;
+
+type ViewRecord = Omit<ParticipantView, 'lastSeq' | 'lastReadSeq' | 'lastMessageAt' | 'mutedAt'> & { lastSeq: string; lastReadSeq: string; lastMessageAt: Date | null; mutedAt: Date | null };
+const toView = (r: ViewRecord): ParticipantView => ({
+  ...r, lastSeq: Number(r.lastSeq), lastReadSeq: Number(r.lastReadSeq),
+  lastMessageAt: r.lastMessageAt === null ? null : r.lastMessageAt.toISOString(), mutedAt: r.mutedAt === null ? null : r.mutedAt.toISOString(),
+});
 
 /** MSG's own tables (AD-8): `"Conversation"`, `"ConversationParticipant"`, `"Message"`. */
 export class PgMsgRepository implements MsgTablesRepository {
@@ -101,5 +114,64 @@ export class PgMsgRepository implements MsgTablesRepository {
     );
     const r = rows[0];
     return r === undefined ? null : { ...r, seq: Number(r.seq) };
+  }
+  async readParticipantView(tx: Tx, conversationId: CuidId, userId: CuidId): Promise<ParticipantView | null> {
+    const { rows } = await tx.query<ViewRecord>(`${VIEW} WHERE p."conversationId" = $1 AND p."userId" = $2`, [conversationId, userId]);
+    return rows[0] === undefined ? null : toView(rows[0]);
+  }
+
+  async listInboxPage(tx: Tx, userId: CuidId, limit: number, after: InboxKey | null): Promise<ParticipantView[]> {
+    const params: unknown[] = [userId, limit];
+    let keyset = '';
+    if (after !== null) {
+      params.push(after.lastMessageAt ?? '-infinity', after.conversationId);
+      keyset = `AND (${AT} < $3::timestamptz OR (${AT} = $3::timestamptz AND c.id > $4))`;
+    }
+    const { rows } = await tx.query<ViewRecord>(`${VIEW} WHERE p."userId" = $1 ${keyset} ORDER BY ${AT} DESC, c.id ASC LIMIT $2`, params);
+    return rows.map(toView);
+  }
+
+  async unreadTotal(tx: Tx, userId: CuidId): Promise<number> {
+    const { rows } = await tx.query<{ total: string }>(
+      `SELECT COALESCE(SUM(GREATEST(c."lastSeq" - p."lastReadSeq", 0)), 0)::text AS total
+         FROM "ConversationParticipant" p JOIN "Conversation" c ON c.id = p."conversationId"
+        WHERE p."userId" = $1 AND p."mutedAt" IS NULL`,
+      [userId],
+    );
+    return Number(rows[0]!.total);
+  }
+
+  async threadMessages(tx: Tx, conversationId: CuidId, afterSeq: number, limit: number): Promise<ThreadMessageRow[]> {
+    const { rows } = await tx.query<{ messageId: CuidId; seq: string; senderId: CuidId; body: string; createdAt: Date }>(
+      `SELECT id AS "messageId", seq, "senderId", body, "createdAt" FROM "Message"
+        WHERE "conversationId" = $1 AND seq > $2 ORDER BY seq ASC LIMIT $3`,
+      [conversationId, afterSeq, limit],
+    );
+    return rows.map((r) => ({ ...r, seq: Number(r.seq), createdAt: r.createdAt.toISOString() }));
+  }
+
+  async advanceReadSeq(tx: Tx, conversationId: CuidId, userId: CuidId, seq: number, now: IsoInstant): Promise<{ lastReadSeq: number; lastSeq: number }> {
+    // Under READ COMMITTED a concurrent higher mark that committed first is re-checked against this WHERE, so it is never lowered.
+    const { rows } = await tx.query<{ lastReadSeq: string; lastSeq: string }>(
+      `UPDATE "ConversationParticipant" p SET "lastReadSeq" = LEAST($3::bigint, c."lastSeq"), "updatedAt" = $4
+         FROM "Conversation" c
+        WHERE c.id = p."conversationId" AND p."conversationId" = $1 AND p."userId" = $2 AND p."lastReadSeq" < LEAST($3::bigint, c."lastSeq")
+        RETURNING p."lastReadSeq", c."lastSeq"`,
+      [conversationId, userId, seq, now],
+    );
+    const moved = rows[0] ?? (await tx.query<{ lastReadSeq: string; lastSeq: string }>(
+      `SELECT p."lastReadSeq", c."lastSeq" FROM "ConversationParticipant" p JOIN "Conversation" c ON c.id = p."conversationId"
+        WHERE p."conversationId" = $1 AND p."userId" = $2`,
+      [conversationId, userId],
+    )).rows[0]!;
+    return { lastReadSeq: Number(moved.lastReadSeq), lastSeq: Number(moved.lastSeq) };
+  }
+
+  async setBuyerMutedAt(tx: Tx, conversationId: CuidId, userId: CuidId, mutedAt: IsoInstant | null, now: IsoInstant): Promise<void> {
+    await tx.query(
+      `UPDATE "ConversationParticipant" SET "mutedAt" = $3, "updatedAt" = $4
+        WHERE "conversationId" = $1 AND "userId" = $2 AND role = 'buyer' AND ("mutedAt" IS NULL) = ($3::timestamptz IS NOT NULL)`,
+      [conversationId, userId, mutedAt, now],
+    );
   }
 }

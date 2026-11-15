@@ -5,7 +5,7 @@ import type { CatalogForInv, IdentityForInv } from '../../../src/modules/listing
 import { DomainError } from '../../../src/shared-kernel/errors.js';
 import { useTestDatabase } from '../../../test-support/db.js';
 import { caught } from '../../../test-support/errors.js';
-import { codeOf } from '../../../test-support/concurrency.js';
+import { codeOf, race } from '../../../test-support/concurrency.js';
 import { admin, business, catalogEntry, commissionState, explainAssert, fake, id, ins, listing, purchasableListing, rows, T0, unit, user, wiring } from '../../../test-support/solu2/fixtures.js';
 
 const db = useTestDatabase();
@@ -24,6 +24,8 @@ function setup(o: { eligibility?: Eligibility; verification?: 'Approved' | 'Pend
         decision: { outcome: 'allowed', reasonCode: 'ListingUnverified', humanMessage: 'Puedes publicar.', citations: [{ rule: 'FR-IDN-3', inputs: {} }], occurredAt: T0 } };
     },
     getSellerVerification: async () => ({ status: o.verification ?? 'Approved' }),
+    // The batch form of the same fact (AD-INV-3 rule 2): P-INV.availability reads it once per page (Story 11.5).
+    getSellerKinds: async ({ userIds }) => ({ sellers: userIds.map((userId) => ({ userId, sellerKind: 'business' as const, verified: (o.verification ?? 'Approved') === 'Approved' })) }),
   });
   return new InvServiceV2({ ...wiring(db), catalog, identity });
 }
@@ -140,6 +142,21 @@ describe('Supporting INV contracts (contracts.md §15)', () => {
     const again = await svc.setListingHidden({ adminId: id('admin'), listingId: id('lchar'), hidden: true, reasonCode: 'Spam', note: null });
     expect(again.decision.outcome).toBe('allowedWithNotice');
     expect(await rows(db, 'ListingModerationLog')).toHaveLength(1);
+  });
+
+  // Story 13.6 (Flow A, decision log Impl-2 #18, R-31): the conditional hide under 20 real connections at once.
+  it('[S-FR-REP-5.C1] 20 concurrent hides of one listing: exactly one hide, one ListingModerationLog row and one audit row; every other call is the explained no-op', async () => {
+    await admin(db);
+    await andres(1);
+    const svc = setup();
+    const { fulfilled, rejected } = await race(20, () => svc.setListingHidden({ adminId: id('admin'), listingId: id('lchar'), hidden: true, reasonCode: 'Counterfeit', note: null }));
+    if (rejected.length > 0) throw rejected[0];
+    expect(fulfilled.map((r) => r.decision.outcome).sort()).toEqual([...Array<string>(19).fill('allowedWithNotice'), 'hidden']);
+    const notice = fulfilled.find((r) => r.decision.outcome === 'allowedWithNotice')!;
+    explainAssert(notice.decision, { outcome: 'allowedWithNotice', rule: 'FR-REP-5', inputs: { hiddenBy: id('admin') } });
+    expect(await rows(db, 'ListingModerationLog')).toMatchObject([{ listingId: id('lchar'), action: 'hide', reasonCode: 'Counterfeit', titleSnapshot: 'Charizard ex' }]);
+    expect(await rows(db, 'audit_events', `action = 'listings.listing.hidden'`)).toHaveLength(1);
+    expect(await rows(db, 'Listing', `id = $1 AND "hiddenAt" IS NOT NULL AND "hiddenReason" = 'Counterfeit'`, [id('lchar')])).toHaveLength(1);
   });
 });
 

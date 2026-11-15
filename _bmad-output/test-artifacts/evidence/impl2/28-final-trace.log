@@ -1,0 +1,38 @@
+# Impl-2 close, Phase C (2026-11-04): the final trace (decision log Impl-2 #5), key lines of npm run test:ci (exit 0).
+# Changes in this run: scripts/gen-solu2-trace.mjs writes the final trace (requirement -> story (status) -> test files -> CI evidence -> verdict,
+# the gate decision); NFR-IDN-1's benchmark (nfr/idn1_latency.test.ts, bound to Stories 2.3 and 2.5); R-24, R-25, R-27 registered in
+# test-design.md §2; impl1-final-trace.md removed. Then: node scripts/gen-solu2-trace.mjs --real-run (traceability-matrix.md §10).
+
+## npm run test:ci
+19:✖ 3 problems (0 errors, 3 warnings)
+32:no-sleep: 319 files checked, 7 rules proven on planted violations, 0 problems
+47: Test Files  50 passed (50)
+48:      Tests  678 passed (678)
+56:All files          |   98.63 |    96.48 |     100 |     100 |                   
+173:143 operations, 112 ingress procedures, 160 schemas, 37 core operations checked against contracts.md; surface is current
+178:43 pages, 327 states (138 data, 77 refusal, 112 client), 0 problems
+183:204 code citations checked, 0 problems
+193:trace: 96 FRs, 56 NFRs, 61 AD rows, 31 risks, 114 clauses, 419 test ids (419 enforced green), 4 journeys, 1 k6 scripts; gate PASS; 0 problems
+203:13 domain files checked, 0 problems
+212: Test Files  2 passed (2)
+213:      Tests  12 passed (12)
+221:solu2-atdd: 373 tests in 24 files; 0 red for the right reason; 373 green for done stories (419 contracts or test ids done); 0 not as expected
+226:solu2-nfr: 30 tests in 15 files; 0 red for the right reason; 30 green for done stories (419 contracts or test ids done); 0 not as expected
+227:EXIT 0
+
+## node scripts/gen-solu2-trace.mjs --check (after --real-run)
+trace: 96 FRs, 56 NFRs, 61 AD rows, 31 risks, 114 clauses, 419 test ids (419 enforced green), 4 journeys, 1 k6 scripts; gate PASS; 0 problems
+
+## traceability-matrix.md §1, the gate decision
+**PASS.** All 96 FRs, all 31 registered risks and all 61 §14 AD rows pass; 55 of 56 NFRs pass and 1 is waived to the launch checklist; 71 of 71 stories are `done`; 0 requirements are unmapped; the static checks find 0 problems.
+| Criterion | Required | Actual | Status |
+| Stories `done` in `sprint-status.yaml` | 71 / 71 | 71 / 71 | MET |
+| FRs PASS | 100 % | 96 / 96 | MET |
+| NFRs PASS or WAIVED | 100 % | 56 / 56 (55 PASS, 1 WAIVED) | MET |
+| P0 risks PASS | 100 % | 23 / 23 | MET |
+| P1 risks PASS | 100 % | 7 / 7 | MET |
+| P2 risks PASS | 100 % | 1 / 1 | MET |
+| §14 AD rows PASS | 100 % | 61 / 61 | MET |
+| Test ids enforced green | 100 % | 419 / 419 | MET |
+| Unmapped requirements (no test or no story; a waived NFR maps to its waiver) | 0 | 0 | MET |
+| Static checks (ids defined, risks registered, statuses known) | 0 problems | 0 | MET |

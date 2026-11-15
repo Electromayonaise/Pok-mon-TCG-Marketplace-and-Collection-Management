@@ -17,13 +17,13 @@ The task statement is at `853449c:docs/impl-1/task-statement.md`. Its paths pred
 | §6.1 | Deliverable | Path | Status |
 |---|---|---|---|
 | 1 | Functional source code: the scaffold and the 43 stories | `src/`, `app/`, `scripts/`, `prisma/`, `test-support/` | 43 / 43 done |
-| 2 | Automated test suite: every acceptance criterion, ≥ 90 % passing, 0 skipped; Impl-2 tests red for the right reason, reported apart | `src/**/*.test.ts`, [`_bmad-output/test-artifacts/`](../../_bmad-output/test-artifacts/) (ATDD, NFR, fitness); per-story results in [`impl1-final-trace.md`](../../_bmad-output/test-artifacts/impl1-final-trace.md) | 100 % of the Impl-1 bound tests pass; 0 skipped; 28 Impl-2 tests red, reported apart |
+| 2 | Automated test suite: every acceptance criterion, ≥ 90 % passing, 0 skipped; Impl-2 tests red for the right reason, reported apart | `src/**/*.test.ts`, [`_bmad-output/test-artifacts/`](../../_bmad-output/test-artifacts/) (ATDD, NFR, fitness); per-story results in `impl1-final-trace.md` (superseded by the Impl-2 final trace and removed; read it with `git show 31999bc:_bmad-output/test-artifacts/impl1-final-trace.md`) | 100 % of the Impl-1 bound tests pass; 0 skipped; 28 Impl-2 tests red, reported apart |
 | 3 | `sprint-status.yaml` | [`_bmad-output/implementation-artifacts/sprint-status.yaml`](../../_bmad-output/implementation-artifacts/sprint-status.yaml) | 62 `done`, 7 `backlog` |
 | 4 | `walkthrough-impl1.md`: architecture and layout; per story the goal, procedures, database changes and test evidence; the suite and gate output | [`_bmad-output/implementation-artifacts/walkthrough-impl1.md`](../../_bmad-output/implementation-artifacts/walkthrough-impl1.md) (asked for at `docs/impl-1/`) | All 43 stories plus the 19 pulled forward |
 | 5 | AI decision log: ≥ 6 interactions, ≥ 2 corrections | [`_bmad-output/decision-logs/impl-1-ai-decision-log.md`](../../_bmad-output/decision-logs/impl-1-ai-decision-log.md) (asked for at `docs/impl-1/ai-log/`) | 39 entries; 12 tagged proposals (10 `[CORRECTED]`, 2 `[IMPROVED]`) |
 | 6 | Scaffold infrastructure and README | [`docker-compose.yml`](../../docker-compose.yml), [`Dockerfile`](../../Dockerfile), [`.env.example`](../../.env.example), `package.json` and `gate:deps`, [`README.md`](../../README.md) | Checked from a clean clone (below): the development setup passes as written; the Quick start passed only once the build stage could reach the registries |
 
-Supporting artifacts: the 62 story files in [`_bmad-output/implementation-artifacts/`](../../_bmad-output/implementation-artifacts/), [`deferred-work.md`](../../_bmad-output/implementation-artifacts/deferred-work.md) (every open item with its owner), the test review [`impl1-test-review.md`](../../_bmad-output/test-artifacts/impl1-test-review.md), [`nfr-evidence.md`](../../_bmad-output/test-artifacts/nfr-evidence.md) and the generated [`traceability-matrix.md`](../../_bmad-output/test-artifacts/traceability-matrix.md).
+Supporting artifacts: the 62 story files in [`_bmad-output/implementation-artifacts/`](../../_bmad-output/implementation-artifacts/), [`deferred-work.md`](../../_bmad-output/implementation-artifacts/deferred-work.md) (every open item with its owner), the test review `impl1-test-review.md` (its Impl-1 version: `git show 31999bc:_bmad-output/test-artifacts/impl1-test-review.md`; the Impl-2 review overwrote it as [`test-review.md`](../../_bmad-output/test-artifacts/test-review.md)), [`nfr-evidence.md`](../../_bmad-output/test-artifacts/nfr-evidence.md) and the generated [`traceability-matrix.md`](../../_bmad-output/test-artifacts/traceability-matrix.md).
 
 ## Self-assessment (task statement §6.2)
 
@@ -33,7 +33,7 @@ Supporting artifacts: the 62 story files in [`_bmad-output/implementation-artifa
 | Scaffold integrity | `gate:purity`: 13 domain files, 0 problems; `[SYS-AD1]`, `[SYS-6.R1]`, `[SYS-6.R4]` green |
 | Stories implemented | 43 / 43 `done`, each with its domain logic and repository adapter, and with tRPC procedures wherever its contract exposes one; 9 stories implement in-process ports or proofs only (walkthrough §3–§15, "Procedures") |
 | Contract compliance | `gate:api:solu2` (111 ingress procedures against `openapi.yaml` and `contracts.md`), `gate:codes:solu2`, `gate:ids:solu2` |
-| Test coverage | ≥ 2 bound tests per story, all passing (`impl1-final-trace.md` §1) |
+| Test coverage | ≥ 2 bound tests per story, all passing (`git show 31999bc:_bmad-output/test-artifacts/impl1-final-trace.md` §1) |
 | Error handling | Every refusal is `{ error: ErrorBody }` with its code and status (Story 1.1, `[SYS-1.R6]`); no stack trace reaches the client |
 | BMad traceability | `sprint-status.yaml` matches the code: `gate:atdd-red:impl1` requires every done story's tests to pass and every other one to fail on `NotImplementedError` |
 | AI governance | The decision log records prompts, outputs and Martín's decisions (39 entries) |
@@ -72,8 +72,8 @@ The README was followed to the letter in a fresh `git clone` of `main` at `949c2
 | Story files (62) | `[0-9]*-*.md` in [`_bmad-output/implementation-artifacts/`](../../_bmad-output/implementation-artifacts/) | [`f549b79`](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/commit/f549b79) |
 | Walkthrough | [`_bmad-output/implementation-artifacts/walkthrough-impl1.md`](../../_bmad-output/implementation-artifacts/walkthrough-impl1.md) | this close |
 | Deferred work | [`_bmad-output/implementation-artifacts/deferred-work.md`](../../_bmad-output/implementation-artifacts/deferred-work.md) | this close |
-| Final trace | [`_bmad-output/test-artifacts/impl1-final-trace.md`](../../_bmad-output/test-artifacts/impl1-final-trace.md) | this close |
-| Test review | [`_bmad-output/test-artifacts/impl1-test-review.md`](../../_bmad-output/test-artifacts/impl1-test-review.md) | this close |
+| Final trace | Removed at the Impl-2 close, superseded by [`traceability-matrix.md`](../../_bmad-output/test-artifacts/traceability-matrix.md). Read it with `git show 31999bc:_bmad-output/test-artifacts/impl1-final-trace.md` | [`31999bc`](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/commit/31999bc) |
+| Test review | Renamed `test-review.md` and overwritten by the Impl-2 review. Read the Impl-1 version with `git show 31999bc:_bmad-output/test-artifacts/impl1-test-review.md` | [`31999bc`](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/commit/31999bc) |
 | AI decision log | [`_bmad-output/decision-logs/impl-1-ai-decision-log.md`](../../_bmad-output/decision-logs/impl-1-ai-decision-log.md) | this close |
 | Adapted task statement | Removed: a course statement, not a BMAD artifact. Read it with `git show 853449c:docs/impl-1/task-statement.md` | [`792ac82`](https://github.com/Electromayonaise/Pok-mon-TCG-Marketplace-and-Collection-Management/commit/792ac82) |
 | Code and tests | The repository root, `src/`, `app/`, `scripts/`, `test-support/` (see the root [`README.md`](../../README.md)) | this close (`.gitignore`) |

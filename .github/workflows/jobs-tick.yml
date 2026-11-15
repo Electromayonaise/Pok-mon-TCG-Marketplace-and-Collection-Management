@@ -1,0 +1,48 @@
+# The scheduler of the job routes (ARCHITECTURE §4, G-3; Story 1.6, decision log Impl-2 #11). It calls
+# `POST <TEZG_URL>/api/jobs/<job>?trigger=<trigger>` with the `JOBS_SECRET` bearer. Every job is
+# idempotent and single-flight, and no correctness rule depends on it running (AD-SYS-6 rule 5).
+#
+# Runnable by hand only: the `schedule:` block stays commented until a deployment exists and the
+# repository secrets TEZG_URL and JOBS_SECRET are set (launch checklist), so the repository never
+# fails an hourly run. Uncommenting it gives the G-3 tick at minute 17, 07:17–20:17 Bogotá.
+name: jobs-tick
+
+on:
+  workflow_dispatch:
+    inputs:
+      trigger:
+        description: 'tick, daily-morning or daily-night'
+        required: true
+        default: tick
+        type: choice
+        options: [tick, daily-morning, daily-night]
+  # schedule:
+  #   - cron: '17 12-23,0-1 * * *'   # hourly tick (G-3, best-effort)
+
+concurrency:
+  group: jobs-tick
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      TEZG_URL: ${{ secrets.TEZG_URL }}
+      JOBS_SECRET: ${{ secrets.JOBS_SECRET }}
+      TRIGGER: ${{ inputs.trigger || 'tick' }}
+    steps:
+      - name: Call the jobs of this trigger (ARCH §13)
+        run: |
+          case "$TRIGGER" in
+            tick)          jobs="trm-fetch expiry-materialize outbox-sweep" ;;
+            daily-morning) jobs="trm-fetch expiry-materialize outbox-sweep" ;;
+            daily-night)   jobs="expiry-materialize commission-reconcile outbox-sweep" ;;
+          esac
+          status=0
+          for job in $jobs; do
+            code=$(curl -sS -o "out-$job.json" -w '%{http_code}' -X POST -H "Authorization: Bearer $JOBS_SECRET" "$TEZG_URL/api/jobs/$job?trigger=$TRIGGER")
+            echo "$job: HTTP $code $(cat "out-$job.json" | head -c 300)"
+            [ "$code" = "200" ] || status=1
+          done
+          exit $status

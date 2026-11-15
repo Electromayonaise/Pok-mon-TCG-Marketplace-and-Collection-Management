@@ -1,0 +1,124 @@
+# Flow A red phase — Story 2.6 (decision log Impl-2 #12). Captured 2026-11-03T18:36:34Z on branch impl-2 at 7ac39a2 + the red commit's working tree,
+# before any production code of the guard existed (serveAuth, recordAuthThrottleEvent and accountIdForEmail are NotImplementedError stubs).
+$ npx vitest run --project solu2-atdd _bmad-output/test-artifacts/atdd/idn_auth.test.ts
+
+ RUN  v5.0.5 C:/Users/Usuario/Desktop/Universidad/S9/daia/final_project/Pok-mon-TCG-Marketplace-and-Collection-Management
+
+ ❯ |solu2-atdd| _bmad-output/test-artifacts/atdd/idn_auth.test.ts (6 tests | 6 failed) 329ms
+   ❯ Story 2.6 — sign-up records consent and sends verification (AD-IDN-3 rule 1) (3)
+     × [S-FR-IDN-7.signup.h] a sign-up with the current consent creates an unverified user with its consent instant, hashes the password, sends one verification link, and keys its throttle row by ipHmac only 35ms
+     × [S-FR-IDN-7.signup.f] a sign-up without consent, or with an old notice version, is RequestValidationFailed on the field, with no user, no email and no throttle row 20ms
+     × [S-FR-IDN-7.signup.throttle] the 6th sign-up from one IP within an hour is AuthRateLimited (429) citing retryAt, and creates no user 20ms
+   ❯ Story 2.6 — sign-in, before verification, behind the throttle (AD-IDN-3 rules 2–3, S-8) (3)
+     × [S-FR-IDN-7.signin.h] the right password signs in an unverified user: the session cookie names them, canBuy still refuses EmailNotVerified, and nothing is throttled 30ms
+     × [S-FR-IDN-7.signin.throttle] 10 wrong passwords each leave one account row and one ipHmac row; the 11th attempt, even with the right password, is 429 citing retryAt; 15 min later it signs in 23ms
+     × [S-FR-IDN-7.signin.unknown] a wrong sign-in for an unknown email leaves only the ipHmac row, and one with no caller IP leaves no row at all: a key is never empty 28ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/idn_auth.test.ts > Story 2.6 — sign-up records consent and sends verification (AD-IDN-3 rule 1) > [S-FR-IDN-7.signup.h] a sign-up with the current consent creates an unverified user with its consent instant, hashes the password, sends one verification link, and keys its throttle row by ipHmac only
+NotImplementedError: NotImplemented: auth.serveAuth
+ ❯ serveAuth src/server/auth-routes.ts:26:9
+     24| /** Serves one `/api/auth/*` request: sign-up and sign-in pass the con…
+     25| export async function serveAuth(_req: Request, _deps: AuthRouteDeps): …
+     26|   throw new NotImplementedError('auth.serveAuth');
+       |         ^
+     27| }
+     28|
+ ❯ Object.auth src/server/composition.ts:332:14
+ ❯ post _bmad-output/test-artifacts/atdd/idn_auth.test.ts:36:25
+ ❯ signUp _bmad-output/test-artifacts/atdd/idn_auth.test.ts:41:3
+ ❯ _bmad-output/test-artifacts/atdd/idn_auth.test.ts:49:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/idn_auth.test.ts > Story 2.6 — sign-up records consent and sends verification (AD-IDN-3 rule 1) > [S-FR-IDN-7.signup.f] a sign-up without consent, or with an old notice version, is RequestValidationFailed on the field, with no user, no email and no throttle row
+NotImplementedError: NotImplemented: auth.serveAuth
+ ❯ serveAuth src/server/auth-routes.ts:26:9
+     24| /** Serves one `/api/auth/*` request: sign-up and sign-in pass the con…
+     25| export async function serveAuth(_req: Request, _deps: AuthRouteDeps): …
+     26|   throw new NotImplementedError('auth.serveAuth');
+       |         ^
+     27| }
+     28|
+ ❯ Object.auth src/server/composition.ts:332:14
+ ❯ post _bmad-output/test-artifacts/atdd/idn_auth.test.ts:36:25
+ ❯ signUp _bmad-output/test-artifacts/atdd/idn_auth.test.ts:41:3
+ ❯ _bmad-output/test-artifacts/atdd/idn_auth.test.ts:62:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/idn_auth.test.ts > Story 2.6 — sign-up records consent and sends verification (AD-IDN-3 rule 1) > [S-FR-IDN-7.signup.throttle] the 6th sign-up from one IP within an hour is AuthRateLimited (429) citing retryAt, and creates no user
+NotImplementedError: NotImplemented: auth.serveAuth
+ ❯ serveAuth src/server/auth-routes.ts:26:9
+     24| /** Serves one `/api/auth/*` request: sign-up and sign-in pass the con…
+     25| export async function serveAuth(_req: Request, _deps: AuthRouteDeps): …
+     26|   throw new NotImplementedError('auth.serveAuth');
+       |         ^
+     27| }
+     28|
+ ❯ Object.auth src/server/composition.ts:332:14
+ ❯ post _bmad-output/test-artifacts/atdd/idn_auth.test.ts:36:25
+ ❯ signUp _bmad-output/test-artifacts/atdd/idn_auth.test.ts:41:3
+ ❯ _bmad-output/test-artifacts/atdd/idn_auth.test.ts:75:47
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/idn_auth.test.ts > Story 2.6 — sign-in, before verification, behind the throttle (AD-IDN-3 rules 2–3, S-8) > [S-FR-IDN-7.signin.h] the right password signs in an unverified user: the session cookie names them, canBuy still refuses EmailNotVerified, and nothing is throttled
+NotImplementedError: NotImplemented: auth.serveAuth
+ ❯ serveAuth src/server/auth-routes.ts:26:9
+     24| /** Serves one `/api/auth/*` request: sign-up and sign-in pass the con…
+     25| export async function serveAuth(_req: Request, _deps: AuthRouteDeps): …
+     26|   throw new NotImplementedError('auth.serveAuth');
+       |         ^
+     27| }
+     28|
+ ❯ Object.auth src/server/composition.ts:332:14
+ ❯ post _bmad-output/test-artifacts/atdd/idn_auth.test.ts:36:25
+ ❯ signUp _bmad-output/test-artifacts/atdd/idn_auth.test.ts:41:3
+ ❯ _bmad-output/test-artifacts/atdd/idn_auth.test.ts:86:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/idn_auth.test.ts > Story 2.6 — sign-in, before verification, behind the throttle (AD-IDN-3 rules 2–3, S-8) > [S-FR-IDN-7.signin.throttle] 10 wrong passwords each leave one account row and one ipHmac row; the 11th attempt, even with the right password, is 429 citing retryAt; 15 min later it signs in
+NotImplementedError: NotImplemented: auth.serveAuth
+ ❯ serveAuth src/server/auth-routes.ts:26:9
+     24| /** Serves one `/api/auth/*` request: sign-up and sign-in pass the con…
+     25| export async function serveAuth(_req: Request, _deps: AuthRouteDeps): …
+     26|   throw new NotImplementedError('auth.serveAuth');
+       |         ^
+     27| }
+     28|
+ ❯ Object.auth src/server/composition.ts:332:14
+ ❯ post _bmad-output/test-artifacts/atdd/idn_auth.test.ts:36:25
+ ❯ signUp _bmad-output/test-artifacts/atdd/idn_auth.test.ts:41:3
+ ❯ _bmad-output/test-artifacts/atdd/idn_auth.test.ts:97:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/idn_auth.test.ts > Story 2.6 — sign-in, before verification, behind the throttle (AD-IDN-3 rules 2–3, S-8) > [S-FR-IDN-7.signin.unknown] a wrong sign-in for an unknown email leaves only the ipHmac row, and one with no caller IP leaves no row at all: a key is never empty
+NotImplementedError: NotImplemented: auth.serveAuth
+ ❯ serveAuth src/server/auth-routes.ts:26:9
+     24| /** Serves one `/api/auth/*` request: sign-up and sign-in pass the con…
+     25| export async function serveAuth(_req: Request, _deps: AuthRouteDeps): …
+     26|   throw new NotImplementedError('auth.serveAuth');
+       |         ^
+     27| }
+     28|
+ ❯ Object.auth src/server/composition.ts:332:14
+ ❯ post _bmad-output/test-artifacts/atdd/idn_auth.test.ts:36:25
+ ❯ signIn _bmad-output/test-artifacts/atdd/idn_auth.test.ts:43:3
+ ❯ _bmad-output/test-artifacts/atdd/idn_auth.test.ts:112:19
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  6 failed (6)
+   Start at  13:36:35
+   Duration  1.92s (import 55%, transform 25%, tests 20%)
+
+$ npm run gate:atdd-red:impl1
+> node scripts/check-atdd-red.mjs solu2-atdd 352 --status _bmad-output/implementation-artifacts/sprint-status.yaml --epics _bmad-output/planning-artifacts/epics.md
+
+solu2-atdd: 365 tests in 21 files; 34 red for the right reason; 331 green for done stories (370 contracts or test ids done); 0 not as expected

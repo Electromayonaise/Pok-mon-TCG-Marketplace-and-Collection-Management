@@ -1,0 +1,159 @@
+# Evidence 40 — the test review re-run over the whole suite (decision log Impl-2 #38): bmad-testarch-test-review (Murat),
+# the criteria registry's fixed severities applied as in #24 and #25. Reviewed at efa178c; the fixes are commit e3af8f3.
+# Branch impl-2, local Docker Postgres 16 on 127.0.0.1:55432, Windows 11, 2026-11-07. Report: test-review.md.
+# SHA256SUMS is written after this file (npm run gen:evidence, then gate:evidence).
+
+# ===== 1. Score and findings =====
+# At efa178c: 0 CRITICAL, 1 HIGH, 2 MEDIUM, 0 LOW. Ledger 100 - (1 x 5 + 2 x 2) + 10 (bonuses: excellent BDD, perfect
+# isolation) = 101, clamped to 100 (A). Recommendation (computed, step-03f): Request Changes, because HIGH > 0.
+#   HIGH-1   (H5)  atdd/sys_contracts.test.ts is 303 lines (278 at 727c74f; F3 added [S-SYS.tick.jobs]).            FIXED
+#                  Split by moving tests: sys_contracts.test.ts 187 lines (14 tests), sys_admin.test.ts 98 lines
+#                  (6 tests: S-SYS.tick, .deliveries, .health, .replay), helpers verbatim in test-support/suites/sys.ts.
+#   MEDIUM-1 (M2)  sys_contracts.test.ts builds the JobRun shape inline 4 times. New jobRun() factory in            FIXED
+#                  test-support/solu2/fixtures.ts (identical rows); admin-events.test.ts's local run helper uses it.
+#   MEDIUM-2 (M2)  admin-events.test.ts's local failedDelivery() copies the shared failedDelivery() factory         FIXED
+#                  column for column (since before 727c74f; that review missed it). It now calls the factory.
+# After e3af8f3: 0 findings. Ledger 100 - 0 + 10 = 110, clamped to 100 (A). Recommendation: Approve.
+# Before: 59 / 100 (F) at 478e3c6 (#24), 100 / 100 (A) at 727c74f (#25).
+# No assertion changed. The moved bodies diff clean against the old file except the four JobRun inserts:
+$ diff <(git show efa178c:atdd/sys_contracts.test.ts | sed -n 56,303p) <(new sys_contracts 27-187; new sys_admin 12-98)   # paths shortened
+<     await ins(db, 'JobRun', { id: id('run1'), trigger: 'tick', job: 'tick', startedAt: T0, finishedAt: T0, outcome: 'succeeded', errorCode: null });
+>     await jobRun(db, { id: id('run1'), job: 'tick' });
+<     await ins(db, 'JobRun', { id: id('tick1'), trigger: 'tick', job: 'outbox-sweep', startedAt: T0, finishedAt: T0, outcome: 'succeeded', errorCode: null });
+<     await ins(db, 'JobRun', { id: id('fx1'), trigger: 'tick', job: 'trm-fetch', startedAt: T0, finishedAt: T0, outcome: 'failed', errorCode: 'NotImplemented' });
+<     await ins(db, 'JobRun', { id: id('exp1'), trigger: 'tick', job: 'expiry-materialize', startedAt: T0, finishedAt: null, outcome: 'running', errorCode: null });
+>     await jobRun(db, { id: id('tick1'), job: 'outbox-sweep' });
+>     await jobRun(db, { id: id('fx1'), job: 'trm-fetch', outcome: 'failed', errorCode: 'NotImplemented' });
+>     await jobRun(db, { id: id('exp1'), job: 'expiry-materialize', outcome: 'running' });
+
+# Mechanical scans over the 120 test files at efa178c (git ls-files '*.test.ts' '*.spec.ts' '*.test.mjs'):
+#   hard waits (waitForTimeout, pg_sleep, sleep(, setTimeout() 0; .skip/.only/.todo/xit/fit 0; `if (...) expect` 0;
+#   files with no expect/assert 0; files over 300 lines 1 (sys_contracts, 303); Date.now()/new Date() 0 outside the
+#   fitness probe's literal; vi.mock 0. Harness files over 300 lines (not test files, as #24/#25 read H5):
+#   test-support/seed.ts 341, test-support/solu2/seed-marketplace.ts 308, both unchanged since before 478e3c6.
+
+# ===== 2. Shuffled runs (on the tree with the fixes; solu2-nfr stays serial, #25) =====
+$ npx vitest run --project impl1-unit --sequence.shuffle --sequence.seed=1   # exit 0
+ Test Files  72 passed (72)
+      Tests  767 passed (767)
+   Duration  23.82s (tests 75%, import 21%, transform 3%, worker 1%, setup 1%)
+$ npx vitest run --project impl1-unit --sequence.shuffle --sequence.seed=2   # exit 0
+ Test Files  72 passed (72)
+      Tests  767 passed (767)
+   Duration  21.59s (tests 68%, import 27%, transform 3%, worker 1%, setup 1%)
+$ npx vitest run --project impl1-unit --sequence.shuffle --sequence.seed=3   # exit 0
+ Test Files  72 passed (72)
+      Tests  767 passed (767)
+   Duration  21.53s (tests 68%, import 27%, transform 4%, worker 1%, setup 1%)
+$ npx vitest run --project impl1-unit --sequence.shuffle --sequence.seed=42   # exit 0
+ Test Files  72 passed (72)
+      Tests  767 passed (767)
+   Duration  21.25s (tests 69%, import 26%, transform 4%, worker 1%, setup 1%)
+$ npx vitest run --project solu2-atdd --sequence.shuffle --sequence.seed=1   # exit 0
+ Test Files  27 passed (27)
+      Tests  384 passed (384)
+   Duration  35.77s (tests 88%, import 9%, transform 2%)
+$ npx vitest run --project solu2-atdd --sequence.shuffle --sequence.seed=2   # exit 0
+ Test Files  27 passed (27)
+      Tests  384 passed (384)
+   Duration  35.04s (tests 88%, import 10%, transform 2%)
+$ npx vitest run --project solu2-atdd --sequence.shuffle --sequence.seed=3   # exit 0
+ Test Files  27 passed (27)
+      Tests  384 passed (384)
+   Duration  34.82s (tests 87%, import 11%, transform 2%)
+$ npx vitest run --project solu2-atdd --sequence.shuffle --sequence.seed=42   # exit 0
+ Test Files  27 passed (27)
+      Tests  384 passed (384)
+   Duration  38.16s (tests 89%, import 9%, transform 2%)
+$ npx vitest run --project solu2-fitness --sequence.shuffle --sequence.seed=1   # exit 0
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+   Duration  12.24s (tests 95%, import 3%, transform 2%)
+$ npx vitest run --project solu2-fitness --sequence.shuffle --sequence.seed=2   # exit 0
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+   Duration  16.11s (tests 96%, import 2%, transform 2%)
+$ npx vitest run --project solu2-fitness --sequence.shuffle --sequence.seed=3   # exit 0
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+   Duration  12.72s (tests 94%, import 3%, transform 2%)
+$ npx vitest run --project solu2-fitness --sequence.shuffle --sequence.seed=42   # exit 0
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+   Duration  13.50s (tests 92%, import 4%, transform 3%)
+
+# ===== 3. The pyramid, recounted with the script of 38-reaudit-docs.log §4 (copied verbatim below) =====
+#   // Pyramid count, the method of test-review.md "The pyramid": it/test blocks (an it.each table once, a k6 scenario once).
+#   // Unit = no test database; integration = a file that registers one (useTestDatabase, a test-support suite or the composed
+#   // app), plus the ATDD, fitness and fixture proofs; E2E = Playwright specs; NFR = the benchmarks and the k6 scenarios.
+#   // Usage: node pyramid.mjs <git-rev>   (reads each file at that revision through git)
+#   import { execFileSync } from 'node:child_process';
+#   const rev = process.argv[2] ?? 'HEAD';
+#   const git = (...a) => execFileSync('git', a, { encoding: 'utf8', maxBuffer: 1 << 28 });
+#   const all = git('ls-tree', '-r', '--name-only', rev).split('\n').filter((f) => f && !/^\.(agents|claude|cline)\//.test(f) && !f.startsWith('_bmad/') && !f.includes('node_modules/'));
+#   const files = all.filter((f) => /\.(test|spec)\.(ts|mjs)$/.test(f));
+#   const count = { unit: 0, integration: 0, e2e: 0, nfr: 0 };
+#   const BLOCK = /(?<![\w.])(?:it|test)(?:\.each\s*(?:\([^)]*\)|`[^`]*`))?(?:\.(?:concurrent|sequential))?\s*\(\s*['"`]/g;
+#   for (const f of files) {
+#     const src = git('show', `${rev}:${f}`);
+#     const blocks = (src.match(BLOCK) ?? []).length;
+#     const integration = /useTestDatabase\s*\(|test-support\/(suites\/|http-app)/.test(src) || /^_bmad-output\/test-artifacts\/(atdd|fitness|fixtures)\//.test(f);
+#     const level = f.endsWith('.spec.ts') ? 'e2e' : f.startsWith('_bmad-output/test-artifacts/nfr/') ? 'nfr' : integration ? 'integration' : 'unit';
+#     count[level] += blocks;
+#   }
+#   let scenarios = 0;
+#   for (const f of all.filter((x) => /^_bmad-output\/test-artifacts\/nfr\/k6\/[^/]+\.js$/.test(x))) {
+#     const m = git('show', `${rev}:${f}`).match(/\n\s*scenarios\s*:\s*\{([^}]*)\}/);
+#     scenarios += m ? (m[1].match(/^\s*\w+\s*:/gm) ?? []).length : 0;
+#   }
+#   count.nfr += scenarios;
+#   const pyr = count.unit + count.integration + count.e2e;
+#   const pct = (n) => `${((100 * n) / pyr).toFixed(1)} %`;
+#   console.log(`${rev}: unit ${count.unit} (${pct(count.unit)}), integration ${count.integration} (${pct(count.integration)}), e2e ${count.e2e} (${pct(count.e2e)}); nfr ${count.nfr} (${count.nfr - scenarios} benchmarks, ${scenarios} k6 scenarios); total ${pyr + count.nfr}`);
+$ for r in a7c5d81 727c74f efa178c e3af8f3; do node pyramid.mjs $r; done
+a7c5d81: unit 181 (21.0 %), integration 680 (79.0 %), e2e 0 (0.0 %); nfr 23 (23 benchmarks, 0 k6 scenarios); total 884
+727c74f: unit 282 (27.3 %), integration 745 (72.1 %), e2e 6 (0.6 %); nfr 32 (30 benchmarks, 2 k6 scenarios); total 1065
+efa178c: unit 299 (27.9 %), integration 768 (71.6 %), e2e 6 (0.6 %); nfr 32 (30 benchmarks, 2 k6 scenarios); total 1105
+e3af8f3: unit 299 (27.9 %), integration 768 (71.6 %), e2e 6 (0.6 %); nfr 32 (30 benchmarks, 2 k6 scenarios); total 1105
+# Added by Impl-2 (e3af8f3 minus a7c5d81): unit 118, integration 88, e2e 6, nfr 9; 118 / 212 = 55.7 %, 88 / 212 = 41.5 %,
+# 6 / 212 = 2.8 %. Whole suite: 299 / 1,073 = 27.9 %, 768 / 1,073 = 71.6 %, 6 / 1,073 = 0.6 %; 32 NFR beside them.
+# Since 727c74f: +17 unit (breaker-domain 8, job-runner 5, config 3, inv-domain 1), +23 integration (cat_breaker 6,
+# admin-events 5, cat.v2-breaker 3, sys_jobs 2, one each in col_supporting, com_supporting, sys_contracts, inv.v2-manage,
+# inv.v2-moderation, composition-catalog-listings, jobs). The split moved blocks and changed no count.
+
+# ===== 4. Test duration (from the JSON reports this test:ci wrote: solu2-atdd, solu2-nfr) =====
+# solu2-atdd: 384 tests; over 90 s: 0; over 10 s: 0; slowest [COM-3.C1] 7.0 s, [TRD-1.I1] 5.2 s.
+# solu2-nfr: 30 tests; over 90 s: 1 ([NFR-VAL-2.history] 114.1 s); then [NFR-COM-2.drift] 85.0 s, [NFR-DSC-1.scale] 37.5 s.
+# impl1-unit: 23.3 s for 767 tests in test:ci. No registry row fires on duration (Test Duration maps to H1 and M1).
+
+# ===== 5. npm run test:ci: exit 0 =====
+# 2026-11-07T19:57:17Z -> 2026-11-07T20:08:33Z (11 min 16 s), EXIT 0, on e3af8f3's tree. gate:evidence ran inside test:ci over the
+# 48 files of efa178c's SHA256SUMS; the final SHA256SUMS, with this file, is written after it.
+24 dependencies in 2 manifests: exact, approved, no high or critical advisory
+no-sleep: 354 files checked, 7 rules proven on planted violations, 0 problems
+evidence: 48 files listed in _bmad-output/test-artifacts/evidence/impl2/SHA256SUMS, 48 on disk; 0 problems
+56 models, each tagged with its owning module; prisma/schema.prisma is current
+ Test Files  72 passed (72)
+      Tests  767 passed (767)
+All files          |   99.07 |    97.56 |     100 |     100 |                   
+144 operations, 113 ingress procedures, 163 schemas, 37 core operations checked against contracts.md; surface is current
+43 pages, 328 states (139 data, 77 refusal, 112 client), 0 problems
+204 code citations checked, 0 problems
+222 test ids cited by contracts.md; 430 defined under _bmad-output/test-artifacts; 37 core operations
+trace: 96 FRs, 56 NFRs, 62 AD rows, 32 risks, 115 clauses, 430 test ids (430 enforced green), 4 journeys, 1 k6 scripts; gate PASS; 0 problems
+_bmad-output/planning-artifacts/epics.md is current: 13 epics, 72 stories
+14 domain files checked, 0 problems
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+solu2-atdd: 384 tests in 27 files; 0 red for the right reason; 384 green for done stories (430 contracts or test ids done); 0 not as expected
+solu2-nfr: 30 tests in 15 files; 0 red for the right reason; 30 green for done stories (430 contracts or test ids done); 0 not as expected
+EXIT 0
+# lint: 0 warnings, 0 errors. Playwright and k6 were not re-run: no E2E file, page object or runtime setting changed.
+
+# ===== 6. Open decisions (judgment calls, no registry row; test-review.md Recommendations 1-3) =====
+# 1. Factories for the shapes that still have none (pending OutboxEvent + EventDelivery, CommissionLedgerEntry,
+#    FxSourceBreaker): no M2 row fires and the score is clamped. Recommended: leave as is.
+# 2. [S-FR-COL-5.C1] asserts rejected.length <= 1 and leaves the reorder's outcome open; the invariant (distinct positions,
+#    22 entries) is asserted unconditionally. Recommended: keep; pinning the outcome needs an H3 condition or a fixed order.
+# 3. Tests that pin decided constants (breaker policy, job-health window, PG_POOL_MAX): not tautologies, each caught a
+#    mutation of the decided value. Recommended: keep.

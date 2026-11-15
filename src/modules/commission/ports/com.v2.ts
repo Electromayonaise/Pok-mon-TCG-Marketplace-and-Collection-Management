@@ -32,7 +32,7 @@ export interface ComV2Deps {
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import type { AdminFactsReader } from '../../identity/index.js';
-import type { AccountState, CommissionTrigger } from '../domain/com.js';
+import type { AccountState, CommissionTrigger, Discrepancy } from '../domain/com.js';
 
 /** A commission account as COM reads it; money stays `bigint` until the DTO edge (AD-SYS-7). */
 export interface AccountRow {
@@ -50,6 +50,15 @@ export interface LedgerLineRow {
   balanceAfter: bigint;
   orderId: CuidId | null;
   trigger: CommissionTrigger | null;
+  createdAt: Date;
+}
+
+/** One `"CommissionRateSetting"` (S-FR-COM-7.list); `setBy` is null only for the migration's seed row. */
+export interface RateSettingRow {
+  id: CuidId;
+  rateBps: number;
+  effectiveFrom: Date;
+  setBy: CuidId | null;
   createdAt: Date;
 }
 
@@ -81,10 +90,20 @@ export interface ComTablesRepository {
   openAccount(tx: Tx, a: { businessId: CuidId; openedAt: IsoInstant; now: IsoInstant }): Promise<boolean>;
   /** The account, or null before it is opened. */
   readAccount(tx: Tx, businessId: CuidId): Promise<AccountRow | null>;
-  /** S-FR-COM-9: the newest ledger lines first, at most `limit`. */
-  newestLedgerLines(tx: Tx, businessId: CuidId, limit: number): Promise<LedgerLineRow[]>;
+  /**
+   * S-FR-COM-9 and S-FR-COM-8.ledger: the newest ledger lines first by `seq DESC`, at most `limit`;
+   * only those of `trigger` when given, and only those below `beforeSeq` when given (the admin cursor).
+   */
+  newestLedgerLines(tx: Tx, businessId: CuidId, limit: number, filter?: { trigger: CommissionTrigger | null; beforeSeq: bigint | null }): Promise<LedgerLineRow[]>;
   /** COM-1 Q1 (AD-COM-2 rule 6): the rate of the setting with the greatest `"effectiveFrom" <= at`; the seed row guarantees one. */
   rateAt(tx: Tx, at: IsoInstant): Promise<number>;
+  /**
+   * S-FR-COM-7 Q (AD-COM-2 rule 6): the append-only setting, `ON CONFLICT ("effectiveFrom") DO NOTHING`;
+   * false when a setting already starts at that instant (`UNIQUE ("effectiveFrom")`).
+   */
+  insertRateSetting(tx: Tx, r: { id: CuidId; rateBps: number; effectiveFrom: IsoInstant; setBy: CuidId; now: IsoInstant }): Promise<boolean>;
+  /** S-FR-COM-7.list: every setting, the seed row included, newest start first. */
+  listRateSettings(tx: Tx): Promise<RateSettingRow[]>;
   /** COM-1 Q2 (AD-COM-2 rule 2): the non-locking check for the order's deduction. */
   deductionExists(tx: Tx, orderId: CuidId): Promise<boolean>;
   /** COM-1 Q2.1: `SAVEPOINT`, and its rollback or release, inside the handler's `tx`. */
@@ -118,4 +137,19 @@ export interface ComTablesRepository {
   listTopUpsOf(tx: Tx, businessId: CuidId, after: { at: IsoInstant; id: CuidId } | null, limit: number): Promise<TopUpRow[]>;
   /** S-FR-COM-2.url: the request's owner and proof key, or null for an unknown id. */
   topUpProofOf(tx: Tx, topUpRequestId: CuidId): Promise<{ businessId: CuidId; proofObjectKey: string } | null>;
+  /** COM-3 P2 (AD-SYS-4 rule 7): `pg_try_advisory_xact_lock(job:commission-reconcile)` in `tx`; false when another run holds it. */
+  tryReconcileJobLock(tx: Tx): Promise<boolean>;
+  /** COM-3: every account's business, ascending, for the all-accounts run. */
+  listAccountBusinessIds(tx: Tx): Promise<CuidId[]>;
+  /** COM-3 Q1: the account read `FOR SHARE`, so a concurrent `apply` waits until this read's transaction ends. */
+  readAccountForShare(tx: Tx, businessId: CuidId): Promise<AccountRow | null>;
+  /** COM-3 Q1: Σ over the ledger (top-ups minus deductions), the number of entries and the highest seq (0 when empty), read in the same transaction. */
+  ledgerTotals(tx: Tx, businessId: CuidId): Promise<{ sum: bigint; entries: bigint; maxSeq: bigint }>;
+  /** COM-3 Q2: the one write of a run. */
+  insertReconciliationRun(tx: Tx, r: { id: CuidId; scope: string; accountsChecked: number; discrepancies: ReconciliationDiscrepancy[]; now: IsoInstant }): Promise<void>;
+  /** COM-3.last: the newest run, or null. */
+  lastReconciliationRun(tx: Tx): Promise<{ id: CuidId; scope: string; accountsChecked: number; discrepancies: ReconciliationDiscrepancy[]; createdAt: Date } | null>;
 }
+
+/** COM-3: one reported difference, as the domain computes it and the run row stores it. */
+export type ReconciliationDiscrepancy = Discrepancy;

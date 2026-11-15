@@ -1,0 +1,426 @@
+# Flow D — the k6 load of Story 13.5 at a fixed arrival rate (decision log Impl-2 #18 and #21). Captured 2026-11-04T09:38Z on branch impl-2
+# at cebbbd7 + the k6 working tree, on a Windows 11 laptop (16 threads), Docker Desktop Postgres 16.6, grafana/k6:1.4.2 via
+# host.docker.internal, with the production build made by this run. Summary: evidence/impl2/k6-summary.json.
+# Two constant-arrival-rate scenarios, 100 iterations/s each for 60 s (one request each), 25 VUs pre-allocated and at most 50 per
+# endpoint, after a setup() warm-up of 5 x 25 concurrent reads per endpoint (tagged endpoint:warmup, outside the per-endpoint figures).
+# The two runs of the same tree: profile p95 34.4 / 38.3 ms, p99 156.2 / 113.7 ms; browse p95 36.4 / 39.4 ms, p99 140.3 / 98.7 ms;
+# dropped iterations 3 / 0 (this run is the second). Without the warm-up the cold server's first second held all 50 VUs per endpoint
+# and dropped 60 and 63 iterations, crossing the < 1 % threshold (60 per endpoint) on its own.
+$ npm run nfr:k6
+
+
+> tezg@0.0.0 nfr:k6
+> node scripts/nfr-k6.mjs
+
+nfr-k6: $ npm run db:up
+
+> tezg@0.0.0 db:up
+> docker compose up -d --wait postgres
+
+ Container tezg-postgres-1 Running 
+ Container tezg-postgres-1 Waiting 
+ Container tezg-postgres-1 Healthy 
+nfr-k6: $ node scripts/db-migrate.mjs --reset
+dropped database tezg_k6
+created database tezg_k6
+applied 001_tezg_schema.sql
+tezg_k6: 1 migrations applied, 1 new
+nfr-k6: $ npx vitest run --project k6-seed
+
+ RUN  v5.0.5 C:/Users/Usuario/Desktop/Universidad/S9/daia/final_project/Pok-mon-TCG-Marketplace-and-Collection-Management
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  04:38:25
+   Duration  5.12s (tests 93%, transform 3%, import 3%)
+
+nfr-k6: $ npx next build
+▲ Next.js 16.4.1 (Turbopack)
+- Environments: .env
+✓ Running next.config.ts took 36ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 676ms
+  Running TypeScript ...
+  Finished TypeScript in 737ms ...
+  Collecting page data using 15 workers ...
+  Generating static pages using 15 workers (0/3) ...
+✓ Generating static pages using 15 workers (3/3) in 927ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /api/auth/[...all]
+├ ƒ /api/health/live
+├ ƒ /api/health/ready
+├ ƒ /api/jobs/[job]
+├ ƒ /api/trpc/[trpc]
+├ ƒ /coleccion
+├ ƒ /coleccion/[collectionId]
+├ ƒ /coleccion/[collectionId]/agregar
+├ ƒ /ingresar
+├ ƒ /mensajes
+└ ƒ /perfil/[userId]
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+▲ Next.js 16.4.1
+- Local:         http://localhost:3200
+- Network:       http://0.0.0.0:3200
+✓ Ready in 303ms
+nfr-k6: $ docker run --rm -v C:\Users\Usuario\Desktop\Universidad\S9\daia\final_project\Pok-mon-TCG-Marketplace-and-Collection-Management\_bmad-output\test-artifacts\nfr\k6:/scripts:ro -v C:\Users\Usuario\Desktop\Universidad\S9\daia\final_project\Pok-mon-TCG-Marketplace-and-Collection-Management\_bmad-output\test-artifacts\evidence\impl2:/out -e BASE_URL=http://host.docker.internal:3200 grafana/k6:1.4.2 run --summary-export /out/k6-summary.json /scripts/reputation-profile.js
+⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+     execution: local
+        script: /scripts/reputation-profile.js
+        output: -
+
+     scenarios: (100.00%) 2 scenarios, 100 max VUs, 1m30s max duration (incl. graceful stop):
+              * browse: 100.00 iterations/s for 1m0s (maxVUs: 25-50, exec: browse, gracefulStop: 30s)
+              * profile: 100.00 iterations/s for 1m0s (maxVUs: 25-50, exec: profile, gracefulStop: 30s)
+
+
+Run       [ 100% ] setup()
+browse    [   0% ]
+profile   [   0% ]
+
+running (0m02.0s), 006/050 VUs, 126 complete and 0 interrupted iterations
+browse    [   1% ] 03/25 VUs  0m00.7s/1m0s  100.00 iters/s
+profile   [   1% ] 03/25 VUs  0m00.7s/1m0s  100.00 iters/s
+
+running (0m03.0s), 003/050 VUs, 329 complete and 0 interrupted iterations
+browse    [   3% ] 02/25 VUs  0m01.7s/1m0s  100.00 iters/s
+profile   [   3% ] 01/25 VUs  0m01.7s/1m0s  100.00 iters/s
+
+running (0m04.0s), 003/050 VUs, 529 complete and 0 interrupted iterations
+browse    [   4% ] 02/25 VUs  0m02.7s/1m0s  100.00 iters/s
+profile   [   4% ] 01/25 VUs  0m02.7s/1m0s  100.00 iters/s
+
+running (0m05.0s), 002/050 VUs, 730 complete and 0 interrupted iterations
+browse    [   6% ] 01/25 VUs  0m03.7s/1m0s  100.00 iters/s
+profile   [   6% ] 01/25 VUs  0m03.7s/1m0s  100.00 iters/s
+
+running (0m06.0s), 003/050 VUs, 929 complete and 0 interrupted iterations
+browse    [   8% ] 02/25 VUs  0m04.7s/1m0s  100.00 iters/s
+profile   [   8% ] 01/25 VUs  0m04.7s/1m0s  100.00 iters/s
+
+running (0m07.0s), 002/050 VUs, 1130 complete and 0 interrupted iterations
+browse    [   9% ] 01/25 VUs  0m05.7s/1m0s  100.00 iters/s
+profile   [   9% ] 01/25 VUs  0m05.7s/1m0s  100.00 iters/s
+
+running (0m08.0s), 002/050 VUs, 1330 complete and 0 interrupted iterations
+browse    [  11% ] 01/25 VUs  0m06.7s/1m0s  100.00 iters/s
+profile   [  11% ] 01/25 VUs  0m06.7s/1m0s  100.00 iters/s
+
+running (0m09.0s), 003/050 VUs, 1529 complete and 0 interrupted iterations
+browse    [  13% ] 02/25 VUs  0m07.7s/1m0s  100.00 iters/s
+profile   [  13% ] 01/25 VUs  0m07.7s/1m0s  100.00 iters/s
+
+running (0m10.0s), 002/050 VUs, 1730 complete and 0 interrupted iterations
+browse    [  14% ] 01/25 VUs  0m08.7s/1m0s  100.00 iters/s
+profile   [  14% ] 01/25 VUs  0m08.7s/1m0s  100.00 iters/s
+
+running (0m11.0s), 002/050 VUs, 1930 complete and 0 interrupted iterations
+browse    [  16% ] 01/25 VUs  0m09.7s/1m0s  100.00 iters/s
+profile   [  16% ] 01/25 VUs  0m09.7s/1m0s  100.00 iters/s
+
+running (0m12.0s), 002/050 VUs, 2130 complete and 0 interrupted iterations
+browse    [  18% ] 01/25 VUs  0m10.7s/1m0s  100.00 iters/s
+profile   [  18% ] 01/25 VUs  0m10.7s/1m0s  100.00 iters/s
+
+running (0m13.0s), 003/050 VUs, 2329 complete and 0 interrupted iterations
+browse    [  19% ] 02/25 VUs  0m11.7s/1m0s  100.00 iters/s
+profile   [  19% ] 01/25 VUs  0m11.7s/1m0s  100.00 iters/s
+
+running (0m14.0s), 004/050 VUs, 2528 complete and 0 interrupted iterations
+browse    [  21% ] 02/25 VUs  0m12.7s/1m0s  100.00 iters/s
+profile   [  21% ] 02/25 VUs  0m12.7s/1m0s  100.00 iters/s
+
+running (0m15.0s), 002/050 VUs, 2730 complete and 0 interrupted iterations
+browse    [  23% ] 01/25 VUs  0m13.7s/1m0s  100.00 iters/s
+profile   [  23% ] 01/25 VUs  0m13.7s/1m0s  100.00 iters/s
+
+running (0m16.0s), 004/050 VUs, 2928 complete and 0 interrupted iterations
+browse    [  24% ] 02/25 VUs  0m14.7s/1m0s  100.00 iters/s
+profile   [  24% ] 02/25 VUs  0m14.7s/1m0s  100.00 iters/s
+
+running (0m17.0s), 007/050 VUs, 3125 complete and 0 interrupted iterations
+browse    [  26% ] 04/25 VUs  0m15.7s/1m0s  100.00 iters/s
+profile   [  26% ] 03/25 VUs  0m15.7s/1m0s  100.00 iters/s
+
+running (0m18.0s), 002/050 VUs, 3330 complete and 0 interrupted iterations
+browse    [  28% ] 01/25 VUs  0m16.7s/1m0s  100.00 iters/s
+profile   [  28% ] 01/25 VUs  0m16.7s/1m0s  100.00 iters/s
+
+running (0m19.0s), 002/050 VUs, 3530 complete and 0 interrupted iterations
+browse    [  29% ] 01/25 VUs  0m17.7s/1m0s  100.00 iters/s
+profile   [  29% ] 01/25 VUs  0m17.7s/1m0s  100.00 iters/s
+
+running (0m20.0s), 002/050 VUs, 3730 complete and 0 interrupted iterations
+browse    [  31% ] 01/25 VUs  0m18.7s/1m0s  100.00 iters/s
+profile   [  31% ] 01/25 VUs  0m18.7s/1m0s  100.00 iters/s
+
+running (0m21.0s), 002/050 VUs, 3930 complete and 0 interrupted iterations
+browse    [  33% ] 01/25 VUs  0m19.7s/1m0s  100.00 iters/s
+profile   [  33% ] 01/25 VUs  0m19.7s/1m0s  100.00 iters/s
+
+running (0m22.0s), 002/050 VUs, 4130 complete and 0 interrupted iterations
+browse    [  34% ] 01/25 VUs  0m20.7s/1m0s  100.00 iters/s
+profile   [  34% ] 01/25 VUs  0m20.7s/1m0s  100.00 iters/s
+
+running (0m23.0s), 007/050 VUs, 4325 complete and 0 interrupted iterations
+browse    [  36% ] 04/25 VUs  0m21.7s/1m0s  100.00 iters/s
+profile   [  36% ] 03/25 VUs  0m21.7s/1m0s  100.00 iters/s
+
+running (0m24.0s), 002/050 VUs, 4530 complete and 0 interrupted iterations
+browse    [  38% ] 01/25 VUs  0m22.7s/1m0s  100.00 iters/s
+profile   [  38% ] 01/25 VUs  0m22.7s/1m0s  100.00 iters/s
+
+running (0m25.0s), 008/050 VUs, 4724 complete and 0 interrupted iterations
+browse    [  39% ] 04/25 VUs  0m23.7s/1m0s  100.00 iters/s
+profile   [  39% ] 04/25 VUs  0m23.7s/1m0s  100.00 iters/s
+
+running (0m26.0s), 003/050 VUs, 4929 complete and 0 interrupted iterations
+browse    [  41% ] 02/25 VUs  0m24.7s/1m0s  100.00 iters/s
+profile   [  41% ] 01/25 VUs  0m24.7s/1m0s  100.00 iters/s
+
+running (0m27.0s), 003/050 VUs, 5129 complete and 0 interrupted iterations
+browse    [  43% ] 02/25 VUs  0m25.7s/1m0s  100.00 iters/s
+profile   [  43% ] 01/25 VUs  0m25.7s/1m0s  100.00 iters/s
+
+running (0m28.0s), 003/050 VUs, 5329 complete and 0 interrupted iterations
+browse    [  44% ] 02/25 VUs  0m26.7s/1m0s  100.00 iters/s
+profile   [  44% ] 01/25 VUs  0m26.7s/1m0s  100.00 iters/s
+
+running (0m29.0s), 004/050 VUs, 5528 complete and 0 interrupted iterations
+browse    [  46% ] 02/25 VUs  0m27.7s/1m0s  100.00 iters/s
+profile   [  46% ] 02/25 VUs  0m27.7s/1m0s  100.00 iters/s
+
+running (0m30.0s), 005/050 VUs, 5727 complete and 0 interrupted iterations
+browse    [  48% ] 02/25 VUs  0m28.7s/1m0s  100.00 iters/s
+profile   [  48% ] 03/25 VUs  0m28.7s/1m0s  100.00 iters/s
+
+running (0m31.0s), 002/050 VUs, 5930 complete and 0 interrupted iterations
+browse    [  49% ] 01/25 VUs  0m29.7s/1m0s  100.00 iters/s
+profile   [  49% ] 01/25 VUs  0m29.7s/1m0s  100.00 iters/s
+
+running (0m32.0s), 002/050 VUs, 6130 complete and 0 interrupted iterations
+browse    [  51% ] 01/25 VUs  0m30.7s/1m0s  100.00 iters/s
+profile   [  51% ] 01/25 VUs  0m30.7s/1m0s  100.00 iters/s
+
+running (0m33.0s), 002/050 VUs, 6330 complete and 0 interrupted iterations
+browse    [  53% ] 01/25 VUs  0m31.7s/1m0s  100.00 iters/s
+profile   [  53% ] 01/25 VUs  0m31.7s/1m0s  100.00 iters/s
+
+running (0m34.0s), 005/050 VUs, 6527 complete and 0 interrupted iterations
+browse    [  54% ] 03/25 VUs  0m32.7s/1m0s  100.00 iters/s
+profile   [  54% ] 02/25 VUs  0m32.7s/1m0s  100.00 iters/s
+
+running (0m35.0s), 002/050 VUs, 6730 complete and 0 interrupted iterations
+browse    [  56% ] 01/25 VUs  0m33.7s/1m0s  100.00 iters/s
+profile   [  56% ] 01/25 VUs  0m33.7s/1m0s  100.00 iters/s
+
+running (0m36.0s), 002/050 VUs, 6930 complete and 0 interrupted iterations
+browse    [  58% ] 01/25 VUs  0m34.7s/1m0s  100.00 iters/s
+profile   [  58% ] 01/25 VUs  0m34.7s/1m0s  100.00 iters/s
+
+running (0m37.0s), 002/050 VUs, 7130 complete and 0 interrupted iterations
+browse    [  59% ] 01/25 VUs  0m35.7s/1m0s  100.00 iters/s
+profile   [  59% ] 01/25 VUs  0m35.7s/1m0s  100.00 iters/s
+
+running (0m38.0s), 002/050 VUs, 7330 complete and 0 interrupted iterations
+browse    [  61% ] 01/25 VUs  0m36.7s/1m0s  100.00 iters/s
+profile   [  61% ] 01/25 VUs  0m36.7s/1m0s  100.00 iters/s
+
+running (0m39.0s), 008/050 VUs, 7524 complete and 0 interrupted iterations
+browse    [  63% ] 04/25 VUs  0m37.7s/1m0s  100.00 iters/s
+profile   [  63% ] 04/25 VUs  0m37.7s/1m0s  100.00 iters/s
+
+running (0m40.0s), 008/050 VUs, 7724 complete and 0 interrupted iterations
+browse    [  64% ] 04/25 VUs  0m38.7s/1m0s  100.00 iters/s
+profile   [  64% ] 04/25 VUs  0m38.7s/1m0s  100.00 iters/s
+
+running (0m41.0s), 002/050 VUs, 7930 complete and 0 interrupted iterations
+browse    [  66% ] 01/25 VUs  0m39.7s/1m0s  100.00 iters/s
+profile   [  66% ] 01/25 VUs  0m39.7s/1m0s  100.00 iters/s
+
+running (0m42.0s), 002/050 VUs, 8130 complete and 0 interrupted iterations
+browse    [  68% ] 01/25 VUs  0m40.7s/1m0s  100.00 iters/s
+profile   [  68% ] 01/25 VUs  0m40.7s/1m0s  100.00 iters/s
+
+running (0m43.0s), 002/050 VUs, 8330 complete and 0 interrupted iterations
+browse    [  69% ] 01/25 VUs  0m41.7s/1m0s  100.00 iters/s
+profile   [  69% ] 01/25 VUs  0m41.7s/1m0s  100.00 iters/s
+
+running (0m44.0s), 004/050 VUs, 8528 complete and 0 interrupted iterations
+browse    [  71% ] 02/25 VUs  0m42.7s/1m0s  100.00 iters/s
+profile   [  71% ] 02/25 VUs  0m42.7s/1m0s  100.00 iters/s
+
+running (0m45.0s), 003/050 VUs, 8729 complete and 0 interrupted iterations
+browse    [  73% ] 02/25 VUs  0m43.7s/1m0s  100.00 iters/s
+profile   [  73% ] 01/25 VUs  0m43.7s/1m0s  100.00 iters/s
+
+running (0m46.0s), 002/050 VUs, 8930 complete and 0 interrupted iterations
+browse    [  74% ] 01/25 VUs  0m44.7s/1m0s  100.00 iters/s
+profile   [  74% ] 01/25 VUs  0m44.7s/1m0s  100.00 iters/s
+
+running (0m47.0s), 002/050 VUs, 9130 complete and 0 interrupted iterations
+browse    [  76% ] 01/25 VUs  0m45.7s/1m0s  100.00 iters/s
+profile   [  76% ] 01/25 VUs  0m45.7s/1m0s  100.00 iters/s
+
+running (0m48.0s), 002/050 VUs, 9330 complete and 0 interrupted iterations
+browse    [  78% ] 01/25 VUs  0m46.7s/1m0s  100.00 iters/s
+profile   [  78% ] 01/25 VUs  0m46.7s/1m0s  100.00 iters/s
+
+running (0m49.0s), 004/050 VUs, 9528 complete and 0 interrupted iterations
+browse    [  79% ] 02/25 VUs  0m47.7s/1m0s  100.00 iters/s
+profile   [  79% ] 02/25 VUs  0m47.7s/1m0s  100.00 iters/s
+
+running (0m50.0s), 003/050 VUs, 9729 complete and 0 interrupted iterations
+browse    [  81% ] 02/25 VUs  0m48.7s/1m0s  100.00 iters/s
+profile   [  81% ] 01/25 VUs  0m48.7s/1m0s  100.00 iters/s
+
+running (0m51.0s), 004/050 VUs, 9928 complete and 0 interrupted iterations
+browse    [  83% ] 02/25 VUs  0m49.7s/1m0s  100.00 iters/s
+profile   [  83% ] 02/25 VUs  0m49.7s/1m0s  100.00 iters/s
+
+running (0m52.0s), 002/050 VUs, 10130 complete and 0 interrupted iterations
+browse    [  84% ] 01/25 VUs  0m50.7s/1m0s  100.00 iters/s
+profile   [  84% ] 01/25 VUs  0m50.7s/1m0s  100.00 iters/s
+
+running (0m53.0s), 002/050 VUs, 10330 complete and 0 interrupted iterations
+browse    [  86% ] 01/25 VUs  0m51.7s/1m0s  100.00 iters/s
+profile   [  86% ] 01/25 VUs  0m51.7s/1m0s  100.00 iters/s
+
+running (0m54.0s), 026/050 VUs, 10506 complete and 0 interrupted iterations
+browse    [  88% ] 12/25 VUs  0m52.7s/1m0s  100.00 iters/s
+profile   [  88% ] 14/25 VUs  0m52.7s/1m0s  100.00 iters/s
+
+running (0m55.0s), 003/050 VUs, 10729 complete and 0 interrupted iterations
+browse    [  89% ] 02/25 VUs  0m53.7s/1m0s  100.00 iters/s
+profile   [  89% ] 01/25 VUs  0m53.7s/1m0s  100.00 iters/s
+
+running (0m56.0s), 002/050 VUs, 10930 complete and 0 interrupted iterations
+browse    [  91% ] 01/25 VUs  0m54.7s/1m0s  100.00 iters/s
+profile   [  91% ] 01/25 VUs  0m54.7s/1m0s  100.00 iters/s
+
+running (0m57.0s), 002/050 VUs, 11130 complete and 0 interrupted iterations
+browse    [  93% ] 01/25 VUs  0m55.7s/1m0s  100.00 iters/s
+profile   [  93% ] 01/25 VUs  0m55.7s/1m0s  100.00 iters/s
+
+running (0m58.0s), 002/050 VUs, 11330 complete and 0 interrupted iterations
+browse    [  94% ] 01/25 VUs  0m56.7s/1m0s  100.00 iters/s
+profile   [  94% ] 01/25 VUs  0m56.7s/1m0s  100.00 iters/s
+
+running (0m59.0s), 004/050 VUs, 11528 complete and 0 interrupted iterations
+browse    [  96% ] 02/25 VUs  0m57.7s/1m0s  100.00 iters/s
+profile   [  96% ] 02/25 VUs  0m57.7s/1m0s  100.00 iters/s
+
+running (1m00.0s), 002/050 VUs, 11730 complete and 0 interrupted iterations
+browse    [  98% ] 01/25 VUs  0m58.7s/1m0s  100.00 iters/s
+profile   [  98% ] 01/25 VUs  0m58.7s/1m0s  100.00 iters/s
+
+running (1m01.0s), 002/050 VUs, 11930 complete and 0 interrupted iterations
+browse    [  99% ] 01/25 VUs  0m59.7s/1m0s  100.00 iters/s
+profile   [  99% ] 01/25 VUs  0m59.7s/1m0s  100.00 iters/s
+
+
+  █ THRESHOLDS 
+
+    dropped_iterations
+    ✓ 'count<120' count=0
+
+      {scenario:browse}
+      ✓ 'count<60' count=0
+
+      {scenario:profile}
+      ✓ 'count<60' count=0
+
+    http_req_duration{endpoint:browse}
+    ✓ 'p(95)<1000' p(95)=39.38ms
+
+    http_req_duration{endpoint:profile}
+    ✓ 'p(95)<300' p(95)=38.32ms
+    ✓ 'p(99)<800' p(99)=113.71ms
+
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+
+      {endpoint:browse}
+      ✓ 'rate<0.01' rate=0.00%
+
+      {endpoint:profile}
+      ✓ 'rate<0.01' rate=0.00%
+
+    http_reqs{endpoint:browse}
+    ✓ 'count>0' count=6001
+
+    http_reqs{endpoint:profile}
+    ✓ 'count>0' count=6001
+
+    server_errors_5xx
+    ✓ 'count==0' count=0
+
+      {endpoint:browse}
+      ✓ 'count==0' count=0
+
+      {endpoint:profile}
+      ✓ 'count==0' count=0
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 12002   195.66078/s
+    checks_succeeded...: 100.00% 12002 out of 12002
+    checks_failed......: 0.00%   0 out of 12002
+
+    ✓ browse answers 200
+    ✓ profile answers 200
+
+    CUSTOM
+    server_errors_5xx..............: 0      0/s
+      { endpoint:browse }..........: 0      0/s
+      { endpoint:profile }.........: 0      0/s
+
+    HTTP
+    http_req_duration..............: avg=21.37ms min=5.17ms  med=14.72ms max=485.86ms p(90)=30.45ms p(95)=50.62ms p(99)=162.94ms
+      { endpoint:browse }..........: avg=20.39ms min=10.05ms med=16.06ms max=203.04ms p(90)=29.11ms p(95)=39.38ms p(99)=98.66ms 
+      { endpoint:profile }.........: avg=15.2ms  min=5.17ms  med=9.75ms  max=222.27ms p(90)=25.85ms p(95)=38.32ms p(99)=113.71ms
+      { expected_response:true }...: avg=21.37ms min=5.17ms  med=14.72ms max=485.86ms p(90)=30.45ms p(95)=50.62ms p(99)=162.94ms
+    http_req_failed................: 0.00%  0 out of 12252
+      { endpoint:browse }..........: 0.00%  0 out of 6001
+      { endpoint:profile }.........: 0.00%  0 out of 6001
+    http_reqs......................: 12252  199.736367/s
+      { endpoint:browse }..........: 6001   97.83039/s
+      { endpoint:profile }.........: 6001   97.83039/s
+
+    EXECUTION
+    dropped_iterations.............: 0      0/s
+      { scenario:browse }..........: 0      0/s
+      { scenario:profile }.........: 0      0/s
+    iteration_duration.............: avg=18.08ms min=5.47ms  med=14.83ms max=222.48ms p(90)=27.97ms p(95)=39.3ms  p(99)=111.92ms
+    iterations.....................: 12002  195.66078/s
+    vus............................: 2      min=0          max=26
+    vus_max........................: 50     min=50         max=50
+
+    NETWORK
+    data_received..................: 58 MB  937 kB/s
+    data_sent......................: 2.2 MB 36 kB/s
+
+
+
+
+running (1m01.3s), 000/050 VUs, 12002 complete and 0 interrupted iterations
+browse  ✓ [ 100% ] 00/25 VUs  1m0s  100.00 iters/s
+profile ✓ [ 100% ] 00/25 VUs  1m0s  100.00 iters/s
+nfr-k6: k6 exited with 0

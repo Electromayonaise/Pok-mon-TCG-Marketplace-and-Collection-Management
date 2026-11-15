@@ -80,6 +80,8 @@ export type { BrowseCatalogRequest, BrowseCatalogResponse } from '../../../../sr
 export type { FetchTrmRequest, FetchTrmResponse } from '../../../../src/modules/catalog/index.js';
 // S-FR-CAT-8.rate getFxRate
 export type { GetFxRateRequest, GetFxRateResponse } from '../../../../src/modules/catalog/index.js';
+// S-FR-CAT-8.breaker getFxSourceBreaker
+export type { GetFxSourceBreakerRequest, GetFxSourceBreakerResponse } from '../../../../src/modules/catalog/index.js';
 // P-CAT.entry getEntry
 export type { GetEntryRequest, GetEntryResponse } from '../../../../src/modules/catalog/index.js';
 // P-CAT.entries getEntries
@@ -322,3 +324,5 @@ export type { ListDeliveriesRequest, ListDeliveriesResponse } from '../../../../
 export type { ReplayEventDeliveryRequest, ReplayEventDeliveryResponse } from '../../../../src/shared-kernel/admin-events.dto.js';
 // S-SYS.health getDeliveryHealth
 export type { GetDeliveryHealthRequest, GetDeliveryHealthResponse } from '../../../../src/shared-kernel/admin-events.dto.js';
+// S-SYS.sweep sweep
+export type { SweepDeliveriesRequest, SweepDeliveriesResponse } from '../../../../src/shared-kernel/admin-events.dto.js';

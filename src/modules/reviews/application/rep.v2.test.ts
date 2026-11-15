@@ -204,3 +204,80 @@ describe('close review of Epic 13 (decision log Impl-1 #38)', () => {
     expect([codeOf(error), citedInputs(error)]).toEqual(['DuplicateReview', { reviewId: id('r1') }]);
   });
 });
+
+describe('the profile, the admin search and the review log (S-FR-REP-6, S-FR-REP-7; Story 13.5, decision log Impl-2 #18)', () => {
+  /** 21 visible reviews of the individual seller Julián, an hour apart (r0 newest), and one hidden one. */
+  async function julianReviewed(): Promise<void> {
+    await user(db, { id: id('julian'), sellerTrack: 'individual' });
+    await user(db, { id: id('admin'), isAdmin: true });
+    for (let i = 0; i < 22; i++) {
+      await user(db, { id: id(`rv${i}`) });
+      await db.query(
+        `INSERT INTO "Review" (id, "reviewerId", "targetUserId", "targetKind", "purchaseVerified", rating, text, "hiddenAt", "hiddenReason", "hiddenBy", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, 'individual', false, $4, $5, $6, $7, $8, $9, $9)`,
+        [id(`r${i}`), id(`rv${i}`), id('julian'), 1 + (i % 5), i === 3 ? 'Precio_justo y Atención rápida' : `Reseña número ${i}`,
+          i === 21 ? at(-HOUR) : null, i === 21 ? 'Spam' : null, i === 21 ? id('admin') : null, at(-i * HOUR)],
+      );
+    }
+  }
+
+  it('the profile pages 20 visible reviews newest first; page 2 holds the 21st; the seller is named by kind; a buyer is TargetNotFound', async () => {
+    await julianReviewed();
+    await user(db, { id: id('camila') });
+    const { rep: svc } = rep();
+    const first = await svc.getProfile({ userId: id('julian'), page: 1 });
+    const second = await svc.getProfile({ userId: id('julian'), page: 2 });
+    expect(first.seller).toMatchObject({ userId: id('julian'), kind: 'individual' });
+    expect(first.reviews.map((r) => r.reviewId)).toEqual(Array.from({ length: 20 }, (_, i) => id(`r${i}`)));
+    expect([first.hasMore, second.hasMore, second.reviews.map((r) => r.reviewId)]).toEqual([true, false, [id('r20')]]);
+    expect(first.aggregate).toMatchObject({ count: 21, decision: { reasonCode: 'SellerRated' } });
+    expect(second.aggregate).toEqual(first.aggregate);
+    expect(codeOf(await caught(() => svc.getProfile({ userId: id('camila'), page: 1 })))).toBe('TargetNotFound');
+    for (const page of [0, 1.5, 1_001]) expect(codeOf(await caught(() => svc.getProfile({ userId: id('julian'), page })))).toBe('RequestValidationFailed');
+  });
+
+  it('a seller with no visible review reads null and SellerNotYetReviewed, never 0.0', async () => {
+    await user(db, { id: id('julian'), sellerTrack: 'individual' });
+    const profile = await rep().rep.getProfile({ userId: id('julian'), page: 1 });
+    expect(profile).toMatchObject({ reviews: [], hasMore: false, aggregate: { count: 0, averageTenths: null, decision: { reasonCode: 'SellerNotYetReviewed' } } });
+  });
+
+  it('the search is a case- and accent-insensitive substring, hidden reviews included; `_` is literal; a blank or NUL query and a foreign cursor are refused', async () => {
+    await julianReviewed();
+    const { rep: svc } = rep();
+    const search = (query: string, cursor: string | null = null) => svc.searchReviews({ adminId: id('admin'), query, cursor });
+    expect((await search('ATENCION RÁPIDA')).rows.map((r) => r.reviewId)).toEqual([id('r3')]);
+    expect((await search('o_j')).rows.map((r) => r.reviewId)).toEqual([id('r3')]);
+    expect((await search('número 21')).rows).toMatchObject([{ reviewId: id('r21'), hidden: true }]);
+    for (const query of ['', '   ', 'a\u0000b', 'x'.repeat(201)]) expect(codeOf(await caught(() => search(query)))).toBe('RequestValidationFailed');
+    const log = await svc.listReviewModerationLog({ adminId: id('admin'), cursor: null });
+    expect(log.nextCursor).toBeNull();
+    const foreign = Buffer.from(`log|${at(0)}|${id('r1')}`, 'utf8').toString('base64url');
+    expect(codeOf(await caught(() => search('Reseña', foreign)))).toBe('RequestValidationFailed');
+    expect(codeOf(await caught(() => svc.searchReviews({ adminId: id('julian'), query: 'Reseña', cursor: null })))).toBe('AdminOnly');
+  });
+
+  it('the search and the log page 50 at a time by cursor, newest first, and the log filters by reason', async () => {
+    await user(db, { id: id('julian'), sellerTrack: 'individual' });
+    await user(db, { id: id('admin'), isAdmin: true });
+    for (let i = 0; i < 51; i++) {
+      await user(db, { id: id(`rv${i}`) });
+      await review(db, { id: id(`r${i}`), reviewerId: id(`rv${i}`), targetUserId: id('julian'), targetKind: 'individual', text: `Buen trato ${i}` });
+      await db.query(
+        `INSERT INTO "ReviewModerationLog" (id, "reviewId", action, "reasonCode", note, "adminId", "ratingSnapshot", "textSnapshot", "createdAt")
+         VALUES ($1, $2, 'hide', $3, NULL, $4, 5, 'Buen trato', $5)`,
+        [id(`lg${i}`), id(`r${i}`), i < 10 ? 'Harassment' : 'Spam', id('admin'), at(i * 60_000)],
+      );
+    }
+    const { rep: svc } = rep();
+    const s1 = await svc.searchReviews({ adminId: id('admin'), query: 'buen trato', cursor: null });
+    const s2 = await svc.searchReviews({ adminId: id('admin'), query: 'buen trato', cursor: s1.nextCursor });
+    expect([s1.rows.length, s2.rows.length, s2.nextCursor]).toEqual([50, 1, null]);
+    expect(new Set([...s1.rows, ...s2.rows].map((r) => r.reviewId)).size).toBe(51);
+    const l1 = await svc.listReviewModerationLog({ adminId: id('admin'), cursor: null });
+    const l2 = await svc.listReviewModerationLog({ adminId: id('admin'), cursor: l1.nextCursor });
+    expect([...l1.rows, ...l2.rows].map((r) => r.logId)).toEqual(Array.from({ length: 51 }, (_, i) => id(`lg${50 - i}`)));
+    expect((await svc.listReviewModerationLog({ adminId: id('admin'), cursor: null, reasonCode: 'Harassment' })).rows).toHaveLength(10);
+    expect(codeOf(await caught(() => svc.listReviewModerationLog({ adminId: id('admin'), cursor: s1.nextCursor })))).toBe('RequestValidationFailed');
+  });
+});

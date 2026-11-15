@@ -2,8 +2,8 @@
 // EventDelivery, OutboxEvent, FailedDeliveryDigest and JobRun). Every statement runs on the
 // caller's `tx`, and every instant is a bound parameter from the clock, never SQL `now()`
 // (AD-SYS-6). Proven by admin-events.test.ts and sys › S-SYS.replay, .tick, .deliveries, .health.
-import type { DeliveryRowDTO, GetDeliveryHealthResponse, Subscriber } from '../admin-events.dto.js';
-import type { AdminEventsRepository, DeliveryPageKey, ReplayLogRow } from '../admin-events.js';
+import type { DeliveryRowDTO, GetDeliveryHealthResponse, JobHealthDTO, Subscriber } from '../admin-events.dto.js';
+import type { AdminEventsRepository, DeliveryPageKey, JobHealthWindow, ReplayLogRow } from '../admin-events.js';
 import type { Tx } from '../ports.js';
 import type { CuidId, IsoInstant } from '../types.js';
 
@@ -47,6 +47,22 @@ export class PgAdminEventsRepository implements AdminEventsRepository {
       [notAfter],
     );
     return iso(rows[0]?.startedAt ?? null);
+  }
+
+  async readJobHealth(tx: Tx, w: JobHealthWindow): Promise<JobHealthDTO[]> {
+    // `$1` the read, `$2` the window's start, `$3` the stuck cutoff; ties on `startedAt` break by id, never by chance.
+    const { rows } = await tx.query<{ job: string; lastOutcome: JobHealthDTO['lastOutcome']; lastErrorCode: string | null; lastStartedAt: Date; failedInWindow: number; stuckRunning: number }>(
+      `SELECT j.job, l.outcome AS "lastOutcome", l."errorCode" AS "lastErrorCode", l."startedAt" AS "lastStartedAt",
+              (SELECT count(*)::int FROM "JobRun" f WHERE f.job = j.job AND f.outcome = 'failed' AND f."startedAt" > $2 AND f."startedAt" <= $1) AS "failedInWindow",
+              (SELECT count(*)::int FROM "JobRun" s WHERE s.job = j.job AND s.outcome = 'running' AND s."startedAt" > $2 AND s."startedAt" < $3) AS "stuckRunning"
+         FROM (SELECT DISTINCT job FROM "JobRun" WHERE "startedAt" <= $1) j
+         JOIN LATERAL (
+           SELECT outcome, "errorCode", "startedAt" FROM "JobRun" WHERE job = j.job AND "startedAt" <= $1 ORDER BY "startedAt" DESC, id DESC LIMIT 1
+         ) l ON true
+        ORDER BY j.job`,
+      [w.readAt, w.since, w.stuckBefore],
+    );
+    return rows.map((r) => ({ ...r, lastStartedAt: r.lastStartedAt.toISOString() }));
   }
 
   async listDeliveries(tx: Tx, q: { kind: DeliveryPageKey['kind']; stuckBefore: IsoInstant; after: DeliveryPageKey | null; limit: number }): Promise<DeliveryRowDTO[]> {

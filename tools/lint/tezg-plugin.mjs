@@ -9,7 +9,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const SCHEMA = '_bmad-output/planning-artifacts/detailed-design/schemas/001_tezg_schema.sql';
+const SCHEMAS = '_bmad-output/planning-artifacts/detailed-design/schemas';
+
+/** The SQL-first schema: every migration of the schema folder, in apply order (scripts/lib/migrations.mjs). */
+export function readSchemaSql(root = REPO_ROOT) {
+  const dir = path.join(root, SCHEMAS);
+  return fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort().map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
+}
 
 /** Code → owning module, from the `DOMAIN_ERRORS` block (one `Code: { owner: '…', … }` entry per line). */
 export function codeOwners(codesTs) {
@@ -45,7 +51,7 @@ export const REGULATED_COLUMNS = {
 };
 
 export const CODE_OWNERS = codeOwners(fs.readFileSync(path.join(REPO_ROOT, 'src/shared-kernel/codes.ts'), 'utf8'));
-export const TABLE_OWNERS = tableOwners(fs.readFileSync(path.join(REPO_ROOT, SCHEMA), 'utf8'));
+export const TABLE_OWNERS = tableOwners(readSchemaSql());
 
 /** The linted file as a repo-relative path, its module (`identity`, `shared-kernel`, `server`, …) and whether it is adapter code. */
 function fileOf(context) {

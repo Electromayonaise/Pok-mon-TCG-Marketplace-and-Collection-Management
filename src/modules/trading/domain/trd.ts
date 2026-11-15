@@ -35,18 +35,6 @@ export function roleOf(offer: Pick<OfferFacts, 'proposerId' | 'sellerId'>, actor
   return offer.sellerId === actorId ? 'seller' : null;
 }
 
-/** FR-TRD-2/3: the actor's role, or the code that refuses the action (precedence: visibility, open, turn). */
-export function turnVerdict(
-  offer: OfferFacts,
-  actorId: string,
-  now: Date,
-): { ok: true; role: OfferRole } | { ok: false; code: 'TradeOfferNotVisibleToCaller' | 'TradeOfferNotOpen' | 'NotYourTurn' } {
-  const role = roleOf(offer, actorId);
-  if (role === null) return { ok: false, code: 'TradeOfferNotVisibleToCaller' };
-  if (deriveOfferStatus(offer, now) !== 'Open') return { ok: false, code: 'TradeOfferNotOpen' };
-  return offer.turn === role ? { ok: true, role } : { ok: false, code: 'NotYourTurn' };
-}
-
 /** The facts an offer action's 0-row re-read maps (AD-TRD-1 rule 2). */
 export interface OfferState extends Pick<OfferFacts, 'status' | 'turn' | 'expiresAt'> {
   version: number;

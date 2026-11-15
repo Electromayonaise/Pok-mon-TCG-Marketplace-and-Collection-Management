@@ -1,0 +1,113 @@
+# Flow A red phase — Story 9.6 (decision log Impl-2 #15). Captured 2026-11-04T00:46:44Z on branch impl-2 at 2a6ad10 + the red commit's working tree,
+# before any inbox code existed (MsgServiceV2.listInbox, getThread, markRead and setMuted throw NotImplementedError).
+# The 4 Solu-2 bound tests and the 2 new ones ([S-FR-MSG-7.C1], [S-FR-MSG-7.f2] in atdd/msg_inbox.test.ts) fail on NotImplemented.
+$ npx vitest run --project solu2-atdd msg_inbox.test.ts msg_contracts.test.ts -t "S-FR-MSG"
+
+ RUN  v5.0.5 C:/Users/Usuario/Desktop/Universidad/S9/daia/final_project/Pok-mon-TCG-Marketplace-and-Collection-Management
+
+ ❯ |solu2-atdd| _bmad-output/test-artifacts/atdd/msg_inbox.test.ts (2 tests | 2 failed) 546ms
+   ❯ Story 9.6 — stale tabs racing markRead (S-FR-MSG-7, AD-MSG-3 rule 1) (1)
+     × [S-FR-MSG-7.C1] 50 concurrent markRead calls with random seqs, 20 rounds: lastReadSeq ends at the highest seq sent, clamped to lastSeq, and never decreases 74ms
+   ❯ Story 9.6 — a non-participant sees nothing and writes nothing (S-FR-MSG-7, S-FR-MSG-8) (1)
+     × [S-FR-MSG-7.f2] a non-participant never sees the conversation in its inbox, and thread, markRead and mute are ConversationNotVisibleToCaller (403) with zero writes 59ms
+ ❯ |solu2-atdd| _bmad-output/test-artifacts/atdd/msg_contracts.test.ts (21 tests | 4 failed | 17 skipped) 640ms
+   ❯ Supporting MSG contracts (contracts.md §15) (4)
+     × [S-FR-MSG-7.h] reading the thread lowers unread to 0, and the other side’s read state is never returned 72ms
+     × [S-FR-MSG-7.f] markRead with an older seq from a stale tab leaves lastReadSeq unchanged (AD-MSG-3 rule 1) 51ms
+     × [S-FR-MSG-8.h] a muted conversation leaves the buyer’s total unread count 61ms
+     × [S-FR-MSG-8.f] a business muting is an explained no-op with zero writes (C-GAP-4, R-11) 50ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/msg_contracts.test.ts > Supporting MSG contracts (contracts.md §15) > [S-FR-MSG-7.h] reading the thread lowers unread to 0, and the other side’s read state is never returned
+NotImplementedError: NotImplemented: messaging.markRead
+ ❯ MsgServiceV2.markRead src/modules/messaging/application/msg.v2.ts:116:11
+    114|
+    115|   async markRead(_input: MarkReadRequest): Promise<MarkReadResponse> {
+    116|     throw new NotImplementedError('messaging.markRead');
+       |           ^
+    117|   }
+    118|
+ ❯ _bmad-output/test-artifacts/atdd/msg_contracts.test.ts:229:39
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/msg_contracts.test.ts > Supporting MSG contracts (contracts.md §15) > [S-FR-MSG-7.f] markRead with an older seq from a stale tab leaves lastReadSeq unchanged (AD-MSG-3 rule 1)
+NotImplementedError: NotImplemented: messaging.markRead
+ ❯ MsgServiceV2.markRead src/modules/messaging/application/msg.v2.ts:116:11
+    114|
+    115|   async markRead(_input: MarkReadRequest): Promise<MarkReadResponse> {
+    116|     throw new NotImplementedError('messaging.markRead');
+       |           ^
+    117|   }
+    118|
+ ❯ _bmad-output/test-artifacts/atdd/msg_contracts.test.ts:236:31
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/msg_contracts.test.ts > Supporting MSG contracts (contracts.md §15) > [S-FR-MSG-8.h] a muted conversation leaves the buyer’s total unread count
+NotImplementedError: NotImplemented: messaging.setMuted
+ ❯ MsgServiceV2.setMuted src/modules/messaging/application/msg.v2.ts:120:11
+    118|
+    119|   async setMuted(_input: SetMutedRequest): Promise<SetMutedResponse> {
+    120|     throw new NotImplementedError('messaging.setMuted');
+       |           ^
+    121|   }
+    122| }
+ ❯ _bmad-output/test-artifacts/atdd/msg_contracts.test.ts:242:15
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/msg_contracts.test.ts > Supporting MSG contracts (contracts.md §15) > [S-FR-MSG-8.f] a business muting is an explained no-op with zero writes (C-GAP-4, R-11)
+NotImplementedError: NotImplemented: messaging.setMuted
+ ❯ MsgServiceV2.setMuted src/modules/messaging/application/msg.v2.ts:120:11
+    118|
+    119|   async setMuted(_input: SetMutedRequest): Promise<SetMutedResponse> {
+    120|     throw new NotImplementedError('messaging.setMuted');
+       |           ^
+    121|   }
+    122| }
+ ❯ _bmad-output/test-artifacts/atdd/msg_contracts.test.ts:248:39
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/msg_inbox.test.ts > Story 9.6 — stale tabs racing markRead (S-FR-MSG-7, AD-MSG-3 rule 1) > [S-FR-MSG-7.C1] 50 concurrent markRead calls with random seqs, 20 rounds: lastReadSeq ends at the highest seq sent, clamped to lastSeq, and never decreases
+NotImplementedError: NotImplemented: messaging.markRead
+ ❯ MsgServiceV2.markRead src/modules/messaging/application/msg.v2.ts:116:11
+    114|
+    115|   async markRead(_input: MarkReadRequest): Promise<MarkReadResponse> {
+    116|     throw new NotImplementedError('messaging.markRead');
+       |           ^
+    117|   }
+    118|
+ ❯ _bmad-output/test-artifacts/atdd/msg_inbox.test.ts:52:65
+ ❯ test-support/concurrency.ts:14:68
+ ❯ race test-support/concurrency.ts:16:19
+ ❯ _bmad-output/test-artifacts/atdd/msg_inbox.test.ts:52:39
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  |solu2-atdd| _bmad-output/test-artifacts/atdd/msg_inbox.test.ts > Story 9.6 — a non-participant sees nothing and writes nothing (S-FR-MSG-7, S-FR-MSG-8) > [S-FR-MSG-7.f2] a non-participant never sees the conversation in its inbox, and thread, markRead and mute are ConversationNotVisibleToCaller (403) with zero writes
+NotImplementedError: NotImplemented: messaging.listInbox
+ ❯ MsgServiceV2.listInbox src/modules/messaging/application/msg.v2.ts:108:11
+    106|   }
+    107|   async listInbox(_input: ListInboxRequest): Promise<ListInboxResponse…
+    108|     throw new NotImplementedError('messaging.listInbox');
+       |           ^
+    109|   }
+    110|
+ ❯ _bmad-output/test-artifacts/atdd/msg_inbox.test.ts:76:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  6 failed | 17 skipped (23)
+   Start at  19:46:00
+   Duration  1.63s (tests 55%, transform 23%, import 21%, setup 1%, worker 1%)
+
+
+$ npm run gate:atdd-red:impl1
+> node scripts/check-atdd-red.mjs solu2-atdd 352 --status _bmad-output/implementation-artifacts/sprint-status.yaml --epics _bmad-output/planning-artifacts/epics.md
+
+solu2-atdd: 369 tests in 23 files; 20 red for the right reason; 349 green for done stories (389 contracts or test ids done); 0 not as expected

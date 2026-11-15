@@ -27,7 +27,7 @@ export interface RepV2UseCases {
 // </gen-solu2-api>
 
 import type { Citation, Decision, DecisionOutcome } from '../../../shared-kernel/decision.js';
-import { NotImplementedError, UnexpectedError } from '../../../shared-kernel/errors.js';
+import { UnexpectedError } from '../../../shared-kernel/errors.js';
 import { renderMessage } from '../../../shared-kernel/messages.js';
 import type { MessageCode } from '../../../shared-kernel/messages.generated.js';
 import { raiserFor } from '../../../shared-kernel/raise.js';
@@ -36,8 +36,9 @@ import { NUL_ISSUE, textIssue } from '../../../shared-kernel/text.js';
 import type { Tx } from '../../../shared-kernel/ports.js';
 import type { CuidId, IsoInstant } from '../../../shared-kernel/types.js';
 import { requireAdmin } from '../../identity/index.js';
-import { averageTenths, purchaseVerifiedFor, reviewableKind } from '../domain/rep.js';
-import type { ReviewSnapshot } from '../ports/rep.v2.js';
+import { averageTenths, decodeReviewCursor, encodeReviewCursor, escapeLike, purchaseVerifiedFor, reviewableKind, type ReviewListTag } from '../domain/rep.js';
+import type { SellerAggregateDTO } from '../dto/rep.v2.dto.js';
+import type { KeysetPage, ReviewSnapshot } from '../ports/rep.v2.js';
 
 const raise = raiserFor('reviews');
 
@@ -47,6 +48,42 @@ const MAX_TEXT = 1000;
 const MAX_SELLERS = 500;
 /** The moderation log's `note` CHECK. */
 const MAX_NOTE = 500;
+/** S-FR-REP-7 (AD-REP-2 rule 2): a profile page holds 20 reviews. */
+const PROFILE_PAGE = 20;
+/** S-FR-REP-7: the deepest page a profile reads (20,000 reviews), so an offset never scans without bound. */
+const MAX_PROFILE_PAGE = 1_000;
+/** S-FR-REP-6 (AD-REP-3 rule 5): an admin list page holds 50 rows. */
+const ADMIN_PAGE = 50;
+/** S-FR-REP-6.search: the query's length, in code points. */
+const MAX_QUERY = 200;
+
+/** REP-3 Q2–Q4 for one seller: its totals, or none, as the aggregate DTO with its decision. */
+function aggregateOf(sellerId: CuidId, totals: { count: bigint; sum: bigint } | undefined, now: IsoInstant): SellerAggregateDTO {
+  const tenths = totals === undefined ? null : averageTenths(totals.sum, totals.count);
+  if (totals === undefined || tenths === null) {
+    return { sellerId, averageTenths: null, count: 0, decision: explained('allowed', 'SellerNotYetReviewed', [{ rule: 'FR-REP-3', inputs: { count: 0 } }], now) };
+  }
+  const count = assertSafeCount(totals.count);
+  const value = Number(tenths);
+  return { sellerId, averageTenths: value, count, decision: explained('allowed', 'SellerRated', [{ rule: 'FR-REP-3', inputs: { count, averageTenths: value } }], now) };
+}
+
+/** An admin list's keyset from its cursor; a cursor this list did not issue is a request error. */
+function keyset(tag: ReviewListTag, cursor: string | null): KeysetPage {
+  if (cursor === null) return { after: null, limit: ADMIN_PAGE + 1 };
+  const after = decodeReviewCursor(tag, cursor);
+  if (after === null) return rejectRequest([{ field: 'cursor', issue: 'no es un cursor de esta lista' }]);
+  return { after, limit: ADMIN_PAGE + 1 };
+}
+
+/** One page of an admin list, read with one row more than the page, and the cursor of the next one. */
+function paged<R>(tag: ReviewListTag, rows: R[], keyOf: (row: R) => { at: string; id: string }): { rows: R[]; nextCursor: string | null } {
+  const page = rows.slice(0, ADMIN_PAGE);
+  const last = page.at(-1);
+  if (rows.length <= ADMIN_PAGE || last === undefined) return { rows: page, nextCursor: null };
+  const key = keyOf(last);
+  return { rows: page, nextCursor: encodeReviewCursor(tag, key.at, key.id) };
+}
 
 /** A Decision under a code whose §13 template reads only `inputs` (AD-SYS-1 rule 6). */
 function explained(outcome: DecisionOutcome, code: MessageCode, citations: [Citation, ...Citation[]], now: IsoInstant): Decision {
@@ -230,29 +267,57 @@ export class RepServiceV2 implements RepV2UseCases {
     const now = this.deps.clock.now().toISOString();
     const totals = await this.deps.transactions.run((tx) => this.deps.repo.visibleReviewTotals(tx, sellerIds), { readOnly: true });
     const bySeller = new Map(totals.map((t) => [t.sellerId, t]));
-    return {
-      aggregates: sellerIds.map((sellerId) => {
-        const t = bySeller.get(sellerId);
-        const tenths = t === undefined ? null : averageTenths(t.sum, t.count);
-        if (t === undefined || tenths === null) {
-          return { sellerId, averageTenths: null, count: 0, decision: explained('allowed', 'SellerNotYetReviewed', [{ rule: 'FR-REP-3', inputs: { count: 0 } }], now) };
-        }
-        const count = assertSafeCount(t.count);
-        const averageTenthsValue = Number(tenths);
-        return { sellerId, averageTenths: averageTenthsValue, count, decision: explained('allowed', 'SellerRated', [{ rule: 'FR-REP-3', inputs: { count, averageTenths: averageTenthsValue } }], now) };
-      }),
-    };
+    return { aggregates: sellerIds.map((sellerId) => aggregateOf(sellerId, bySeller.get(sellerId), now)) };
   }
 
-  async searchReviews(_input: SearchReviewsRequest): Promise<SearchReviewsResponse> {
-    throw new NotImplementedError('reviews.searchReviews');
+  /**
+   * S-FR-REP-6.search (AD-REP-3 rule 4, EC-34): an exact substring of the text, case- and accent-insensitive, with
+   * the query's wildcards escaped; hidden reviews included, 50 per page newest first. No export. Zero writes.
+   */
+  async searchReviews(input: SearchReviewsRequest): Promise<SearchReviewsResponse> {
+    const why = textIssue(input.query.trim(), 1, MAX_QUERY);
+    if (why !== null) rejectRequest([{ field: 'query', issue: why === 'nul' ? NUL_ISSUE : `escribe entre 1 y ${MAX_QUERY} caracteres` }]);
+    const page = keyset('search', input.cursor);
+    const rows = await this.deps.transactions.run(async (tx) => {
+      await requireAdmin(this.deps.repo, tx, input.adminId);
+      return this.deps.repo.searchReviews(tx, escapeLike(input.query.trim()), page);
+    }, { readOnly: true });
+    return paged('search', rows, (r) => ({ at: r.createdAt, id: r.reviewId }));
   }
 
-  async listReviewModerationLog(_input: ListReviewModerationLogRequest): Promise<ListReviewModerationLogResponse> {
-    throw new NotImplementedError('reviews.listReviewModerationLog');
+  /** S-FR-REP-6.log (AD-REP-3 rule 5): 50 log rows newest first by `(at desc, id)`, the order the 11.4 view merges. Zero writes. */
+  async listReviewModerationLog(input: ListReviewModerationLogRequest): Promise<ListReviewModerationLogResponse> {
+    const page = keyset('log', input.cursor);
+    const rows = await this.deps.transactions.run(async (tx) => {
+      await requireAdmin(this.deps.repo, tx, input.adminId);
+      return this.deps.repo.listReviewModerationLog(tx, input.reasonCode ?? null, page);
+    }, { readOnly: true });
+    return paged('log', rows, (r) => ({ at: r.at, id: r.logId }));
   }
 
-  async getProfile(_input: GetProfileRequest): Promise<GetProfileResponse> {
-    throw new NotImplementedError('reviews.getProfile');
+  /**
+   * S-FR-REP-7 (AD-REP-2 rule 2): P is REP-1's target rule, so an unknown user, a buyer and an unverified shop share
+   * `TargetNotFound`. The aggregate and the page of 20 visible reviews are read in one `REPEATABLE READ` read-only
+   * transaction, so a hide committing mid-read is in both or in neither. Identity's two reads run on that transaction's
+   * connection (AD-SYS-4 rule 9), so the whole profile is one connection and one snapshot (NFR-REP-2). Zero writes.
+   */
+  async getProfile(input: GetProfileRequest): Promise<GetProfileResponse> {
+    const { userId, page } = input;
+    if (!Number.isInteger(page) || page < 1 || page > MAX_PROFILE_PAGE) rejectRequest([{ field: 'page', issue: `debe ser un entero entre 1 y ${MAX_PROFILE_PAGE}` }]);
+    const { repo, transactions, identity, clock } = this.deps;
+    const now = clock.now().toISOString();
+    return transactions.run(async (tx) => {
+      const kind = reviewableKind(await identity.getReviewTarget({ userId }));
+      if (kind === null) return targetNotFound();
+      const { names } = await identity.getDisplayNames({ userIds: [userId] });
+      const totals = (await repo.visibleReviewTotals(tx, [userId]))[0];
+      const rows = await repo.visibleReviewPage(tx, userId, { offset: (page - 1) * PROFILE_PAGE, limit: PROFILE_PAGE + 1 });
+      return {
+        seller: { userId, kind, displayName: names.find((n) => n.userId === userId)?.displayName ?? null },
+        aggregate: aggregateOf(userId, totals, now),
+        reviews: rows.slice(0, PROFILE_PAGE),
+        hasMore: rows.length > PROFILE_PAGE,
+      };
+    }, { isolation: 'REPEATABLE READ', readOnly: true });
   }
 }
